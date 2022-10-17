@@ -200,9 +200,21 @@ fn search<P: AsRef<Path>>(
     Ok(())
 }
 
-/// A Python module implemented in Rust.
+#[pyfunction]
+fn do_search(querylist_path: String,
+             siglist_path: String,
+             threshold: f64,
+             ksize: u8,
+             scaled: usize,
+             output_path: String
+) -> PyResult<()> {
+    search(querylist_path, siglist_path, threshold, ksize, scaled,
+           Some(output_path));
+    Ok(())
+}
+
 #[pymodule]
 fn pymagsearch(_py: Python, m: &PyModule) -> PyResult<()> {
-//    m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    m.add_function(wrap_pyfunction!(do_search, m)?)?;
     Ok(())
 }
