@@ -262,6 +262,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
+    prefetch_output: Option<P>,
+    gather_output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -376,8 +378,11 @@ fn do_countergather(query_filename: String,
                     threshold_bp: usize,
                     ksize: u8,
                     scaled: usize,
+                    output_path_prefetch: String,
+                    output_path_gather: String,
 ) -> PyResult<()> {
-    countergather(query_filename, siglist_path, threshold_bp, ksize, scaled);
+    countergather(query_filename, siglist_path, threshold_bp, ksize, scaled,
+                  Some(output_path_prefetch), Some(output_path_gather));
     Ok(())
 }
 
