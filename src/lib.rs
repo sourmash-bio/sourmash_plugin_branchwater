@@ -291,6 +291,19 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     }
     .unwrap();
 
+    // Spawn a thread to write to prefetch output
+    let prefetch_out: Box<dyn Write + Send> = match prefetch_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let prefetch_out_thread = std::thread::spawn(move || {
+        let mut writer = BufWriter::new(prefetch_out);
+        writeln!(&mut writer, "match").unwrap();
+        /* for query in recv.into_iter() {
+            writeln!(&mut writer, "'{}'").unwrap();
+        } */
+    });
+
     println!("Loading matchlist");
     let matchlist_file = BufReader::new(File::open(matchlist)?);
 
@@ -309,6 +322,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
             }
         })
         .collect();
+    info!("Loaded {} sig paths in matchlist", matchlist_paths.len());
+
+    // let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
 
     // load the sketches in parallel; keep only those with some match.
     let matchlist: BinaryHeap<PrefetchResult> = matchlist_paths
@@ -335,6 +351,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
             mm
         })
         .collect();
+
+    if let Err(e) = prefetch_out_thread.join() {
+        error!("Unable to join internal thread: {:?}", e);
+    }
 
     if matchlist.is_empty() {
         println!("No matchlist signatures loaded, exiting.");
