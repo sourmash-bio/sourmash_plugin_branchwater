@@ -1,12 +1,18 @@
 use pyo3::prelude::*;
+use rayon::prelude::*;
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+
+use std::sync::atomic;
+use std::sync::atomic::AtomicUsize;
+
+use std::collections::BinaryHeap;
+
+use std::cmp::{PartialOrd, Ordering};
 
 use log::{error, info};
-use rayon::prelude::*;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
@@ -154,7 +160,7 @@ fn search<P: AsRef<Path>>(
     let send = search_sigs
         .par_iter()
         .filter_map(|filename| {
-            let i = processed_sigs.fetch_add(1, Ordering::SeqCst);
+            let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
                 info!("Processed {} search sigs", i);
             }
@@ -195,8 +201,159 @@ fn search<P: AsRef<Path>>(
         error!("Unable to join internal thread: {:?}", e);
     }
 
-    let i: usize = processed_sigs.fetch_max(0, Ordering::SeqCst);
+    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
     info!("DONE. Processed {} search sigs", i);
+    Ok(())
+}
+
+struct PrefetchResult {
+    name: String,
+    minhash: KmerMinHash,
+    containment: u64,
+}
+
+impl Ord for PrefetchResult {
+    fn cmp(&self, other: &PrefetchResult) -> Ordering {
+        self.containment.cmp(&other.containment)
+    }
+}
+
+impl PartialOrd for PrefetchResult {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for PrefetchResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.containment == other.containment
+    }
+}
+
+impl Eq for PrefetchResult {}
+
+fn prefetch(
+    query: &KmerMinHash,
+    sketchlist: BinaryHeap<PrefetchResult>,
+) -> BinaryHeap<PrefetchResult> {
+    sketchlist
+        .into_par_iter()
+        .filter_map(|result| {
+            let mut mm = None;
+            let searchsig = &result.minhash;
+            let containment = searchsig.count_common(query, false);
+            if let Ok(containment) = containment {
+                if containment > 0 {
+                    let result = PrefetchResult {
+                        containment,
+                        ..result
+                    };
+                    mm = Some(result);
+                }
+            }
+            mm
+        })
+        .collect()
+}
+
+fn countergather<P: AsRef<Path> + std::fmt::Debug>(
+    query_filename: P,
+    matchlist: P,
+    threshold_bp: usize,
+    ksize: u8,
+    scaled: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let max_hash = max_hash_for_scaled(scaled as u64);
+    let template_mh = KmerMinHash::builder()
+        .num(0u32)
+        .ksize(ksize as u32)
+        .max_hash(max_hash)
+        .build();
+    let template = Sketch::MinHash(template_mh);
+
+    // @CTB threshold_bp
+
+    println!("Loading query");
+    let mut query = {
+        let sigs = Signature::from_path(dbg!(query_filename)).unwrap();
+
+        let mut mm = None;
+        for sig in &sigs {
+            if let Some(mh) = prepare_query(sig, &template) {
+                mm = Some(mh.clone());
+                // doesn't this pick the last one to match the template:
+                // hmm. @CTB
+            }
+        }
+        mm
+    }
+    .unwrap();
+
+    println!("Loading matchlist");
+    let matchlist_file = BufReader::new(File::open(matchlist)?);
+
+    // build the list of paths to match against.
+    let matchlist_paths: Vec<PathBuf> = matchlist_file
+        .lines()
+        .filter_map(|line| {
+            let line = line.unwrap();
+            if !line.is_empty() {
+                // skip empty lines
+                let mut path = PathBuf::new();
+                path.push(line);
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // load the sketches in parallel; keep only those with some match.
+    let matchlist: BinaryHeap<PrefetchResult> = matchlist_paths
+        .par_iter()
+        .filter_map(|m| {
+            let sigs = Signature::from_path(m).unwrap();
+
+            let mut mm = None;
+            for sig in &sigs {
+                if let Some(mh) = prepare_query(sig, &template) {
+                    if let Ok(containment) = mh.count_common(&query, false) {
+                        if containment > 0 {
+                            let result = PrefetchResult {
+                                name: sig.name(),
+                                minhash: mh,
+                                containment,
+                            };
+                            mm = Some(result);
+                            break;
+                        }
+                    }
+                }
+            }
+            mm
+        })
+        .collect();
+
+    if matchlist.is_empty() {
+        println!("No matchlist signatures loaded, exiting.");
+        return Ok(());
+    }
+
+    let mut matching_sketches = matchlist;
+
+    // loop until no more matching sketches -
+    while !matching_sketches.is_empty() {
+        println!("remaining: {} {}", query.size(), matching_sketches.len());
+        let best_element = matching_sketches.peek().unwrap();
+
+        // remove!
+        println!("removing {}", best_element.name);
+        query.remove_from(&best_element.minhash)?;
+
+        // recalculate remaining containments between query and all sketches.
+        matching_sketches = prefetch(&query, matching_sketches);
+    }
+
     Ok(())
 }
 
@@ -213,8 +370,20 @@ fn do_search(querylist_path: String,
     Ok(())
 }
 
+#[pyfunction]
+fn do_countergather(query_filename: String,
+                    siglist_path: String,
+                    threshold_bp: usize,
+                    ksize: u8,
+                    scaled: usize,
+) -> PyResult<()> {
+    countergather(query_filename, siglist_path, threshold_bp, ksize, scaled);
+    Ok(())
+}
+
 #[pymodule]
 fn pymagsearch(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
+    m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     Ok(())
 }
