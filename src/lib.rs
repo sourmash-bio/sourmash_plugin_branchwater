@@ -262,6 +262,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
+    prefetch_output: Option<P>,
+    gather_output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -281,8 +283,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         for sig in &sigs {
             if let Some(mh) = prepare_query(sig, &template) {
                 mm = Some(mh.clone());
-                // doesn't this pick the last one to match the template:
-                // hmm. @CTB
+                break;
             }
         }
         mm
@@ -307,6 +308,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
             }
         })
         .collect();
+    info!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
     // load the sketches in parallel; keep only those with some match.
     let matchlist: BinaryHeap<PrefetchResult> = matchlist_paths
@@ -339,6 +341,27 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         return Ok(());
     }
 
+    // Write to prefetch output
+    let prefetch_out: Box<dyn Write> = match prefetch_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let mut writer = BufWriter::new(prefetch_out);
+    writeln!(&mut writer, "match,overlap").unwrap();
+    for m in &matchlist {
+        writeln!(&mut writer, "'{}',{}", m.name, m.containment);
+    }
+    // @CTB close?
+
+
+    // Write to gather output
+    let gather_out: Box<dyn Write> = match gather_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let mut writer = BufWriter::new(gather_out);
+    writeln!(&mut writer, "match,overlap").unwrap();
+
     let mut matching_sketches = matchlist;
 
     // loop until no more matching sketches -
@@ -349,6 +372,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         // remove!
         println!("removing {}", best_element.name);
         query.remove_from(&best_element.minhash)?;
+
+        writeln!(&mut writer, "'{}',{}", best_element.name, best_element.containment);
 
         // recalculate remaining containments between query and all sketches.
         matching_sketches = prefetch(&query, matching_sketches);
@@ -376,8 +401,11 @@ fn do_countergather(query_filename: String,
                     threshold_bp: usize,
                     ksize: u8,
                     scaled: usize,
+                    output_path_prefetch: String,
+                    output_path_gather: String,
 ) -> PyResult<()> {
-    countergather(query_filename, siglist_path, threshold_bp, ksize, scaled);
+    countergather(query_filename, siglist_path, threshold_bp, ksize, scaled,
+                  Some(output_path_prefetch), Some(output_path_gather));
     Ok(())
 }
 
