@@ -235,15 +235,17 @@ impl Eq for PrefetchResult {}
 fn prefetch(
     query: &KmerMinHash,
     sketchlist: BinaryHeap<PrefetchResult>,
+    threshold_hashes: u64,
 ) -> BinaryHeap<PrefetchResult> {
     sketchlist
         .into_par_iter()
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
+            // @CTB change containment
             let containment = searchsig.count_common(query, false);
             if let Ok(containment) = containment {
-                if containment > 0 {
+                if containment >= threshold_hashes {
                     let result = PrefetchResult {
                         containment,
                         ..result
@@ -272,8 +274,6 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         .max_hash(max_hash)
         .build();
     let template = Sketch::MinHash(template_mh);
-
-    // @CTB threshold_bp
 
     println!("Loading query");
     let mut query = {
@@ -308,7 +308,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
             }
         })
         .collect();
-    info!("Loaded {} sig paths in matchlist", matchlist_paths.len());
+    println!("Loaded {} sig paths in matchlist", matchlist_paths.len());
+
+    let threshold_hashes : u64 = (threshold_bp / scaled).try_into().unwrap();
+    println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // load the sketches in parallel; keep only those with some match.
     let matchlist: BinaryHeap<PrefetchResult> = matchlist_paths
@@ -320,7 +323,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
             for sig in &sigs {
                 if let Some(mh) = prepare_query(sig, &template) {
                     if let Ok(containment) = mh.count_common(&query, false) {
-                        if containment > 0 {
+                        if containment >= threshold_hashes {
                             let result = PrefetchResult {
                                 name: sig.name(),
                                 minhash: mh,
@@ -353,7 +356,6 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     }
     // @CTB close?
 
-
     // Write to gather output
     let gather_out: Box<dyn Write> = match gather_output {
         Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
@@ -376,7 +378,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         writeln!(&mut writer, "'{}',{}", best_element.name, best_element.containment);
 
         // recalculate remaining containments between query and all sketches.
-        matching_sketches = prefetch(&query, matching_sketches);
+        matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
     }
 
     Ok(())
