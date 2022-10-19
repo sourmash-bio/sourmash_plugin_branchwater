@@ -283,26 +283,12 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         for sig in &sigs {
             if let Some(mh) = prepare_query(sig, &template) {
                 mm = Some(mh.clone());
-                // doesn't this pick the last one to match the template:
-                // hmm. @CTB
+                break;
             }
         }
         mm
     }
     .unwrap();
-
-    // Spawn a thread to write to prefetch output
-    let prefetch_out: Box<dyn Write + Send> = match prefetch_output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let prefetch_out_thread = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(prefetch_out);
-        writeln!(&mut writer, "match").unwrap();
-        /* for query in recv.into_iter() {
-            writeln!(&mut writer, "'{}'").unwrap();
-        } */
-    });
 
     println!("Loading matchlist");
     let matchlist_file = BufReader::new(File::open(matchlist)?);
@@ -323,8 +309,6 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         })
         .collect();
     info!("Loaded {} sig paths in matchlist", matchlist_paths.len());
-
-    // let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
 
     // load the sketches in parallel; keep only those with some match.
     let matchlist: BinaryHeap<PrefetchResult> = matchlist_paths
@@ -352,14 +336,31 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         })
         .collect();
 
-    if let Err(e) = prefetch_out_thread.join() {
-        error!("Unable to join internal thread: {:?}", e);
-    }
-
     if matchlist.is_empty() {
         println!("No matchlist signatures loaded, exiting.");
         return Ok(());
     }
+
+    // Write to prefetch output
+    let prefetch_out: Box<dyn Write> = match prefetch_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let mut writer = BufWriter::new(prefetch_out);
+    writeln!(&mut writer, "match,overlap").unwrap();
+    for m in &matchlist {
+        writeln!(&mut writer, "'{}',{}", m.name, m.containment);
+    }
+    // @CTB close?
+
+
+    // Write to gather output
+    let gather_out: Box<dyn Write> = match gather_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let mut writer = BufWriter::new(gather_out);
+    writeln!(&mut writer, "match,overlap").unwrap();
 
     let mut matching_sketches = matchlist;
 
@@ -371,6 +372,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         // remove!
         println!("removing {}", best_element.name);
         query.remove_from(&best_element.minhash)?;
+
+        writeln!(&mut writer, "'{}',{}", best_element.name, best_element.containment);
 
         // recalculate remaining containments between query and all sketches.
         matching_sketches = prefetch(&query, matching_sketches);
