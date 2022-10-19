@@ -24,3 +24,8 @@ assert_cmd = "2.0.4"
 assert_matches = "1.5.0"
 predicates = "2.1.1"
 tempfile = "3.3.0"
+
+[profile.release]
+#target-cpu=native
+lto = "thin"
+opt-level = 3
