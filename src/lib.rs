@@ -206,6 +206,11 @@ fn search<P: AsRef<Path>>(
     Ok(())
 }
 
+struct SmallSignature {
+    name: String,
+    minhash: KmerMinHash,
+}
+
 struct PrefetchResult {
     name: String,
     minhash: KmerMinHash,
@@ -242,7 +247,7 @@ fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            // @CTB change containment
+            // @CTB change containment to overlap
             let containment = searchsig.count_common(query, false);
             if let Ok(containment) = containment {
                 if containment >= threshold_hashes {
@@ -284,9 +289,39 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
 /// Load a collection of sketches from a file.
 
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
-    Result<Vec<KmerMinHash>, Box<dyn std::error::Error>>
+    Result<Vec<SmallSignature>, Box<dyn std::error::Error>>
 {
-    let sketchlist : Vec<KmerMinHash> = sketchlist_paths
+    let sketchlist : Vec<SmallSignature> = sketchlist_paths
+        .par_iter()
+        .filter_map(|m| {
+            let sigs = Signature::from_path(m).unwrap();
+
+            let mut sm = None;
+            for sig in &sigs {
+                if let Some(mh) = prepare_query(sig, &template) {
+                    sm = Some(SmallSignature {
+                        name: sig.name(),
+                        minhash: mh,
+                    });
+                }
+            }
+            sm
+        })
+        .collect();
+    Ok(sketchlist)
+}
+
+/// Load a collection of sketches from a file, filtering w/query & threshold
+
+fn load_sketches_above_threshold(
+    sketchlist_paths: Vec<PathBuf>,
+    template: &Sketch,
+    query: &KmerMinHash,
+    threshold_hashes: u64
+) ->
+    Result<BinaryHeap<PrefetchResult>, Box<dyn std::error::Error>>
+{
+    let matchlist: BinaryHeap<PrefetchResult> = sketchlist_paths
         .par_iter()
         .filter_map(|m| {
             let sigs = Signature::from_path(m).unwrap();
@@ -294,13 +329,23 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
             let mut mm = None;
             for sig in &sigs {
                 if let Some(mh) = prepare_query(sig, &template) {
-                    mm = Some(mh);
+                    if let Ok(containment) = mh.count_common(&query, false) {
+                        if containment >= threshold_hashes {
+                            let result = PrefetchResult {
+                                name: sig.name(),
+                                minhash: mh,
+                                containment,
+                            };
+                            mm = Some(result);
+                        }
+                    }
                 }
             }
             mm
         })
         .collect();
-    Ok(sketchlist)
+
+    Ok(matchlist)
 }
 
 /// Run counter-gather with a query against a list of files.
@@ -353,32 +398,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
-
-    // load the sketches in parallel; keep only those with some match.
-    let matchlist: BinaryHeap<PrefetchResult> = matchlist_paths
-        .par_iter()
-        .filter_map(|m| {
-            let sigs = Signature::from_path(m).unwrap();
-
-            let mut mm = None;
-            for sig in &sigs {
-                if let Some(mh) = prepare_query(sig, &template) {
-                    if let Ok(containment) = mh.count_common(&query, false) {
-                        if containment >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: sig.name(),
-                                minhash: mh,
-                                containment,
-                            };
-                            mm = Some(result);
-                            break;
-                        }
-                    }
-                }
-            }
-            mm
-        })
-        .collect();
+    let matchlist = load_sketches_above_threshold(matchlist_paths,
+                                                  &template,
+                                                  &query,
+                                                  threshold_hashes).unwrap();
 
     if matchlist.is_empty() {
         println!("No matchlist signatures loaded, exiting.");
