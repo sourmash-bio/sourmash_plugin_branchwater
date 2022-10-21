@@ -258,6 +258,8 @@ fn prefetch(
         .collect()
 }
 
+/// Loads a list of filenames containing sketches from sketchlist_file.
+
 fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
     Result<Vec<PathBuf>, Box<dyn std::error::Error>>
 {
@@ -278,6 +280,30 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
         .collect();
     Ok(sketchlist_filenames)
 }
+
+/// Load a collection of sketches from a file.
+
+fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
+    Result<Vec<KmerMinHash>, Box<dyn std::error::Error>>
+{
+    let sketchlist : Vec<KmerMinHash> = sketchlist_paths
+        .par_iter()
+        .filter_map(|m| {
+            let sigs = Signature::from_path(m).unwrap();
+
+            let mut mm = None;
+            for sig in &sigs {
+                if let Some(mh) = prepare_query(sig, &template) {
+                    mm = Some(mh);
+                }
+            }
+            mm
+        })
+        .collect();
+    Ok(sketchlist)
+}
+
+/// Run counter-gather with a query against a list of files.
 
 fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     query_filename: P,
