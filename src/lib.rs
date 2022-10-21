@@ -152,8 +152,8 @@ fn search<P: AsRef<Path>>(
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
         writeln!(&mut writer, "query,Run,containment").unwrap();
-        for (query, m, containment) in recv.into_iter() {
-            writeln!(&mut writer, "'{}','{}',{}", query, m, containment).unwrap();
+        for (query, m, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "'{}','{}',{}", query, m, overlap).unwrap();
         }
     });
 
@@ -178,10 +178,10 @@ fn search<P: AsRef<Path>>(
             let mut results = vec![];
 
             for (name, query) in &queries {
-                let containment =
+                let overlap =
                     query.count_common(&search_mh, false).unwrap() as f64 / query.size() as f64;
-                if containment > threshold {
-                    results.push((name.clone(), match_fn.clone(), containment))
+                if overlap > threshold {
+                    results.push((name.clone(), match_fn.clone(), overlap))
                 }
             }
             if results.is_empty() {
@@ -214,12 +214,12 @@ struct SmallSignature {
 struct PrefetchResult {
     name: String,
     minhash: KmerMinHash,
-    containment: u64,
+    overlap: u64,
 }
 
 impl Ord for PrefetchResult {
     fn cmp(&self, other: &PrefetchResult) -> Ordering {
-        self.containment.cmp(&other.containment)
+        self.overlap.cmp(&other.overlap)
     }
 }
 
@@ -231,7 +231,7 @@ impl PartialOrd for PrefetchResult {
 
 impl PartialEq for PrefetchResult {
     fn eq(&self, other: &Self) -> bool {
-        self.containment == other.containment
+        self.overlap == other.overlap
     }
 }
 
@@ -247,12 +247,12 @@ fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            // @CTB change containment to overlap
-            let containment = searchsig.count_common(query, false);
-            if let Ok(containment) = containment {
-                if containment >= threshold_hashes {
+            // @CTB change overlap to overlap
+            let overlap = searchsig.count_common(query, false);
+            if let Ok(overlap) = overlap {
+                if overlap >= threshold_hashes {
                     let result = PrefetchResult {
-                        containment,
+                        overlap,
                         ..result
                     };
                     mm = Some(result);
@@ -329,12 +329,12 @@ fn load_sketches_above_threshold(
             let mut mm = None;
             for sig in &sigs {
                 if let Some(mh) = prepare_query(sig, &template) {
-                    if let Ok(containment) = mh.count_common(&query, false) {
-                        if containment >= threshold_hashes {
+                    if let Ok(overlap) = mh.count_common(&query, false) {
+                        if overlap >= threshold_hashes {
                             let result = PrefetchResult {
                                 name: sig.name(),
                                 minhash: mh,
-                                containment,
+                                overlap,
                             };
                             mm = Some(result);
                         }
@@ -416,7 +416,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     let mut writer = BufWriter::new(prefetch_out);
     writeln!(&mut writer, "match,overlap").unwrap();
     for m in &matchlist {
-        writeln!(&mut writer, "'{}',{}", m.name, m.containment);
+        writeln!(&mut writer, "'{}',{}", m.name, m.overlap);
     }
     // @CTB close?
 
@@ -439,9 +439,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         println!("removing {}", best_element.name);
         query.remove_from(&best_element.minhash)?;
 
-        writeln!(&mut writer, "'{}',{}", best_element.name, best_element.containment);
+        writeln!(&mut writer, "'{}',{}", best_element.name, best_element.overlap);
 
-        // recalculate remaining containments between query and all sketches.
+        // recalculate remaining overlaps between query and all sketches.
         matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
     }
 
