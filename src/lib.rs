@@ -258,9 +258,30 @@ fn prefetch(
         .collect()
 }
 
+fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
+    Result<Vec<PathBuf>, Box<dyn std::error::Error>>
+{
+    let sketchlist_file = BufReader::new(File::open(sketchlist_file)?);
+    let sketchlist_filenames = sketchlist_file
+        .lines()
+        .filter_map(|line| {
+            let line = line.unwrap();
+            if !line.is_empty() {
+                // skip empty lines
+                let mut path = PathBuf::new();
+                path.push(line);
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect();
+    Ok(sketchlist_filenames)
+}
+
 fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     query_filename: P,
-    matchlist: P,
+    matchlist_filename: P,
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
@@ -290,28 +311,22 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     }
     .unwrap();
 
-    println!("Loading matchlist");
-    let matchlist_file = BufReader::new(File::open(matchlist)?);
-
     // build the list of paths to match against.
-    let matchlist_paths: Vec<PathBuf> = matchlist_file
-        .lines()
-        .filter_map(|line| {
-            let line = line.unwrap();
-            if !line.is_empty() {
-                // skip empty lines
-                let mut path = PathBuf::new();
-                path.push(line);
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
+    println!("Loading matchlist");
+    let matchlist_paths = load_sketchlist_filenames(matchlist_filename).unwrap();
     println!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
-    let threshold_hashes : u64 = (threshold_bp / scaled).try_into().unwrap();
+    let threshold_hashes : u64 = {
+        let x = threshold_bp / scaled;
+        if x > 0 {
+            x
+        } else {
+            1
+        }
+    }.try_into().unwrap();
+
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
+
 
     // load the sketches in parallel; keep only those with some match.
     let matchlist: BinaryHeap<PrefetchResult> = matchlist_paths
