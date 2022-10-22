@@ -470,11 +470,11 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug>(
 
     // loop until no more matching sketches -
     while !sketchlist.is_empty() {
-        println!("remaining: {} {}", query.size(), sketchlist.len());
+        println!("{}: remaining: {} {}", query_label, query.size(), sketchlist.len());
         let best_element = sketchlist.peek().unwrap();
 
         // remove!
-        println!("removing {}", best_element.name);
+        println!("{}: removing {}", query_label, best_element.name);
         query.remove_from(&best_element.minhash)?;
 
         writeln!(&mut writer, "'{}','{}',{}", query_label, best_element.name,
