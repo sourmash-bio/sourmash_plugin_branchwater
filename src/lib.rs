@@ -247,7 +247,6 @@ fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            // @CTB change overlap to overlap
             let overlap = searchsig.count_common(query, false);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {
