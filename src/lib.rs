@@ -503,12 +503,12 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
     let template = Sketch::MinHash(template_mh);
 
     // load the list of query paths
-    let querylist_paths = load_sketchlist_filenames(query_filenames).unwrap();
+    let querylist_paths = load_sketchlist_filenames(query_filenames)?;
     println!("Loaded {} sig paths in querylist", querylist_paths.len());
 
     // build the list of paths to match against.
     println!("Loading matchlist");
-    let matchlist_paths = load_sketchlist_filenames(matchlist_filename).unwrap();
+    let matchlist_paths = load_sketchlist_filenames(matchlist_filename)?;
     println!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
     let threshold_hashes : u64 = {
@@ -608,9 +608,12 @@ fn do_countergather(query_filename: String,
                     output_path_prefetch: String,
                     output_path_gather: String,
 ) -> PyResult<()> {
-    countergather(query_filename, siglist_path, threshold_bp, ksize, scaled,
+    let x = countergather(query_filename, siglist_path, threshold_bp, ksize, scaled,
                   Some(output_path_prefetch), Some(output_path_gather));
-    Ok(())
+    match x {
+        Ok(_) => Ok(()),
+        Err(error) => Err(SomeError::new_err("fiz")),
+    }
 }
 
 #[pyfunction]
@@ -620,8 +623,12 @@ fn do_countergather2(query_filenames: String,
                     ksize: u8,
                     scaled: usize,
 ) -> PyResult<()> {
-    countergather2(query_filenames, siglist_path, threshold_bp, ksize, scaled);
-    Ok(())
+    let x = countergather2(query_filenames, siglist_path, threshold_bp,
+                           ksize, scaled);
+    match x {
+        Ok(_) => Ok(()),
+        Err(error) => Err(SomeError::new_err("fiz")),
+    }
 }
 
 #[pymodule]
