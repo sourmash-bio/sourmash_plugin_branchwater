@@ -1,4 +1,7 @@
 use pyo3::prelude::*;
+use pyo3::create_exception;
+use pyo3::exceptions::PyException;
+
 use rayon::prelude::*;
 
 use std::fs::File;
@@ -16,6 +19,14 @@ use log::{error, info};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
+
+create_exception!(pymagsearch, SomeError, pyo3::exceptions::PyException);
+
+impl std::convert::From<SomeError> for PyErr {
+    fn from(err: SomeError) -> PyErr {
+        PyException::new_err(err.to_string())
+    }
+}
 
 fn check_compatible_downsample(
     me: &KmerMinHash,
@@ -529,7 +540,7 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 let mut mm = None;
                 for sig in &sigs {
                     if let Some(mh) = prepare_query(sig, &template) {
-                        mm = Some(mh.clone());
+                        mm = Some(mh);
                         break;
                     }
                 }
@@ -614,9 +625,10 @@ fn do_countergather2(query_filenames: String,
 }
 
 #[pymodule]
-fn pymagsearch(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pymagsearch(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather2, m)?)?;
+    m.add("SomeError", py.get_type::<SomeError>())?;
     Ok(())
 }
