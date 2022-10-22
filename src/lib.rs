@@ -529,7 +529,7 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
     let processed_queries = AtomicUsize::new(0);
 
     querylist_paths
-        .iter()
+        .par_iter()
         .for_each(|q| {
             let i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
 
