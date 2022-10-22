@@ -237,7 +237,9 @@ impl PartialEq for PrefetchResult {
 
 impl Eq for PrefetchResult {}
 
-fn prefetch(
+// Find overlapping above specified threshold.
+
+fn filter_overlapping(
     query: &KmerMinHash,
     sketchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
@@ -441,7 +443,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         writeln!(&mut writer, "'{}',{}", best_element.name, best_element.overlap);
 
         // recalculate remaining overlaps between query and all sketches.
-        matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
+        matching_sketches = filter_overlapping(&query, matching_sketches,
+                                               threshold_hashes);
     }
 
     Ok(())
@@ -557,7 +560,8 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug>(
         writeln!(&mut writer, "'{}',{}", best_element.name, best_element.overlap);
 
         // recalculate remaining overlaps between query and all sketches.
-        matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
+        matching_sketches = filter_overlapping(&query, matching_sketches,
+                                               threshold_hashes);
     }
 
     Ok(())
