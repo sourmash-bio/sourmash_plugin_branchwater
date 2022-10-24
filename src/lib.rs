@@ -532,53 +532,55 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
         .par_iter()
         .for_each(|q| {
             let i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
+            let query_label = q.clone().into_os_string().into_string().unwrap();
 
-            let query = {
+            if let Some(query) = {
                 // load query from q
-                let sigs = Signature::from_path(dbg!(q)).unwrap();
-
                 let mut mm = None;
-                for sig in &sigs {
-                    if let Some(mh) = prepare_query(sig, &template) {
-                        mm = Some(mh);
-                        break;
+                if let Ok(sigs) = Signature::from_path(dbg!(q)) {
+                    for sig in &sigs {
+                        if let Some(mh) = prepare_query(sig, &template) {
+                            mm = Some(mh);
+                            break;
+                        }
                     }
                 }
                 mm
-            }.unwrap();
+            } {
+                // filter first set of matches out of sketchlist
+                    let matchlist: BinaryHeap<PrefetchResult> = sketchlist
+                    .par_iter()
+                    .filter_map(|sm| {
+                        let mut mm = None;
 
-            // filter first set of matches out of sketchlist
-            let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                .par_iter()
-                .filter_map(|sm| {
-                    let mut mm = None;
-
-                    if let Ok(overlap) = sm.minhash.count_common(&query, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: sm.name.clone(),
-                                minhash: sm.minhash.clone(),
-                                overlap,
-                            };
-                            mm = Some(result);
+                        if let Ok(overlap) = sm.minhash.count_common(&query, false) {
+                            if overlap >= threshold_hashes {
+                                let result = PrefetchResult {
+                                    name: sm.name.clone(),
+                                    minhash: sm.minhash.clone(),
+                                    overlap,
+                                };
+                                mm = Some(result);
+                            }
                         }
-                    }
-                    mm
-                })
-                .collect();
+                        mm
+                    })
+                    .collect();
 
-            if matchlist.len() > 0 {
-                let prefetch_output = format!("prefetch-{i}.csv");
-                let gather_output = format!("gather-{i}.csv");
-                let query_label = q.clone().into_os_string().into_string().unwrap();
+                if matchlist.len() > 0 {
+                    let prefetch_output = format!("prefetch-{i}.csv");
+                    let gather_output = format!("gather-{i}.csv");
 
-                // save initial list of matches to prefetch output
-                write_prefetch(query_label.clone(), Some(prefetch_output),
-                               &matchlist);
+                    // save initial list of matches to prefetch output
+                    write_prefetch(query_label.clone(), Some(prefetch_output),
+                                   &matchlist);
 
-                // now, do the gather!
-                consume_query_by_gather(query, matchlist, threshold_hashes,
-                                        Some(gather_output), query_label);
+                    // now, do the gather!
+                    consume_query_by_gather(query, matchlist, threshold_hashes,
+                                            Some(gather_output), query_label);
+                }
+            } else {
+                println!("ERROR loading signature from '{}'", query_label);
             }
         });
 
