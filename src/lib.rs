@@ -578,6 +578,8 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     // now, do the gather!
                     consume_query_by_gather(query, matchlist, threshold_hashes,
                                             Some(gather_output), query_label);
+                } else {
+                    println!("No matches to '{}'", query_label);
                 }
             } else {
                 println!("ERROR loading signature from '{}'", query_label);
