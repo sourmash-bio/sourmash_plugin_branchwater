@@ -12,3 +12,11 @@ classifiers = [
 ]
 
 
+[project.scripts]
+"pymagsearch" = "pymagsearch.__main__:main"
+
+[project.entry-points."sourmash.cli_script"]
+magsearch = "pymagsearch.sourmash_plugin:Magsearch_Extension"
+
+[tool.maturin]
+python-source = "python"
