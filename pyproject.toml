@@ -3,7 +3,7 @@ requires = ["maturin>=0.13,<0.14"]
 build-backend = "maturin"
 
 [project]
-name = "branchwater"
+name = "pyo3-branchwater"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Rust",
@@ -13,11 +13,11 @@ classifiers = [
 
 
 [project.scripts]
-"branchwater" = "branchwater.__main__:main"
+"pyo3_branchwater" = "pyo3_branchwater.__main__:main"
 
 [project.entry-points."sourmash.cli_script"]
-manysearch = "branchwater.sourmash_plugin:Branchwater_Manysearch"
-manygather = "branchwater.sourmash_plugin:Branchwater_Manygather"
+manysearch = "pyo3_branchwater.sourmash_plugin:Branchwater_Manysearch"
+manygather = "pyo3_branchwater.sourmash_plugin:Branchwater_Manygather"
 
 [tool.maturin]
 python-source = "python"

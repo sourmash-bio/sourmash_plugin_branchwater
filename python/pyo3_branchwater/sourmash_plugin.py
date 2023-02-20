@@ -4,7 +4,7 @@ import argparse
 from sourmash.plugins import CommandLinePlugin
 from sourmash.logging import notify
 
-from . import branchwater
+from . import pyo3_branchwater
 
 class Branchwater_Manysearch(CommandLinePlugin):
     command = 'manysearch'
@@ -22,12 +22,12 @@ class Branchwater_Manysearch(CommandLinePlugin):
     def main(self, args):
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}'")
         super().main(args)
-        branchwater.do_search(args.query_paths,
-                              args.against_paths,
-                              args.threshold,
-                              args.ksize,
-                              args.scaled,
-                              args.output)
+        pyo3_branchwater.do_search(args.query_paths,
+                                    args.against_paths,
+                                    args.threshold,
+                                    args.ksize,
+                                    args.scaled,
+                                    args.output)
         notify(f"...done! results in '{args.output}'")
 
 class Branchwater_Manygather(CommandLinePlugin):
@@ -47,12 +47,12 @@ class Branchwater_Manygather(CommandLinePlugin):
     def main(self, args):
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}'")
         super().main(args)
-        branchwater.do_countergather(args.query_paths,
-                                     args.against_paths,
-                                     int(args.threshold_bp),
-                                     args.ksize,
-                                     args.scaled,
-                                     args.output_gather,
-                                     args.output_prefetch)
+        pyo3_branchwater.do_countergather(args.query_paths,
+                                           args.against_paths,
+                                           int(args.threshold_bp),
+                                           args.ksize,
+                                           args.scaled,
+                                           args.output_gather,
+                                           args.output_prefetch)
         notify(f"...done! gather results in '{args.output_gather}'")
         notify(f"prefetch results in '{args.output_prefetch}'")
