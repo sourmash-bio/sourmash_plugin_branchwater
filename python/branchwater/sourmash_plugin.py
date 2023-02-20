@@ -5,8 +5,8 @@ from sourmash.plugins import CommandLinePlugin
 
 from . import pymagsearch
 
-class Magsearch_Extension(CommandLinePlugin):
-    command = 'magsearch'
+class Branchwater_Extension(CommandLinePlugin):
+    command = 'branchwater'
     description = 'massively parallel sketch search'
 
     def __init__(self, p):
