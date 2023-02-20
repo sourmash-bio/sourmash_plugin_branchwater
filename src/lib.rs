@@ -475,7 +475,7 @@ fn do_countergather(query_filename: String,
 }
 
 #[pymodule]
-fn pymagsearch(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     Ok(())

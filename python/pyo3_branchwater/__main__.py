@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import sys
 import argparse
-from . import pymagsearch
+from . import _pyo3_branchwater
 
 
 def main():
@@ -14,12 +14,12 @@ def main():
     p.add_argument('-s', '--scaled', default=1000, type=int)
     args = p.parse_args()
 
-    pymagsearch.do_search(args.query_paths,
-                          args.against_paths,
-                          args.threshold,
-                          args.ksize,
-                          args.scaled,
-                          args.output)
+    pyo3_branchwater.do_search(args.query_paths,
+                               args.against_paths,
+                               args.threshold,
+                               args.ksize,
+                               args.scaled,
+                               args.output)
 
 
 if __name__ == '__main__':
