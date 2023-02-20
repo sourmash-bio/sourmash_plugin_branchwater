@@ -16,7 +16,8 @@ classifiers = [
 "branchwater" = "branchwater.__main__:main"
 
 [project.entry-points."sourmash.cli_script"]
-magsearch = "branchwater.sourmash_plugin:Branchwater_Extension"
+manysearch = "branchwater.sourmash_plugin:Branchwater_Manysearch"
+manygather = "branchwater.sourmash_plugin:Branchwater_Manygather"
 
 [tool.maturin]
 python-source = "python"
