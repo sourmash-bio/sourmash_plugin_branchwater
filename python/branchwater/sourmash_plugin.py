@@ -40,16 +40,19 @@ class Branchwater_Manygather(CommandLinePlugin):
         p.add_argument('against_paths')
         p.add_argument('-o', '--output-gather', required=True)
         p.add_argument('--output-prefetch', required=True)
-        p.add_argument('-t', '--threshold', default=0.01, type=float)
+        p.add_argument('-t', '--threshold-bp', default=100000, type=float)
         p.add_argument('-k', '--ksize', default=31, type=int)
         p.add_argument('-s', '--scaled', default=1000, type=int)
 
     def main(self, args):
-        print(args)
+        notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}'")
         super().main(args)
         branchwater.do_countergather(args.query_paths,
                                      args.against_paths,
-                                     args.threshold,
+                                     int(args.threshold_bp),
                                      args.ksize,
                                      args.scaled,
-                                     args.output)
+                                     args.output_gather,
+                                     args.output_prefetch)
+        notify(f"...done! gather results in '{args.output_gather}'")
+        notify(f"prefetch results in '{args.output_prefetch}'")
