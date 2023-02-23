@@ -69,6 +69,11 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
     search_mh
 }
 
+/// Search many queries against a list of signatures.
+///
+/// Note: this function loads all _queries_ into memory, and iterates over
+/// database once.
+
 fn search<P: AsRef<Path>>(
     querylist: P,
     siglist: P,
@@ -89,12 +94,13 @@ fn search<P: AsRef<Path>>(
         .build();
     let template = Sketch::MinHash(template_mh);
 
+    // Load all queries into memory at once.
     let queries: Vec<(String, KmerMinHash)> = querylist_file
         .lines()
         .filter_map(|line| {
             let line = line.unwrap();
             if !line.is_empty() {
-                // skip empty lines
+                // skip empty lines; load non-empty!
                 let mut path = PathBuf::new();
                 path.push(line);
                 Some(path)
@@ -102,6 +108,7 @@ fn search<P: AsRef<Path>>(
                 None
             }
         })
+        // on non-empty paths, load whichever one matches.
         .filter_map(|query| {
             let query_sig = Signature::from_path(query).unwrap();
 
@@ -123,6 +130,7 @@ fn search<P: AsRef<Path>>(
 
     info!("Loaded {} query signatures", queries.len());
 
+    // Load all _paths_, not signatures, into memory.
     info!("Loading siglist");
     let siglist_file = BufReader::new(File::open(siglist)?);
     let search_sigs: Vec<PathBuf> = siglist_file
@@ -151,12 +159,15 @@ fn search<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query,Run,containment").unwrap();
+        writeln!(&mut writer, "query,match,containment").unwrap();
         for (query, m, overlap) in recv.into_iter() {
             writeln!(&mut writer, "'{}','{}',{}", query, m, overlap).unwrap();
         }
     });
 
+    // Main loop: iterate (in parallel) over all search signature paths,
+    // loading them individually and searching them. Stuff results into
+    // the writer thread above.
     let send = search_sigs
         .par_iter()
         .filter_map(|filename| {
@@ -166,9 +177,11 @@ fn search<P: AsRef<Path>>(
             }
 
             let mut search_mh = None;
+            // load search signature.
             let search_sig = &Signature::from_path(&filename)
                 .unwrap_or_else(|_| panic!("Error processing {:?}", filename))[0];
 
+            // make sure it is compatible etc.
             if let Some(mh) = prepare_query(search_sig, &template) {
                 search_mh = Some(mh);
             }
@@ -177,6 +190,7 @@ fn search<P: AsRef<Path>>(
             let match_fn = filename.clone().into_os_string().into_string().unwrap();
             let mut results = vec![];
 
+            // search for matches & save containment.
             for (name, query) in &queries {
                 let overlap =
                     query.count_common(&search_mh, false).unwrap() as f64 / query.size() as f64;
