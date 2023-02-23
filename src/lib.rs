@@ -73,6 +73,13 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
 ///
 /// Note: this function loads all _queries_ into memory, and iterates over
 /// database once.
+///
+/// TODO:
+///   - support jaccard as well as containment
+///   - support more output column names a la sourmash
+///   - give some examples or tutorials
+///   - write plugin tests
+///   - add Makefile...
 
 fn search<P: AsRef<Path>>(
     querylist: P,
@@ -195,7 +202,7 @@ fn search<P: AsRef<Path>>(
                 let overlap =
                     query.count_common(&search_mh, false).unwrap() as f64 / query.size() as f64;
                 if overlap > threshold {
-                    results.push((name.clone(), match_fn.clone(), overlap))
+                    results.push((name.clone(), search_sig.name(), overlap))
                 }
             }
             if results.is_empty() {
