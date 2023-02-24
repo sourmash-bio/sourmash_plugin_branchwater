@@ -76,7 +76,7 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
 ///
 /// TODO:
 ///   - support jaccard as well as containment/overlap
-///   - support more output column names a la sourmash
+///   - support md5 output columns; other?
 ///   - write plugin tests
 
 fn search<P: AsRef<Path>>(
