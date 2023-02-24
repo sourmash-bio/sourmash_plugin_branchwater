@@ -12,7 +12,8 @@ Uses [pyo3](https://github.com/PyO3/pyo3) for wrapping.
 
 ## Quickstart
 
-This uses [the 64 genomes from Awad et al., 2017](https://osf.io/vk4fa/).
+This quickstart demonstrates `manysearch` using
+[the 64 genomes from Awad et al., 2017](https://osf.io/vk4fa/).
 
 ### First, install this code.
 
@@ -44,11 +45,12 @@ ls -1 podar-ref/* > podar-ref-list.txt
 
 ### Fourth: Execute!
 
+Now run `manysearch`:
 ```
 sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv
 ```
 
-You will see a set of results in `results.csv`.
+You will (hopefully ;) see a set of results in `results.csv`.
 
 ## Debugging help
 
