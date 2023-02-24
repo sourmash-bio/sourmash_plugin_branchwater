@@ -79,7 +79,6 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
 ///   - support more output column names a la sourmash
 ///   - give some examples or tutorials
 ///   - write plugin tests
-///   - add Makefile...
 
 fn search<P: AsRef<Path>>(
     querylist: P,

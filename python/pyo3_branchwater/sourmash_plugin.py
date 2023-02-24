@@ -12,12 +12,17 @@ class Branchwater_Manysearch(CommandLinePlugin):
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('query_paths')
-        p.add_argument('against_paths')
+        p.add_argument('query_paths',
+                       help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('against_paths',
+                       help="a text file containing paths to .sig/.sig.gz files")
         p.add_argument('-o', '--output', required=True)
-        p.add_argument('-t', '--threshold', default=0.01, type=float)
-        p.add_argument('-k', '--ksize', default=31, type=int)
-        p.add_argument('-s', '--scaled', default=1000, type=int)
+        p.add_argument('-t', '--threshold', default=0.01, type=float,
+                       help="containment threshold for matches")
+        p.add_argument('-k', '--ksize', default=31, type=int,
+                       help="k-mer size for which to load sketches & do search")
+        p.add_argument('-s', '--scaled', default=1000, type=int,
+                       help="scaled value for which to load sketches & do search")
 
     def main(self, args):
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}'")
@@ -29,6 +34,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                     args.scaled,
                                     args.output)
         notify(f"...done! results in '{args.output}'")
+
 
 class Branchwater_Manygather(CommandLinePlugin):
     command = 'manygather'
