@@ -192,7 +192,6 @@ fn search<P: AsRef<Path>>(
             }
             let search_mh = search_mh.unwrap();
 
-            let match_fn = filename.clone().into_os_string().into_string().unwrap();
             let mut results = vec![];
 
             // search for matches & save containment.
@@ -434,7 +433,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     let mut writer = BufWriter::new(prefetch_out);
     writeln!(&mut writer, "match,overlap").unwrap();
     for m in &matchlist {
-        writeln!(&mut writer, "'{}',{}", m.name, m.overlap);
+        writeln!(&mut writer, "'{}',{}", m.name, m.overlap).ok();
     }
     // @CTB close?
 
@@ -457,7 +456,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         println!("removing {}", best_element.name);
         query.remove_from(&best_element.minhash)?;
 
-        writeln!(&mut writer, "'{}',{}", best_element.name, best_element.overlap);
+        writeln!(&mut writer, "'{}',{}", best_element.name, best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
         matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
@@ -475,7 +474,7 @@ fn do_search(querylist_path: String,
              output_path: String
 ) -> PyResult<()> {
     search(querylist_path, siglist_path, threshold, ksize, scaled,
-           Some(output_path));
+           Some(output_path)).ok();
     Ok(())
 }
 
@@ -489,7 +488,7 @@ fn do_countergather(query_filename: String,
                     output_path_gather: String,
 ) -> PyResult<()> {
     countergather(query_filename, siglist_path, threshold_bp, ksize, scaled,
-                  Some(output_path_prefetch), Some(output_path_gather));
+                  Some(output_path_prefetch), Some(output_path_gather)).ok();
     Ok(())
 }
 
