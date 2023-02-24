@@ -8,3 +8,6 @@ install:
 
 clean:
 	$(PYTHON) -m pip uninstall .
+
+test:
+	$(PYTHON) -m pytest
