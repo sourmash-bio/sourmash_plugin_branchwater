@@ -89,6 +89,7 @@ fn search<P: AsRef<Path>>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Loading queries");
 
+    eprintln!("Reading querylist from: {}", querylist.as_ref().display());
     let querylist_handle = match File::open(querylist) {
         Ok(file) => file,
         Err(e) => {
@@ -144,8 +145,15 @@ fn search<P: AsRef<Path>>(
     info!("Loaded {} query signatures", queries.len());
 
     // Load all _paths_, not signatures, into memory.
-    info!("Loading siglist");
-    let siglist_file = BufReader::new(File::open(siglist)?);
+    eprintln!("Reading search file paths from: {}", siglist.as_ref().display());
+    let siglist_handle = match File::open(siglist) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            return Err(Box::new(e))
+        }
+    };
+    let siglist_file = BufReader::new(siglist_handle);
     let search_sigs: Vec<PathBuf> = siglist_file
         .lines()
         .filter_map(|line| {

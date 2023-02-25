@@ -33,7 +33,6 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                             args.ksize,
                                             args.scaled,
                                             args.output)
-        print('XXX', status)
         if status == 0:
             notify(f"...done! results in '{args.output}'")
         return status
