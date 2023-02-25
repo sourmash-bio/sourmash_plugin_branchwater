@@ -1,5 +1,6 @@
 import os
 import pytest
+import pandas
 
 import sourmash_tst_utils as utils
 
@@ -38,3 +39,6 @@ def test_simple(runtmp):
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
