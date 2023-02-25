@@ -12,6 +12,9 @@ use std::collections::BinaryHeap;
 
 use std::cmp::{PartialOrd, Ordering};
 
+#[macro_use]
+extern crate simple_error;
+
 use log::{error, info};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
@@ -77,7 +80,6 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
 /// TODO:
 ///   - support jaccard as well as containment/overlap
 ///   - support md5 output columns; other?
-///   - write plugin tests
 
 fn search<P: AsRef<Path>>(
     querylist: P,
@@ -98,15 +100,7 @@ fn search<P: AsRef<Path>>(
 
     // Read in list of query paths.
     eprintln!("Reading querylist from: {}", querylist.as_ref().display());
-    let querylist_handle = match File::open(querylist) {
-        Ok(file) => file,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            return Err(Box::new(e))
-        }
-    };
-
-    let querylist_file = BufReader::new(querylist_handle);
+    let querylist_file = BufReader::new(File::open(querylist)?);
 
     // Load all queries into memory at once.
     let queries: Vec<(String, KmerMinHash)> = querylist_file
@@ -138,22 +132,15 @@ fn search<P: AsRef<Path>>(
         .collect();
 
     if queries.is_empty() {
-        info!("No query signatures loaded, exiting.");
-        return Ok(());
+        bail!("No query signatures loaded, exiting.");
     }
 
     eprintln!("Loaded {} query signatures", queries.len());
 
     // Load all _paths_, not signatures, into memory.
     eprintln!("Reading search file paths from: {}", siglist.as_ref().display());
-    let siglist_handle = match File::open(siglist) {
-        Ok(file) => file,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            return Err(Box::new(e))
-        }
-    };
-    let siglist_file = BufReader::new(siglist_handle);
+
+    let siglist_file = BufReader::new(File::open(siglist)?);
     let search_sigs: Vec<PathBuf> = siglist_file
         .lines()
         .filter_map(|line| {
@@ -167,6 +154,10 @@ fn search<P: AsRef<Path>>(
             }
         })
         .collect();
+    if search_sigs.is_empty() {
+        bail!("No signatures to search loaded, exiting.");
+    }
+
     eprintln!("Loaded {} sig paths to search.", search_sigs.len());
 
     // set up a multi-producer, single-consumer channel.
@@ -500,7 +491,10 @@ fn do_search(querylist_path: String,
     match search(querylist_path, siglist_path, threshold, ksize, scaled,
                  Some(output_path)) {
         Ok(_) => Ok(0),
-        Err(_) => Ok(1),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
     }
 }
 

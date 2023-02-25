@@ -732,6 +732,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "simple-error",
  "sourmash",
  "tempfile",
 ]
@@ -901,6 +902,12 @@ dependencies = [
  "ryu",
  "serde",
 ]
+
+[[package]]
+name = "simple-error"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8542b68b8800c3cda649d2c72d688b6907b30f1580043135d61669d4aad1c175"
 
 [[package]]
 name = "smallvec"
