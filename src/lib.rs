@@ -399,7 +399,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         .build();
     let template = Sketch::MinHash(template_mh);
 
-    println!("Loading query from {}", query_filename.as_ref().display());
+    eprintln!("Loading query from '{}'", query_filename.as_ref().display());
     let query = {
         let mut mm = None;
 
@@ -421,9 +421,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     };
 
     // build the list of paths to match against.
-    println!("Loading matchlist");
-    let matchlist_paths = load_sketchlist_filenames(matchlist_filename).unwrap();
-    println!("Loaded {} sig paths in matchlist", matchlist_paths.len());
+    eprintln!("Loading matchlist from '{}'", matchlist_filename.as_ref().display());
+    let matchlist_paths = load_sketchlist_filenames(matchlist_filename)?;
+
+    eprintln!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
     let threshold_hashes : u64 = {
         let x = threshold_bp / scaled;
@@ -432,17 +433,17 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         } else {
             1
         }
-    }.try_into().unwrap();
+    }.try_into()?;
 
-    println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
+    eprintln!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     let matchlist = load_sketches_above_threshold(matchlist_paths,
                                                   &template,
                                                   &query,
-                                                  threshold_hashes).unwrap();
+                                                  threshold_hashes)?;
 
     if matchlist.is_empty() {
-        println!("No matchlist signatures loaded, exiting.");
+        eprintln!("No matchlist signatures loaded, exiting.");
         return Ok(());
     }
 
