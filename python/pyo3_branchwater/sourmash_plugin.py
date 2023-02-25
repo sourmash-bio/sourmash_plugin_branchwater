@@ -34,7 +34,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                             args.scaled,
                                             args.output)
         if status == 0:
-            notify(f"...done! results in '{args.output}'")
+            notify(f"...manysearch is done! results in '{args.output}'")
         return status
 
 

@@ -87,8 +87,16 @@ fn search<P: AsRef<Path>>(
     scaled: usize,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Loading queries");
+    // construct a MinHash template for loading.
+    let max_hash = max_hash_for_scaled(scaled as u64);
+    let template_mh = KmerMinHash::builder()
+        .num(0u32)
+        .ksize(ksize as u32)
+        .max_hash(max_hash)
+        .build();
+    let template = Sketch::MinHash(template_mh);
 
+    // Read in list of query paths.
     eprintln!("Reading querylist from: {}", querylist.as_ref().display());
     let querylist_handle = match File::open(querylist) {
         Ok(file) => file,
@@ -99,14 +107,6 @@ fn search<P: AsRef<Path>>(
     };
 
     let querylist_file = BufReader::new(querylist_handle);
-
-    let max_hash = max_hash_for_scaled(scaled as u64);
-    let template_mh = KmerMinHash::builder()
-        .num(0u32)
-        .ksize(ksize as u32)
-        .max_hash(max_hash)
-        .build();
-    let template = Sketch::MinHash(template_mh);
 
     // Load all queries into memory at once.
     let queries: Vec<(String, KmerMinHash)> = querylist_file
@@ -122,7 +122,7 @@ fn search<P: AsRef<Path>>(
                 None
             }
         })
-        // on non-empty paths, load whichever one matches.
+        // for non-empty paths, load whichever one matches template.
         .filter_map(|query| {
             let query_sig = Signature::from_path(query).unwrap();
 
@@ -142,7 +142,7 @@ fn search<P: AsRef<Path>>(
         return Ok(());
     }
 
-    info!("Loaded {} query signatures", queries.len());
+    eprintln!("Loaded {} query signatures", queries.len());
 
     // Load all _paths_, not signatures, into memory.
     eprintln!("Reading search file paths from: {}", siglist.as_ref().display());
@@ -167,13 +167,12 @@ fn search<P: AsRef<Path>>(
             }
         })
         .collect();
-    info!("Loaded {} sig paths in siglist", search_sigs.len());
+    eprintln!("Loaded {} sig paths to search.", search_sigs.len());
 
-    let processed_sigs = AtomicUsize::new(0);
-
+    // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
 
-    // Spawn a thread that is dedicated to printing to a buffered output
+    // & spawn a thread that is dedicated to printing to a buffered output
     let out: Box<dyn Write + Send> = match output {
         Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
         None => Box::new(std::io::stdout()),
@@ -186,9 +185,14 @@ fn search<P: AsRef<Path>>(
         }
     });
 
+    //
     // Main loop: iterate (in parallel) over all search signature paths,
     // loading them individually and searching them. Stuff results into
     // the writer thread above.
+    //
+
+    let processed_sigs = AtomicUsize::new(0);
+
     let send = search_sigs
         .par_iter()
         .filter_map(|filename| {
@@ -198,7 +202,7 @@ fn search<P: AsRef<Path>>(
             }
 
             let mut search_mh = None;
-            // load search signature.
+            // load search signature from path:
             let search_sig = &Signature::from_path(&filename)
                 .unwrap_or_else(|_| panic!("Error processing {:?}", filename))[0];
 
@@ -206,6 +210,7 @@ fn search<P: AsRef<Path>>(
             if let Some(mh) = prepare_query(search_sig, &template) {
                 search_mh = Some(mh);
             }
+            // (this will raise an exception if nothing compatible.)
             let search_mh = search_mh.unwrap();
 
             let mut results = vec![];
@@ -227,6 +232,7 @@ fn search<P: AsRef<Path>>(
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));
 
+    // do some cleanup and error handling -
     if let Err(e) = send {
         error!("Unable to send internal data: {:?}", e);
     }
@@ -235,8 +241,10 @@ fn search<P: AsRef<Path>>(
         error!("Unable to join internal thread: {:?}", e);
     }
 
+    // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
-    info!("DONE. Processed {} search sigs", i);
+    eprintln!("DONE. Processed {} search sigs", i);
+
     Ok(())
 }
 
