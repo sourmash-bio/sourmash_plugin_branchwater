@@ -89,7 +89,15 @@ fn search<P: AsRef<Path>>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Loading queries");
 
-    let querylist_file = BufReader::new(File::open(querylist)?);
+    let querylist_handle = match File::open(querylist) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            return Err(Box::new(e))
+        }
+    };
+
+    let querylist_file = BufReader::new(querylist_handle);
 
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -472,10 +480,12 @@ fn do_search(querylist_path: String,
              ksize: u8,
              scaled: usize,
              output_path: String
-) -> PyResult<()> {
-    search(querylist_path, siglist_path, threshold, ksize, scaled,
-           Some(output_path)).ok();
-    Ok(())
+) -> PyResult<u8> {
+    match search(querylist_path, siglist_path, threshold, ksize, scaled,
+                 Some(output_path)) {
+        Ok(_) => Ok(0),
+        Err(_) => Ok(1),
+    }
 }
 
 #[pyfunction]

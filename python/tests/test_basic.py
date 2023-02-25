@@ -42,3 +42,25 @@ def test_simple(runtmp):
 
     df = pandas.read_csv(output)
     assert len(df) == 5
+
+
+def test_bad_query(runtmp):
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    #make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                        '-o', output)
+
+    print(runtmp.last_result.err)
+    print('hello, world')
+    assert 0

@@ -27,13 +27,16 @@ class Branchwater_Manysearch(CommandLinePlugin):
     def main(self, args):
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}'")
         super().main(args)
-        pyo3_branchwater.do_search(args.query_paths,
-                                    args.against_paths,
-                                    args.threshold,
-                                    args.ksize,
-                                    args.scaled,
-                                    args.output)
-        notify(f"...done! results in '{args.output}'")
+        status = pyo3_branchwater.do_search(args.query_paths,
+                                            args.against_paths,
+                                            args.threshold,
+                                            args.ksize,
+                                            args.scaled,
+                                            args.output)
+        print('XXX', status)
+        if status == 0:
+            notify(f"...done! results in '{args.output}'")
+        return status
 
 
 class Branchwater_Manygather(CommandLinePlugin):
