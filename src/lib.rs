@@ -399,11 +399,12 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         .build();
     let template = Sketch::MinHash(template_mh);
 
-    println!("Loading query");
-    let mut query = match {
-        let sigs = Signature::from_path(dbg!(query_filename)).unwrap();
-
+    println!("Loading query from {}", query_filename.as_ref().display());
+    let query = {
         let mut mm = None;
+
+        let sigs = Signature::from_path(query_filename).unwrap();
+
         for sig in &sigs {
             if let Some(mh) = prepare_query(sig, &template) {
                 mm = Some(mh.clone());
@@ -411,9 +412,12 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
             }
         }
         mm
-    } {
+    };
+
+    // did we find one?
+    let mut query = match query {
         Some(query) => query,
-        None => bail!("No sketch found with scaled={}, k={}", scaled, ksize)
+        None => bail!("No sketch found with scaled={}, k={}", scaled, ksize),
     };
 
     // build the list of paths to match against.
