@@ -400,7 +400,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     let template = Sketch::MinHash(template_mh);
 
     println!("Loading query");
-    let mut query = {
+    let mut query = match {
         let sigs = Signature::from_path(dbg!(query_filename)).unwrap();
 
         let mut mm = None;
@@ -411,8 +411,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
             }
         }
         mm
-    }
-    .unwrap();
+    } {
+        Some(query) => query,
+        None => bail!("No sketch found with scaled={}, k={}", scaled, ksize)
+    };
 
     // build the list of paths to match against.
     println!("Loading matchlist");
@@ -506,10 +508,17 @@ fn do_countergather(query_filename: String,
                     scaled: usize,
                     output_path_prefetch: String,
                     output_path_gather: String,
-) -> PyResult<()> {
-    countergather(query_filename, siglist_path, threshold_bp, ksize, scaled,
-                  Some(output_path_prefetch), Some(output_path_gather)).ok();
-    Ok(())
+) -> PyResult<u8> {
+    match countergather(query_filename, siglist_path, threshold_bp,
+                        ksize, scaled,
+                        Some(output_path_prefetch),
+                        Some(output_path_gather)) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
 }
 
 #[pymodule]

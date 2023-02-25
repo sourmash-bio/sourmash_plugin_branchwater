@@ -55,12 +55,14 @@ class Branchwater_Manygather(CommandLinePlugin):
     def main(self, args):
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}'")
         super().main(args)
-        pyo3_branchwater.do_countergather(args.query_paths,
-                                           args.against_paths,
-                                           int(args.threshold_bp),
-                                           args.ksize,
-                                           args.scaled,
-                                           args.output_gather,
-                                           args.output_prefetch)
-        notify(f"...done! gather results in '{args.output_gather}'")
-        notify(f"prefetch results in '{args.output_prefetch}'")
+        status = pyo3_branchwater.do_countergather(args.query_paths,
+                                                   args.against_paths,
+                                                   int(args.threshold_bp),
+                                                   args.ksize,
+                                                   args.scaled,
+                                                   args.output_gather,
+                                                   args.output_prefetch)
+        if status == 0:
+            notify(f"...manygather is done! gather results in '{args.output_gather}'")
+            notify(f"prefetch results in '{args.output_prefetch}'")
+        return status
