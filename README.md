@@ -10,7 +10,7 @@ use `sourmash scripts manysearch` or `sourmash scripts fastgather`.
 
 Uses [pyo3](https://github.com/PyO3/pyo3) for wrapping.
 
-## Quickstart
+## Quickstart for `manysearch`.
 
 This quickstart demonstrates `manysearch` using
 [the 64 genomes from Awad et al., 2017](https://osf.io/vk4fa/).
