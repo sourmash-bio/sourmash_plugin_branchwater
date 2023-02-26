@@ -450,7 +450,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     // Write to prefetch output
     let prefetch_out: Box<dyn Write> = match prefetch_output {
         Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
+        None => Box::new(Vec::new()),
     };
     let mut writer = BufWriter::new(prefetch_out);
     writeln!(&mut writer, "match,overlap").unwrap();
@@ -511,13 +511,13 @@ fn do_countergather(query_filename: String,
                     threshold_bp: usize,
                     ksize: u8,
                     scaled: usize,
-                    output_path_prefetch: String,
-                    output_path_gather: String,
+                    output_path_prefetch: Option<String>,
+                    output_path_gather: Option<String>,
 ) -> PyResult<u8> {
     match countergather(query_filename, siglist_path, threshold_bp,
                         ksize, scaled,
-                        Some(output_path_prefetch),
-                        Some(output_path_gather)) {
+                        output_path_prefetch,
+                        output_path_gather) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

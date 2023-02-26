@@ -44,18 +44,20 @@ class Branchwater_Manygather(CommandLinePlugin):
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('query_paths')
-        p.add_argument('against_paths')
-        p.add_argument('-o', '--output-gather', required=True)
-        p.add_argument('--output-prefetch', required=True)
+        p.add_argument('query_sig', help="metagenome sketch")
+        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('-o', '--output-gather', required=True,
+                       help="save gather output (minimum metagenome cover) to this file")
+        p.add_argument('--output-prefetch',
+                       help="save prefetch output (all overlaps) to this file")
         p.add_argument('-t', '--threshold-bp', default=100000, type=float)
         p.add_argument('-k', '--ksize', default=31, type=int)
         p.add_argument('-s', '--scaled', default=1000, type=int)
 
     def main(self, args):
-        notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}'")
+        notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}'")
         super().main(args)
-        status = pyo3_branchwater.do_countergather(args.query_paths,
+        status = pyo3_branchwater.do_countergather(args.query_sig,
                                                    args.against_paths,
                                                    int(args.threshold_bp),
                                                    args.ksize,
