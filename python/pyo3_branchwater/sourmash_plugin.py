@@ -66,5 +66,6 @@ class Branchwater_Fastgather(CommandLinePlugin):
                                                    args.output_prefetch)
         if status == 0:
             notify(f"...fastgather is done! gather results in '{args.output_gather}'")
-            notify(f"prefetch results in '{args.output_prefetch}'")
+            if args.output_prefetch:
+                notify(f"prefetch results in '{args.output_prefetch}'")
         return status

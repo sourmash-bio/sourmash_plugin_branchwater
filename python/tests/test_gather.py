@@ -69,7 +69,7 @@ def test_simple_with_prefetch(runtmp):
     #assert len(df) == 5
 
 
-def test_bad_query(runtmp):
+def test_missing_query(runtmp):
     # test missing query
     query = runtmp.output('no-such-file')
     against_list = runtmp.output('against.txt')
@@ -77,6 +77,29 @@ def test_bad_query(runtmp):
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                        '-o', g_output, '--output-prefetch', p_output,
+                        '-s', '100000')
+
+
+def test_bad_query(runtmp):
+    # test non-sig query
+    query = runtmp.output('no-such-file')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    # since 'query' needs to be a sig, this breaks it.
+    make_file_list(query, [sig2])
 
     make_file_list(against_list, [sig2, sig47, sig63])
 

@@ -402,15 +402,14 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     eprintln!("Loading query from '{}'", query_filename.as_ref().display());
     let query = {
         let mut mm = None;
-
-        let sigs = Signature::from_path(query_filename).unwrap();
+        let sigs = Signature::from_path(query_filename)?;
 
         for sig in &sigs {
             if let Some(mh) = prepare_query(sig, &template) {
                 mm = Some(mh.clone());
                 break;
             }
-        }
+        };
         mm
     };
 
@@ -426,6 +425,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
 
     eprintln!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
+    // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes : u64 = {
         let x = threshold_bp / scaled;
         if x > 0 {
@@ -435,8 +435,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         }
     }.try_into()?;
 
-    eprintln!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
+    eprintln!("using threshold overlap: {} {}",
+              threshold_hashes, threshold_bp);
 
+    // load a set of sketches, filtering for those with overlaps > threshold
     let matchlist = load_sketches_above_threshold(matchlist_paths,
                                                   &template,
                                                   &query,
@@ -447,7 +449,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         return Ok(());
     }
 
-    // Write to prefetch output
+    // Write all the prefetch matches to prefetch output.
     let prefetch_out: Box<dyn Write> = match prefetch_output {
         Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
         None => Box::new(Vec::new()),
@@ -457,9 +459,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     for m in &matchlist {
         writeln!(&mut writer, "'{}',{}", m.name, m.overlap).ok();
     }
-    // @CTB close?
+    writer.flush().ok();
+    drop(writer);
 
-    // Write to gather output
+    // Set up a writer for gather output
     let gather_out: Box<dyn Write> = match gather_output {
         Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
         None => Box::new(std::io::stdout()),
@@ -467,20 +470,22 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     let mut writer = BufWriter::new(gather_out);
     writeln!(&mut writer, "match,overlap").unwrap();
 
+    //
+    // main loop: loop until no more matching sketches.
+    //
     let mut matching_sketches = matchlist;
 
-    // loop until no more matching sketches -
     while !matching_sketches.is_empty() {
-        println!("remaining: {} {}", query.size(), matching_sketches.len());
+        eprintln!("remaining: {} {}", query.size(), matching_sketches.len());
         let best_element = matching_sketches.peek().unwrap();
 
         // remove!
-        println!("removing {}", best_element.name);
         query.remove_from(&best_element.minhash)?;
 
         writeln!(&mut writer, "'{}',{}", best_element.name, best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
+        // note: this is parallelized.
         matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
     }
 
