@@ -73,6 +73,15 @@ sourmash sig summarize query-list.txt
 sourmash sig summarize podar-ref-list.txt
 ```
 
+## Future thoughts
+
+The speed and functions of this code will probably be brought into
+sourmash core in the future, most likely as part of
+[sourmash#2230](https://github.com/sourmash-bio/sourmash/pull/2230).
+However, in the meantime, this is a fun side project that makes use
+of sourmash plugins and Rust to provide some fast functionality
+that may be of use to some people, and it can serve as a testbed for
+future sourmash functionality.
 
 ---
 
