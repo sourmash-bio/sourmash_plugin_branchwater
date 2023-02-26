@@ -17,7 +17,7 @@ classifiers = [
 
 [project.entry-points."sourmash.cli_script"]
 manysearch = "pyo3_branchwater.sourmash_plugin:Branchwater_Manysearch"
-manygather = "pyo3_branchwater.sourmash_plugin:Branchwater_Manygather"
+fastgather = "pyo3_branchwater.sourmash_plugin:Branchwater_Fastgather"
 
 [tool.maturin]
 python-source = "python"

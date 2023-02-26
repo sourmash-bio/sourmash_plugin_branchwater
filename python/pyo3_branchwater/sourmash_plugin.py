@@ -38,8 +38,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
         return status
 
 
-class Branchwater_Manygather(CommandLinePlugin):
-    command = 'manygather'
+class Branchwater_Fastgather(CommandLinePlugin):
+    command = 'fastgather'
     description = 'massively parallel sketch gather'
 
     def __init__(self, p):
@@ -65,6 +65,6 @@ class Branchwater_Manygather(CommandLinePlugin):
                                                    args.output_gather,
                                                    args.output_prefetch)
         if status == 0:
-            notify(f"...manygather is done! gather results in '{args.output_gather}'")
+            notify(f"...fastgather is done! gather results in '{args.output_gather}'")
             notify(f"prefetch results in '{args.output_prefetch}'")
         return status

@@ -18,9 +18,9 @@ def make_file_list(filename, paths):
 
 def test_installed(runtmp):
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manygather')
+        runtmp.sourmash('scripts', 'fastgather')
 
-    assert 'usage:  manygather' in runtmp.last_result.err
+    assert 'usage:  fastgather' in runtmp.last_result.err
 
 
 def test_simple(runtmp):
@@ -37,7 +37,7 @@ def test_simple(runtmp):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
-    runtmp.sourmash('scripts', 'manygather', query, against_list,
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
                     '-o', g_output, '-s', '100000')
     assert os.path.exists(g_output)
 
@@ -59,7 +59,7 @@ def test_simple_with_prefetch(runtmp):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
-    runtmp.sourmash('scripts', 'manygather', query, against_list,
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
                     '-o', g_output, '--output-prefetch', p_output,
                     '-s', '100000')
     assert os.path.exists(g_output)
@@ -84,7 +84,7 @@ def test_bad_query(runtmp):
     p_output = runtmp.output('prefetch.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manygather', query, against_list,
+        runtmp.sourmash('scripts', 'fastgather', query, against_list,
                         '-o', g_output, '--output-prefetch', p_output,
                         '-s', '100000')
 
@@ -104,6 +104,6 @@ def test_bad_against(runtmp):
     p_output = runtmp.output('prefetch.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manygather', query, against_list,
+        runtmp.sourmash('scripts', 'fastgather', query, against_list,
                         '-o', g_output, '--output-prefetch', p_output,
                         '-s', '100000')
