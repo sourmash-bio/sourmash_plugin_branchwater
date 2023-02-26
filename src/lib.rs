@@ -1,3 +1,7 @@
+// TODO:
+// * md5sum output by search and countergather are of modified/downsampled,
+//   not orig. This is different from sourmash...
+
 use pyo3::prelude::*;
 use rayon::prelude::*;
 
@@ -170,9 +174,10 @@ fn search<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query,match,containment").unwrap();
-        for (query, m, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "'{}','{}',{}", query, m, overlap).unwrap();
+        writeln!(&mut writer, "query,quer5_md5,match,match_md5,containment").unwrap();
+        for (query, query_md5, m, m_md5, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "'{}',{},'{}',{},{}",
+                     query, query_md5, m, m_md5, overlap).ok();
         }
     });
 
@@ -211,7 +216,11 @@ fn search<P: AsRef<Path>>(
                 let overlap =
                     query.count_common(&search_mh, false).unwrap() as f64 / query.size() as f64;
                 if overlap > threshold {
-                    results.push((name.clone(), search_sig.name(), overlap))
+                    results.push((name.clone(),
+                                  query.md5sum(),
+                                  search_sig.name(),
+                                  search_sig.md5sum(),
+                                  overlap))
                 }
             }
             if results.is_empty() {
@@ -388,8 +397,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
-    prefetch_output: Option<P>,
     gather_output: Option<P>,
+    prefetch_output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -455,9 +464,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         None => Box::new(Vec::new()),
     };
     let mut writer = BufWriter::new(prefetch_out);
-    writeln!(&mut writer, "match,overlap").unwrap();
+    writeln!(&mut writer, "match,md5sum,overlap").unwrap();
     for m in &matchlist {
-        writeln!(&mut writer, "'{}',{}", m.name, m.overlap).ok();
+        writeln!(&mut writer, "'{}',{},{}", m.name, m.minhash.md5sum(), m.overlap).ok();
     }
     writer.flush().ok();
     drop(writer);
@@ -468,12 +477,13 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(gather_out);
-    writeln!(&mut writer, "match,overlap").unwrap();
+    writeln!(&mut writer, "rank,match,md5sum,overlap").ok();
 
     //
     // main loop: loop until no more matching sketches.
     //
     let mut matching_sketches = matchlist;
+    let mut rank = 0;
 
     while !matching_sketches.is_empty() {
         eprintln!("remaining: {} {}", query.size(), matching_sketches.len());
@@ -482,11 +492,12 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         // remove!
         query.remove_from(&best_element.minhash)?;
 
-        writeln!(&mut writer, "'{}',{}", best_element.name, best_element.overlap).ok();
+        writeln!(&mut writer, "{},'{}',{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
         matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
+        rank = rank + 1;
     }
 
     Ok(())

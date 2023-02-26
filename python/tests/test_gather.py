@@ -41,6 +41,11 @@ def test_simple(runtmp):
                     '-o', g_output, '-s', '100000')
     assert os.path.exists(g_output)
 
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'match', 'md5sum', 'rank', 'overlap'}
+
     #df = pandas.read_csv(output)
     #assert len(df) == 5
 
@@ -64,6 +69,16 @@ def test_simple_with_prefetch(runtmp):
                     '-s', '100000')
     assert os.path.exists(g_output)
     assert os.path.exists(p_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'match', 'md5sum', 'rank', 'overlap'}
+
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'match', 'md5sum', 'overlap'}
 
     #df = pandas.read_csv(output)
     #assert len(df) == 5
