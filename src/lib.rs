@@ -292,7 +292,7 @@ impl Eq for PrefetchResult {}
 
 // Find overlapping above specified threshold.
 
-fn filter_overlapping(
+fn prefetch(
     query: &KmerMinHash,
     sketchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
@@ -470,6 +470,13 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         eprintln!("No matchlist signatures loaded, exiting.");
         return Ok(());
     }
+
+    // Write all the prefetch matches to prefetch output.
+    let prefetch_out: Box<dyn Write> = match prefetch_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(Vec::new()),
+    };
+    let mut writer = BufWriter::new(prefetch_out);
 
     writeln!(&mut writer, "match,md5sum,overlap").unwrap();
     for m in &matchlist {
@@ -653,11 +660,28 @@ fn do_countergather(query_filename: String,
     }
 }
 
+#[pyfunction]
+fn do_countergather2(query_filenames: String,
+                    siglist_path: String,
+                    threshold_bp: usize,
+                    ksize: u8,
+                    scaled: usize
+) -> PyResult<u8> {
+    match countergather2(query_filenames, siglist_path, threshold_bp,
+                         ksize, scaled) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather2, m)?)?;
-    m.add("SomeError", py.get_type::<SomeError>())?;
+    m.add("SomeError", _py.get_type::<SomeError>())?;
     Ok(())
 }
