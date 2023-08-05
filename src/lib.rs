@@ -176,7 +176,7 @@ fn search<P: AsRef<Path>>(
         let mut writer = BufWriter::new(out);
         writeln!(&mut writer, "query,query_md5,match,match_md5,containment").unwrap();
         for (query, query_md5, m, m_md5, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "'{}',{},'{}',{},{}",
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{}",
                      query, query_md5, m, m_md5, overlap).ok();
         }
     });
@@ -466,7 +466,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
     let mut writer = BufWriter::new(prefetch_out);
     writeln!(&mut writer, "match,md5sum,overlap").unwrap();
     for m in &matchlist {
-        writeln!(&mut writer, "'{}',{},{}", m.name, m.minhash.md5sum(), m.overlap).ok();
+        writeln!(&mut writer, "\"{}\",{},{}", m.name, m.minhash.md5sum(), m.overlap).ok();
     }
     writer.flush().ok();
     drop(writer);
@@ -492,7 +492,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug>(
         // remove!
         query.remove_from(&best_element.minhash)?;
 
-        writeln!(&mut writer, "{},'{}',{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
+        writeln!(&mut writer, "{},\"{}\",{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
