@@ -542,9 +542,15 @@ fn do_countergather(query_filename: String,
     }
 }
 
+#[pyfunction]
+fn get_num_threads() -> PyResult<usize> {
+    Ok(rayon::current_num_threads())
+}
+
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
+    m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
     Ok(())
 }
