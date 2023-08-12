@@ -25,7 +25,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help="scaled value for which to load sketches & do search")
 
     def main(self, args):
-        notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}'")
+        num_threads = pyo3_branchwater.get_num_threads()
+        notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_search(args.query_paths,
                                             args.against_paths,
@@ -55,7 +56,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int)
 
     def main(self, args):
-        notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}'")
+        num_threads = pyo3_branchwater.get_num_threads()
+        notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_countergather(args.query_sig,
                                                    args.against_paths,

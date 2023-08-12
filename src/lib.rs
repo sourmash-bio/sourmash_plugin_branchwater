@@ -35,11 +35,16 @@ impl std::convert::From<SomeError> for PyErr {
     }
 }
 
+/// check to see if two KmerMinHash are compatible.
+///
+/// CTB note: despite the name, downsampling is not performed?
+/// Although it checks if they are compatible in one direction...
+
 fn check_compatible_downsample(
     me: &KmerMinHash,
     other: &KmerMinHash,
 ) -> Result<(), sourmash::Error> {
-    /*
+    /* // ignore num minhashes.
     if self.num != other.num {
         return Err(Error::MismatchNum {
             n1: self.num,
@@ -65,6 +70,10 @@ fn check_compatible_downsample(
     }
     Ok(())
 }
+
+/// Given a search Signature containing one or more sketches, and a template
+/// Sketch, return a compatible (& now downsampled) Sketch from the search
+/// Signature.
 
 fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHash> {
     let mut search_mh = None;
@@ -114,7 +123,7 @@ fn search<P: AsRef<Path>>(
     let template = Sketch::MinHash(template_mh);
 
     // Read in list of query paths.
-    eprintln!("Reading querylist from: {}", querylist.as_ref().display());
+    eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
     let querylist_file = BufReader::new(File::open(querylist)?);
 
     // Load all queries into memory at once.
@@ -153,7 +162,7 @@ fn search<P: AsRef<Path>>(
     eprintln!("Loaded {} query signatures", queries.len());
 
     // Load all _paths_, not signatures, into memory.
-    eprintln!("Reading search file paths from: {}", siglist.as_ref().display());
+    eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
 
     let siglist_file = BufReader::new(File::open(siglist)?);
     let search_sigs: Vec<PathBuf> = siglist_file
@@ -185,9 +194,9 @@ fn search<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query,quer5_md5,match,match_md5,containment").unwrap();
+        writeln!(&mut writer, "query,query_md5,match,match_md5,containment").unwrap();
         for (query, query_md5, m, m_md5, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "'{}',{},'{}',{},{}",
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{}",
                      query, query_md5, m, m_md5, overlap).ok();
         }
     });
@@ -480,7 +489,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
     writeln!(&mut writer, "match,md5sum,overlap").unwrap();
     for m in &matchlist {
-        writeln!(&mut writer, "'{}',{},{}", m.name, m.minhash.md5sum(), m.overlap).ok();
+        writeln!(&mut writer, "\"{}\",{},{}", m.name, m.minhash.md5sum(), m.overlap).ok();
     }
     writer.flush().ok();
     drop(writer);
@@ -506,7 +515,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         // remove!
         query.remove_from(&best_element.minhash)?;
 
-        writeln!(&mut writer, "{},'{}',{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
+        writeln!(&mut writer, "{},\"{}\",{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
@@ -515,6 +524,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     }
     Ok(())
 }
+
+/*
 
 /// Run counter-gather for multiple queries against a list of files.
 
@@ -621,6 +632,8 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
     Ok(())
 }
 
+*/
+
 #[pyfunction]
 fn do_search(querylist_path: String,
              siglist_path: String,
@@ -660,6 +673,8 @@ fn do_countergather(query_filename: String,
     }
 }
 
+/*
+
 #[pyfunction]
 fn do_countergather2(query_filenames: String,
                     siglist_path: String,
@@ -677,11 +692,19 @@ fn do_countergather2(query_filenames: String,
     }
 }
 
+*/
+
+#[pyfunction]
+fn get_num_threads() -> PyResult<usize> {
+    Ok(rayon::current_num_threads())
+}
+
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
-    m.add_function(wrap_pyfunction!(do_countergather2, m)?)?;
+    // m.add_function(wrap_pyfunction!(do_countergather2, m)?)?;
     m.add("SomeError", _py.get_type::<SomeError>())?;
+    m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
     Ok(())
 }
