@@ -411,6 +411,17 @@ fn load_sketches_above_threshold(
     Ok(matchlist)
 }
 
+fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
+    query: KmerMinHash,
+    matchlist: &BinaryHeap<PrefetchResult>,
+    threshold_hashes: u64,
+    gather_output: Option<P>,
+    query_label: String
+) -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
+}
+                           
+
 /// Run counter-gather with a query against a list of files.
 
 fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
@@ -525,8 +536,6 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     Ok(())
 }
 
-/*
-
 /// Run counter-gather for multiple queries against a list of files.
 
 fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
@@ -610,15 +619,15 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     .collect();
 
                 if matchlist.len() > 0 {
-                    let prefetch_output = format!("prefetch-{i}.csv");
+                    // CTB let prefetch_output = format!("prefetch-{i}.csv");
                     let gather_output = format!("gather-{i}.csv");
 
                     // save initial list of matches to prefetch output
-                    write_prefetch(query_label.clone(), Some(prefetch_output),
-                                   &matchlist);
+                    // CTB write_prefetch(query_label.clone(), Some(prefetch_output),
+                    //               &matchlist);
 
                     // now, do the gather!
-                    consume_query_by_gather(query, matchlist, threshold_hashes,
+                    consume_query_by_gather(query, &matchlist, threshold_hashes,
                                             Some(gather_output), query_label);
                 } else {
                     println!("No matches to '{}'", query_label);
@@ -631,8 +640,6 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
         
     Ok(())
 }
-
-*/
 
 #[pyfunction]
 fn do_search(querylist_path: String,
@@ -673,8 +680,6 @@ fn do_countergather(query_filename: String,
     }
 }
 
-/*
-
 #[pyfunction]
 fn do_countergather2(query_filenames: String,
                     siglist_path: String,
@@ -691,8 +696,6 @@ fn do_countergather2(query_filenames: String,
         }
     }
 }
-
-*/
 
 #[pyfunction]
 fn get_num_threads() -> PyResult<usize> {
