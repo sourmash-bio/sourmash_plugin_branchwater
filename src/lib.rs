@@ -412,12 +412,37 @@ fn load_sketches_above_threshold(
 }
 
 fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
-    query: KmerMinHash,
-    matchlist: &BinaryHeap<PrefetchResult>,
+    mut query: KmerMinHash,
+    matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
     gather_output: Option<P>,
     query_label: String
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Set up a writer for gather output
+    let gather_out: Box<dyn Write> = match gather_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let mut writer = BufWriter::new(gather_out);
+    writeln!(&mut writer, "rank,match,md5sum,overlap").ok();
+
+    let mut matching_sketches = matchlist;
+    let mut rank = 0;
+
+    while !matching_sketches.is_empty() {
+        eprintln!("remaining: {} {}", query.size(), matching_sketches.len());
+        let best_element = matching_sketches.peek().unwrap();
+
+        // remove!
+        query.remove_from(&best_element.minhash)?;
+
+        writeln!(&mut writer, "{},\"{}\",{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
+
+        // recalculate remaining overlaps between query and all sketches.
+        // note: this is parallelized.
+        matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
+        rank = rank + 1;
+    }
     Ok(())
 }
                            
@@ -627,7 +652,7 @@ fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     //               &matchlist);
 
                     // now, do the gather!
-                    consume_query_by_gather(query, &matchlist, threshold_hashes,
+                    consume_query_by_gather(query, matchlist, threshold_hashes,
                                             Some(gather_output), query_label);
                 } else {
                     println!("No matches to '{}'", query_label);
@@ -706,7 +731,7 @@ fn get_num_threads() -> PyResult<usize> {
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
-    // m.add_function(wrap_pyfunction!(do_countergather2, m)?)?;
+    m.add_function(wrap_pyfunction!(do_countergather2, m)?)?;
     m.add("SomeError", _py.get_type::<SomeError>())?;
     m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
     Ok(())
