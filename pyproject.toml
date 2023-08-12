@@ -4,12 +4,13 @@ build-backend = "maturin"
 
 [project]
 name = "pyo3-branchwater"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
+readme = "README.md"
 
 
 [project.scripts]
