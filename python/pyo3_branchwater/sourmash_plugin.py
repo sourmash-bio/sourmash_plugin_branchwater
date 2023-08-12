@@ -25,7 +25,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help="scaled value for which to load sketches & do search")
 
     def main(self, args):
-        notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}'")
+        num_threads = pyo3_branchwater.get_num_threads()
+        notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_search(args.query_paths,
                                             args.against_paths,
@@ -55,7 +56,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int)
 
     def main(self, args):
-        notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}'")
+        num_threads = pyo3_branchwater.get_num_threads()
+        notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_countergather(args.query_sig,
                                                    args.against_paths,
@@ -68,4 +70,30 @@ class Branchwater_Fastgather(CommandLinePlugin):
             notify(f"...fastgather is done! gather results in '{args.output_gather}'")
             if args.output_prefetch:
                 notify(f"prefetch results in '{args.output_prefetch}'")
+        return status
+
+
+class Branchwater_Fastmultigather(CommandLinePlugin):
+    command = 'fastmultigather'
+    description = 'massively parallel sketch multigather'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('query_paths', help="a text file containing paths to .sig/.sig.gz files to query")
+        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files to search against")
+        p.add_argument('-t', '--threshold-bp', default=100000, type=float)
+        p.add_argument('-k', '--ksize', default=31, type=int)
+        p.add_argument('-s', '--scaled', default=1000, type=int)
+
+    def main(self, args):
+        num_threads = pyo3_branchwater.get_num_threads()
+        notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
+        super().main(args)
+        status = pyo3_branchwater.do_multigather(args.query_paths,
+                                                 args.against_paths,
+                                                 int(args.threshold_bp),
+                                                 args.ksize,
+                                                 args.scaled)
+        if status == 0:
+            notify(f"...fastmultigather is done!")
         return status

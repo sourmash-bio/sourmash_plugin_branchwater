@@ -22,6 +22,10 @@ Uses [pyo3](https://github.com/PyO3/pyo3) for the Python-to-Rust wrapping.
 This functionality can be used from within sourmash as a command-line
 plugin; see below quickstart.
 
+## Documentation
+
+There is a quickstart below, as well as [more documentation here](doc/README.md).
+
 ## Quickstart for `manysearch`.
 
 To try out, you'll need to install a branch of sourmash that contains
@@ -74,6 +78,7 @@ If your file lists are not working properly, try running:
 sourmash sig summarize query-list.txt
 sourmash sig summarize podar-ref-list.txt
 ```
+to make sure everything can be loaded.
 
 ## Future thoughts
 
