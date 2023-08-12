@@ -1,12 +1,12 @@
-# fastgather and manysearch - an introduction
+# fastgather, fastmultigather, and manysearch - an introduction
 
-This repository implements two sourmash plugins, `fastgather` and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `search` and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory. 
+This repository implements three sourmash plugins, `fastgather`, `fastmultigather`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `search` and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory. 
 
 The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. In particular, this means that input databases need to be prepared differently, and the output may be most useful as a prefilter in conjunction with regular sourmash commands.
 
 ## Preparing the database
 
-Both `manysearch` and `fastgather` use
+All three commands use
 _text files containing lists of signature files_, or "fromfiles", for the search database, and `manysearch` uses these "fromfiles" for queries, too.
 
 (Yes, this plugin will eventually be upgraded to support zip files; keep an eye on [sourmash#2230](https://github.com/sourmash-bio/sourmash/pull/2230).)
@@ -25,24 +25,20 @@ find gtdb-reps-rs214-k21/ -name "*.sig" -exec gzip {} \;
 
 find gtdb-reps-rs214-k21/ -type f > list.gtdb-reps-rs214-k21.txt
 ```
+(Note that once [sourmash#2712](https://github.com/sourmash-bio/sourmash/pull/2712) is merged, you will be able to do `sourmash sig split ... -E .sig.gz` to skip the additional find/gzip command.)
 
 ## Running the commands
+
+### Running `manysearch`
+
+
+The `manysearch` command finds overlaps between one or more query genomes, and one or more subject genomes.
+
 
 `manysearch` takes two file lists as input, and outputs a CSV
 ```
 sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv
 ```
-
-`fastgather` takes a query metagenome and a file list as the database, and outputs a CSV:
-```
-sourmash scripts fastgather query.sig.gz podar-ref-lists.txt -o results.csv
-```
-
-## Using the output
-
-### `manysearch` output
-
-The `manysearch` command finds overlaps between one or more query genomes, and one or more subject genomes.
 
 To run it, you need to provide two "fromfiles" containing lists of paths to signature files (`.sig` or `.sig.gz`). If you create a fromfile as above with GTDB reps, you can generate a query fromfile like so:
 
@@ -57,7 +53,14 @@ sourmash scripts manysearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.g
 
 The results file here, `query.x.gtdb-reps.csv`, will have five columns: `query` and `query_md5`, `match` and `match_md5`, and `containment.`
 
-### Using `fastgather` to create a picklist for `sourmash gather`
+### Running `fastgather`
+
+`fastgather` takes a query metagenome and a file list as the database, and outputs a CSV:
+```
+sourmash scripts fastgather query.sig.gz podar-ref-list.txt -o results.csv
+```
+
+#### Using `fastgather` to create a picklist for `sourmash gather`
 
 The `fastgather` command is a much faster version of sourmash gather.
 
@@ -80,6 +83,15 @@ sourmash gather SRR606249.trim.sig.gz /group/ctbrowngrp/sourmash-db/gtdb-rs214/g
 
 Here it's important that the picklist be used on a sourmash collection that contains a manifest - this will prevent sourmash from loading any sketches other than the ones in the fastgather CSV file. (Zip file collections with manifests are produced automatically when `-o filename.zip` is used with `sketch dna`, and can also be prepared with `sourmash sig cat`.)
 
-### Example
+#### Example of picklist
 
 A complete example Snakefile implementing the above workflow is available [in the 2023-swine-usda](https://github.com/ctb/2023-swine-usda/blob/main/Snakefile) repository.
+
+### Running `fastmultigather`
+
+`fastmultigather` takes a file list of query metagenomes and a file list for the database, and outputs many CSVs:
+```
+sourmash scripts fastmultigather query-list.txt podar-ref-lists.txt
+```
+
+The main advantage that `fastmultigather` has over `fastgather` is that you only load the database files once, which can be a significant time savings for large databases!
