@@ -563,7 +563,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
 /// Run counter-gather for multiple queries against a list of files.
 
-fn countergather2<P: AsRef<Path> + std::fmt::Debug + Clone>(
+fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     query_filenames: P,
     matchlist_filename: P,
     threshold_bp: usize,
@@ -706,13 +706,13 @@ fn do_countergather(query_filename: String,
 }
 
 #[pyfunction]
-fn do_countergather2(query_filenames: String,
-                    siglist_path: String,
-                    threshold_bp: usize,
-                    ksize: u8,
-                    scaled: usize
+fn do_multigather(query_filenames: String,
+                     siglist_path: String,
+                     threshold_bp: usize,
+                     ksize: u8,
+                     scaled: usize
 ) -> PyResult<u8> {
-    match countergather2(query_filenames, siglist_path, threshold_bp,
+    match multigather(query_filenames, siglist_path, threshold_bp,
                          ksize, scaled) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -731,7 +731,7 @@ fn get_num_threads() -> PyResult<usize> {
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
-    m.add_function(wrap_pyfunction!(do_countergather2, m)?)?;
+    m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
     m.add("SomeError", _py.get_type::<SomeError>())?;
     m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
     Ok(())

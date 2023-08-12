@@ -19,6 +19,7 @@ build-backend = "maturin"
 [project.entry-points."sourmash.cli_script"]
 manysearch = "pyo3_branchwater.sourmash_plugin:Branchwater_Manysearch"
 fastgather = "pyo3_branchwater.sourmash_plugin:Branchwater_Fastgather"
+fastmultigather = "pyo3_branchwater.sourmash_plugin:Branchwater_Fastmultigather"
 
 [tool.maturin]
 python-source = "python"
