@@ -299,7 +299,8 @@ impl PartialEq for PrefetchResult {
 
 impl Eq for PrefetchResult {}
 
-// Find overlapping above specified threshold.
+/// Find sketches in 'sketchlist' that overlap with 'query' above
+/// specified threshold.
 
 fn prefetch(
     query: &KmerMinHash,
@@ -326,7 +327,7 @@ fn prefetch(
         .collect()
 }
 
-/// Loads a list of filenames containing sketches from sketchlist_file.
+/// Load a list of filenames from a file.
 
 fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
     Result<Vec<PathBuf>, Box<dyn std::error::Error>>
@@ -349,7 +350,7 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
     Ok(sketchlist_filenames)
 }
 
-/// Load a collection of sketches from a file.
+/// Load a collection of sketches from a file in parallel.
 
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
     Result<Vec<SmallSignature>, Box<dyn std::error::Error>>
@@ -374,7 +375,8 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
     Ok(sketchlist)
 }
 
-/// Load a collection of sketches from a file, filtering w/query & threshold
+/// Load a collection of sketches from a file, filtering to keep only
+/// those with a minimum overlap.
 
 fn load_sketches_above_threshold(
     sketchlist_paths: Vec<PathBuf>,
@@ -411,6 +413,9 @@ fn load_sketches_above_threshold(
     Ok(matchlist)
 }
 
+/// Execute the gather algorithm, greedy min-set-cov, by iteratively
+/// removing matches in 'matchlist' from 'query'.
+
 fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     mut query: KmerMinHash,
     matchlist: BinaryHeap<PrefetchResult>,
@@ -430,7 +435,8 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
     let mut rank = 0;
 
     while !matching_sketches.is_empty() {
-        eprintln!("remaining: {} {}", query.size(), matching_sketches.len());
+        eprintln!("{} remaining: {} {}", query_label,
+                  query.size(), matching_sketches.len());
         let best_element = matching_sketches.peek().unwrap();
 
         // remove!
@@ -466,7 +472,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         .build();
     let template = Sketch::MinHash(template_mh);
 
-    eprintln!("Loading query from '{}'", query_filename.as_ref().display());
+    let query_label = query_filename.to_string();
+    eprintln!("Loading query from '{}'", query_label);
     let query = {
         let mut mm = None;
         let sigs = Signature::from_path(query_filename)?;
@@ -480,7 +487,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         mm
     };
 
-    // did we find one?
+    // did we find anything matching the desired template?
     let mut query = match query {
         Some(query) => query,
         None => bail!("No sketch found with scaled={}, k={}", scaled, ksize),
@@ -530,34 +537,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     writer.flush().ok();
     drop(writer);
 
-    // Set up a writer for gather output
-    let gather_out: Box<dyn Write> = match gather_output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let mut writer = BufWriter::new(gather_out);
-    writeln!(&mut writer, "rank,match,md5sum,overlap").ok();
-
-    //
-    // main loop: loop until no more matching sketches.
-    //
-    let mut matching_sketches = matchlist;
-    let mut rank = 0;
-
-    while !matching_sketches.is_empty() {
-        eprintln!("remaining: {} {}", query.size(), matching_sketches.len());
-        let best_element = matching_sketches.peek().unwrap();
-
-        // remove!
-        query.remove_from(&best_element.minhash)?;
-
-        writeln!(&mut writer, "{},\"{}\",{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
-
-        // recalculate remaining overlaps between query and all sketches.
-        // note: this is parallelized.
-        matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
-        rank = rank + 1;
-    }
+    // run the gather!
+    consume_query_by_gather(query, matchlist, threshold_hashes,
+                            gather_output, query_label);
     Ok(())
 }
 
@@ -665,6 +647,10 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
         
     Ok(())
 }
+
+//
+// The python wrapper functions.
+//
 
 #[pyfunction]
 fn do_search(querylist_path: String,
