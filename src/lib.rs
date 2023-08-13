@@ -488,7 +488,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     };
 
     // did we find anything matching the desired template?
-    let mut query = match query {
+    let query = match query {
         Some(query) => query,
         None => bail!("No sketch found with scaled={}, k={}", scaled, ksize),
     };
@@ -539,7 +539,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
     // run the gather!
     consume_query_by_gather(query, matchlist, threshold_hashes,
-                            gather_output, query_label);
+                            gather_output, query_label).ok();
     Ok(())
 }
 
@@ -589,8 +589,12 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     querylist_paths
         .par_iter()
         .for_each(|q| {
-            let i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
+            // increment counter of # of queries
+            let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
+
+            // set query_label to the last path element.
             let query_label = q.clone().into_os_string().into_string().unwrap();
+            let query_label = query_label.split('/').last().unwrap().to_string();
 
             if let Some(query) = {
                 // load query from q
@@ -627,7 +631,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
                 if matchlist.len() > 0 {
                     // CTB let prefetch_output = format!("prefetch-{i}.csv");
-                    let gather_output = format!("gather-{i}.csv");
+                    let gather_output = format!("{query_label}.gather.csv");
 
                     // save initial list of matches to prefetch output
                     // CTB write_prefetch(query_label.clone(), Some(prefetch_output),
@@ -635,7 +639,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
                     // now, do the gather!
                     consume_query_by_gather(query, matchlist, threshold_hashes,
-                                            Some(gather_output), query_label);
+                                            Some(gather_output), query_label).ok();
                 } else {
                     println!("No matches to '{}'", query_label);
                 }
@@ -644,6 +648,8 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
             }
         });
 
+
+    println!("Processed {} queries total.", processed_queries.into_inner());
         
     Ok(())
 }

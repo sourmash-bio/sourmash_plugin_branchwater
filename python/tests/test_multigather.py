@@ -47,7 +47,9 @@ def test_simple(runtmp):
     finally:
         os.chdir(cwd)
 
-    g_output = runtmp.output('gather-0.csv')
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
     assert os.path.exists(g_output)
 
     df = pandas.read_csv(g_output)
