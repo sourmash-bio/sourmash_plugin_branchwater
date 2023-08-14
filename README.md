@@ -1,6 +1,6 @@
 # pyo3_branchwater
 
-<a href="https://pypi.org/project/pyo3-branchwater/"><img alt="PyPI" src="https://badge.fury.io/py/pyo3-brancwhater.svg"></a>
+[![PyPI](https://img.shields.io/pypi/v/pyo3-branchwater)](https://pypi.org/project/pyo3-branchwater/)
 
 tl;dr Do fast and low-memory search/gather of many sourmash sketches
 via a sourmash plugin.
