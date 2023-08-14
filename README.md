@@ -90,6 +90,20 @@ of sourmash plugins and Rust to provide some fast functionality
 that may be of use to some people, and it can serve as a testbed for
 future sourmash functionality.
 
+### Generating a release
+
+Bump version number in `Cargo.toml` and push.
+
+Make a new release on github.
+
+Then pull, and:
+
+```
+python -m build
+```
+
+followed by `twine upload dist/*.tar.gz`.
+
 ---
 
-CTB Feb 2023
+CTB Aug 2023

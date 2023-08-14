@@ -1,3 +1,8 @@
+*.csv
+*.txt
+*.sig
+*.sig.gz
+
 /target
 
 # Byte-compiled / optimized / DLL files
