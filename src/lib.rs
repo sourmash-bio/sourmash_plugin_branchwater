@@ -219,7 +219,7 @@ fn search<P: AsRef<Path>>(
 
             let mut search_mh = None;
             // load search signature from path:
-            let search_sig = &Signature::from_path(&filename)
+            let search_sig = &Signature::from_path(filename)
                 .unwrap_or_else(|_| panic!("Error processing {:?}", filename))[0];
 
             // make sure it is compatible etc.
@@ -385,7 +385,7 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
 
             let mut sm = None;
             for sig in &sigs {
-                if let Some(mh) = prepare_query(sig, &template) {
+                if let Some(mh) = prepare_query(sig, template) {
                     sm = Some(SmallSignature {
                         name: sig.name(),
                         minhash: mh,
@@ -416,8 +416,8 @@ fn load_sketches_above_threshold(
 
             let mut mm = None;
             for sig in &sigs {
-                if let Some(mh) = prepare_query(sig, &template) {
-                    if let Ok(overlap) = mh.count_common(&query, false) {
+                if let Some(mh) = prepare_query(sig, template) {
+                    if let Ok(overlap) = mh.count_common(query, false) {
                         if overlap >= threshold_hashes {
                             let result = PrefetchResult {
                                 name: sig.name(),
@@ -472,7 +472,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
         matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
-        rank = rank + 1;
+        rank += 1;
     }
     Ok(())
 }
@@ -642,7 +642,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     })
                     .collect();
 
-                if matchlist.len() > 0 {
+                if !matchlist.is_empty() {
                     let prefetch_output = format!("{query_label}.prefetch.csv");
                     let gather_output = format!("{query_label}.gather.csv");
 
