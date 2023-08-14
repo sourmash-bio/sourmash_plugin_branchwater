@@ -51,11 +51,15 @@ def test_simple(runtmp):
 
     g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
     assert os.path.exists(g_output)
+    p_output = runtmp.output('SRR606249.sig.gz.prefetch.csv')
+    assert os.path.exists(p_output)
 
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'match', 'md5sum', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
 
-    #df = pandas.read_csv(output)
-    #assert len(df) == 5
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}

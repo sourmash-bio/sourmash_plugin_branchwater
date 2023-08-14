@@ -44,10 +44,7 @@ def test_simple(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'match', 'md5sum', 'rank', 'overlap'}
-
-    #df = pandas.read_csv(output)
-    #assert len(df) == 5
+    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
 
 
 def test_simple_with_prefetch(runtmp):
@@ -73,15 +70,12 @@ def test_simple_with_prefetch(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'match', 'md5sum', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
 
     df = pandas.read_csv(p_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'match', 'md5sum', 'overlap'}
-
-    #df = pandas.read_csv(output)
-    #assert len(df) == 5
+    assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
 
 
 def test_missing_query(runtmp):

@@ -327,6 +327,29 @@ fn prefetch(
         .collect()
 }
 
+/// Write list of prefetch matches.
+
+fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
+    query_label: String,
+    prefetch_output: Option<P>,
+    matchlist: &BinaryHeap<PrefetchResult>
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Set up a writer for prefetch output
+    let prefetch_out: Box<dyn Write> = match prefetch_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let mut writer = BufWriter::new(prefetch_out);
+    writeln!(&mut writer, "query_file,match,match_md5sum,overlap").ok();
+
+    for m in matchlist.iter() {
+        writeln!(&mut writer, "{},\"{}\",{},{}", query_label,
+                 m.name, m.minhash.md5sum(), m.overlap).ok();
+    }
+
+    Ok(())
+}
+
 /// Load a list of filenames from a file.
 
 fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
@@ -429,7 +452,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(gather_out);
-    writeln!(&mut writer, "rank,match,md5sum,overlap").ok();
+    writeln!(&mut writer, "query_file,rank,match,match_md5sum,overlap").ok();
 
     let mut matching_sketches = matchlist;
     let mut rank = 0;
@@ -442,7 +465,9 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         // remove!
         query.remove_from(&best_element.minhash)?;
 
-        writeln!(&mut writer, "{},\"{}\",{},{}", rank, best_element.name, best_element.minhash.md5sum(), best_element.overlap).ok();
+        writeln!(&mut writer, "{},{},\"{}\",{},{}", query_label, rank,
+                 best_element.name, best_element.minhash.md5sum(),
+                 best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
@@ -523,19 +548,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         return Ok(());
     }
 
-    // Write all the prefetch matches to prefetch output.
-    let prefetch_out: Box<dyn Write> = match prefetch_output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(Vec::new()),
-    };
-    let mut writer = BufWriter::new(prefetch_out);
-
-    writeln!(&mut writer, "match,md5sum,overlap").unwrap();
-    for m in &matchlist {
-        writeln!(&mut writer, "\"{}\",{},{}", m.name, m.minhash.md5sum(), m.overlap).ok();
-    }
-    writer.flush().ok();
-    drop(writer);
+    write_prefetch(query_label.clone(), prefetch_output, &matchlist).ok();
 
     // run the gather!
     consume_query_by_gather(query, matchlist, threshold_hashes,
@@ -630,12 +643,12 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     .collect();
 
                 if matchlist.len() > 0 {
-                    // CTB let prefetch_output = format!("prefetch-{i}.csv");
+                    let prefetch_output = format!("{query_label}.prefetch.csv");
                     let gather_output = format!("{query_label}.gather.csv");
 
                     // save initial list of matches to prefetch output
-                    // CTB write_prefetch(query_label.clone(), Some(prefetch_output),
-                    //               &matchlist);
+                    write_prefetch(query_label.clone(), Some(prefetch_output),
+                                   &matchlist).ok();
 
                     // now, do the gather!
                     consume_query_by_gather(query, matchlist, threshold_hashes,
