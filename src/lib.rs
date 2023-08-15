@@ -180,7 +180,7 @@ fn search<P: AsRef<Path>>(
     // loading them individually and searching them. Stuff results into
     // the writer thread above.
     //
-    // CTB: might want to just load everything into memory here...
+    // CTB: might want to just load everything into memory here.
     //
 
     let processed_sigs = AtomicUsize::new(0);
@@ -209,9 +209,11 @@ fn search<P: AsRef<Path>>(
 
             // search for matches & save containment.
             for q in queries.iter() {
-                let overlap =
-                    q.minhash.count_common(&search_mh, false).unwrap() as f64 / q.minhash.size() as f64;
-                if overlap > threshold {
+                let overlap = q.minhash.count_common(&search_mh, false).unwrap() as f64;
+                let size = q.minhash.size() as f64;
+
+                let containment = overlap / size;
+                if containment > threshold {
                     results.push((q.name.clone(),
                                   q.minhash.md5sum(),
                                   search_sig.name(),
