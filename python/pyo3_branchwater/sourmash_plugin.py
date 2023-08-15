@@ -28,12 +28,12 @@ class Branchwater_Manysearch(CommandLinePlugin):
         num_threads = pyo3_branchwater.get_num_threads()
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
-        status = pyo3_branchwater.do_search(args.query_paths,
-                                            args.against_paths,
-                                            args.threshold,
-                                            args.ksize,
-                                            args.scaled,
-                                            args.output)
+        status = pyo3_branchwater.do_manysearch(args.query_paths,
+                                                args.against_paths,
+                                                args.threshold,
+                                                args.ksize,
+                                                args.scaled,
+                                                args.output)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
         return status

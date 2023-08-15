@@ -105,7 +105,7 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
 ///   - support jaccard as well as containment/overlap
 ///   - support md5 output columns; other?
 
-fn search<P: AsRef<Path>>(
+fn manysearch<P: AsRef<Path>>(
     querylist: P,
     siglist: P,
     threshold: f64,
@@ -637,15 +637,15 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 //
 
 #[pyfunction]
-fn do_search(querylist_path: String,
-             siglist_path: String,
-             threshold: f64,
-             ksize: u8,
-             scaled: usize,
-             output_path: String
+fn do_manysearch(querylist_path: String,
+                 siglist_path: String,
+                 threshold: f64,
+                 ksize: u8,
+                 scaled: usize,
+                 output_path: String
 ) -> PyResult<u8> {
-    match search(querylist_path, siglist_path, threshold, ksize, scaled,
-                 Some(output_path)) {
+    match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
+                     Some(output_path)) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -699,7 +699,7 @@ fn get_num_threads() -> PyResult<usize> {
 
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(do_search, m)?)?;
+    m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
     m.add("SomeError", _py.get_type::<SomeError>())?;
