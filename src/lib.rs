@@ -105,7 +105,7 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
 ///   - support jaccard as well as containment/overlap
 ///   - support md5 output columns; other?
 
-fn search<P: AsRef<Path>>(
+fn manysearch<P: AsRef<Path>>(
     querylist: P,
     siglist: P,
     threshold: f64,
@@ -124,36 +124,10 @@ fn search<P: AsRef<Path>>(
 
     // Read in list of query paths.
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
-    let querylist_file = BufReader::new(File::open(querylist)?);
 
     // Load all queries into memory at once.
-    let queries: Vec<(String, KmerMinHash)> = querylist_file
-        .lines()
-        .filter_map(|line| {
-            let line = line.unwrap();
-            if !line.is_empty() {
-                // skip empty lines; load non-empty!
-                let mut path = PathBuf::new();
-                path.push(line);
-                Some(path)
-            } else {
-                None
-            }
-        })
-        // for non-empty paths, load whichever one matches template.
-        .filter_map(|query| {
-            let query_sig = Signature::from_path(query).unwrap();
-
-            let mut query = None;
-            for sig in &query_sig {
-                if let Some(mh) = prepare_query(sig, &template) {
-                    query = Some((sig.name(), mh));
-                    break;
-                }
-            }
-            query
-        })
-        .collect();
+    let querylist_paths = load_sketchlist_filenames(querylist).unwrap();
+    let queries = load_sketches(querylist_paths, &template).unwrap();
 
     if queries.is_empty() {
         bail!("No query signatures loaded, exiting.");
@@ -164,25 +138,12 @@ fn search<P: AsRef<Path>>(
     // Load all _paths_, not signatures, into memory.
     eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
 
-    let siglist_file = BufReader::new(File::open(siglist)?);
-    let search_sigs: Vec<PathBuf> = siglist_file
-        .lines()
-        .filter_map(|line| {
-            let line = line.unwrap();
-            if !line.is_empty() {
-                let mut path = PathBuf::new();
-                path.push(line);
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
-    if search_sigs.is_empty() {
+    let search_sigs_paths = load_sketchlist_filenames(siglist).unwrap();
+    if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
     }
 
-    eprintln!("Loaded {} sig paths to search.", search_sigs.len());
+    eprintln!("Loaded {} sig paths to search.", search_sigs_paths.len());
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -206,10 +167,12 @@ fn search<P: AsRef<Path>>(
     // loading them individually and searching them. Stuff results into
     // the writer thread above.
     //
+    // CTB: might want to just load everything into memory here.
+    //
 
     let processed_sigs = AtomicUsize::new(0);
 
-    let send = search_sigs
+    let send = search_sigs_paths
         .par_iter()
         .filter_map(|filename| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
@@ -232,12 +195,14 @@ fn search<P: AsRef<Path>>(
             let mut results = vec![];
 
             // search for matches & save containment.
-            for (name, query) in &queries {
-                let overlap =
-                    query.count_common(&search_mh, false).unwrap() as f64 / query.size() as f64;
-                if overlap > threshold {
-                    results.push((name.clone(),
-                                  query.md5sum(),
+            for q in queries.iter() {
+                let overlap = q.minhash.count_common(&search_mh, false).unwrap() as f64;
+                let size = q.minhash.size() as f64;
+
+                let containment = overlap / size;
+                if containment > threshold {
+                    results.push((q.name.clone(),
+                                  q.minhash.md5sum(),
                                   search_sig.name(),
                                   search_sig.md5sum(),
                                   overlap))
@@ -672,15 +637,15 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 //
 
 #[pyfunction]
-fn do_search(querylist_path: String,
-             siglist_path: String,
-             threshold: f64,
-             ksize: u8,
-             scaled: usize,
-             output_path: String
+fn do_manysearch(querylist_path: String,
+                 siglist_path: String,
+                 threshold: f64,
+                 ksize: u8,
+                 scaled: usize,
+                 output_path: String
 ) -> PyResult<u8> {
-    match search(querylist_path, siglist_path, threshold, ksize, scaled,
-                 Some(output_path)) {
+    match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
+                     Some(output_path)) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -734,7 +699,7 @@ fn get_num_threads() -> PyResult<usize> {
 
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(do_search, m)?)?;
+    m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
     m.add("SomeError", _py.get_type::<SomeError>())?;
