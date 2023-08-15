@@ -138,25 +138,12 @@ fn search<P: AsRef<Path>>(
     // Load all _paths_, not signatures, into memory.
     eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
 
-    let siglist_file = BufReader::new(File::open(siglist)?);
-    let search_sigs: Vec<PathBuf> = siglist_file
-        .lines()
-        .filter_map(|line| {
-            let line = line.unwrap();
-            if !line.is_empty() {
-                let mut path = PathBuf::new();
-                path.push(line);
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
-    if search_sigs.is_empty() {
+    let search_sigs_paths = load_sketchlist_filenames(siglist).unwrap();
+    if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
     }
 
-    eprintln!("Loaded {} sig paths to search.", search_sigs.len());
+    eprintln!("Loaded {} sig paths to search.", search_sigs_paths.len());
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -185,7 +172,7 @@ fn search<P: AsRef<Path>>(
 
     let processed_sigs = AtomicUsize::new(0);
 
-    let send = search_sigs
+    let send = search_sigs_paths
         .par_iter()
         .filter_map(|filename| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
