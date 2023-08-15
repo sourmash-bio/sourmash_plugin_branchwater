@@ -13,16 +13,13 @@ classifiers = [
 requires = ["maturin>=1.1.0,<2"]
 build-backend = "maturin"
 
-[project.scripts]
-"pyo3_branchwater" = "pyo3_branchwater.__main__:main"
-
 [project.entry-points."sourmash.cli_script"]
-manysearch = "pyo3_branchwater.sourmash_plugin:Branchwater_Manysearch"
-fastgather = "pyo3_branchwater.sourmash_plugin:Branchwater_Fastgather"
-fastmultigather = "pyo3_branchwater.sourmash_plugin:Branchwater_Fastmultigather"
+manysearch = "branchwater_plugin:Branchwater_Manysearch"
+fastgather = "branchwater_plugin:Branchwater_Fastgather"
+fastmultigather = "branchwater_plugin:Branchwater_Fastmultigather"
 
 [tool.maturin]
-python-source = "python"
+python-source = "src/python"
 
 [metadata]
 license = { text = "BSD 3-Clause License" }
