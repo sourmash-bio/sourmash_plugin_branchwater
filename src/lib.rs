@@ -124,36 +124,10 @@ fn search<P: AsRef<Path>>(
 
     // Read in list of query paths.
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
-    let querylist_file = BufReader::new(File::open(querylist)?);
 
     // Load all queries into memory at once.
-    let queries: Vec<(String, KmerMinHash)> = querylist_file
-        .lines()
-        .filter_map(|line| {
-            let line = line.unwrap();
-            if !line.is_empty() {
-                // skip empty lines; load non-empty!
-                let mut path = PathBuf::new();
-                path.push(line);
-                Some(path)
-            } else {
-                None
-            }
-        })
-        // for non-empty paths, load whichever one matches template.
-        .filter_map(|query| {
-            let query_sig = Signature::from_path(query).unwrap();
-
-            let mut query = None;
-            for sig in &query_sig {
-                if let Some(mh) = prepare_query(sig, &template) {
-                    query = Some((sig.name(), mh));
-                    break;
-                }
-            }
-            query
-        })
-        .collect();
+    let querylist_paths = load_sketchlist_filenames(querylist).unwrap();
+    let queries = load_sketches(querylist_paths, &template).unwrap();
 
     if queries.is_empty() {
         bail!("No query signatures loaded, exiting.");
@@ -206,6 +180,8 @@ fn search<P: AsRef<Path>>(
     // loading them individually and searching them. Stuff results into
     // the writer thread above.
     //
+    // CTB: might want to just load everything into memory here...
+    //
 
     let processed_sigs = AtomicUsize::new(0);
 
@@ -232,12 +208,12 @@ fn search<P: AsRef<Path>>(
             let mut results = vec![];
 
             // search for matches & save containment.
-            for (name, query) in &queries {
+            for q in queries.iter() {
                 let overlap =
-                    query.count_common(&search_mh, false).unwrap() as f64 / query.size() as f64;
+                    q.minhash.count_common(&search_mh, false).unwrap() as f64 / q.minhash.size() as f64;
                 if overlap > threshold {
-                    results.push((name.clone(),
-                                  query.md5sum(),
+                    results.push((q.name.clone(),
+                                  q.minhash.md5sum(),
                                   search_sig.name(),
                                   search_sig.md5sum(),
                                   overlap))
