@@ -1,3 +1,3 @@
-The Rust source lives here, under `src/.`.
+The Rust source is in `lib.rs`.
 
-See `python/branchwater/` for the Python modules!
+The Python source code is under `python/`, and tests under `python/tests/`.
