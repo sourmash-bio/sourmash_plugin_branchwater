@@ -19,6 +19,8 @@ use std::collections::BinaryHeap;
 
 use std::cmp::{PartialOrd, Ordering};
 
+use anyhow::{Context, Result, anyhow};
+
 #[macro_use]
 extern crate simple_error;
 
@@ -112,7 +114,7 @@ fn manysearch<P: AsRef<Path>>(
     ksize: u8,
     scaled: usize,
     output: Option<P>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // construct a MinHash template for loading.
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -298,7 +300,7 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     query_label: String,
     prefetch_output: Option<P>,
     matchlist: &BinaryHeap<PrefetchResult>
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Set up a writer for prefetch output
     let prefetch_out: Box<dyn Write> = match prefetch_output {
         Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
@@ -318,7 +320,7 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 /// Load a list of filenames from a file.
 
 fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
-    Result<Vec<PathBuf>, Box<dyn std::error::Error>>
+    Result<Vec<PathBuf>>
 {
     let sketchlist_file = BufReader::new(File::open(sketchlist_filename)?);
 
@@ -328,7 +330,8 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
             Ok(v) => v,
             Err(_) => return {
                 let filename = sketchlist_filename.as_ref().display();
-                Err(format!("invalid line in fromfile '{}'", filename).into())
+                let msg = format!("invalid line in fromfile '{}'", filename);
+                Err(anyhow!(msg))
             },
         };
 
@@ -344,7 +347,7 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
 /// Load a collection of sketches from a file in parallel.
 
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
-    Result<Vec<SmallSignature>, Box<dyn std::error::Error>>
+    Result<Vec<SmallSignature>>
 {
     let sketchlist : Vec<SmallSignature> = sketchlist_paths
         .par_iter()
@@ -375,7 +378,7 @@ fn load_sketches_above_threshold(
     query: &KmerMinHash,
     threshold_hashes: u64
 ) ->
-    Result<BinaryHeap<PrefetchResult>, Box<dyn std::error::Error>>
+    Result<BinaryHeap<PrefetchResult>>
 {
     let matchlist: BinaryHeap<PrefetchResult> = sketchlist_paths
         .par_iter()
@@ -413,7 +416,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
     threshold_hashes: u64,
     gather_output: Option<P>,
     query_label: String
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Set up a writer for gather output
     let gather_out: Box<dyn Write> = match gather_output {
         Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
@@ -456,7 +459,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     scaled: usize,
     gather_output: Option<P>,
     prefetch_output: Option<P>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
         .num(0u32)
@@ -533,7 +536,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
         .num(0u32)
