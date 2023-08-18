@@ -63,3 +63,90 @@ def test_simple(runtmp):
     assert len(df) == 3
     keys = set(df.keys())
     assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
+
+
+def test_missing_query(runtmp, capfd):
+    # test missing query
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    # do not make query_list!
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: No such file or directory ' in captured.err
+
+
+def test_bad_query(runtmp, capfd):
+    return # @CTB
+    # test bad querylist (a sig file)
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', sig2, against_list,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: invalid line in fromfile ' in captured.err
+
+
+def test_missing_against(runtmp, capfd):
+    # test missing against
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    # do not make against_list
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: No such file or directory ' in captured.err
+
+
+def test_bad_against(runtmp, capfd):
+    return # @CTB
+    # test bad 'against' file - in this case, use a .sig.gz file.
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', query, sig2,
+                        '-o', g_output, '--output-prefetch', p_output,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: invalid line in fromfile ' in captured.err
