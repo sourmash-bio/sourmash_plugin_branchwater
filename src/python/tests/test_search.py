@@ -67,8 +67,8 @@ def test_simple_threshold(runtmp):
     assert len(df) == 3
 
 
-def test_bad_query(runtmp):
-    # test with a bad query list
+def test_missing_query(runtmp, capfd):
+    # test with a missing query list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -85,11 +85,14 @@ def test_bad_query(runtmp):
         runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
-    print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: No such file or directory ' in captured.err
 
 
-def test_bad_against(runtmp):
-    # test with a bad (nonexistent) against list
+def test_missing_against(runtmp, capfd):
+    # test with a missing against list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -106,11 +109,10 @@ def test_bad_against(runtmp):
         runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
-    err = runtmp.last_result.err
-    print('XXX', err)
+    captured = capfd.readouterr()
+    print(captured.err)
 
-    #assert "Reading search file paths from" in err
-    #assert "Error: No such file or directory (os error 2)" in err
+    assert 'Error: No such file or directory ' in captured.err
 
 
 def test_empty_query(runtmp):
@@ -132,28 +134,3 @@ def test_empty_query(runtmp):
                         '-o', output)
 
     print(runtmp.last_result.err)
-
-
-def test_empty_against(runtmp):
-    # test with an empty (nonexistent) against list
-    query_list = runtmp.output('query.txt')
-    against_list = runtmp.output('against.txt')
-
-    sig2 = get_test_data('2.fa.sig.gz')
-    sig47 = get_test_data('47.fa.sig.gz')
-    sig63 = get_test_data('63.fa.sig.gz')
-
-    make_file_list(query_list, [sig2, sig47, sig63])
-    make_file_list(against_list, [])
-
-    output = runtmp.output('out.csv')
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
-                        '-o', output)
-
-    err = runtmp.last_result.err
-    print('XXX', err)
-
-    #assert "Reading search file paths from" in err
-    #assert "Error: No such file or directory (os error 2)" in err

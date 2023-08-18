@@ -78,7 +78,7 @@ def test_simple_with_prefetch(runtmp):
     assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
 
 
-def test_missing_query(runtmp):
+def test_missing_query(runtmp, capfd):
     # test missing query
     query = runtmp.output('no-such-file')
     against_list = runtmp.output('against.txt')
@@ -96,6 +96,11 @@ def test_missing_query(runtmp):
         runtmp.sourmash('scripts', 'fastgather', query, against_list,
                         '-o', g_output, '--output-prefetch', p_output,
                         '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: No such file or directory ' in captured.err
 
 
 def test_bad_query(runtmp, capfd):

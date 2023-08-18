@@ -126,8 +126,8 @@ fn manysearch<P: AsRef<Path>>(
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
 
     // Load all queries into memory at once.
-    let querylist_paths = load_sketchlist_filenames(&querylist).unwrap();
-    let queries = load_sketches(querylist_paths, &template).unwrap();
+    let querylist_paths = load_sketchlist_filenames(&querylist)?;
+    let queries = load_sketches(querylist_paths, &template)?;
 
     if queries.is_empty() {
         bail!("No query signatures loaded, exiting.");
@@ -138,7 +138,7 @@ fn manysearch<P: AsRef<Path>>(
     // Load all _paths_, not signatures, into memory.
     eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
 
-    let search_sigs_paths = load_sketchlist_filenames(&siglist).unwrap();
+    let search_sigs_paths = load_sketchlist_filenames(&siglist)?;
     if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
     }
