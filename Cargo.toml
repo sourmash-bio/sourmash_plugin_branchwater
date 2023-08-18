@@ -9,7 +9,7 @@ name = "pyo3_branchwater"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.18.1", features = ["extension-module"] }
+pyo3 = { version = "0.18.1", features = ["extension-module", "anyhow"] }
 rayon = "1.5.1"
 serde = { version = "1.0.136", features = ["derive"] }
 sourmash = "0.11.0"

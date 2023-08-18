@@ -3,8 +3,6 @@
 //   not orig. This is different from sourmash...
 
 use pyo3::prelude::*;
-use pyo3::create_exception;
-use pyo3::exceptions::PyException;
 
 use rayon::prelude::*;
 
@@ -28,14 +26,6 @@ use log::{error, info};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
-
-create_exception!(pymagsearch, SomeError, pyo3::exceptions::PyException);
-
-impl std::convert::From<SomeError> for PyErr {
-    fn from(err: SomeError) -> PyErr {
-        PyException::new_err(err.to_string())
-    }
-}
 
 /// check to see if two KmerMinHash are compatible.
 ///
@@ -650,7 +640,7 @@ fn do_manysearch(querylist_path: String,
                  ksize: u8,
                  scaled: usize,
                  output_path: String
-) -> PyResult<u8> {
+) -> anyhow::Result<u8> {
     match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
                      Some(output_path)) {
         Ok(_) => Ok(0),
@@ -669,7 +659,7 @@ fn do_countergather(query_filename: String,
                     scaled: usize,
                     output_path_prefetch: Option<String>,
                     output_path_gather: Option<String>,
-) -> PyResult<u8> {
+) -> anyhow::Result<u8> {
     match countergather(query_filename, siglist_path, threshold_bp,
                         ksize, scaled,
                         output_path_prefetch,
@@ -688,7 +678,7 @@ fn do_multigather(query_filenames: String,
                      threshold_bp: usize,
                      ksize: u8,
                      scaled: usize
-) -> PyResult<u8> {
+) -> anyhow::Result<u8> {
     match multigather(query_filenames, siglist_path, threshold_bp,
                          ksize, scaled) {
         Ok(_) => Ok(0),
@@ -709,7 +699,6 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
-    m.add("SomeError", _py.get_type::<SomeError>())?;
     m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
     Ok(())
 }
