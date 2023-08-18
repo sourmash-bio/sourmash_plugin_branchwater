@@ -91,8 +91,54 @@ def test_missing_query(runtmp, capfd):
     assert 'Error: No such file or directory ' in captured.err
 
 
+def test_bad_query(runtmp, capfd):
+    # test with a bad query (a .sig.gz file)
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysearch', sig2, against_list,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: invalid line in fromfile ' in captured.err
+
+
 def test_missing_against(runtmp, capfd):
     # test with a missing against list
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    # do not create against_list
+
+    output = runtmp.output('out.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: No such file or directory ' in captured.err
+
+
+def test_bad_against(runtmp, capfd):
+    # test with a bad against list (a .sig file in this case)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -106,13 +152,13 @@ def test_missing_against(runtmp, capfd):
     output = runtmp.output('out.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+        runtmp.sourmash('scripts', 'manysearch', query_list, sig2,
                         '-o', output)
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: invalid line in fromfile ' in captured.err
 
 
 def test_empty_query(runtmp):
