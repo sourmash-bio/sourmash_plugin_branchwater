@@ -126,7 +126,7 @@ fn manysearch<P: AsRef<Path>>(
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
 
     // Load all queries into memory at once.
-    let querylist_paths = load_sketchlist_filenames(querylist).unwrap();
+    let querylist_paths = load_sketchlist_filenames(&querylist).unwrap();
     let queries = load_sketches(querylist_paths, &template).unwrap();
 
     if queries.is_empty() {
@@ -138,7 +138,7 @@ fn manysearch<P: AsRef<Path>>(
     // Load all _paths_, not signatures, into memory.
     eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
 
-    let search_sigs_paths = load_sketchlist_filenames(siglist).unwrap();
+    let search_sigs_paths = load_sketchlist_filenames(&siglist).unwrap();
     if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
     }
@@ -317,24 +317,27 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
 /// Load a list of filenames from a file.
 
-fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_file: P) ->
+fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Result<Vec<PathBuf>, Box<dyn std::error::Error>>
 {
-    let sketchlist_file = BufReader::new(File::open(sketchlist_file)?);
-    let sketchlist_filenames = sketchlist_file
-        .lines()
-        .filter_map(|line| {
-            let line = line.unwrap();
-            if !line.is_empty() {
-                // skip empty lines
-                let mut path = PathBuf::new();
-                path.push(line);
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
+    let sketchlist_file = BufReader::new(File::open(sketchlist_filename)?);
+
+    let mut sketchlist_filenames : Vec<PathBuf> = Vec::new();
+    for line in sketchlist_file.lines() {
+        let line = match line {
+            Ok(v) => v,
+            Err(_) => return {
+                let filename = sketchlist_filename.as_ref().display();
+                Err(format!("invalid line in fromfile '{}'", filename).into())
+            },
+        };
+
+        if !line.is_empty() {
+            let mut path = PathBuf::new();
+            path.push(line);
+            sketchlist_filenames.push(path);
+        }
+    }
     Ok(sketchlist_filenames)
 }
 
@@ -485,7 +488,8 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
     // build the list of paths to match against.
     eprintln!("Loading matchlist from '{}'", matchlist_filename.as_ref().display());
-    let matchlist_paths = load_sketchlist_filenames(matchlist_filename)?;
+
+    let matchlist_paths = load_sketchlist_filenames(&matchlist_filename)?;
 
     eprintln!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
@@ -539,12 +543,12 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     let template = Sketch::MinHash(template_mh);
 
     // load the list of query paths
-    let querylist_paths = load_sketchlist_filenames(query_filenames)?;
+    let querylist_paths = load_sketchlist_filenames(&query_filenames)?;
     println!("Loaded {} sig paths in querylist", querylist_paths.len());
 
     // build the list of paths to match against.
     println!("Loading matchlist");
-    let matchlist_paths = load_sketchlist_filenames(matchlist_filename)?;
+    let matchlist_paths = load_sketchlist_filenames(&matchlist_filename)?;
     println!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
     let threshold_hashes : u64 = {

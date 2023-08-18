@@ -98,7 +98,7 @@ def test_missing_query(runtmp):
                         '-s', '100000')
 
 
-def test_bad_query(runtmp):
+def test_bad_query(runtmp, capfd):
     # test non-sig query
     query = runtmp.output('no-such-file')
     against_list = runtmp.output('against.txt')
@@ -120,8 +120,13 @@ def test_bad_query(runtmp):
                         '-o', g_output, '--output-prefetch', p_output,
                         '-s', '100000')
 
+    captured = capfd.readouterr()
+    print(captured.err)
 
-def test_bad_against(runtmp):
+    assert 'Error: expected value at line 1' in captured.err
+
+
+def test_missing_against(runtmp, capfd):
     # test missing against
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -139,3 +144,29 @@ def test_bad_against(runtmp):
         runtmp.sourmash('scripts', 'fastgather', query, against_list,
                         '-o', g_output, '--output-prefetch', p_output,
                         '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: No such file or directory ' in captured.err
+
+
+def test_bad_against(runtmp, capfd):
+    # test bad 'against' file - in this case, use a .sig.gz file.
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', query, sig2,
+                        '-o', g_output, '--output-prefetch', p_output,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: invalid line in fromfile ' in captured.err
