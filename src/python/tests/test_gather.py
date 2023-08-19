@@ -222,3 +222,27 @@ def test_against_multisigfile(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 1
     # @CTB this is a bug :(. It should load multiple sketches properly!
+
+
+def test_query_multisigfile(runtmp):
+    # test with a sigfile that contains multiple sketches
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    combined = runtmp.output('combined.sig.gz')
+    runtmp.sourmash('sig', 'cat', sig2, sig47, sig63, '-o', combined)
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', combined, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+    # @CTB this should fail, not succeed :(.
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
