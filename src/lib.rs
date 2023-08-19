@@ -31,6 +31,7 @@ use sourmash::sketch::Sketch;
 
 struct SmallSignature {
     name: String,
+    md5sum: String,
     minhash: KmerMinHash,
 }
 
@@ -101,13 +102,18 @@ fn check_compatible_downsample(
 /// Given a search Signature containing one or more sketches, and a template
 /// Sketch, return a compatible (& now downsampled) Sketch from the search
 /// Signature.
+///
+/// CTB note: this will return the first acceptable match, I think, ignoring
+/// all others.
 
 fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHash> {
     let mut search_mh = None;
+
+    // find exact match for template?
     if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
         search_mh = Some(mh.clone());
     } else {
-        // try to find one that can be downsampled
+        // no - try to find one that can be downsampled
         if let Sketch::MinHash(template_mh) = template {
             for sketch in search_sig.sketches() {
                 if let Sketch::MinHash(ref_mh) = sketch {
@@ -154,7 +160,8 @@ fn manysearch<P: AsRef<Path>>(
 
     // Load all queries into memory at once.
     let querylist_paths = load_sketchlist_filenames(&querylist)?;
-    let queries = load_sketches(querylist_paths, &template)?;
+    let result = load_sketches(querylist_paths, &template)?;
+    let queries = result.0;
 
     if queries.is_empty() {
         bail!("No query signatures loaded, exiting.");
@@ -341,8 +348,10 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
 /// Load a collection of sketches from a file in parallel.
 
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
-    Result<Vec<SmallSignature>>
+    Result<(Vec<SmallSignature>, usize)>
 {
+    let skipped_paths = AtomicUsize::new(0);
+
     let sketchlist : Vec<SmallSignature> = sketchlist_paths
         .par_iter()
         .filter_map(|m| {
@@ -353,14 +362,19 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
                 if let Some(mh) = prepare_query(sig, template) {
                     sm = Some(SmallSignature {
                         name: sig.name(),
+                        md5sum: sig.md5sum(),
                         minhash: mh,
                     });
+                } else {
+                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             }
             sm
         })
         .collect();
-    Ok(sketchlist)
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    Ok((sketchlist, skipped_paths))
 }
 
 /// Load a collection of sketches from a file, filtering to keep only
@@ -565,7 +579,12 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // Load all the against sketches
-    let sketchlist = load_sketches(matchlist_paths, &template).unwrap();
+    let result = load_sketches(matchlist_paths, &template).unwrap(); // @CTB
+    let sketchlist = result.0;
+    let skipped_paths = result.1;
+
+    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+              skipped_paths);
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);

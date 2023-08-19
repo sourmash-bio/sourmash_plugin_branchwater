@@ -99,7 +99,7 @@ def test_bad_query(runtmp, capfd):
     make_file_list(against_list, [sig2, sig47, sig63])
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastgather', sig2, against_list,
+        runtmp.sourmash('scripts', 'fastmultigather', sig2, against_list,
                         '-s', '100000')
 
     captured = capfd.readouterr()
@@ -138,15 +138,32 @@ def test_bad_against(runtmp, capfd):
 
     sig2 = get_test_data('2.fa.sig.gz')
 
-    g_output = runtmp.output('gather.csv')
-    p_output = runtmp.output('prefetch.csv')
-
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastgather', query, sig2,
-                        '-o', g_output, '--output-prefetch', p_output,
+        runtmp.sourmash('scripts', 'fastmultigather', query, sig2,
                         '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
 
     assert 'Error: invalid line in fromfile ' in captured.err
+
+
+def test_nomatch_in_against(runtmp, capfd):
+    # test an against file that has a non-matching ksize sig in it
+    query = get_test_data('SRR606249.sig.gz')
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    make_file_list(against_list, [sig2, sig1])
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
