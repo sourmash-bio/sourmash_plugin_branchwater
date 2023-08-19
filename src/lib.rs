@@ -160,18 +160,19 @@ fn manysearch<P: AsRef<Path>>(
 
     // Load all queries into memory at once.
     let querylist_paths = load_sketchlist_filenames(&querylist)?;
+
     let result = load_sketches(querylist_paths, &template)?;
+
     let queries = result.0;
     let skipped_paths = result.1;
 
+    eprintln!("Loaded {} query signatures", queries.len());
     eprintln!("WARNING: skipped {} paths - no compatible signatures.",
               skipped_paths);
 
     if queries.is_empty() {
         bail!("No query signatures loaded, exiting.");
     }
-
-    eprintln!("Loaded {} query signatures", queries.len());
 
     // Load all _paths_, not signatures, into memory.
     eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
@@ -593,12 +594,18 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // Load all the against sketches
-    let result = load_sketches(matchlist_paths, &template).unwrap(); // @CTB
+    let result = load_sketches(matchlist_paths, &template)?;
+
     let sketchlist = result.0;
     let skipped_paths = result.1;
 
+    eprintln!("Loaded {} sketches to search against.", sketchlist.len());
     eprintln!("WARNING: skipped {} paths - no compatible signatures.",
               skipped_paths);
+
+    if sketchlist.is_empty() {
+        bail!("No sketches loaded to search against!?")
+    }
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
