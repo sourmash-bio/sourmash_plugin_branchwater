@@ -162,11 +162,13 @@ fn manysearch<P: AsRef<Path>>(
     let querylist_paths = load_sketchlist_filenames(&querylist)?;
 
     let result = load_sketches(querylist_paths, &template)?;
-
-    let queries = result.0;
-    let skipped_paths = result.1;
+    let (queries, skipped_paths, failed_paths) = result;
 
     eprintln!("Loaded {} query signatures", queries.len());
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+                  failed_paths);
+    }
     if skipped_paths > 0 {
         eprintln!("WARNING: skipped {} paths - no compatible signatures.",
                   skipped_paths);
@@ -355,33 +357,44 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
 /// Load a collection of sketches from a file in parallel.
 
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
-    Result<(Vec<SmallSignature>, usize)>
+    Result<(Vec<SmallSignature>, usize, usize)>
 {
     let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
 
     let sketchlist : Vec<SmallSignature> = sketchlist_paths
         .par_iter()
         .filter_map(|m| {
-            let sigs = Signature::from_path(m).unwrap();
-
             let mut sm = None;
-            for sig in &sigs {
-                if let Some(mh) = prepare_query(sig, template) {
-                    sm = Some(SmallSignature {
-                        name: sig.name(),
-                        md5sum: sig.md5sum(),
-                        minhash: mh,
-                    });
-                } else {
-                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+
+            let filename = m.display();
+
+            if let Ok(sigs) = Signature::from_path(m) {
+                for sig in &sigs {
+                    if let Some(mh) = prepare_query(sig, template) {
+                        sm = Some(SmallSignature {
+                            name: sig.name(),
+                            md5sum: sig.md5sum(),
+                            minhash: mh,
+                        });
+                    } else {
+                        // track number of paths that have no matching sigs
+                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    }
                 }
+            } else {
+                // failed to load from this path - print error & track.
+                eprintln!("WARNING: could not load sketches from path '{}'",
+                          filename);
+                let _i = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
             }
             sm
         })
         .collect();
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
-    Ok((sketchlist, skipped_paths))
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+    Ok((sketchlist, skipped_paths, failed_paths))
 }
 
 /// Load a collection of sketches from a file, filtering to keep only
@@ -599,11 +612,13 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
     // Load all the against sketches
     let result = load_sketches(matchlist_paths, &template)?;
-
-    let sketchlist = result.0;
-    let skipped_paths = result.1;
+    let (sketchlist, skipped_paths, failed_paths) = result;
 
     eprintln!("Loaded {} sketches to search against.", sketchlist.len());
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+                  failed_paths);
+    }
     if skipped_paths > 0 {
         eprintln!("WARNING: skipped {} paths - no compatible signatures.",
                   skipped_paths);

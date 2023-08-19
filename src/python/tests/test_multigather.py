@@ -131,7 +131,6 @@ def test_missing_against(runtmp, capfd):
 
 
 def test_bad_against(runtmp, capfd):
-    return # @CTB
     # test bad 'against' file - in this case, use a .sig.gz file.
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -146,6 +145,45 @@ def test_bad_against(runtmp, capfd):
     print(captured.err)
 
     assert 'Error: invalid line in fromfile ' in captured.err
+
+
+def test_bad_against_2(runtmp, capfd):
+    # test bad 'against' file - in this case, one containing a nonexistent file
+    query = get_test_data('SRR606249.sig.gz')
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+
+    against_list = runtmp.output('against.txt')
+    sig2 = get_test_data('2.fa.sig.gz')
+    make_file_list(against_list, [sig2, "no exist"])
+
+    # should succeed, but with error output.
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "WARNING: could not load sketches from path 'no exist'" in captured.err
+
+
+def test_empty_against(runtmp, capfd):
+    # test bad 'against' file - in this case, an empty one
+    query = get_test_data('SRR606249.sig.gz')
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+
+    against_list = runtmp.output('against.txt')
+    make_file_list(against_list, [])
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "Loaded 0 sketches to search against." in captured.err
+    assert "Error: No sketches loaded to search against!?" in captured.err
 
 
 def test_nomatch_in_against(runtmp, capfd):
