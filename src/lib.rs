@@ -27,6 +27,41 @@ use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 
+/// Track a name/minhash.
+
+struct SmallSignature {
+    name: String,
+    minhash: KmerMinHash,
+}
+
+/// Structure to hold overlap information from comparisons.
+
+struct PrefetchResult {
+    name: String,
+    minhash: KmerMinHash,
+    overlap: u64,
+}
+
+impl Ord for PrefetchResult {
+    fn cmp(&self, other: &PrefetchResult) -> Ordering {
+        self.overlap.cmp(&other.overlap)
+    }
+}
+
+impl PartialOrd for PrefetchResult {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for PrefetchResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.overlap == other.overlap
+    }
+}
+
+impl Eq for PrefetchResult {}
+
 /// check to see if two KmerMinHash are compatible.
 ///
 /// CTB note: despite the name, downsampling is not performed?
@@ -225,37 +260,6 @@ fn manysearch<P: AsRef<Path>>(
     Ok(())
 }
 
-struct SmallSignature {
-    name: String,
-    minhash: KmerMinHash,
-}
-
-struct PrefetchResult {
-    name: String,
-    minhash: KmerMinHash,
-    overlap: u64,
-}
-
-impl Ord for PrefetchResult {
-    fn cmp(&self, other: &PrefetchResult) -> Ordering {
-        self.overlap.cmp(&other.overlap)
-    }
-}
-
-impl PartialOrd for PrefetchResult {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for PrefetchResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.overlap == other.overlap
-    }
-}
-
-impl Eq for PrefetchResult {}
-
 /// Find sketches in 'sketchlist' that overlap with 'query' above
 /// specified threshold.
 
@@ -307,7 +311,7 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     Ok(())
 }
 
-/// Load a list of filenames from a file.
+/// Load a list of filenames from a file. Exits on bad lines.
 
 fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Result<Vec<PathBuf>>
