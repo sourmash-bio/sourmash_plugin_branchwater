@@ -373,22 +373,27 @@ fn load_sketches_above_threshold(
     let matchlist: BinaryHeap<PrefetchResult> = sketchlist_paths
         .par_iter()
         .filter_map(|m| {
-            let sigs = Signature::from_path(m).unwrap();
+            let sigs = Signature::from_path(m);
 
             let mut mm = None;
-            for sig in &sigs {
-                if let Some(mh) = prepare_query(sig, template) {
-                    if let Ok(overlap) = mh.count_common(query, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: sig.name(),
-                                minhash: mh,
-                                overlap,
-                            };
-                            mm = Some(result);
+            if let Ok(sigs) = sigs {
+                for sig in &sigs {
+                    if let Some(mh) = prepare_query(sig, template) {
+                        if let Ok(overlap) = mh.count_common(query, false) {
+                            if overlap >= threshold_hashes {
+                                let result = PrefetchResult {
+                                    name: sig.name(),
+                                    minhash: mh,
+                                    overlap,
+                                };
+                                mm = Some(result);
+                                break;
+                            }
                         }
                     }
                 }
+            } else {
+                 // print out error here...
             }
             mm
         })

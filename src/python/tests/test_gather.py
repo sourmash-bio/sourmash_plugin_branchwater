@@ -159,7 +159,6 @@ def test_missing_against(runtmp, capfd):
 def test_bad_against(runtmp, capfd):
     # test bad 'against' file - in this case, use a .sig.gz file.
     query = get_test_data('SRR606249.sig.gz')
-    against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
 
@@ -175,3 +174,27 @@ def test_bad_against(runtmp, capfd):
     print(captured.err)
 
     assert 'Error: invalid line in fromfile ' in captured.err
+
+
+
+
+def test_bad_against_2(runtmp, capfd):
+    # test bad 'against' file - in this case, one containing a bad filename.
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    make_file_list(against_list, [sig2, 'file-does-not-exist'])
+
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    # @CTB: should be some kind of error message here.
