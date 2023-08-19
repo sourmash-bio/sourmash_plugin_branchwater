@@ -246,3 +246,28 @@ def test_query_multisigfile(runtmp):
     # @CTB this should fail, not succeed :(.
     df = pandas.read_csv(g_output)
     assert len(df) == 1
+
+
+def test_against_nomatch(runtmp, capfd):
+    # test with 'against' file containing a non-matching ksize
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig1, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err

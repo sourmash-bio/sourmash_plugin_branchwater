@@ -162,6 +162,10 @@ fn manysearch<P: AsRef<Path>>(
     let querylist_paths = load_sketchlist_filenames(&querylist)?;
     let result = load_sketches(querylist_paths, &template)?;
     let queries = result.0;
+    let skipped_paths = result.1;
+
+    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+              skipped_paths);
 
     if queries.is_empty() {
         bail!("No query signatures loaded, exiting.");
@@ -386,8 +390,10 @@ fn load_sketches_above_threshold(
     query: &KmerMinHash,
     threshold_hashes: u64
 ) ->
-    Result<BinaryHeap<PrefetchResult>>
+    Result<(BinaryHeap<PrefetchResult>, usize)>
 {
+    let skipped_paths = AtomicUsize::new(0);
+
     let matchlist: BinaryHeap<PrefetchResult> = sketchlist_paths
         .par_iter()
         .filter_map(|m| {
@@ -408,6 +414,8 @@ fn load_sketches_above_threshold(
                                 break;
                             }
                         }
+                    } else {
+                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                 }
             } else {
@@ -417,7 +425,8 @@ fn load_sketches_above_threshold(
         })
         .collect();
 
-    Ok(matchlist)
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    Ok((matchlist, skipped_paths))
 }
 
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
@@ -523,10 +532,15 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
               threshold_hashes, threshold_bp);
 
     // load a set of sketches, filtering for those with overlaps > threshold
-    let matchlist = load_sketches_above_threshold(matchlist_paths,
-                                                  &template,
-                                                  &query,
-                                                  threshold_hashes)?;
+    let result = load_sketches_above_threshold(matchlist_paths,
+                                               &template,
+                                               &query,
+                                               threshold_hashes)?;
+    let matchlist = result.0;
+    let skipped_paths = result.1;
+
+    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+              skipped_paths);
 
     if matchlist.is_empty() {
         eprintln!("No matchlist signatures loaded, exiting.");
