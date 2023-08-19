@@ -65,8 +65,8 @@ def test_simple(runtmp):
     assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
 
 
-def test_missing_query(runtmp, capfd):
-    # test missing query
+def test_missing_querylist(runtmp, capfd):
+    # test missing querylist
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -87,6 +87,7 @@ def test_missing_query(runtmp, capfd):
     assert 'Error: No such file or directory ' in captured.err
 
 
+# @CTB add test_missing_query too!/test_bad_query no-exist
 def test_bad_query(runtmp, capfd):
     return # @CTB
     # test bad querylist (a sig file)
@@ -164,6 +165,7 @@ def test_bad_against_2(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
     assert "WARNING: could not load sketches from path 'no exist'" in captured.err
+    # @CTB add number of missing.
 
 
 def test_empty_against(runtmp, capfd):

@@ -176,8 +176,6 @@ def test_bad_against(runtmp, capfd):
     assert 'Error: invalid line in fromfile ' in captured.err
 
 
-
-
 def test_bad_against_2(runtmp, capfd):
     return
 
@@ -186,7 +184,7 @@ def test_bad_against_2(runtmp, capfd):
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
-    make_file_list(against_list, [sig2, 'file-does-not-exist'])
+    make_file_list(against_list, [sig2, 'no-exist'])
 
 
     g_output = runtmp.output('gather.csv')
