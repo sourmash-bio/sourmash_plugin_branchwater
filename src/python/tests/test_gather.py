@@ -198,6 +198,7 @@ def test_bad_against_2(runtmp, capfd):
     print(captured.err)
 
     # @CTB: should be some kind of error message here.
+    assert 0
 
 
 def test_against_multisigfile(runtmp):

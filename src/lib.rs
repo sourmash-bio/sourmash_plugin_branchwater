@@ -167,8 +167,10 @@ fn manysearch<P: AsRef<Path>>(
     let skipped_paths = result.1;
 
     eprintln!("Loaded {} query signatures", queries.len());
-    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-              skipped_paths);
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+                  skipped_paths);
+    }
 
     if queries.is_empty() {
         bail!("No query signatures loaded, exiting.");
@@ -540,8 +542,10 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     let matchlist = result.0;
     let skipped_paths = result.1;
 
-    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-              skipped_paths);
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+                  skipped_paths);
+    }
 
     if matchlist.is_empty() {
         eprintln!("No matchlist signatures loaded, exiting.");
@@ -600,8 +604,10 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     let skipped_paths = result.1;
 
     eprintln!("Loaded {} sketches to search against.", sketchlist.len());
-    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-              skipped_paths);
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+                  skipped_paths);
+    }
 
     if sketchlist.is_empty() {
         bail!("No sketches loaded to search against!?")
