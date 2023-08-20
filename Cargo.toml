@@ -1,6 +1,6 @@
 [package]
 name = "pyo3-branchwater"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,7 +9,7 @@ name = "pyo3_branchwater"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.18.1", features = ["extension-module"] }
+pyo3 = { version = "0.18.1", features = ["extension-module", "anyhow"] }
 rayon = "1.5.1"
 serde = { version = "1.0.136", features = ["derive"] }
 sourmash = "0.11.0"
@@ -19,6 +19,7 @@ niffler = "2.4.0"
 log = "0.4.14"
 env_logger = "0.9.0"
 simple-error = "0.3.0"
+anyhow = "1.0.75"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"

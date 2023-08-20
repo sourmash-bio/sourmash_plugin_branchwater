@@ -14,9 +14,9 @@ requires = ["maturin>=1.1.0,<2"]
 build-backend = "maturin"
 
 [project.entry-points."sourmash.cli_script"]
-manysearch = "branchwater_plugin:Branchwater_Manysearch"
-fastgather = "branchwater_plugin:Branchwater_Fastgather"
-fastmultigather = "branchwater_plugin:Branchwater_Fastmultigather"
+manysearch = "pyo3_branchwater:Branchwater_Manysearch"
+fastgather = "pyo3_branchwater:Branchwater_Fastgather"
+fastmultigather = "pyo3_branchwater:Branchwater_Fastmultigather"
 
 [tool.maturin]
 python-source = "src/python"

@@ -90,6 +90,13 @@ of sourmash plugins and Rust to provide some fast functionality
 that may be of use to some people, and it can serve as a testbed for
 future sourmash functionality.
 
+## Develoer notes
+
+```
+make test
+```
+will run the Python tests.
+
 ### Generating a release
 
 Bump version number in `Cargo.toml` and push.
@@ -99,10 +106,18 @@ Make a new release on github.
 Then pull, and:
 
 ```
-python -m build
+rm -fr target/wheels/
+maturin sdist
 ```
 
-followed by `twine upload dist/*.tar.gz`.
+followed by `twine upload target/wheels/pyo3_branchwater-*.tar.gz`
+
+### Building wheels
+
+You can build a wheel for your current platform with:
+```
+maturin build
+```
 
 ---
 

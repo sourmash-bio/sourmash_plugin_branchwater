@@ -4,7 +4,7 @@ import argparse
 from sourmash.plugins import CommandLinePlugin
 from sourmash.logging import notify
 
-from pyo3_branchwater import pyo3_branchwater
+from . import pyo3_branchwater
 
 class Branchwater_Manysearch(CommandLinePlugin):
     command = 'manysearch'
