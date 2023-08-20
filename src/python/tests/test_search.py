@@ -251,3 +251,28 @@ def test_nomatch_query(runtmp, capfd):
     print(captured.err)
 
     assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
+
+
+def test_load_only_one_bug(runtmp, capfd):
+    # check that we behave properly when presented with multiple against
+    # sketches
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig1_k31 = get_test_data('1.fa.k31.sig.gz')
+    sig1_all = get_test_data('1.combined.sig.gz')
+
+    make_file_list(query_list, [sig1_k31])
+    make_file_list(against_list, [sig1_all])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                    '-o', output)
+    assert os.path.exists(output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert not 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
+    assert not 'WARNING: no compatible sketches in path ' in captured.err
