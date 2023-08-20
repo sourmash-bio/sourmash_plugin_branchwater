@@ -261,7 +261,7 @@ fn manysearch<P: AsRef<Path>>(
                             results.push((q.name.clone(),
                                           q.minhash.md5sum(),
                                           search_sig.name(),
-                                          search_sig.md5sum(),
+                                          search_mh.md5sum(),
                                           overlap))
                         }
                     }
