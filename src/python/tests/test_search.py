@@ -204,7 +204,7 @@ def test_bad_against_2(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert 0
+    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
 
 
 def test_empty_query(runtmp):

@@ -177,8 +177,6 @@ def test_bad_against(runtmp, capfd):
 
 
 def test_bad_against_2(runtmp, capfd):
-    return
-
     # test bad 'against' file - in this case, one containing a bad filename.
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -197,8 +195,8 @@ def test_bad_against_2(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    # @CTB: should be some kind of error message here.
-    assert 0
+    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
 
 
 def test_against_multisigfile(runtmp):

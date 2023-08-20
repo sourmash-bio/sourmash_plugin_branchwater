@@ -433,9 +433,10 @@ fn load_sketches_above_threshold(
     query: &KmerMinHash,
     threshold_hashes: u64
 ) ->
-    Result<(BinaryHeap<PrefetchResult>, usize)>
+    Result<(BinaryHeap<PrefetchResult>, usize, usize)>
 {
     let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
 
     let matchlist: BinaryHeap<PrefetchResult> = sketchlist_paths
         .par_iter()
@@ -458,18 +459,24 @@ fn load_sketches_above_threshold(
                             }
                         }
                     } else {
+                        eprintln!("WARNING: no compatible sketches in path '{}'",
+                                  m.display());
                         let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                 }
             } else {
-                 // print out error here...
+                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                eprintln!("WARNING: could not load sketches from path '{}'",
+                          m.display());
             }
             mm
         })
         .collect();
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
-    Ok((matchlist, skipped_paths))
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+    Ok((matchlist, skipped_paths, failed_paths))
 }
 
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
@@ -581,10 +588,15 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
                                                threshold_hashes)?;
     let matchlist = result.0;
     let skipped_paths = result.1;
+    let failed_paths = result.2;
 
     if skipped_paths > 0 {
         eprintln!("WARNING: skipped {} paths - no compatible signatures.",
                   skipped_paths);
+    }
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+                  failed_paths);
     }
 
     if matchlist.is_empty() {
