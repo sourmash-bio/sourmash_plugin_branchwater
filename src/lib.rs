@@ -655,11 +655,11 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
     eprintln!("Loaded {} sketches to search against.", sketchlist.len());
     if failed_paths > 0 {
-        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+        eprintln!("WARNING: {} search paths failed to load. See error messages above.",
                   failed_paths);
     }
     if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+        eprintln!("WARNING: skipped {} search paths - no compatible signatures.",
                   skipped_paths);
     }
 
@@ -669,6 +669,8 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
 
     querylist_paths
         .par_iter()
@@ -690,50 +692,72 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                             break;
                         }
                     }
+                    if mm.is_none() {
+                        eprintln!("WARNING: no compatible sketches in path '{}'",
+                                  q.display());
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    }
+                } else {
+                    eprintln!("WARNING: could not load sketches from path '{}'",
+                              q.display());
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
                 mm
             } {
-                // filter first set of matches out of sketchlist
-                    let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                    .par_iter()
-                    .filter_map(|sm| {
-                        let mut mm = None;
 
-                        if let Ok(overlap) = sm.minhash.count_common(&query, false) {
-                            if overlap >= threshold_hashes {
-                                let result = PrefetchResult {
-                                    name: sm.name.clone(),
-                                    minhash: sm.minhash.clone(),
-                                    overlap,
-                                };
-                                mm = Some(result);
-                            }
+            // filter first set of matches out of sketchlist
+            let matchlist: BinaryHeap<PrefetchResult> = sketchlist
+                .par_iter()
+                .filter_map(|sm| {
+                    let mut mm = None;
+
+                    if let Ok(overlap) = sm.minhash.count_common(&query, false) {
+                        if overlap >= threshold_hashes {
+                            let result = PrefetchResult {
+                                name: sm.name.clone(),
+                                minhash: sm.minhash.clone(),
+                                overlap,
+                            };
+                            mm = Some(result);
                         }
-                        mm
-                    })
-                    .collect();
+                    }
+                    mm
+                })
+                .collect();
 
-                if !matchlist.is_empty() {
-                    let prefetch_output = format!("{query_label}.prefetch.csv");
-                    let gather_output = format!("{query_label}.gather.csv");
+            if !matchlist.is_empty() {
+                let prefetch_output = format!("{query_label}.prefetch.csv");
+                let gather_output = format!("{query_label}.gather.csv");
 
-                    // save initial list of matches to prefetch output
-                    write_prefetch(query_label.clone(), Some(prefetch_output),
-                                   &matchlist).ok();
+                // save initial list of matches to prefetch output
+                write_prefetch(query_label.clone(), Some(prefetch_output),
+                               &matchlist).ok();
 
-                    // now, do the gather!
-                    consume_query_by_gather(query, matchlist, threshold_hashes,
-                                            Some(gather_output), query_label).ok();
-                } else {
-                    println!("No matches to '{}'", query_label);
-                }
+                // now, do the gather!
+                consume_query_by_gather(query, matchlist, threshold_hashes,
+                                        Some(gather_output), query_label).ok();
             } else {
-                println!("ERROR loading signature from '{}'", query_label);
+                println!("No matches to '{}'", query_label);
             }
+        } else {
+            println!("ERROR loading signature from '{}'", query_label);
+        }
         });
 
 
     println!("Processed {} queries total.", processed_queries.into_inner());
+
+    let skipped_paths = skipped_paths.into_inner();
+    let failed_paths = failed_paths.into_inner();
+
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} query paths - no compatible signatures.",
+                  skipped_paths);
+    }
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} query paths failed to load. See error messages above.",
+                  failed_paths);
+    }
         
     Ok(())
 }

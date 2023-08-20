@@ -87,9 +87,7 @@ def test_missing_querylist(runtmp, capfd):
     assert 'Error: No such file or directory ' in captured.err
 
 
-# @CTB add test_missing_query too!/test_bad_query no-exist
 def test_bad_query(runtmp, capfd):
-    return # @CTB
     # test bad querylist (a sig file)
     against_list = runtmp.output('against.txt')
 
@@ -107,6 +105,51 @@ def test_bad_query(runtmp, capfd):
     print(captured.err)
 
     assert 'Error: invalid line in fromfile ' in captured.err
+
+
+def test_missing_query(runtmp, capfd):
+    # test missingfile in querylist
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, 'no-exist'])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert "WARNING: 1 query paths failed to load. See error messages above."
+
+
+def test_nomatch_query(runtmp, capfd):
+    # test nomatch file in querylist
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    badsig1 = get_test_data('1.fa.k21.sig.gz')
+
+    make_file_list(query_list, [sig2, badsig1])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "WARNING: no compatible sketches in path " in captured.err
+    assert "WARNING: skipped 1 query paths - no compatible signatures." in captured.err
 
 
 def test_missing_against(runtmp, capfd):
@@ -164,8 +207,9 @@ def test_bad_against_2(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
+
     assert "WARNING: could not load sketches from path 'no exist'" in captured.err
-    # @CTB add number of missing.
+    assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
 def test_empty_against(runtmp, capfd):
@@ -206,4 +250,4 @@ def test_nomatch_in_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
+    assert 'WARNING: skipped 1 search paths - no compatible signatures.' in captured.err
