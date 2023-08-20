@@ -185,7 +185,6 @@ def test_bad_against(runtmp, capfd):
 
 
 def test_bad_against_2(runtmp, capfd):
-    return # @CTB
     # test with a bad against list (a missing file)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -204,7 +203,8 @@ def test_bad_against_2(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert 0
 
 
 def test_empty_query(runtmp):

@@ -210,10 +210,10 @@ fn manysearch<P: AsRef<Path>>(
     // loading them individually and searching them. Stuff results into
     // the writer thread above.
     //
-    // CTB: might want to just load everything into memory here.
-    //
 
     let processed_sigs = AtomicUsize::new(0);
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
 
     let send = search_sigs_paths
         .par_iter()
@@ -224,33 +224,47 @@ fn manysearch<P: AsRef<Path>>(
             }
 
             let mut search_mh = None;
-            // load search signature from path:
-            let search_sig = &Signature::from_path(filename)
-                .unwrap_or_else(|_| panic!("Error processing {:?}", filename))[0];
-
-            // make sure it is compatible etc.
-            if let Some(mh) = prepare_query(search_sig, &template) {
-                search_mh = Some(mh);
-            }
-            // (this will raise an exception if nothing compatible.)
-            let search_mh = search_mh.unwrap();
-
             let mut results = vec![];
 
-            // search for matches & save containment.
-            for q in queries.iter() {
-                let overlap = q.minhash.count_common(&search_mh, false).unwrap() as f64;
-                let size = q.minhash.size() as f64;
+            // load search signature from path:
+            let search_sig = Signature::from_path(filename);
+            if search_sig.is_ok() {
+                let search_sig = search_sig.unwrap();
+                let search_sig = &search_sig[0]; // @CTB check on this
 
-                let containment = overlap / size;
-                if containment > threshold {
-                    results.push((q.name.clone(),
-                                  q.minhash.md5sum(),
-                                  search_sig.name(),
-                                  search_sig.md5sum(),
-                                  overlap))
+                // make sure it is compatible etc.
+                if let Some(mh) = prepare_query(search_sig, &template) {
+                    search_mh = Some(mh);
+                } else {
+                    eprintln!("WARNING: no compatible sketches in path '{}'",
+                              filename.display());
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
+
+                if search_mh.is_some() {
+                    let search_mh = search_mh.unwrap();
+
+                    // search for matches & save containment.
+                    for q in queries.iter() {
+                        let overlap = q.minhash.count_common(&search_mh, false).unwrap() as f64;
+                        let size = q.minhash.size() as f64;
+
+                        let containment = overlap / size;
+                        if containment > threshold {
+                            results.push((q.name.clone(),
+                                          q.minhash.md5sum(),
+                                          search_sig.name(),
+                                          search_sig.md5sum(),
+                                          overlap))
+                        }
+                    }
+                }
+            } else {
+                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                eprintln!("WARNING: could not load sketches from path '{}'",
+                          filename.display());
             }
+
             if results.is_empty() {
                 None
             } else {
@@ -272,6 +286,18 @@ fn manysearch<P: AsRef<Path>>(
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
     eprintln!("DONE. Processed {} search sigs", i);
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+                  skipped_paths);
+    }
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+                  failed_paths);
+    }
 
     Ok(())
 }
@@ -379,6 +405,7 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
                         });
                     } else {
                         // track number of paths that have no matching sigs
+                        // @CTB: print error?
                         let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                 }
