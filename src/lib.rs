@@ -224,18 +224,24 @@ fn manysearch<P: AsRef<Path>>(
             }
 
             let mut search_mh = None;
+            let mut search_sig = None;
             let mut results = vec![];
 
             // load search signature from path:
-            let search_sig = Signature::from_path(filename);
-            if search_sig.is_ok() {
-                let search_sig = search_sig.unwrap();
-                let search_sig = &search_sig[0]; // @CTB check on this
+            let search_sigs = Signature::from_path(filename);
+            if search_sigs.is_ok() {
+                let search_sigs = search_sigs.unwrap();
 
+                for ss in search_sigs.iter() {
+                    if let Some(mh) = prepare_query(ss, &template) {
+                        search_sig = Some(ss);
+                        search_mh = Some(mh);
+                        break;
+                    }
+                }
                 // make sure it is compatible etc.
-                if let Some(mh) = prepare_query(search_sig, &template) {
-                    search_mh = Some(mh);
-                } else {
+
+                if !search_mh.is_some() {
                     eprintln!("WARNING: no compatible sketches in path '{}'",
                               filename.display());
                     let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -251,6 +257,7 @@ fn manysearch<P: AsRef<Path>>(
 
                         let containment = overlap / size;
                         if containment > threshold {
+                            let search_sig = search_sig.unwrap();
                             results.push((q.name.clone(),
                                           q.minhash.md5sum(),
                                           search_sig.name(),
