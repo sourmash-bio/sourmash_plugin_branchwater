@@ -11,3 +11,14 @@ clean:
 
 test:
 	$(PYTHON) -m pytest
+
+
+wheel:
+	$(PYTHON) -m maturin build
+
+sdist:
+	rm -f target/wheels/pyo3_branchwater-*.tar.gz
+	$(PYTHON) -m maturin sdist
+
+upload_sdist: sdist
+	twine upload target/wheels/pyo3_branchwater-*.tar.gz
