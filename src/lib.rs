@@ -261,7 +261,7 @@ fn manysearch<P: AsRef<Path>>(
                             results.push((q.name.clone(),
                                           q.minhash.md5sum(),
                                           search_sig.name(),
-                                          search_sig.md5sum(),
+                                          search_mh.md5sum(),
                                           overlap))
                         }
                     }
@@ -407,7 +407,7 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
                     if let Some(mh) = prepare_query(sig, template) {
                         sm = Some(SmallSignature {
                             name: sig.name(),
-                            md5sum: sig.md5sum(),
+                            md5sum: mh.md5sum(),
                             minhash: mh,
                         });
                     } else {
