@@ -407,7 +407,7 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
                     if let Some(mh) = prepare_query(sig, template) {
                         sm = Some(SmallSignature {
                             name: sig.name(),
-                            md5sum: sig.md5sum(),
+                            md5sum: mh.md5sum(),
                             minhash: mh,
                         });
                     } else {
