@@ -450,33 +450,38 @@ fn load_sketches_above_threshold(
         .filter_map(|m| {
             let sigs = Signature::from_path(m);
 
-            let mut mm = None;
-            if let Ok(sigs) = sigs {
-                for sig in &sigs {
-                    if let Some(mh) = prepare_query(sig, template) {
-                        if let Ok(overlap) = mh.count_common(query, false) {
-                            if overlap >= threshold_hashes {
-                                let result = PrefetchResult {
-                                    name: sig.name(),
-                                    minhash: mh,
-                                    overlap,
-                                };
-                                mm = Some(result);
-                                break;
+            match sigs {
+                Ok(sigs) => {
+                    let mut mm = None;
+                    for sig in &sigs {
+                        if let Some(mh) = prepare_query(sig, template) {
+                            if let Ok(overlap) = mh.count_common(query, false) {
+                                if overlap >= threshold_hashes {
+                                    let result = PrefetchResult {
+                                        name: sig.name(),
+                                        minhash: mh,
+                                        overlap,
+                                    };
+                                    mm = Some(result);
+                                    break;
+                                }
                             }
+                        } else {
+                            eprintln!("WARNING: no compatible sketches in path '{}'",
+                                      m.display());
+                            let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         }
-                    } else {
-                        eprintln!("WARNING: no compatible sketches in path '{}'",
-                                  m.display());
-                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
+                    mm
                 }
-            } else {
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                eprintln!("WARNING: could not load sketches from path '{}'",
+                Err(err) => {
+                    eprintln!("Sketch loading error: {}", err);
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    eprintln!("WARNING: could not load sketches from path '{}'",
                           m.display());
+                    None
+                }
             }
-            mm
         })
         .collect();
 
