@@ -199,6 +199,34 @@ def test_bad_against_2(runtmp, capfd):
     assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
 
 
+def test_bad_against_3(runtmp, capfd):
+    # test bad 'against' file - in this case, one containing an empty file
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    empty_file = runtmp.output('empty.sig')
+    with open(empty_file, 'wb') as fp:
+        pass
+    make_file_list(against_list, [sig2, empty_file])
+
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "Sketch loading error: File is too short, less than five bytes" in captured.err
+    assert "WARNING: could not load sketches from path" in captured.err
+
+    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
+
+
 def test_against_multisigfile(runtmp):
     # test against a sigfile that contains multiple sketches
     query = get_test_data('SRR606249.sig.gz')
