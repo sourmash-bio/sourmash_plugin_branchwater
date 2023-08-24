@@ -1,6 +1,6 @@
 // TODO:
-// * md5sum output by search and countergather are of modified/downsampled,
-//   not orig. This is different from sourmash...
+// @CTB: test md5sum
+// @CTB: cargo clippy/@CTB comments
 
 use pyo3::prelude::*;
 
@@ -245,7 +245,7 @@ fn manysearch<P: AsRef<Path>>(
 
                 // make sure it is compatible etc.
 
-                if !search_sm.is_some() {
+                if search_sm.is_none() {
                     eprintln!("WARNING: no compatible sketches in path '{}'",
                               filename.display());
                     let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -263,7 +263,7 @@ fn manysearch<P: AsRef<Path>>(
                         let containment = overlap / size;
                         if containment > threshold {
                             results.push((q.name.clone(),
-                                          q.minhash.md5sum(),
+                                          q.md5sum.clone(),
                                           search_sm.name.clone(),
                                           search_sm.md5sum.clone(),
                                           overlap))
@@ -358,7 +358,7 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
     for m in matchlist.iter() {
         writeln!(&mut writer, "{},\"{}\",{},{}", query_label,
-                 m.name, m.minhash.md5sum(), m.overlap).ok();
+                 m.name, m.md5sum, m.overlap).ok();
     }
 
     Ok(())
@@ -519,7 +519,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         query.remove_from(&best_element.minhash)?;
 
         writeln!(&mut writer, "{},{},\"{}\",{},{}", query_label, rank,
-                 best_element.name, best_element.minhash.md5sum(),
+                 best_element.name, best_element.md5sum,
                  best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
