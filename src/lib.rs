@@ -208,10 +208,10 @@ fn manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query,query_md5,match,match_md5,containment").unwrap();
-        for (query, query_md5, m, m_md5, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{}",
-                     query, query_md5, m, m_md5, overlap).ok();
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,jaccard,intersect_hashes").unwrap();
+        for (query, query_md5, m, m_md5, cont, jaccard, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{}",
+                     query, query_md5, m, m_md5, cont, jaccard, overlap).ok();
         }
     });
 
@@ -241,14 +241,21 @@ fn manysearch<P: AsRef<Path>>(
                     // search for matches & save containment.
                     for q in queries.iter() {
                         let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
-                        let size = q.minhash.size() as f64;
+                        let query_size = q.minhash.size() as f64;
 
-                        let containment = overlap / size;
+                        let mut merged = q.minhash.clone();
+                        merged.merge(&search_sm.minhash).ok();
+                        let total_size = merged.size() as f64;
+
+                        let containment = overlap / query_size;
+                        let jaccard = overlap / total_size;
                         if containment > threshold {
                             results.push((q.name.clone(),
                                           q.md5sum.clone(),
                                           search_sm.name.clone(),
                                           search_sm.md5sum.clone(),
+                                          containment,
+                                          jaccard,
                                           overlap))
                         }
                     }
