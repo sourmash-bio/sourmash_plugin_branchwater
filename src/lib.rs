@@ -1,6 +1,5 @@
 // TODO:
 // @CTB: test md5sum
-// @CTB: cargo clippy/@CTB comments
 
 use pyo3::prelude::*;
 
@@ -109,7 +108,7 @@ fn check_compatible_downsample(
 /// all others.
 
 
-fn prepare_query(search_sigs: &Vec<Signature>, template: &Sketch) -> Option<SmallSignature> {
+fn prepare_query(search_sigs: &[Signature], template: &Sketch) -> Option<SmallSignature> {
 
     for search_sig in search_sigs.iter() {
         // find exact match for template?
@@ -238,23 +237,8 @@ fn manysearch<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load search signature from path:
-            let search_sigs = Signature::from_path(filename);
-            if search_sigs.is_ok() {
-                let search_sigs = search_sigs.unwrap();
-                let search_sm = prepare_query(&search_sigs, &template);
-
-                // make sure it is compatible etc.
-
-                if search_sm.is_none() {
-                    eprintln!("WARNING: no compatible sketches in path '{}'",
-                              filename.display());
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                }
-
-                // @CTB refactor
-                if search_sm.is_some() {
-                    let search_sm = search_sm.unwrap();
-
+            if let Ok(search_sigs) = Signature::from_path(filename) {
+                if let Some(search_sm) = prepare_query(&search_sigs, &template) {
                     // search for matches & save containment.
                     for q in queries.iter() {
                         let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
@@ -269,6 +253,10 @@ fn manysearch<P: AsRef<Path>>(
                                           overlap))
                         }
                     }
+                } else {
+                    eprintln!("WARNING: no compatible sketches in path '{}'",
+                              filename.display());
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -456,7 +444,6 @@ fn load_sketches_above_threshold(
                         if let Ok(overlap) = mh.count_common(query, false) {
                             if overlap >= threshold_hashes {
                                 let result = PrefetchResult {
-                                    // @CTB use struct filling
                                     name: sm.name,
                                     md5sum: sm.md5sum,
                                     minhash: mh,
@@ -713,6 +700,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
                         if overlap >= threshold_hashes {
                             let result = PrefetchResult {
+                                // CTB: use struct filling??
                                 name: sm.name.clone(),
                                 md5sum: sm.md5sum.clone(),
                                 minhash: sm.minhash.clone(),
