@@ -100,38 +100,16 @@ fn check_compatible_downsample(
     Ok(())
 }
 
-/// Given a search Signature containing one or more sketches, and a template
-/// Sketch, return a compatible (& now downsampled) Sketch from the search
-/// Signature.
+
+/// Given a vec of search Signatures, each containing one or more sketches,
+/// and a template Sketch, return a compatible (& now downsampled)
+/// Sketch from the search Signatures..
 ///
-/// CTB note: this will return the first acceptable match, I think, ignoring
+/// @CTB note: this will return the first acceptable match, I think, ignoring
 /// all others.
 
-fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<(KmerMinHash, String)> {
-    // find exact match for template?
-    if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
-        let orig_md5 = mh.md5sum();
-        return Some((mh.clone(), orig_md5));
-    } else {
-        // no - try to find one that can be downsampled
-        if let Sketch::MinHash(template_mh) = template {
-            for sketch in search_sig.sketches() {
-                if let Sketch::MinHash(ref_mh) = sketch {
-                    if check_compatible_downsample(&ref_mh, template_mh).is_ok() {
-                        let max_hash = max_hash_for_scaled(template_mh.scaled());
-                        let mh = ref_mh.downsample_max_hash(max_hash).unwrap();
-                        return Some((mh, ref_mh.md5sum()));
-                    }
-                }
-            }
-        }
-    }
-    None
-}
 
-/// @CTB document
-
-fn prepare_query_ctb(search_sigs: &Vec<Signature>, template: &Sketch) -> Option<SmallSignature> {
+fn prepare_query(search_sigs: &Vec<Signature>, template: &Sketch) -> Option<SmallSignature> {
 
     for search_sig in search_sigs.iter() {
         // find exact match for template?
@@ -257,45 +235,37 @@ fn manysearch<P: AsRef<Path>>(
                 info!("Processed {} search sigs", i);
             }
 
-            let mut search_mh = None;
-            let mut search_sig = None;
             let mut results = vec![];
 
             // load search signature from path:
             let search_sigs = Signature::from_path(filename);
             if search_sigs.is_ok() {
                 let search_sigs = search_sigs.unwrap();
+                let search_sm = prepare_query(&search_sigs, &template);
 
-                for ss in search_sigs.iter() {
-                    if let Some((mh, orig_md5)) = prepare_query(ss, &template) {
-                        search_sig = Some(ss);
-                        search_mh = Some(mh);
-                        break;
-                    }
-                }
                 // make sure it is compatible etc.
 
-                if !search_mh.is_some() {
+                if !search_sm.is_some() {
                     eprintln!("WARNING: no compatible sketches in path '{}'",
                               filename.display());
                     let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
 
-                if search_mh.is_some() {
-                    let search_mh = search_mh.unwrap();
+                // @CTB refactor
+                if search_sm.is_some() {
+                    let search_sm = search_sm.unwrap();
 
                     // search for matches & save containment.
                     for q in queries.iter() {
-                        let overlap = q.minhash.count_common(&search_mh, false).unwrap() as f64;
+                        let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
                         let size = q.minhash.size() as f64;
 
                         let containment = overlap / size;
                         if containment > threshold {
-                            let search_sig = search_sig.unwrap();
                             results.push((q.name.clone(),
                                           q.minhash.md5sum(),
-                                          search_sig.name(),
-                                          search_mh.md5sum(),
+                                          search_sm.name.clone(),
+                                          search_sm.md5sum.clone(),
                                           overlap))
                         }
                     }
@@ -437,7 +407,7 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
             let filename = m.display();
 
             if let Ok(sigs) = Signature::from_path(m) {
-                sm = prepare_query_ctb(&sigs, template);
+                sm = prepare_query(&sigs, template);
                 if sm.is_none() {
                     // track number of paths that have no matching sigs
                     // @CTB: print error?
@@ -481,7 +451,7 @@ fn load_sketches_above_threshold(
                 Ok(sigs) => {
                     let mut mm = None;
 
-                    if let Some(sm) = prepare_query_ctb(&sigs, template) {
+                    if let Some(sm) = prepare_query(&sigs, template) {
                         let mh = sm.minhash;
                         if let Ok(overlap) = mh.count_common(query, false) {
                             if overlap >= threshold_hashes {
@@ -585,7 +555,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     let query = {
         let sigs = Signature::from_path(query_filename)?;
 
-        prepare_query_ctb(&sigs, &template)
+        prepare_query(&sigs, &template)
     };
 
     // did we find anything matching the desired template?
@@ -719,7 +689,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 // load query from q
                 let mut mm = None;
                 if let Ok(sigs) = Signature::from_path(dbg!(q)) {
-                    mm = prepare_query_ctb(&sigs, &template);
+                    mm = prepare_query(&sigs, &template);
 
                     if mm.is_none() {
                         eprintln!("WARNING: no compatible sketches in path '{}'",
