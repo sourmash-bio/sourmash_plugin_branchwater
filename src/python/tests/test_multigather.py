@@ -58,12 +58,12 @@ def test_simple(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
 
     df = pandas.read_csv(p_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'overlap'}
 
 
 def test_missing_querylist(runtmp, capfd):
@@ -286,9 +286,9 @@ def test_md5(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
 
-    md5s = set(df['match_md5sum'])
+    md5s = set(df['match_md5'])
     for against_file in (sig2, sig47, sig63):
         for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
             assert ss.md5sum() in md5s
@@ -297,9 +297,9 @@ def test_md5(runtmp):
     df = pandas.read_csv(p_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'overlap'}
 
-    md5s = set(df['match_md5sum'])
+    md5s = set(df['match_md5'])
     for against_file in (sig2, sig47, sig63):
         for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
             assert ss.md5sum() in md5s

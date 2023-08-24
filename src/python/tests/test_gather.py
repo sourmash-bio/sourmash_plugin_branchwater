@@ -45,7 +45,7 @@ def test_simple(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
 
 
 def test_simple_with_prefetch(runtmp):
@@ -71,12 +71,12 @@ def test_simple_with_prefetch(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
 
     df = pandas.read_csv(p_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'overlap'}
 
 
 def test_missing_query(runtmp, capfd):
@@ -323,9 +323,9 @@ def test_md5s(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
 
-    md5s = list(df['match_md5sum'])
+    md5s = list(df['match_md5'])
     print(md5s)
 
     for against_file in (sig2, sig47, sig63):
