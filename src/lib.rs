@@ -1,5 +1,4 @@
-// TODO:
-// @CTB: test md5sum
+/// Rust code for pyo3_branchwater.
 
 use pyo3::prelude::*;
 
@@ -16,7 +15,7 @@ use std::collections::BinaryHeap;
 
 use std::cmp::{PartialOrd, Ordering};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 
 #[macro_use]
 extern crate simple_error;
@@ -104,7 +103,7 @@ fn check_compatible_downsample(
 /// and a template Sketch, return a compatible (& now downsampled)
 /// Sketch from the search Signatures..
 ///
-/// @CTB note: this will return the first acceptable match, I think, ignoring
+/// CTB note: this will return the first acceptable match, I think, ignoring
 /// all others.
 
 
@@ -398,7 +397,6 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
                 sm = prepare_query(&sigs, template);
                 if sm.is_none() {
                     // track number of paths that have no matching sigs
-                    // @CTB: print error?
                     let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
@@ -700,7 +698,6 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
                         if overlap >= threshold_hashes {
                             let result = PrefetchResult {
-                                // CTB: use struct filling??
                                 name: sm.name.clone(),
                                 md5sum: sm.md5sum.clone(),
                                 minhash: sm.minhash.clone(),
