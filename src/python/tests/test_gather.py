@@ -45,7 +45,7 @@ def test_simple(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'intersect_bp'}
+    assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
 def test_simple_with_prefetch(runtmp):
@@ -326,7 +326,7 @@ def test_md5s(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'intersect_bp'}
+    assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
     md5s = list(df['match_md5'])
     print(md5s)
@@ -341,7 +341,7 @@ def test_md5s(runtmp):
     keys = set(df.keys())
 
     # prefetch output has no rank.
-    assert keys == {'query_file', 'match', 'match_md5', 'intersect_bp'}
+    assert keys == {'query_filename', 'match_name', 'match_md5', 'intersect_bp'}
 
     md5s = list(df['match_md5'])
     print(md5s)
@@ -386,3 +386,41 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp):
     sp_keys = set(sourmash_prefetch_df.keys())
     print(g_keys - sp_keys)
     assert not g_keys - sp_keys, g_keys - sp_keys
+
+
+def test_fastgather_as_picklist(runtmp):
+    # output of fastgather should => same as gather
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    # first run fastgather
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+    assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
+
+    # now run sourmash gather using as picklist as picklist
+    gather_picklist_output = runtmp.output('sourmash-gather+picklist.csv')
+    runtmp.sourmash('gather', query, against_list,
+                    '-o', gather_picklist_output, '--scaled', '100000',
+                    '--picklist', f'{g_output}:match_name:ident')
+
+    # finally, run sourmash gather using as picklist as picklist
+    full_gather_output = runtmp.output('sourmash-gather.csv')
+    runtmp.sourmash('gather', query, against_list,
+                    '-o', full_gather_output, '--scaled', '100000')
+
+    picklist_df = pandas.read_csv(gather_picklist_output)
+    full_df = pandas.read_csv(full_gather_output)
+
+    assert picklist_df.equals(full_df)
