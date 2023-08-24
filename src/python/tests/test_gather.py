@@ -388,8 +388,8 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp):
     assert not g_keys - sp_keys, g_keys - sp_keys
 
 
-def test_fastgather_as_picklist(runtmp):
-    # output of fastgather should => same as gather
+def test_fastgather_gatherout_as_picklist(runtmp):
+    # should be able to use fastgather gather output as picklist
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
 
@@ -414,6 +414,44 @@ def test_fastgather_as_picklist(runtmp):
     runtmp.sourmash('gather', query, against_list,
                     '-o', gather_picklist_output, '--scaled', '100000',
                     '--picklist', f'{g_output}:match_name:ident')
+
+    # finally, run sourmash gather using fastgather gather output as picklist
+    full_gather_output = runtmp.output('sourmash-gather.csv')
+    runtmp.sourmash('gather', query, against_list,
+                    '-o', full_gather_output, '--scaled', '100000')
+
+    picklist_df = pandas.read_csv(gather_picklist_output)
+    full_df = pandas.read_csv(full_gather_output)
+
+    assert picklist_df.equals(full_df)
+
+
+def test_fastgather_prefetchout_as_picklist(runtmp):
+    # should be able to use fastgather prefetch output as picklist
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    # first run fastgather
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+    assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
+
+    # now run sourmash gather using fastgather prefetch output as picklist
+    gather_picklist_output = runtmp.output('sourmash-gather+picklist.csv')
+    runtmp.sourmash('gather', query, against_list,
+                    '-o', gather_picklist_output, '--scaled', '100000',
+                    '--picklist', f'{p_output}:match_name:ident')
 
     # finally, run sourmash gather using as picklist as picklist
     full_gather_output = runtmp.output('sourmash-gather.csv')
