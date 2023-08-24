@@ -39,6 +39,7 @@ struct SmallSignature {
 
 struct PrefetchResult {
     name: String,
+    md5sum: String,
     minhash: KmerMinHash,
     overlap: u64,
 }
@@ -479,25 +480,25 @@ fn load_sketches_above_threshold(
             match sigs {
                 Ok(sigs) => {
                     let mut mm = None;
-                    
-                    for sig in &sigs {
-                        if let Some((mh, orig_md5)) = prepare_query(sig, template) {
-                            if let Ok(overlap) = mh.count_common(query, false) {
-                                if overlap >= threshold_hashes {
-                                    let result = PrefetchResult {
-                                        name: sig.name(),
-                                        minhash: mh,
-                                        overlap,
-                                    };
-                                    mm = Some(result);
-                                    break;
-                                }
+
+                    if let Some(sm) = prepare_query_ctb(&sigs, template) {
+                        let mh = sm.minhash;
+                        if let Ok(overlap) = mh.count_common(query, false) {
+                            if overlap >= threshold_hashes {
+                                let result = PrefetchResult {
+                                    // @CTB use struct filling
+                                    name: sm.name,
+                                    md5sum: sm.md5sum,
+                                    minhash: mh,
+                                    overlap,
+                                };
+                                mm = Some(result);
                             }
-                        } else {
-                            eprintln!("WARNING: no compatible sketches in path '{}'",
-                                      m.display());
-                            let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         }
+                    } else {
+                        eprintln!("WARNING: no compatible sketches in path '{}'",
+                                  m.display());
+                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     mm
                 }
@@ -582,16 +583,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     let query_label = query_filename.to_string();
     eprintln!("Loading query from '{}'", query_label);
     let query = {
-        let mut mm = None;
         let sigs = Signature::from_path(query_filename)?;
 
-        for sig in &sigs {
-            if let Some((mh, orig_md5)) = prepare_query(sig, &template) {
-                mm = Some(mh.clone());
-                break;
-            }
-        };
-        mm
+        prepare_query_ctb(&sigs, &template)
     };
 
     // did we find anything matching the desired template?
@@ -623,7 +617,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     // load a set of sketches, filtering for those with overlaps > threshold
     let result = load_sketches_above_threshold(matchlist_paths,
                                                &template,
-                                               &query,
+                                               &query.minhash,
                                                threshold_hashes)?;
     let matchlist = result.0;
     let skipped_paths = result.1;
@@ -646,7 +640,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     write_prefetch(query_label.clone(), prefetch_output, &matchlist).ok();
 
     // run the gather!
-    consume_query_by_gather(query, matchlist, threshold_hashes,
+    consume_query_by_gather(query.minhash, matchlist, threshold_hashes,
                             gather_output, query_label).ok();
     Ok(())
 }
@@ -725,12 +719,8 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 // load query from q
                 let mut mm = None;
                 if let Ok(sigs) = Signature::from_path(dbg!(q)) {
-                    for sig in &sigs {
-                        if let Some((mh, orig_md5)) = prepare_query(sig, &template) {
-                            mm = Some(mh);
-                            break;
-                        }
-                    }
+                    mm = prepare_query_ctb(&sigs, &template);
+
                     if mm.is_none() {
                         eprintln!("WARNING: no compatible sketches in path '{}'",
                                   q.display());
@@ -750,10 +740,11 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 .filter_map(|sm| {
                     let mut mm = None;
 
-                    if let Ok(overlap) = sm.minhash.count_common(&query, false) {
+                    if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
                         if overlap >= threshold_hashes {
                             let result = PrefetchResult {
                                 name: sm.name.clone(),
+                                md5sum: sm.md5sum.clone(),
                                 minhash: sm.minhash.clone(),
                                 overlap,
                             };
@@ -773,7 +764,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                                &matchlist).ok();
 
                 // now, do the gather!
-                consume_query_by_gather(query, matchlist, threshold_hashes,
+                consume_query_by_gather(query.minhash, matchlist, threshold_hashes,
                                         Some(gather_output), query_label).ok();
             } else {
                 println!("No matches to '{}'", query_label);
