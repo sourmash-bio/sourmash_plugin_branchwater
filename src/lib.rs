@@ -106,12 +106,11 @@ fn check_compatible_downsample(
 /// CTB note: this will return the first acceptable match, I think, ignoring
 /// all others.
 
-fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHash> {
-    let mut search_mh = None;
-
+fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<(KmerMinHash, String)> {
     // find exact match for template?
     if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
-        search_mh = Some(mh.clone());
+        let orig_md5 = mh.md5sum();
+        return Some((mh.clone(), orig_md5));
     } else {
         // no - try to find one that can be downsampled
         if let Sketch::MinHash(template_mh) = template {
@@ -120,13 +119,47 @@ fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHas
                     if check_compatible_downsample(&ref_mh, template_mh).is_ok() {
                         let max_hash = max_hash_for_scaled(template_mh.scaled());
                         let mh = ref_mh.downsample_max_hash(max_hash).unwrap();
-                        return Some(mh);
+                        return Some((mh, ref_mh.md5sum()));
                     }
                 }
             }
         }
     }
-    search_mh
+    None
+}
+
+/// @CTB document
+
+fn prepare_query_ctb(search_sigs: &Vec<Signature>, template: &Sketch) -> Option<SmallSignature> {
+
+    for search_sig in search_sigs.iter() {
+        // find exact match for template?
+        if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
+            return Some(SmallSignature {
+                name: search_sig.name(),
+                md5sum: mh.md5sum(),
+                minhash: mh.clone()
+            });
+        } else {
+            // no - try to find one that can be downsampled
+            if let Sketch::MinHash(template_mh) = template {
+                for sketch in search_sig.sketches() {
+                    if let Sketch::MinHash(ref_mh) = sketch {
+                        if check_compatible_downsample(&ref_mh, template_mh).is_ok() {
+                            let max_hash = max_hash_for_scaled(template_mh.scaled());
+                            let mh = ref_mh.downsample_max_hash(max_hash).unwrap();
+                            return Some(SmallSignature {
+                                name: search_sig.name(),
+                                md5sum: ref_mh.md5sum(), // original
+                                minhash: mh,             // downsampled
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Search many queries against a list of signatures.
@@ -233,7 +266,7 @@ fn manysearch<P: AsRef<Path>>(
                 let search_sigs = search_sigs.unwrap();
 
                 for ss in search_sigs.iter() {
-                    if let Some(mh) = prepare_query(ss, &template) {
+                    if let Some((mh, orig_md5)) = prepare_query(ss, &template) {
                         search_sig = Some(ss);
                         search_mh = Some(mh);
                         break;
@@ -403,18 +436,11 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
             let filename = m.display();
 
             if let Ok(sigs) = Signature::from_path(m) {
-                for sig in &sigs {
-                    if let Some(mh) = prepare_query(sig, template) {
-                        sm = Some(SmallSignature {
-                            name: sig.name(),
-                            md5sum: mh.md5sum(),
-                            minhash: mh,
-                        });
-                    } else {
-                        // track number of paths that have no matching sigs
-                        // @CTB: print error?
-                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    }
+                sm = prepare_query_ctb(&sigs, template);
+                if sm.is_none() {
+                    // track number of paths that have no matching sigs
+                    // @CTB: print error?
+                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
                 // failed to load from this path - print error & track.
@@ -453,8 +479,9 @@ fn load_sketches_above_threshold(
             match sigs {
                 Ok(sigs) => {
                     let mut mm = None;
+                    
                     for sig in &sigs {
-                        if let Some(mh) = prepare_query(sig, template) {
+                        if let Some((mh, orig_md5)) = prepare_query(sig, template) {
                             if let Ok(overlap) = mh.count_common(query, false) {
                                 if overlap >= threshold_hashes {
                                     let result = PrefetchResult {
@@ -559,7 +586,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         let sigs = Signature::from_path(query_filename)?;
 
         for sig in &sigs {
-            if let Some(mh) = prepare_query(sig, &template) {
+            if let Some((mh, orig_md5)) = prepare_query(sig, &template) {
                 mm = Some(mh.clone());
                 break;
             }
@@ -699,7 +726,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 let mut mm = None;
                 if let Ok(sigs) = Signature::from_path(dbg!(q)) {
                     for sig in &sigs {
-                        if let Some(mh) = prepare_query(sig, &template) {
+                        if let Some((mh, orig_md5)) = prepare_query(sig, &template) {
                             mm = Some(mh);
                             break;
                         }
