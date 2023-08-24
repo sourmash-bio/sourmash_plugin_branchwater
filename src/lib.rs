@@ -208,7 +208,7 @@ fn manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_filename,match_md5,containment,jaccard,intersect_bp").unwrap();
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,jaccard,intersect_hashes").unwrap();
         for (query, query_md5, m, m_md5, cont, jaccard, overlap) in recv.into_iter() {
             writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{}",
                      query, query_md5, m, m_md5, cont, jaccard, overlap).ok();
@@ -240,7 +240,6 @@ fn manysearch<P: AsRef<Path>>(
                 if let Some(search_sm) = prepare_query(&search_sigs, &template) {
                     // search for matches & save containment.
                     for q in queries.iter() {
-                        eprintln!("q = {}, a = {}", q.name, search_sm.name);
                         let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
                         let query_size = q.minhash.size() as f64;
 
