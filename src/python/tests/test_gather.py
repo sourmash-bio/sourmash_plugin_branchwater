@@ -2,6 +2,7 @@ import os
 import pytest
 import pandas
 
+import sourmash
 import sourmash_tst_utils as utils
 
 
@@ -298,3 +299,35 @@ def test_against_nomatch(runtmp, capfd):
     print(captured.err)
 
     assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
+
+
+def test_md5s(runtmp):
+    # check that the correct md5sums (of the original sketches) are in
+    # the output files
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '-s', '100000')
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
+
+    md5s = list(df['match_md5sum'])
+    print(md5s)
+
+    for against_file in (sig2, sig47, sig63):
+        for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
+            assert ss.md5sum() in md5s

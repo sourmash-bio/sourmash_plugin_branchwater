@@ -5,6 +5,7 @@ import os
 import pytest
 import pandas
 
+import sourmash
 import sourmash_tst_utils as utils
 
 
@@ -251,3 +252,54 @@ def test_nomatch_in_against(runtmp, capfd):
     print(captured.err)
 
     assert 'WARNING: skipped 1 search paths - no compatible signatures.' in captured.err
+
+
+def test_md5(runtmp):
+    # test correct md5s present in output
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(runtmp.output(''))
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000', '-t', '0')
+    finally:
+        os.chdir(cwd)
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
+    assert os.path.exists(g_output)
+    p_output = runtmp.output('SRR606249.sig.gz.prefetch.csv')
+    assert os.path.exists(p_output)
+
+    # check gather output
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_file', 'match', 'match_md5sum', 'rank', 'overlap'}
+
+    md5s = set(df['match_md5sum'])
+    for against_file in (sig2, sig47, sig63):
+        for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
+            assert ss.md5sum() in md5s
+
+    # check prefetch output
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_file', 'match', 'match_md5sum', 'overlap'}
+
+    md5s = set(df['match_md5sum'])
+    for against_file in (sig2, sig47, sig63):
+        for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
+            assert ss.md5sum() in md5s
