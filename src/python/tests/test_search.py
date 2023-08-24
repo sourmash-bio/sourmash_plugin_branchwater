@@ -1,6 +1,7 @@
 import os
 import pytest
 import pandas
+import sourmash
 
 import sourmash_tst_utils as utils
 
@@ -307,3 +308,39 @@ def test_load_only_one_bug_as_query(runtmp, capfd):
 
     assert not 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
     assert not 'WARNING: no compatible sketches in path ' in captured.err
+
+
+def test_md5(runtmp):
+    # test that md5s match what was in the original files, not downsampled etc.
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                    '-o', output)
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    md5s = list(df['match_md5'])
+    print(md5s)
+
+    for against_file in (sig2, sig47, sig63):
+        for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
+            assert ss.md5sum() in md5s
+
+    md5s = list(df['query_md5'])
+    print(md5s)
+
+    for query_file in (sig2, sig47, sig63):
+        for ss in sourmash.load_file_as_signatures(query_file, ksize=31):
+            assert ss.md5sum() in md5s
