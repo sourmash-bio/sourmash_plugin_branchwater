@@ -77,7 +77,7 @@ This CSV file can then be used as a picklist for `sourmash gather` like so:
 
 ```
 sourmash gather SRR606249.trim.sig.gz /group/ctbrowngrp/sourmash-db/gtdb-rs214/gtdb-rs214-k21.zip \
-    --picklist SRR606249.fastgather.csv:match:ident \
+    --picklist SRR606249.fastgather.csv:match_name:ident \
     -o SRR606249.gather.csv
 ```
 
