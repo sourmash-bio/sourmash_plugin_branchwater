@@ -341,7 +341,7 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(prefetch_out);
-    writeln!(&mut writer, "query_file,match,match_md5,overlap").ok();
+    writeln!(&mut writer, "query_filename,match_name,match_md5,intersect_bp").ok();
 
     for m in matchlist.iter() {
         writeln!(&mut writer, "{},\"{}\",{},{}", query_label,
@@ -490,7 +490,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(gather_out);
-    writeln!(&mut writer, "query_file,rank,match,match_md5,overlap").ok();
+    writeln!(&mut writer, "query_filename,rank,match_name,match_md5,intersect_bp").ok();
 
     let mut matching_sketches = matchlist;
     let mut rank = 0;

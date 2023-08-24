@@ -45,7 +45,7 @@ def test_simple(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'intersect_bp'}
 
 
 def test_simple_with_prefetch(runtmp):
@@ -71,12 +71,12 @@ def test_simple_with_prefetch(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
+    assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
     df = pandas.read_csv(p_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5', 'overlap'}
+    assert keys == {'query_filename', 'match_name', 'match_md5', 'intersect_bp'}
 
 
 def test_missing_query(runtmp, capfd):
@@ -317,13 +317,16 @@ def test_md5s(runtmp):
     p_output = runtmp.output('prefetch.csv')
 
     runtmp.sourmash('scripts', 'fastgather', query, against_list,
-                    '-o', g_output, '-s', '100000')
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
     assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
 
+    # test gather output!
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'overlap'}
+    assert keys == {'query_file', 'match', 'match_md5', 'rank', 'intersect_bp'}
 
     md5s = list(df['match_md5'])
     print(md5s)
@@ -331,3 +334,55 @@ def test_md5s(runtmp):
     for against_file in (sig2, sig47, sig63):
         for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
             assert ss.md5sum() in md5s
+
+    # test prefetch output!
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+
+    # prefetch output has no rank.
+    assert keys == {'query_file', 'match', 'match_md5', 'intersect_bp'}
+
+    md5s = list(df['match_md5'])
+    print(md5s)
+
+    for against_file in (sig2, sig47, sig63):
+        for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
+            assert ss.md5sum() in md5s
+
+
+def test_csv_columns_vs_sourmash_prefetch(runtmp):
+    # the column names should be strict subsets of sourmash prefetch cols
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    # first run fastgather
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+    assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
+
+    # now run sourmash prefetch
+    sp_output = runtmp.output('sourmash-prefetch.csv')
+    runtmp.sourmash('prefetch', query, against_list,
+                    '-o', sp_output, '--scaled', '100000')
+
+    gather_df = pandas.read_csv(g_output)
+    g_keys = set(gather_df.keys())
+    assert g_keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    g_keys.remove('rank')       # 'rank' is not in sourmash prefetch!
+
+    sourmash_prefetch_df = pandas.read_csv(sp_output)
+    sp_keys = set(sourmash_prefetch_df.keys())
+    print(g_keys - sp_keys)
+    assert not g_keys - sp_keys, g_keys - sp_keys
