@@ -964,9 +964,6 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                     let counter = db.counter_for_query(&query.minhash);
                     let matches = db.matches_from_counter(counter, threshold);
 
-                    // print minimum containment value
-                    info!("minimum containment: {}", minimum_containment);
-
                     // filter the matches for containment
 
                     // TODO: get match md5sum here so we can report it?
@@ -1035,7 +1032,7 @@ fn gather<P: AsRef<Path>>(
     template: Sketch,
     threshold_bp: usize,
     _output: Option<P>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     // let query_sig = Signature::from_path(queries_file)?;
     let query_paths = read_paths(&queries_file)?;
     let query_sig = Signature::from_path(&query_paths[0])?;
@@ -1100,6 +1097,146 @@ fn gather<P: AsRef<Path>>(
     }
     Ok(())
 }
+
+fn mastiff_manygather<P: AsRef<Path>>(
+    queries_file: P,
+    index: P,
+    template: Sketch,
+    threshold_bp: usize,
+    output: Option<P>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+
+    // Open database once
+    // TODO: exit if there are errors opening the database
+    let db = RevIndex::open(index.as_ref(), true);
+    info!("Loaded DB");
+    // NTP: can we set threshold here too?
+
+    // Load query paths
+    let query_paths = load_sketchlist_filenames(&queries_file)?;
+
+    // set up a multi-producer, single-consumer channel.
+    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+
+    // & spawn a thread that is dedicated to printing to a buffered output
+    let out: Box<dyn Write + Send> = match output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let thrd = std::thread::spawn(move || {
+        let mut writer = BufWriter::new(out);
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,intersect_hashes").unwrap();
+        for (query, query_md5, m, m_md5, cont, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{}",
+                        query, query_md5, m, m_md5, cont, overlap).ok();
+        }
+    });
+
+    //
+    // Main loop: iterate (in parallel) over all search signature paths,
+    // loading them individually and searching them. Stuff results into
+    // the writer thread above.
+    //
+
+    let processed_sigs = AtomicUsize::new(0);
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
+
+    let send = query_paths
+        .par_iter()
+        .filter_map(|filename| {
+            let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
+            if i % 1000 == 0 {
+                info!("Processed {} search sigs", i);
+            }
+
+            let mut results = vec![];
+
+            // load query signature from path:
+            if let query_sig = Signature::from_path(filename).unwrap() {
+                if let Some(query) = prepare_query(&query_sig, &template) {
+                    let query_size = query.minhash.size() as f64;
+                    let threshold = threshold_bp / query.minhash.scaled() as usize;
+ 
+                    // mastiff gather code
+                    info!("Building counter");
+                    let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query.minhash);
+                    // // TODO: truncate on threshold?
+                    info!("Counter built");
+
+                    let matches = db.gather(
+                        counter,
+                        query_colors,
+                        hash_to_color,
+                        threshold,
+                        &query.minhash,
+                        &template,
+                    );
+
+                    // extract matches from Result
+                    // let matches = matches.ok().unwrap();
+                    if let Ok(matches) = matches {
+                        info!("matches: {}", matches.len());
+                        for match_ in &matches {
+                            results.push((query.name.clone(),
+                                      query.md5sum.clone(),
+                                      match_.name().clone(),
+                                      match_.md5().clone(),
+                                      match_.f_match(), // containment
+                                      match_.intersect_bp())); // overlap
+                        }
+                    } else {
+                        eprintln!("Error gathering matches: {:?}", matches.err());
+                    }
+
+                } else {
+                    eprintln!("WARNING: no compatible sketches in path '{}'",
+                              filename.display());
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                }
+            } else {
+                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                eprintln!("WARNING: could not load sketches from path '{}'",
+                          filename.display());
+            }
+
+            if results.is_empty() {
+                None
+            } else {
+                Some(results)
+            }
+        })
+        .flatten()
+        .try_for_each_with(send, |s, m| s.send(m));
+
+    // do some cleanup and error handling -
+    if let Err(e) = send {
+        error!("Unable to send internal data: {:?}", e);
+    }
+
+    if let Err(e) = thrd.join() {
+        error!("Unable to join internal thread: {:?}", e);
+    }
+
+    // done!
+    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
+    eprintln!("DONE. Processed {} search sigs", i);
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+                  skipped_paths);
+    }
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+                  failed_paths);
+    }
+
+    Ok(())
+}
+
 
 //
 // The python wrapper functions.
@@ -1258,6 +1395,24 @@ fn do_gather(queries_file: String,
         }
     }
 
+#[pyfunction]
+fn do_mastiffmanygather(queries_file: String,
+                index: String,
+                ksize: u8,
+                scaled: usize,
+                threshold_bp: usize,
+                output: Option<String>,
+) -> anyhow::Result<u8> {
+        let template = build_template(ksize, scaled);
+        match mastiff_manygather(queries_file, index, template, threshold_bp, output) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
+    }
+
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
@@ -1269,5 +1424,7 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_search, m)?)?;
     m.add_function(wrap_pyfunction!(do_mastiffmanysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_gather, m)?)?;
+    m.add_function(wrap_pyfunction!(do_mastiffmanygather, m)?)?;
     Ok(())
 }
+                                        
