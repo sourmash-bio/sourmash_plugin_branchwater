@@ -793,7 +793,7 @@ fn index<P: AsRef<Path>>(
     ) -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Loading siglist");
-    let index_sigs = read_paths(&siglist)?;
+    let index_sigs = load_sketchlist_filenames(&siglist)?;
     info!("Loaded {} sig paths in siglist", index_sigs.len());
 
     // Create or open the RevIndex database with the provided output path and colors flag
@@ -910,7 +910,9 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     ) -> Result<(), Box<dyn std::error::Error>> {
 
     // Open database once
+    // TODO: exit if there are errors opening the database
     let db = RevIndex::open(index.as_ref(), true);
+    info!("Loaded DB");
     // NTP: can we set threshold here too?
 
     // Load query paths
