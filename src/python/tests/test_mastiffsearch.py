@@ -82,6 +82,26 @@ def test_index_missing_siglist(runtmp, capfd):
     # assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
 
 
+def test_index_check(runtmp):
+    # test check index
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47])
+
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', output)
+
+    runtmp.sourmash('scripts', 'check', output)
+    print(runtmp.last_result.err)
+
+    assert 'index is ok' in runtmp.last_result.err
+
+
 def test_search_simple(runtmp):
     # test basic execution!
     query_list = runtmp.output('query.txt')

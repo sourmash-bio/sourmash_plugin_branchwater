@@ -968,6 +968,8 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                     info!("minimum containment: {}", minimum_containment);
 
                     // filter the matches for containment
+
+                    // TODO: get match md5sum here so we can report it?
                     for (path, overlap) in matches {
                         let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {

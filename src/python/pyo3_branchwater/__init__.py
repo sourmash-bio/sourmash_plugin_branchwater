@@ -159,7 +159,7 @@ class Branchwater_Check(CommandLinePlugin):
         super().main(args)
         status = pyo3_branchwater.do_check(args.index, args.quick)
         if status == 0:
-            notify(f"...index is consistent!")
+            notify(f"...index is ok!")
         return status
 
 # class Branchwater_Update(CommandLinePlugin):
