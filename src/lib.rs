@@ -24,6 +24,10 @@ use log::{error, info};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
+// use sourmash::index::revindex::{RevIndex}; //prepare_query
+use sourmash::index::revindex::{prepare_query as revindex_prepare_query, RevIndex};
+use sourmash::prelude::MinHashOps;
+use sourmash::prelude::FracMinHashOps;
 
 /// Track a name/minhash.
 
@@ -747,6 +751,346 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     Ok(())
 }
 
+// mastiff rocksdb functions
+
+fn build_template(ksize: u8, scaled: usize) -> Sketch {
+    let max_hash = max_hash_for_scaled(scaled as u64);
+    let template_mh = KmerMinHash::builder()
+        .num(0u32)
+        .ksize(ksize as u32)
+        .max_hash(max_hash)
+        .build();
+    Sketch::MinHash(template_mh)
+}
+
+fn read_paths<P: AsRef<Path>>(paths_file: P) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    let paths = BufReader::new(File::open(paths_file)?);
+    Ok(paths
+        .lines()
+        .map(|line| {
+            let mut path = PathBuf::new();
+            path.push(line.unwrap());
+            path
+        })
+        .collect())
+}
+
+
+// template: Sketch,
+fn index<P: AsRef<Path>>(
+    siglist: P,
+    ksize: u8,
+    scaled: usize,
+    threshold: f64,
+    output: P,
+    save_paths: bool,
+    colors: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+    // build sketch template from ksize, scaled
+    let template = build_template(ksize, scaled);
+
+    info!("Loading siglist");
+    let index_sigs = read_paths(&siglist)?;
+    info!("Loaded {} sig paths in siglist", index_sigs.len());
+
+    // Create or open the RevIndex database with the provided output path and colors flag
+    let db = RevIndex::create(output.as_ref(), colors);
+
+    // Index the signatures using the loaded template, threshold, and save_paths option
+    db.index(index_sigs, &template, threshold, save_paths);
+
+    Ok(())
+}
+
+
+fn check<P: AsRef<Path>>(index: P, quick: bool) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Opening DB");
+    let db = RevIndex::open(index.as_ref(), true);
+
+    info!("Starting check");
+    db.check(quick);
+
+    info!("Finished check");
+    Ok(())
+}
+
+
+fn search<P: AsRef<Path>>(
+    queries_file: P,
+    index: P,
+    template: Sketch,
+    threshold_bp: usize,
+    minimum_containment: f64,
+    _output: Option<P>,
+) -> Result<(), Box<dyn std::error::Error>>
+{
+
+    // load queries
+    // let query_sig = Signature::from_path(queries_file)?;
+    info!("Loading queries");
+    // for now, just do the first sig
+    let query_paths = read_paths(&queries_file)?;
+    let query_sigs = Signature::from_path(&query_paths[0])?;
+    // let query_sigs = Signature::load_signatures(&query_paths, ksize, "DNA", scaled)?;
+    info!("Loaded {} sig paths in query_siglist", query_sigs.len());
+
+    let mut query = None;
+    for sig in &query_sigs {
+        if let Some(q) = revindex_prepare_query(sig, &template) {
+            query = Some(q);
+        }
+    }
+    let query = query.expect("Couldn't find a compatible MinHash");
+    let query_size = query.size() as f64;
+
+    let threshold = threshold_bp / query.scaled() as usize;
+
+    let db = RevIndex::open(index.as_ref(), true);
+    info!("Loaded DB");
+
+    info!("Building counter");
+    let counter = db.counter_for_query(&query);
+    info!("Counter built");
+
+    let matches = db.matches_from_counter(counter, threshold);
+    info!("matches: {}", matches.len());
+
+    // Create a vector to store the results as strings
+    let mut result_lines = Vec::new();
+
+    // Modify code to add results to the result_lines vector instead of printing
+    let result_count = matches
+        .into_iter()
+        .filter_map(|(path, size)| {
+            let containment = size as f64 / query_size;
+            if containment >= minimum_containment {
+                let result_line = format!(
+                    "{},{}",
+                    path.split("/").last().unwrap().split(".").next().unwrap(),
+                    containment
+                );
+                result_lines.push(result_line);
+                Some(())
+            } else {
+                None
+            }
+        })
+        .count();
+
+    // If an output path is provided, write the results to the file
+    if let Some(output_path) = _output {
+        let mut output_file = File::create(output_path)?;
+        // Write the header to the file
+        writeln!(output_file, "ident,containment")?;
+
+        for result_line in &result_lines {
+            writeln!(output_file, "{}", result_line)?;
+        }
+    } else {
+        // If no output path is provided, print the results to the console
+        println!("ident,containment");
+        for result_line in &result_lines {
+            println!("{}", result_line);
+        }
+    }
+
+    Ok(())
+}
+
+fn mastiff_manysearch<P: AsRef<Path>>(
+    queries_file: P,
+    index: P,
+    template: Sketch,
+    threshold_bp: usize,
+    minimum_containment: f64,
+    output: Option<P>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+
+    // Open database once
+    let db = RevIndex::open(index.as_ref(), true);
+    // NTP: can we set threshold here too?
+
+    // Load query paths
+    let query_paths = load_sketchlist_filenames(&queries_file)?;
+
+    // set up a multi-producer, single-consumer channel.
+    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+
+    // & spawn a thread that is dedicated to printing to a buffered output
+    let out: Box<dyn Write + Send> = match output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let thrd = std::thread::spawn(move || {
+        let mut writer = BufWriter::new(out);
+        writeln!(&mut writer, "query,query_md5,match,match_md5,containment").unwrap();
+        for (query, query_md5, m, m_md5, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{}",
+                        query, query_md5, m, m_md5, overlap).ok();
+        }
+    });
+
+   //
+    // Main loop: iterate (in parallel) over all search signature paths,
+    // loading them individually and searching them. Stuff results into
+    // the writer thread above.
+    //
+
+    let processed_sigs = AtomicUsize::new(0);
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
+
+    let send = query_paths
+        .par_iter()
+        .filter_map(|filename| {
+            let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
+            if i % 1000 == 0 {
+                info!("Processed {} search sigs", i);
+            }
+
+            let mut results = vec![];
+
+            // load query signature from path:
+            if let query_sig = Signature::from_path(filename).unwrap() {
+                if let Some(query) = prepare_query(&query_sig, &template) {
+                    let query_size = query.minhash.size() as f64;
+                    let threshold = threshold_bp / query.minhash.scaled() as usize;
+                    // search mastiff db
+                    let counter = db.counter_for_query(&query.minhash);
+                    let matches = db.matches_from_counter(counter, threshold);
+
+                    // filter the matches for containment
+                    for (path, size) in matches {
+                        let containment = size as f64 / query_size;
+                        if containment >= minimum_containment {
+                            results.push((query.name.clone(),
+                                          query.md5sum.clone(),
+                                          path.clone(),
+                                          size,
+                                          containment));
+                        }
+                    }
+                } else {
+                    eprintln!("WARNING: no compatible sketches in path '{}'",
+                              filename.display());
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                }
+            } else {
+                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                eprintln!("WARNING: could not load sketches from path '{}'",
+                          filename.display());
+            }
+
+            if results.is_empty() {
+                None
+            } else {
+                Some(results)
+            }
+        })
+        .flatten()
+        .try_for_each_with(send, |s, m| s.send(m));
+
+    // do some cleanup and error handling -
+    if let Err(e) = send {
+        error!("Unable to send internal data: {:?}", e);
+    }
+
+    if let Err(e) = thrd.join() {
+        error!("Unable to join internal thread: {:?}", e);
+    }
+
+    // done!
+    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
+    eprintln!("DONE. Processed {} search sigs", i);
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+                  skipped_paths);
+    }
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+                  failed_paths);
+    }
+
+    Ok(())
+}
+
+
+fn gather<P: AsRef<Path>>(
+    queries_file: P,
+    index: P,
+    template: Sketch,
+    threshold_bp: usize,
+    _output: Option<P>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+    // let query_sig = Signature::from_path(queries_file)?;
+    let query_paths = read_paths(&queries_file)?;
+    let query_sig = Signature::from_path(&query_paths[0])?;
+
+    let mut query = None;
+    for sig in &query_sig {
+        if let Some(q) = revindex_prepare_query(sig, &template) {
+            query = Some(q);
+        }
+    }
+    let query = query.expect("Couldn't find a compatible MinHash");
+
+    let threshold = threshold_bp / query.scaled() as usize;
+
+    let db = RevIndex::open(index.as_ref(), true);
+    info!("Loaded DB");
+
+    info!("Building counter");
+    let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query);
+    // TODO: truncate on threshold?
+    info!("Counter built");
+
+    // Create a vector to store the result lines as strings
+    let mut result_lines = Vec::new();
+
+    let matches = db.gather(
+        counter,
+        query_colors,
+        hash_to_color,
+        threshold,
+        &query,
+        &template,
+    )?;
+
+    info!("matches: {}", matches.len());
+    for match_ in &matches {
+        let result_line = format!(
+            "{} {} {}",
+            match_.name(),
+            match_.intersect_bp(),
+            match_.f_match()
+        );
+        result_lines.push(result_line);
+    }
+
+    // If an output path is provided, write the results to the file
+    if let Some(output_path) = _output {
+        let mut output_file = File::create(output_path)?;
+        // Write the header to the file
+        writeln!(output_file, "ident,containment")?;
+
+        // Iterate over the result lines and write them to the file
+        for result_line in &result_lines {
+            writeln!(output_file, "{}", result_line)?;
+        }
+    } else {
+        // If no output path is provided, print the results to the console
+        println!("ident,containment");
+        for result_line in &result_lines {
+            println!("{}", result_line);
+        }
+    }
+    Ok(())
+}
+
 //
 // The python wrapper functions.
 //
@@ -812,11 +1156,106 @@ fn get_num_threads() -> PyResult<usize> {
     Ok(rayon::current_num_threads())
 }
 
+#[pyfunction]
+fn do_index(siglist: String,
+            ksize: u8,
+            scaled: usize,
+            threshold: f64,
+            output: String,
+            save_paths: bool,
+            colors: bool,
+    ) -> anyhow::Result<u8>{
+    match index(siglist, ksize, scaled, threshold, output,
+                save_paths, colors) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+            }
+        }
+    }
+
+#[pyfunction]
+fn do_check(index: String,
+            quick: bool,
+    ) -> anyhow::Result<u8>{
+    match check(index, quick) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+            }
+        }
+    }
+
+#[pyfunction]
+fn do_search(queries_file: String,
+                index: String,
+                ksize: u8,
+                scaled: usize,
+                threshold_bp: usize,
+                minimum_containment: f64,
+                output: Option<String>,
+) -> anyhow::Result<u8> {
+        let template = build_template(ksize, scaled);
+        match search(queries_file, index, template, threshold_bp,
+                     minimum_containment, output) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
+    }
+
+#[pyfunction]
+fn do_mastiffmanysearch(queries_file: String,
+                index: String,
+                ksize: u8,
+                scaled: usize,
+                threshold_bp: usize,
+                minimum_containment: f64,
+                output: Option<String>,
+) -> anyhow::Result<u8> {
+        let template = build_template(ksize, scaled);
+        match mastiff_manysearch(queries_file, index, template, threshold_bp,
+                     minimum_containment, output) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
+    }
+
+#[pyfunction]
+fn do_gather(queries_file: String,
+                index: String,
+                ksize: u8,
+                scaled: usize,
+                threshold_bp: usize,
+                output: Option<String>,
+) -> anyhow::Result<u8> {
+        let template = build_template(ksize, scaled);
+        match gather(queries_file, index, template, threshold_bp, output) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
+    }
+
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
     m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(do_index, m)?)?;
+    m.add_function(wrap_pyfunction!(do_check, m)?)?;
+    m.add_function(wrap_pyfunction!(do_search, m)?)?;
+    m.add_function(wrap_pyfunction!(do_mastiffmanysearch, m)?)?;
+    m.add_function(wrap_pyfunction!(do_gather, m)?)?;
     Ok(())
 }
