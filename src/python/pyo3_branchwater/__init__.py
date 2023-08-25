@@ -58,8 +58,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                 args.threshold,
                                                 args.ksize,
                                                 args.scaled,
-                                                args.output,
-                                                num_threads)
+                                                args.output)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
         return status
@@ -105,8 +104,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
                                                    args.ksize,
                                                    args.scaled,
                                                    args.output_gather,
-                                                   args.output_prefetch,
-                                                   num_threads)
+                                                   args.output_prefetch)
         if status == 0:
             notify(f"...fastgather is done! gather results in '{args.output_gather}'")
             if args.output_prefetch:
@@ -149,8 +147,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                                                  args.against_paths,
                                                  int(args.threshold_bp),
                                                  args.ksize,
-                                                 args.scaled,
-                                                 num_threads)
+                                                 args.scaled)
         if status == 0:
             notify(f"...fastmultigather is done!")
         return status

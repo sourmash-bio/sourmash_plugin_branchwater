@@ -155,9 +155,7 @@ fn manysearch<P: AsRef<Path>>(
     ksize: u8,
     scaled: usize,
     output: Option<P>,
-    num_threads: usize,
 ) -> Result<()> {
-
     // construct a MinHash template for loading.
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -201,7 +199,7 @@ fn manysearch<P: AsRef<Path>>(
     eprintln!("Loaded {} sig paths to search.", search_sigs_paths.len());
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(num_threads);
+    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
     let out: Box<dyn Write + Send> = match output {
@@ -535,7 +533,6 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     scaled: usize,
     gather_output: Option<P>,
     prefetch_output: Option<P>,
-    num_threads: usize,
 ) -> Result<()> {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -618,7 +615,6 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
-    num_threads: usize,
 ) -> Result<()> {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -768,11 +764,10 @@ fn do_manysearch(querylist_path: String,
                  threshold: f64,
                  ksize: u8,
                  scaled: usize,
-                 output_path: String,
-                 num_threads: usize,
+                 output_path: String
 ) -> anyhow::Result<u8> {
     match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
-                     Some(output_path), num_threads) {
+                     Some(output_path)) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -789,13 +784,11 @@ fn do_countergather(query_filename: String,
                     scaled: usize,
                     output_path_prefetch: Option<String>,
                     output_path_gather: Option<String>,
-                    num_threads: usize,
 ) -> anyhow::Result<u8> {
     match countergather(query_filename, siglist_path, threshold_bp,
                         ksize, scaled,
                         output_path_prefetch,
-                        output_path_gather,
-                        num_threads) {
+                        output_path_gather) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -809,11 +802,10 @@ fn do_multigather(query_filenames: String,
                      siglist_path: String,
                      threshold_bp: usize,
                      ksize: u8,
-                     scaled: usize,
-                     num_threads: usize,
+                     scaled: usize
 ) -> anyhow::Result<u8> {
     match multigather(query_filenames, siglist_path, threshold_bp,
-                         ksize, scaled, num_threads) {
+                         ksize, scaled) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
