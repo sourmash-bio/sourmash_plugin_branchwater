@@ -783,18 +783,14 @@ fn read_paths<P: AsRef<Path>>(paths_file: P) -> Result<Vec<PathBuf>, Box<dyn std
 }
 
 
-// template: Sketch,
 fn index<P: AsRef<Path>>(
     siglist: P,
-    ksize: u8,
-    scaled: usize,
+    template: Sketch,
     threshold: f64,
     output: P,
     save_paths: bool,
     colors: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
-    // build sketch template from ksize, scaled
-    let template = build_template(ksize, scaled);
 
     info!("Loading siglist");
     let index_sigs = read_paths(&siglist)?;
@@ -930,10 +926,10 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query,query_md5,match,match_md5,containment").unwrap();
-        for (query, query_md5, m, m_md5, overlap) in recv.into_iter() {
+        writeln!(&mut writer, "query_name,query_md5,match_name,containment,intersect_hashes").unwrap();
+        for (query, query_md5, m, cont, overlap) in recv.into_iter() { //m_md5 is missing rn
             writeln!(&mut writer, "\"{}\",{},\"{}\",{},{}",
-                        query, query_md5, m, m_md5, overlap).ok();
+                        query, query_md5, m, cont, overlap).ok();
         }
     });
 
@@ -966,15 +962,18 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                     let counter = db.counter_for_query(&query.minhash);
                     let matches = db.matches_from_counter(counter, threshold);
 
+                    // print minimum containment value
+                    info!("minimum containment: {}", minimum_containment);
+
                     // filter the matches for containment
-                    for (path, size) in matches {
-                        let containment = size as f64 / query_size;
+                    for (path, overlap) in matches {
+                        let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {
                             results.push((query.name.clone(),
                                           query.md5sum.clone(),
                                           path.clone(),
-                                          size,
-                                          containment));
+                                          containment,
+                                          overlap));
                         }
                     }
                 } else {
@@ -1171,8 +1170,10 @@ fn do_index(siglist: String,
             output: String,
             save_paths: bool,
             colors: bool,
-    ) -> anyhow::Result<u8>{
-    match index(siglist, ksize, scaled, threshold, output,
+) -> anyhow::Result<u8>{
+    // build template from ksize, scaled
+    let template = build_template(ksize, scaled);
+    match index(siglist, template, threshold, output,
                 save_paths, colors) {
         Ok(_) => Ok(0),
         Err(e) => {
