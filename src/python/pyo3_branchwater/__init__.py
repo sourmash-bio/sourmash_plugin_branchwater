@@ -47,11 +47,10 @@ class Branchwater_Manysearch(CommandLinePlugin):
         if args.cores > avail_threads:
             notify(f"warning: only {avail_threads} threads available, using {avail_threads} instead of {args.cores}")
 
-        
         pyo3_branchwater.set_global_thread_pool(args.cores)
-        
+
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
-        
+
         super().main(args)
         status = pyo3_branchwater.do_manysearch(args.query_paths,
                                                 args.against_paths,
@@ -93,7 +92,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
         num_threads = min(avail_threads, args.cores) if args.cores else avail_threads
         if args.cores > avail_threads:
             notify(f"warning: only {avail_threads} threads available, using {avail_threads} instead of {args.cores}")
-        
+
         pyo3_branchwater.set_global_thread_pool(args.cores)
 
         notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}' using {num_threads} threads")
@@ -137,9 +136,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         num_threads = min(avail_threads, args.cores) if args.cores else avail_threads
         if args.cores > avail_threads:
             notify(f"warning: only {avail_threads} threads available, using {avail_threads} instead of {args.cores}")
-        
-        pyo3_branchwater.set_global_thread_pool(args.cores)
 
+        pyo3_branchwater.set_global_thread_pool(args.cores)
 
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
