@@ -124,7 +124,7 @@ def test_search_simple(runtmp):
             m = row['match_name'].split()[0]
             # jaccard = float(row['jaccard'])
             cont = float(row['containment'])
-            # intersect_hashes = int(row['intersect_hashes'])
+            intersect_hashes = int(row['intersect_hashes'])
 
             # jaccard = round(jaccard, 4)
             cont = round(cont, 4)
@@ -134,10 +134,12 @@ def test_search_simple(runtmp):
             if q == 'NC_011665.1' and m == 'NC_009661.1':
                 # assert jaccard == 0.3207
                 assert cont == 0.4828
+                assert intersect_hashes == 2529
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
                 # assert jaccard == 0.3207
                 assert cont == 0.4885
+                assert intersect_hashes == 2529
 
 
 def test_search_containment_threshold(runtmp):

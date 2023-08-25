@@ -935,7 +935,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
         }
     });
 
-   //
+    //
     // Main loop: iterate (in parallel) over all search signature paths,
     // loading them individually and searching them. Stuff results into
     // the writer thread above.
