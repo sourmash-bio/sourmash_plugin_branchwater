@@ -815,9 +815,9 @@ fn do_multigather(query_filenames: String,
 }
 
 #[pyfunction]
-fn set_global_thread_pool(num_threads: usize) -> PyResult<()> {
+fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
     if let Ok(_) = std::panic::catch_unwind(|| rayon::ThreadPoolBuilder::new().num_threads(num_threads).build_global()) {
-        Ok(())
+        Ok(rayon::current_num_threads())
     } else {
         Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Could not set the number of threads. Global thread pool might already be initialized."))
     }

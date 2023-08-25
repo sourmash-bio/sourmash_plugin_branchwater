@@ -9,12 +9,25 @@ from . import pyo3_branchwater
 
 
 def get_max_cores():
-    if 'SLURM_CPUS_ON_NODE' in os.environ:
-        return int(os.environ['SLURM_CPUS_ON_NODE'])
-    elif 'SLURM_JOB_CPUS_PER_NODE' in os.environ:
-        return int(os.environ['SLURM_JOB_CPUS_PER_NODE'].split('x')[0])  # Assumes a simple format; won't handle complex scenarios
-    else:
+    try:
+        if 'SLURM_CPUS_ON_NODE' in os.environ:
+            return int(os.environ['SLURM_CPUS_ON_NODE'])
+        elif 'SLURM_JOB_CPUS_PER_NODE' in os.environ:
+            cpus_per_node_str = os.environ['SLURM_JOB_CPUS_PER_NODE']
+            return int(cpus_per_node_str.split('x')[0])
+        else:
+            return os.cpu_count()
+    except Exception:
         return os.cpu_count()
+
+
+def set_thread_pool(user_cores):
+    avail_threads = get_max_cores()
+    num_threads = min(avail_threads, user_cores) if user_cores else avail_threads
+    if user_cores and user_cores > avail_threads:
+        notify(f"warning: only {avail_threads} threads available, using {avail_threads}")
+    actual_rayon_cores = pyo3_branchwater.set_global_thread_pool(num_threads)
+    return actual_rayon_cores
 
 
 class Branchwater_Manysearch(CommandLinePlugin):
@@ -41,13 +54,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
 
-
-        avail_threads = get_max_cores()
-        num_threads = min(avail_threads, args.cores) if args.cores else avail_threads
-        if args.cores > avail_threads:
-            notify(f"warning: only {avail_threads} threads available, using {avail_threads} instead of {args.cores}")
-
-        pyo3_branchwater.set_global_thread_pool(args.cores)
+        num_threads = set_thread_pool(args.cores)
 
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
 
@@ -88,12 +95,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
 
-        avail_threads = get_max_cores()
-        num_threads = min(avail_threads, args.cores) if args.cores else avail_threads
-        if args.cores > avail_threads:
-            notify(f"warning: only {avail_threads} threads available, using {avail_threads} instead of {args.cores}")
+        num_threads = set_thread_pool(args.cores)
 
-        pyo3_branchwater.set_global_thread_pool(args.cores)
 
         notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
@@ -132,12 +135,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
 
-        avail_threads = get_max_cores()
-        num_threads = min(avail_threads, args.cores) if args.cores else avail_threads
-        if args.cores > avail_threads:
-            notify(f"warning: only {avail_threads} threads available, using {avail_threads} instead of {args.cores}")
-
-        pyo3_branchwater.set_global_thread_pool(args.cores)
+        num_threads = set_thread_pool(args.cores)
 
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
