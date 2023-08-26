@@ -861,7 +861,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            if let query_sig = Signature::from_path(filename).unwrap() {
+            if let Ok(query_sig) = Signature::from_path(filename) {
                 if let Some(query) = prepare_query(&query_sig, &template) {
                     let query_size = query.minhash.size() as f64;
                     let threshold = threshold_bp / query.minhash.scaled() as usize;
@@ -986,7 +986,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            if let query_sig = Signature::from_path(filename).unwrap() {
+            if let Ok(query_sig) = Signature::from_path(filename) {
                 if let Some(query) = prepare_query(&query_sig, &template) {
                     let query_size = query.minhash.size() as f64;
                     let threshold = threshold_bp / query.minhash.scaled() as usize;
