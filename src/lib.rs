@@ -24,8 +24,7 @@ use log::{error, info};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
-// use sourmash::index::revindex::{RevIndex}; //prepare_query
-use sourmash::index::revindex::{prepare_query as revindex_prepare_query, RevIndex};
+use sourmash::index::revindex::{RevIndex};
 use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 
@@ -768,18 +767,6 @@ fn build_template(ksize: u8, scaled: usize) -> Sketch {
         .max_hash(max_hash)
         .build();
     Sketch::MinHash(template_mh)
-}
-
-fn read_paths<P: AsRef<Path>>(paths_file: P) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
-    let paths = BufReader::new(File::open(paths_file)?);
-    Ok(paths
-        .lines()
-        .map(|line| {
-            let mut path = PathBuf::new();
-            path.push(line.unwrap());
-            path
-        })
-        .collect())
 }
 
 
