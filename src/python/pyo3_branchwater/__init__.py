@@ -223,7 +223,6 @@ class Branchwater_Search(CommandLinePlugin):
         num_threads = pyo3_branchwater.get_num_threads()
         notify(f"searching all sketches in '{args.query_paths}' against '{args.index}' using {num_threads} threads")
         super().main(args)
-        # status = pyo3_branchwater.do_search(args.query_paths,
         status = pyo3_branchwater.do_mastiffmanysearch(args.query_paths,
                                               args.index,
                                               args.ksize,
@@ -262,7 +261,6 @@ class Branchwater_Gather(CommandLinePlugin):
         num_threads = pyo3_branchwater.get_num_threads()
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.index}' using {num_threads} threads")
         super().main(args)
-        # status = pyo3_branchwater.do_gather(args.query_paths,
         status = pyo3_branchwater.do_mastiffmanygather(args.query_paths,
                                               args.index,
                                               args.ksize,
