@@ -134,30 +134,23 @@ def test_search_simple(runtmp):
 
     for idx, row in dd.items():
         # identical?
-        # if row['query_md5'] == row['match_md5']:
         if row['match_name'] == row['query_name']:
             assert float(row['containment'] == 1.0)
-            # assert float(row['jaccard'] == 1.0)
         else:
             # confirm hand-checked numbers
             q = row['query_name'].split()[0]
             m = row['match_name'].split()[0]
-            # jaccard = float(row['jaccard'])
             cont = float(row['containment'])
             intersect_hashes = int(row['intersect_hashes'])
 
-            # jaccard = round(jaccard, 4)
             cont = round(cont, 4)
             print(q, m, f"{cont:.04}")
-            # print(q, m, f"{jaccard:.04}", f"{cont:.04}")
 
             if q == 'NC_011665.1' and m == 'NC_009661.1':
-                # assert jaccard == 0.3207
                 assert cont == 0.4828
                 assert intersect_hashes == 2529
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
-                # assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert intersect_hashes == 2529
 
