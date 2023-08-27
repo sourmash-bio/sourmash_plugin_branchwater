@@ -815,8 +815,12 @@ fn do_multigather(query_filenames: String,
 }
 
 #[pyfunction]
-fn get_num_threads() -> PyResult<usize> {
-    Ok(rayon::current_num_threads())
+fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
+    if let Ok(_) = std::panic::catch_unwind(|| rayon::ThreadPoolBuilder::new().num_threads(num_threads).build_global()) {
+        Ok(rayon::current_num_threads())
+    } else {
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Could not set the number of threads. Global thread pool might already be initialized."))
+    }
 }
 
 #[pymodule]
@@ -824,6 +828,6 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
-    m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     Ok(())
 }
