@@ -75,6 +75,57 @@ def test_simple(runtmp):
                 assert cont == 0.4885
 
 
+def test_simple_with_cores(runtmp):
+    # test basic execution with -c argument (that it runs, at least!)
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                    '-o', output, '-c', '4')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['query_md5'] == row['match_md5']:
+            assert row['match_name'] == row['query_name']
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            jaccard = float(row['jaccard'])
+            cont = float(row['containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}")
+
+            if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4828
+
+            if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4885
+
+
 def test_simple_threshold(runtmp):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
