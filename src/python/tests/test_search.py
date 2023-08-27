@@ -75,7 +75,7 @@ def test_simple(runtmp):
                 assert cont == 0.4885
 
 
-def test_simple_with_cores(runtmp):
+def test_simple_with_cores(runtmp, capfd):
     # test basic execution with -c argument (that it runs, at least!)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -96,34 +96,9 @@ def test_simple_with_cores(runtmp):
     df = pandas.read_csv(output)
     assert len(df) == 5
 
-    dd = df.to_dict(orient='index')
-    print(dd)
-
-    for idx, row in dd.items():
-        # identical?
-        if row['query_md5'] == row['match_md5']:
-            assert row['match_name'] == row['query_name']
-            assert float(row['containment'] == 1.0)
-            assert float(row['jaccard'] == 1.0)
-        else:
-            # confirm hand-checked numbers
-            q = row['query_name'].split()[0]
-            m = row['match_name'].split()[0]
-            jaccard = float(row['jaccard'])
-            cont = float(row['containment'])
-            intersect_hashes = int(row['intersect_hashes'])
-
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            print(q, m, f"{jaccard:.04}", f"{cont:.04}")
-
-            if q == 'NC_011665.1' and m == 'NC_009661.1':
-                assert jaccard == 0.3207
-                assert cont == 0.4828
-
-            if q == 'NC_009661.1' and m == 'NC_011665.1':
-                assert jaccard == 0.3207
-                assert cont == 0.4885
+    result = runtmp.last_result
+    print(result.err)
+    assert " using 4 threads" in result.err
 
 
 def test_simple_threshold(runtmp):
