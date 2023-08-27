@@ -27,4 +27,4 @@ gather = "pyo3_branchwater:Branchwater_Gather"
 python-source = "src/python"
 
 [metadata]
-license = { text = "BSD 3-Clause License" }
+license = { text = "GNU Affero General Public License v3" }
