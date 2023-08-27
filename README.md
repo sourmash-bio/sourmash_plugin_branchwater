@@ -129,5 +129,5 @@ This software is under the AGPL license. Please see [LICENSE.txt](LICENSE.txt).
 
 Luiz Irber
 C. Titus Brown
-Mo Abuelanin
+Mohamed Abuelanin
 N. Tessa Pierce-Ward
