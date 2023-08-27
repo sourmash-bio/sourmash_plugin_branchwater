@@ -121,4 +121,13 @@ maturin build
 
 ---
 
-CTB Aug 2023
+## License
+
+This software is under the AGPL license. Please see [LICENSE.txt](LICENSE.txt).
+
+## Authors
+
+Luiz Irber
+C. Titus Brown
+Mo Abuelanin
+N. Tessa Pierce
