@@ -861,7 +861,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            if let query_sig = Signature::from_path(filename).unwrap() {
+            if let Ok(query_sig) = Signature::from_path(filename) {
                 if let Some(query) = prepare_query(&query_sig, &template) {
                     let query_size = query.minhash.size() as f64;
                     let threshold = threshold_bp / query.minhash.scaled() as usize;
@@ -986,7 +986,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            if let query_sig = Signature::from_path(filename).unwrap() {
+            if let Ok(query_sig) = Signature::from_path(filename) {
                 if let Some(query) = prepare_query(&query_sig, &template) {
                     let query_size = query.minhash.size() as f64;
                     let threshold = threshold_bp / query.minhash.scaled() as usize;
@@ -1132,8 +1132,12 @@ fn do_multigather(query_filenames: String,
 }
 
 #[pyfunction]
-fn get_num_threads() -> PyResult<usize> {
-    Ok(rayon::current_num_threads())
+fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
+    if let Ok(_) = std::panic::catch_unwind(|| rayon::ThreadPoolBuilder::new().num_threads(num_threads).build_global()) {
+        Ok(rayon::current_num_threads())
+    } else {
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Could not set the number of threads. Global thread pool might already be initialized."))
+    }
 }
 
 #[pyfunction]
@@ -1213,10 +1217,10 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
-    m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
     m.add_function(wrap_pyfunction!(do_index, m)?)?;
     m.add_function(wrap_pyfunction!(do_check, m)?)?;
     m.add_function(wrap_pyfunction!(do_mastiffmanysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_mastiffmanygather, m)?)?;
+    m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     Ok(())
 }
