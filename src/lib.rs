@@ -8,14 +8,19 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
+use zip::read::ZipArchive;
+use tempfile::tempdir;
+
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
+use std::io::Read;
 
 use std::collections::BinaryHeap;
 
 use std::cmp::{PartialOrd, Ordering};
 
 use anyhow::{Result, anyhow};
+
 
 #[macro_use]
 extern crate simple_error;
@@ -769,6 +774,31 @@ fn build_template(ksize: u8, scaled: usize) -> Sketch {
     Sketch::MinHash(template_mh)
 }
 
+fn read_signatures_from_zip<P: AsRef<Path>>(
+    zip_path: P,
+    sig_paths: Vec<String>,
+) -> Result<(Vec<PathBuf>, tempfile::TempDir), Box<dyn std::error::Error>> {
+    let mut signature_paths = Vec::new();
+    let temp_dir = tempdir()?;
+    let zip_file = File::open(&zip_path)?;
+    let mut zip_archive = ZipArchive::new(zip_file)?;
+
+    for i in 0..zip_archive.len() {
+        let mut file = zip_archive.by_index(i)?;
+        let mut sig = Vec::new();
+        file.read_to_end(&mut sig)?;
+
+        let file_name = file.name().to_owned();
+        if sig_paths.contains(&file_name) && (file_name.ends_with(".sig") || file_name.ends_with(".sig.gz")) {
+            let new_path = temp_dir.path().join(&file_name);
+            let mut new_file = File::create(&new_path)?;
+            new_file.write_all(&sig)?;
+            signature_paths.push(new_path);
+        }
+    }
+
+    Ok((signature_paths, temp_dir))
+}
 
 fn index<P: AsRef<Path>>(
     siglist: P,
@@ -777,10 +807,26 @@ fn index<P: AsRef<Path>>(
     output: P,
     save_paths: bool,
     colors: bool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-
+    sig_paths: Option<Vec<String>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut temp_dir = None;
     info!("Loading siglist");
-    let index_sigs = load_sketchlist_filenames(&siglist)?;
+
+    let index_sigs: Vec<PathBuf>;
+
+    if siglist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+        if let Some(sig_paths) = sig_paths {
+            let (paths, tempdir) = read_signatures_from_zip(&siglist, sig_paths)?;
+            temp_dir = Some(tempdir);
+            index_sigs = paths;
+        } else {
+            // Handle the case when sig_paths is None
+            return Err("sig_paths is missing".into());
+        }
+    } else {
+        index_sigs = load_sketchlist_filenames(&siglist)?;
+    }
+
     info!("Loaded {} sig paths in siglist", index_sigs.len());
 
     // Create or open the RevIndex database with the provided output path and colors flag
@@ -789,9 +835,12 @@ fn index<P: AsRef<Path>>(
     // Index the signatures using the loaded template, threshold, and save_paths option
     db.index(index_sigs, &template, threshold, save_paths);
 
+    if let Some(temp_dir) = temp_dir {
+        temp_dir.close()?;
+    }
+
     Ok(())
 }
-
 
 fn check<P: AsRef<Path>>(index: P, quick: bool) -> Result<(), Box<dyn std::error::Error>> {
     info!("Opening DB");
@@ -1148,11 +1197,12 @@ fn do_index(siglist: String,
             output: String,
             save_paths: bool,
             colors: bool,
+            sig_paths: Option<Vec<String>>,
 ) -> anyhow::Result<u8>{
     // build template from ksize, scaled
     let template = build_template(ksize, scaled);
     match index(siglist, template, threshold, output,
-                save_paths, colors) {
+                save_paths, colors, sig_paths) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
