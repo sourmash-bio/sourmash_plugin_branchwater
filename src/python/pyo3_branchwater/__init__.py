@@ -89,7 +89,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
-                help='number of cores to use (default is all available)')
+                        help='number of cores to use (default is all available)')
 
 
     def main(self, args):
@@ -129,7 +129,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
-                help='number of cores to use (default is all available)')
+                       help='number of cores to use (default is all available)')
 
 
     def main(self, args):
@@ -167,11 +167,15 @@ class Branchwater_Index(CommandLinePlugin):
                        help='scaled factor at which to do comparisons')
         p.add_argument('--save-paths', action='store_true',
                        help='save paths to signatures into index. Default: save full sig into index')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
-        num_threads = pyo3_branchwater.get_num_threads()
-        notify(f"indexing all sketches in '{args.siglist}'")
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"indexing all sketches in '{args.siglist}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_index(args.siglist,
                                                 args.ksize,
@@ -220,10 +224,13 @@ class Branchwater_Check(CommandLinePlugin):
 #                        help='scaled factor at which to do comparisons')
 #         p.add_argument('--save-paths', action='store_true',
 #                         help='save paths to signatures into index. Default: save full sig into index')
+        # p.add_argument('-c', '--cores', default=0, type=int,
+        #         help='number of cores to use (default is all available)')
 
 #     def main(self, args):
 #         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
-#         num_threads = pyo3_branchwater.get_num_threads()
+#         num_threads = set_thread_pool(args.cores)
+
 #         notify(f"updating index with all sketches in '{args.siglist}'")
 #         super().main(args)
 #         status = pyo3_branchwater.do_update(args.siglist,
@@ -251,16 +258,20 @@ class Branchwater_Search(CommandLinePlugin):
                        help='CSV output file for matches')
         p.add_argument('-t', '--threshold-bp', default=50000, type=float,
                        help='threshold in estimated base pairs, for reporting matches (default: 50kb)')
-        p.add_argument('-c', '--containment-threshold', default=0.01, type=float,
+        p.add_argument('--containment-threshold', default=0.01, type=float,
                        help='containment threshold for reporting matches')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold_bp: {args.threshold_bp}")
-        num_threads = pyo3_branchwater.get_num_threads()
+
+        num_threads = set_thread_pool(args.cores)
+
         notify(f"searching all sketches in '{args.query_paths}' against '{args.index}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_mastiffmanysearch(args.query_paths,
@@ -295,10 +306,14 @@ class Branchwater_Gather(CommandLinePlugin):
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold_bp: {args.threshold_bp}")
-        num_threads = pyo3_branchwater.get_num_threads()
+
+        num_threads = set_thread_pool(args.cores)
+
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.index}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_mastiffmanygather(args.query_paths,
