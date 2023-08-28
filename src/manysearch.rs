@@ -121,12 +121,15 @@ pub fn manysearch<P: AsRef<Path>>(
                         let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
                         let query_size = q.minhash.size() as f64;
 
+                        /*
                         let mut merged = q.minhash.clone();
                         merged.merge(&search_sm.minhash).ok();
                         let total_size = merged.size() as f64;
+                        */
 
                         let containment = overlap / query_size;
-                        let jaccard = overlap / total_size;
+                        // let jaccard = overlap / total_size;
+                        let jaccard = 0;
                         if containment > threshold {
                             results.push((q.name.clone(),
                                           q.md5sum.clone(),
