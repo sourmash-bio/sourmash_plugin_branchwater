@@ -177,16 +177,6 @@ class Branchwater_Index(CommandLinePlugin):
 
         notify(f"indexing all sketches in '{args.siglist}'")
 
-        sig_paths = None
-        if args.siglist.endswith('.zip'):
-            notify(f"trying to load from zip file '{args.siglist}'")
-            from sourmash.index import ZipFileLinearIndex
-            zipidx = ZipFileLinearIndex.load(args.siglist, use_manifest=True)
-            zip_path = os.path.abspath(args.siglist)
-            allfiles = zipidx.storage._filenames()
-            sig_paths = [os.path.join(zip_path, x) for x in allfiles if x.endswith('.sig') or x.endswith('.sig.gz')]
-            # get paths from zipindex; pass to pyo3_branchwater
-
         super().main(args)
         status = pyo3_branchwater.do_index(args.siglist,
                                                 args.ksize,
@@ -194,8 +184,7 @@ class Branchwater_Index(CommandLinePlugin):
                                                 args.threshold,
                                                 args.output,
                                                 args.save_paths,
-                                                False, # colors - currently must be false?
-                                                sig_paths)
+                                                False) # colors - currently must be false?
         if status == 0:
             notify(f"...index is done! results in '{args.output}'")
         return status
