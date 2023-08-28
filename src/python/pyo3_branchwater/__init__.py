@@ -89,7 +89,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
-                        help='number of cores to use (default is all available)')
+                help='number of cores to use (default is all available)')
 
 
     def main(self, args):
@@ -129,7 +129,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
-                       help='number of cores to use (default is all available)')
+                help='number of cores to use (default is all available)')
 
 
     def main(self, args):
