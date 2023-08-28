@@ -7,7 +7,7 @@ use std::path::Path;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use crate::utils::{prepare_query,
                    load_sketchlist_filenames, load_sketches};
