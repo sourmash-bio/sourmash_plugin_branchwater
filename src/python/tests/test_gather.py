@@ -3,7 +3,7 @@ import pytest
 import pandas
 
 import sourmash
-import sourmash_tst_utils as utils
+from . import sourmash_tst_utils as utils
 
 
 def get_test_data(filename):
