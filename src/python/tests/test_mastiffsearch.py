@@ -174,7 +174,7 @@ def test_search_containment_threshold(runtmp):
     runtmp.sourmash('scripts', 'index', against_list,
                     '-o', db)
     runtmp.sourmash('scripts', 'search', query_list, db,
-                    '-o', output, '-c', '0.5')
+                    '-o', output, '--containment-threshold', '0.5')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)

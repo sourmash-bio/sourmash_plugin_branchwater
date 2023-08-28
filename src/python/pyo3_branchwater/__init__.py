@@ -89,7 +89,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
-                help='number of cores to use (default is all available)')
+                        help='number of cores to use (default is all available)')
 
 
     def main(self, args):
@@ -129,7 +129,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
-                help='number of cores to use (default is all available)')
+                       help='number of cores to use (default is all available)')
 
 
     def main(self, args):
@@ -172,7 +172,9 @@ class Branchwater_Index(CommandLinePlugin):
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
+
         num_threads = set_thread_pool(args.cores)
+
         notify(f"indexing all sketches in '{args.siglist}'")
 
         sig_paths = None
@@ -278,7 +280,9 @@ class Branchwater_Search(CommandLinePlugin):
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold_bp: {args.threshold_bp}")
+
         num_threads = set_thread_pool(args.cores)
+
         notify(f"searching all sketches in '{args.query_paths}' against '{args.index}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_mastiffmanysearch(args.query_paths,
@@ -318,7 +322,9 @@ class Branchwater_Gather(CommandLinePlugin):
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold_bp: {args.threshold_bp}")
+
         num_threads = set_thread_pool(args.cores)
+
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.index}' using {num_threads} threads")
         super().main(args)
         status = pyo3_branchwater.do_mastiffmanygather(args.query_paths,
