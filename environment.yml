@@ -1,0 +1,12 @@
+name: branchwater-dev
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - sourmash>=4.8.3,<5
+    - pip
+    - rust
+    - maturin>=1,<2
+    - pytest
+    - pandas
