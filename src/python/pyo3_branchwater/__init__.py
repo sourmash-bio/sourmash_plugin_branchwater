@@ -159,8 +159,6 @@ class Branchwater_Index(CommandLinePlugin):
                        help="a text file containing paths to .sig/.sig.gz files")
         p.add_argument('-o', '--output', required=True,
                        help='output file for the index')
-        p.add_argument('-t', '--threshold', default=0.01, type=float,
-                       help='containment threshold for reporting matches')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
@@ -171,7 +169,7 @@ class Branchwater_Index(CommandLinePlugin):
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled}")
 
         num_threads = set_thread_pool(args.cores)
 
@@ -180,7 +178,6 @@ class Branchwater_Index(CommandLinePlugin):
         status = pyo3_branchwater.do_index(args.siglist,
                                                 args.ksize,
                                                 args.scaled,
-                                                args.threshold,
                                                 args.output,
                                                 args.save_paths,
                                                 False) # colors - currently must be false?
