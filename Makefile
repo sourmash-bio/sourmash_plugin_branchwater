@@ -12,9 +12,8 @@ clean:
 test:
 	$(PYTHON) -m pytest
 
-
 wheel:
-	$(PYTHON) -m maturin build
+	$(PYTHON) -m maturin build -r
 
 sdist:
 	rm -f target/wheels/pyo3_branchwater-*.tar.gz
