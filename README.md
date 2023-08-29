@@ -92,6 +92,24 @@ future sourmash functionality.
 
 ## Developer notes
 
+### Installing a development environment
+
+You'll need sourmash, rust, and [maturin](https://github.com/PyO3/maturin).
+
+A simple way to get up and running is to run:
+```
+mamba env create -n branchwatever-dev -f environment.yml
+```
+in the top directory of the repo, and then activate the environment and
+install in editable mode:
+```
+mamba activate branchwater-dev
+pip install -e .
+```
+
+### Running the tests locally
+
+Executing:
 ```
 make test
 ```
@@ -99,17 +117,19 @@ will run the Python tests.
 
 ### Generating a release
 
-Bump version number in `Cargo.toml` and run `make` to update `Cargo.lock`.
+1. Bump version number in `Cargo.toml` and run `make` to update `Cargo.lock`.
 Then commit and push to `origin/main`.
 
-Make a new release on github with a matching version tag.
+2. Make a new release on github with a matching version tag.
 
-Then pull, and:
+3. Then pull, and:
 
 ```
 make sdist
 make upload_sdist
 ```
+
+to create a new release on PyPI.
 
 ### Building wheels
 
