@@ -792,7 +792,6 @@ fn read_signatures_from_zip<P: AsRef<Path>>(
 fn index<P: AsRef<Path>>(
     siglist: P,
     template: Sketch,
-    threshold: f64,
     output: P,
     save_paths: bool,
     colors: bool,
@@ -817,7 +816,7 @@ fn index<P: AsRef<Path>>(
     let db = RevIndex::create(output.as_ref(), colors);
 
     // Index the signatures using the loaded template, threshold, and save_paths option
-    db.index(index_sigs, &template, threshold, save_paths);
+    db.index(index_sigs, &template, 0.0, save_paths);
 
     if let Some(temp_dir) = temp_dir {
         temp_dir.close()?;
@@ -1177,14 +1176,13 @@ fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
 fn do_index(siglist: String,
             ksize: u8,
             scaled: usize,
-            threshold: f64,
             output: String,
             save_paths: bool,
             colors: bool,
 ) -> anyhow::Result<u8>{
     // build template from ksize, scaled
     let template = build_template(ksize, scaled);
-    match index(siglist, template, threshold, output,
+    match index(siglist, template, output,
                 save_paths, colors) {
         Ok(_) => Ok(0),
         Err(e) => {
