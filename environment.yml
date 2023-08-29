@@ -9,3 +9,4 @@ dependencies:
     - rust
     - maturin>=1,<2
     - pytest
+    - pandas
