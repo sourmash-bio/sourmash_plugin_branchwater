@@ -173,7 +173,8 @@ class Branchwater_Index(CommandLinePlugin):
 
         num_threads = set_thread_pool(args.cores)
 
-        notify(f"indexing all sketches in '{args.siglist}' using {num_threads} threads")
+        notify(f"indexing all sketches in '{args.siglist}'")
+
         super().main(args)
         status = pyo3_branchwater.do_index(args.siglist,
                                                 args.ksize,
@@ -221,13 +222,12 @@ class Branchwater_Check(CommandLinePlugin):
 #                        help='scaled factor at which to do comparisons')
 #         p.add_argument('--save-paths', action='store_true',
 #                         help='save paths to signatures into index. Default: save full sig into index')
-        # p.add_argument('-c', '--cores', default=0, type=int,
-        #         help='number of cores to use (default is all available)')
+#        p.add_argument('-c', '--cores', default=0, type=int,
+#                         help='number of cores to use (default is all available)')
 
 #     def main(self, args):
 #         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
 #         num_threads = set_thread_pool(args.cores)
-
 #         notify(f"updating index with all sketches in '{args.siglist}'")
 #         super().main(args)
 #         status = pyo3_branchwater.do_update(args.siglist,

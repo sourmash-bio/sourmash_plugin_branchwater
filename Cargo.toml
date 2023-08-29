@@ -20,6 +20,8 @@ log = "0.4.14"
 env_logger = "0.9.0"
 simple-error = "0.3.0"
 anyhow = "1.0.75"
+zip = "0.6"
+tempfile = "3.8"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
