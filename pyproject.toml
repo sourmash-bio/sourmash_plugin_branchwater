@@ -7,7 +7,8 @@ classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
-]
+    ]
+dependencies = ["sourmash>=4.8.3,<5"]
 
 [build-system]
 requires = ["maturin>=1.1.0,<2"]

@@ -1,6 +1,6 @@
 import pytest
 
-from sourmash_tst_utils import TempDirectory, RunnerContext
+from .sourmash_tst_utils import TempDirectory, RunnerContext
 
 @pytest.fixture
 def runtmp():
