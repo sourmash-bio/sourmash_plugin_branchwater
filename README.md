@@ -147,7 +147,7 @@ This software is under the AGPL license. Please see [LICENSE.txt](LICENSE.txt).
 
 ## Authors
 
-Luiz Irber
-C. Titus Brown
-Mohamed Abuelanin
-N. Tessa Pierce-Ward
+* Luiz Irber
+* C. Titus Brown
+* Mohamed Abuelanin
+* N. Tessa Pierce-Ward
