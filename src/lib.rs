@@ -1,6 +1,4 @@
-// TODO:
-// * md5sum output by search and countergather are of modified/downsampled,
-//   not orig. This is different from sourmash...
+/// Rust code for pyo3_branchwater.
 
 use pyo3::prelude::*;
 
@@ -17,7 +15,7 @@ use std::collections::BinaryHeap;
 
 use std::cmp::{PartialOrd, Ordering};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 
 #[macro_use]
 extern crate simple_error;
@@ -39,6 +37,7 @@ struct SmallSignature {
 
 struct PrefetchResult {
     name: String,
+    md5sum: String,
     minhash: KmerMinHash,
     overlap: u64,
 }
@@ -99,44 +98,51 @@ fn check_compatible_downsample(
     Ok(())
 }
 
-/// Given a search Signature containing one or more sketches, and a template
-/// Sketch, return a compatible (& now downsampled) Sketch from the search
-/// Signature.
+
+/// Given a vec of search Signatures, each containing one or more sketches,
+/// and a template Sketch, return a compatible (& now downsampled)
+/// Sketch from the search Signatures..
 ///
 /// CTB note: this will return the first acceptable match, I think, ignoring
 /// all others.
 
-fn prepare_query(search_sig: &Signature, template: &Sketch) -> Option<KmerMinHash> {
-    let mut search_mh = None;
 
-    // find exact match for template?
-    if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
-        search_mh = Some(mh.clone());
-    } else {
-        // no - try to find one that can be downsampled
-        if let Sketch::MinHash(template_mh) = template {
-            for sketch in search_sig.sketches() {
-                if let Sketch::MinHash(ref_mh) = sketch {
-                    if check_compatible_downsample(&ref_mh, template_mh).is_ok() {
-                        let max_hash = max_hash_for_scaled(template_mh.scaled());
-                        let mh = ref_mh.downsample_max_hash(max_hash).unwrap();
-                        return Some(mh);
+fn prepare_query(search_sigs: &[Signature], template: &Sketch) -> Option<SmallSignature> {
+
+    for search_sig in search_sigs.iter() {
+        // find exact match for template?
+        if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
+            return Some(SmallSignature {
+                name: search_sig.name(),
+                md5sum: mh.md5sum(),
+                minhash: mh.clone()
+            });
+        } else {
+            // no - try to find one that can be downsampled
+            if let Sketch::MinHash(template_mh) = template {
+                for sketch in search_sig.sketches() {
+                    if let Sketch::MinHash(ref_mh) = sketch {
+                        if check_compatible_downsample(&ref_mh, template_mh).is_ok() {
+                            let max_hash = max_hash_for_scaled(template_mh.scaled());
+                            let mh = ref_mh.downsample_max_hash(max_hash).unwrap();
+                            return Some(SmallSignature {
+                                name: search_sig.name(),
+                                md5sum: ref_mh.md5sum(), // original
+                                minhash: mh,             // downsampled
+                            });
+                        }
                     }
                 }
             }
         }
     }
-    search_mh
+    None
 }
 
 /// Search many queries against a list of signatures.
 ///
 /// Note: this function loads all _queries_ into memory, and iterates over
 /// database once.
-///
-/// TODO:
-///   - support jaccard as well as containment/overlap
-///   - support md5 output columns; other?
 
 fn manysearch<P: AsRef<Path>>(
     querylist: P,
@@ -198,10 +204,10 @@ fn manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query,query_md5,match,match_md5,containment").unwrap();
-        for (query, query_md5, m, m_md5, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{}",
-                     query, query_md5, m, m_md5, overlap).ok();
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,intersect_hashes").unwrap();
+        for (query, query_md5, m, m_md5, cont, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{}",
+                     query, query_md5, m, m_md5, cont, overlap).ok();
         }
     });
 
@@ -223,41 +229,30 @@ fn manysearch<P: AsRef<Path>>(
                 info!("Processed {} search sigs", i);
             }
 
-            let mut search_mh = None;
             let mut results = vec![];
 
             // load search signature from path:
-            let search_sig = Signature::from_path(filename);
-            if search_sig.is_ok() {
-                let search_sig = search_sig.unwrap();
-                let search_sig = &search_sig[0]; // @CTB check on this
+            if let Ok(search_sigs) = Signature::from_path(filename) {
+                if let Some(search_sm) = prepare_query(&search_sigs, &template) {
+                    // search for matches & save containment.
+                    for q in queries.iter() {
+                        let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
+                        let query_size = q.minhash.size() as f64;
 
-                // make sure it is compatible etc.
-                if let Some(mh) = prepare_query(search_sig, &template) {
-                    search_mh = Some(mh);
+                        let containment = overlap / query_size;
+                        if containment > threshold {
+                            results.push((q.name.clone(),
+                                          q.md5sum.clone(),
+                                          search_sm.name.clone(),
+                                          search_sm.md5sum.clone(),
+                                          containment,
+                                          overlap))
+                        }
+                    }
                 } else {
                     eprintln!("WARNING: no compatible sketches in path '{}'",
                               filename.display());
                     let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                }
-
-                if search_mh.is_some() {
-                    let search_mh = search_mh.unwrap();
-
-                    // search for matches & save containment.
-                    for q in queries.iter() {
-                        let overlap = q.minhash.count_common(&search_mh, false).unwrap() as f64;
-                        let size = q.minhash.size() as f64;
-
-                        let containment = overlap / size;
-                        if containment > threshold {
-                            results.push((q.name.clone(),
-                                          q.minhash.md5sum(),
-                                          search_sig.name(),
-                                          search_sig.md5sum(),
-                                          overlap))
-                        }
-                    }
                 }
             } else {
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -343,11 +338,11 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(prefetch_out);
-    writeln!(&mut writer, "query_file,match,match_md5sum,overlap").ok();
+    writeln!(&mut writer, "query_filename,match_name,match_md5,intersect_bp").ok();
 
     for m in matchlist.iter() {
         writeln!(&mut writer, "{},\"{}\",{},{}", query_label,
-                 m.name, m.minhash.md5sum(), m.overlap).ok();
+                 m.name, m.md5sum, m.overlap).ok();
     }
 
     Ok(())
@@ -396,18 +391,10 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
             let filename = m.display();
 
             if let Ok(sigs) = Signature::from_path(m) {
-                for sig in &sigs {
-                    if let Some(mh) = prepare_query(sig, template) {
-                        sm = Some(SmallSignature {
-                            name: sig.name(),
-                            md5sum: sig.md5sum(),
-                            minhash: mh,
-                        });
-                    } else {
-                        // track number of paths that have no matching sigs
-                        // @CTB: print error?
-                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    }
+                sm = prepare_query(&sigs, template);
+                if sm.is_none() {
+                    // track number of paths that have no matching sigs
+                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
                 // failed to load from this path - print error & track.
@@ -443,19 +430,21 @@ fn load_sketches_above_threshold(
         .filter_map(|m| {
             let sigs = Signature::from_path(m);
 
-            let mut mm = None;
-            if let Ok(sigs) = sigs {
-                for sig in &sigs {
-                    if let Some(mh) = prepare_query(sig, template) {
+            match sigs {
+                Ok(sigs) => {
+                    let mut mm = None;
+
+                    if let Some(sm) = prepare_query(&sigs, template) {
+                        let mh = sm.minhash;
                         if let Ok(overlap) = mh.count_common(query, false) {
                             if overlap >= threshold_hashes {
                                 let result = PrefetchResult {
-                                    name: sig.name(),
+                                    name: sm.name,
+                                    md5sum: sm.md5sum,
                                     minhash: mh,
                                     overlap,
                                 };
                                 mm = Some(result);
-                                break;
                             }
                         }
                     } else {
@@ -463,13 +452,16 @@ fn load_sketches_above_threshold(
                                   m.display());
                         let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
+                    mm
                 }
-            } else {
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                eprintln!("WARNING: could not load sketches from path '{}'",
+                Err(err) => {
+                    eprintln!("Sketch loading error: {}", err);
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    eprintln!("WARNING: could not load sketches from path '{}'",
                           m.display());
+                    None
+                }
             }
-            mm
         })
         .collect();
 
@@ -495,7 +487,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(gather_out);
-    writeln!(&mut writer, "query_file,rank,match,match_md5sum,overlap").ok();
+    writeln!(&mut writer, "query_filename,rank,match_name,match_md5,intersect_bp").ok();
 
     let mut matching_sketches = matchlist;
     let mut rank = 0;
@@ -509,7 +501,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         query.remove_from(&best_element.minhash)?;
 
         writeln!(&mut writer, "{},{},\"{}\",{},{}", query_label, rank,
-                 best_element.name, best_element.minhash.md5sum(),
+                 best_element.name, best_element.md5sum,
                  best_element.overlap).ok();
 
         // recalculate remaining overlaps between query and all sketches.
@@ -543,16 +535,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     let query_label = query_filename.to_string();
     eprintln!("Loading query from '{}'", query_label);
     let query = {
-        let mut mm = None;
         let sigs = Signature::from_path(query_filename)?;
 
-        for sig in &sigs {
-            if let Some(mh) = prepare_query(sig, &template) {
-                mm = Some(mh.clone());
-                break;
-            }
-        };
-        mm
+        prepare_query(&sigs, &template)
     };
 
     // did we find anything matching the desired template?
@@ -584,7 +569,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     // load a set of sketches, filtering for those with overlaps > threshold
     let result = load_sketches_above_threshold(matchlist_paths,
                                                &template,
-                                               &query,
+                                               &query.minhash,
                                                threshold_hashes)?;
     let matchlist = result.0;
     let skipped_paths = result.1;
@@ -607,7 +592,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     write_prefetch(query_label.clone(), prefetch_output, &matchlist).ok();
 
     // run the gather!
-    consume_query_by_gather(query, matchlist, threshold_hashes,
+    consume_query_by_gather(query.minhash, matchlist, threshold_hashes,
                             gather_output, query_label).ok();
     Ok(())
 }
@@ -686,12 +671,8 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 // load query from q
                 let mut mm = None;
                 if let Ok(sigs) = Signature::from_path(dbg!(q)) {
-                    for sig in &sigs {
-                        if let Some(mh) = prepare_query(sig, &template) {
-                            mm = Some(mh);
-                            break;
-                        }
-                    }
+                    mm = prepare_query(&sigs, &template);
+
                     if mm.is_none() {
                         eprintln!("WARNING: no compatible sketches in path '{}'",
                                   q.display());
@@ -711,10 +692,11 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 .filter_map(|sm| {
                     let mut mm = None;
 
-                    if let Ok(overlap) = sm.minhash.count_common(&query, false) {
+                    if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
                         if overlap >= threshold_hashes {
                             let result = PrefetchResult {
                                 name: sm.name.clone(),
+                                md5sum: sm.md5sum.clone(),
                                 minhash: sm.minhash.clone(),
                                 overlap,
                             };
@@ -734,7 +716,7 @@ fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                                &matchlist).ok();
 
                 // now, do the gather!
-                consume_query_by_gather(query, matchlist, threshold_hashes,
+                consume_query_by_gather(query.minhash, matchlist, threshold_hashes,
                                         Some(gather_output), query_label).ok();
             } else {
                 println!("No matches to '{}'", query_label);
@@ -823,8 +805,12 @@ fn do_multigather(query_filenames: String,
 }
 
 #[pyfunction]
-fn get_num_threads() -> PyResult<usize> {
-    Ok(rayon::current_num_threads())
+fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
+    if let Ok(_) = std::panic::catch_unwind(|| rayon::ThreadPoolBuilder::new().num_threads(num_threads).build_global()) {
+        Ok(rayon::current_num_threads())
+    } else {
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Could not set the number of threads. Global thread pool might already be initialized."))
+    }
 }
 
 #[pymodule]
@@ -832,6 +818,6 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
-    m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     Ok(())
 }
