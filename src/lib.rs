@@ -1016,10 +1016,10 @@ fn mastiff_manygather<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,f_match,intersect_bp").unwrap();
-        for (query, query_md5, m, m_md5, f_match, intersect_bp) in recv.into_iter() {
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,f_match_query,intersect_bp").unwrap();
+        for (query, query_md5, m, m_md5, f_match_query, intersect_bp) in recv.into_iter() {
             writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{}",
-                        query, query_md5, m, m_md5, f_match, intersect_bp).ok();
+                        query, query_md5, m, m_md5, f_match_query, intersect_bp).ok();
         }
     });
 
@@ -1071,7 +1071,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
                                       query.md5sum.clone(),
                                       match_.name().clone(),
                                       match_.md5().clone(),
-                                      match_.f_match(), // f_match
+                                      match_.f_match(), // f_match_query
                                       match_.intersect_bp())); // intersect_bp
                         }
                     } else {
