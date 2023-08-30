@@ -205,9 +205,9 @@ fn manysearch<P: AsRef<Path>>(
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
         writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, containment, overlap) in recv.into_iter() {
+        for (query, query_md5, m, m_md5, cont, max_cont, overlap) in recv.into_iter() {
             writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{}",
-                     query, query_md5, m, m_md5, cont, containment, overlap).ok();
+                     query, query_md5, m, m_md5, cont, max_cont, overlap).ok();
         }
     });
 
