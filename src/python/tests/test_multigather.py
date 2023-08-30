@@ -26,6 +26,11 @@ def test_installed(runtmp):
 
     assert 'usage:  fastmultigather' in runtmp.last_result.err
 
+def index_siglist(runtmp, siglist, db):
+    # build index
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', db)
+    return db
 
 def test_simple(runtmp):
     # test basic execution!
@@ -65,8 +70,8 @@ def test_simple(runtmp):
     keys = set(df.keys())
     assert keys == {'query_filename', 'match_name', 'match_md5', 'intersect_bp'}
 
-
-def test_missing_querylist(runtmp, capfd):
+@pytest.mark.parametrize('indexed', [False, True])
+def test_missing_querylist(runtmp, capfd, indexed):
     # test missing querylist
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -78,6 +83,9 @@ def test_missing_querylist(runtmp, capfd):
     # do not make query_list!
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
                         '-s', '100000')
@@ -88,7 +96,8 @@ def test_missing_querylist(runtmp, capfd):
     assert 'Error: No such file or directory ' in captured.err
 
 
-def test_bad_query(runtmp, capfd):
+@pytest.mark.parametrize('indexed', [False, True])
+def test_bad_query(runtmp, capfd, indexed):
     # test bad querylist (a sig file)
     against_list = runtmp.output('against.txt')
 
@@ -97,6 +106,9 @@ def test_bad_query(runtmp, capfd):
     sig63 = get_test_data('63.fa.sig.gz')
 
     make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'fastmultigather', sig2, against_list,
@@ -108,7 +120,8 @@ def test_bad_query(runtmp, capfd):
     assert 'Error: invalid line in fromfile ' in captured.err
 
 
-def test_missing_query(runtmp, capfd):
+@pytest.mark.parametrize('indexed', [False, True])
+def test_missing_query(runtmp, capfd, indexed):
     # test missingfile in querylist
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -119,6 +132,9 @@ def test_missing_query(runtmp, capfd):
 
     make_file_list(query_list, [sig2, 'no-exist'])
     make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
                     '-s', '100000')
