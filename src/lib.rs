@@ -862,7 +862,6 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     queries_file: P,
     index: P,
     template: Sketch,
-    threshold_bp: usize,
     minimum_containment: f64,
     output: Option<P>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -923,10 +922,9 @@ fn mastiff_manysearch<P: AsRef<Path>>(
             if let Ok(query_sig) = Signature::from_path(filename) {
                 if let Some(query) = prepare_query(&query_sig, &template) {
                     let query_size = query.minhash.size() as f64;
-                    let threshold = threshold_bp / query.minhash.scaled() as usize;
                     // search mastiff db
                     let counter = db.counter_for_query(&query.minhash);
-                    let matches = db.matches_from_counter(counter, threshold);
+                    let matches = db.matches_from_counter(counter, minimum_containment as usize);
 
                     // filter the matches for containment
 
@@ -1142,8 +1140,7 @@ fn do_manysearch(querylist_path: String,
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
     if is_revindex_database(siglist_path.as_ref()) {
         let template = build_template(ksize, scaled);
-        let threshold_bp = (threshold * scaled as f64) as usize;
-        match mastiff_manysearch(querylist_path, siglist_path, template, threshold_bp, threshold, output_path) {
+        match mastiff_manysearch(querylist_path, siglist_path, template, threshold, output_path) {
             Ok(_) => Ok(0),
             Err(e) => {
                 eprintln!("Error: {e}");

@@ -77,7 +77,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('query_sig', help="metagenome sketch")
-        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files \
+                       OR a branchwater indexed database generated with 'sourmash scripts index'")
         p.add_argument('-o', '--output-gather', required=True,
                        help="save gather output (minimum metagenome cover) to this file")
         p.add_argument('--output-prefetch',
