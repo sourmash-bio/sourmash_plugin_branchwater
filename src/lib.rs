@@ -240,16 +240,16 @@ fn manysearch<P: AsRef<Path>>(
                         let query_size = q.minhash.size() as f64;
                         let target_size = search_sm.minhash.size() as f64;
 
-                        let containment_in_query = overlap / query_size;
+                        let containment_query_in_target = overlap / query_size;
                         let containment_in_target = overlap / target_size;
-                        let max_containment = containment_in_query.max(containment_in_target);
+                        let max_containment = containment_query_in_target.max(containment_in_target);
 
-                        if containment_in_query > threshold {
+                        if containment_query_in_target > threshold {
                             results.push((q.name.clone(),
                                           q.md5sum.clone(),
                                           search_sm.name.clone(),
                                           search_sm.md5sum.clone(),
-                                          containment_in_query,
+                                          containment_query_in_target,
                                           max_containment,
                                           overlap))
                         }
