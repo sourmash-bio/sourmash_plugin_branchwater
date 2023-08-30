@@ -48,3 +48,7 @@ jobs:
     - name: build
       shell: bash -l {0}
       run: make
+
+    - name: test
+      shell: bash -l {0}
+      run: pytest
