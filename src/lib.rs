@@ -204,10 +204,10 @@ fn manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{}",
-                     query, query_md5, m, m_md5, cont, overlap).ok();
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,intersect_hashes").unwrap();
+        for (query, query_md5, m, m_md5, cont, containment, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{}",
+                     query, query_md5, m, m_md5, cont, containment, overlap).ok();
         }
     });
 
@@ -238,14 +238,19 @@ fn manysearch<P: AsRef<Path>>(
                     for q in queries.iter() {
                         let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
                         let query_size = q.minhash.size() as f64;
+                        let target_size = search_sm.minhash.size() as f64;
 
-                        let containment = overlap / query_size;
-                        if containment > threshold {
+                        let containment_in_query = overlap / query_size;
+                        let containment_in_target = overlap / target_size;
+                        let max_containment = containment_in_query.max(containment_in_target);
+
+                        if containment_in_query > threshold {
                             results.push((q.name.clone(),
                                           q.md5sum.clone(),
                                           search_sm.name.clone(),
                                           search_sm.md5sum.clone(),
-                                          containment,
+                                          containment_in_query,
+                                          max_containment,
                                           overlap))
                         }
                     }
