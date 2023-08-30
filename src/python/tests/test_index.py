@@ -34,7 +34,7 @@ def test_index(runtmp):
 
     make_file_list(siglist, [sig2, sig47, sig63])
 
-    output = runtmp.output('db.rocksdb')
+    output = runtmp.output('db.rdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', output)
@@ -69,7 +69,7 @@ def test_index_missing_siglist(runtmp, capfd):
     sig63 = get_test_data('63.fa.sig.gz')
     make_file_list(against_list, [sig2, "no-exist"])
 
-    db = runtmp.output('db.rocksdb')
+    db = runtmp.output('db.rdb')
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'index', against_list,
@@ -89,7 +89,7 @@ def test_index_check(runtmp):
 
     make_file_list(siglist, [sig2, sig47])
 
-    output = runtmp.output('db.rocksdb')
+    output = runtmp.output('db.rdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', output)
@@ -99,3 +99,28 @@ def test_index_check(runtmp):
 
     assert 'index is ok' in runtmp.last_result.err
 
+
+def test_index_zipfile(runtmp, capfd):
+    # test basic index!
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    zipf = runtmp.output('sigs.zip')
+
+    runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
+
+    output = runtmp.output('db.rdb')
+
+    runtmp.sourmash('scripts', 'index', zipf,
+                    '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert 'index is done' in runtmp.last_result.err
+    captured = capfd.readouterr()
+    assert 'Loaded 3 sig paths in siglist' in captured.out
