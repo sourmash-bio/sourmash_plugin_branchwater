@@ -1684,7 +1684,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.12.0"
-source = "git+https://github.com/sourmash-bio/sourmash?branch=ntp/mastiff_roaring_prot#ff1092f8f366339caa59d7203f623813228f4356"
+source = "git+https://github.com/sourmash-bio/sourmash?rev=ff1092f8f366339caa59d7203f623813228f4356#ff1092f8f366339caa59d7203f623813228f4356"
 dependencies = [
  "az",
  "bytecount",
