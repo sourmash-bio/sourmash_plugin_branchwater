@@ -146,7 +146,8 @@ def test_missing_query(runtmp, capfd, indexed):
     assert "WARNING: 1 query paths failed to load. See error messages above."
 
 
-def test_nomatch_query(runtmp, capfd):
+@pytest.mark.parametrize('indexed', [False, True])
+def test_nomatch_query(runtmp, capfd, indexed):
     # test nomatch file in querylist
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -158,6 +159,9 @@ def test_nomatch_query(runtmp, capfd):
 
     make_file_list(query_list, [sig2, badsig1])
     make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
                     '-s', '100000')

@@ -809,6 +809,11 @@ fn index<P: AsRef<Path>>(
         index_sigs = load_sketchlist_filenames(&siglist)?;
     }
 
+    // if index_sigs pathlist is empty, bail
+    if index_sigs.is_empty() {
+        bail!("No signatures to index loaded, exiting.");
+    }
+
     info!("Loaded {} sig paths in siglist", index_sigs.len());
     println!("Loaded {} sig paths in siglist", index_sigs.len());
 
@@ -1110,7 +1115,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+        eprintln!("WARNING: skipped {} query paths - no compatible signatures.",
                   skipped_paths);
     }
     if failed_paths > 0 {
@@ -1260,4 +1265,3 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     Ok(())
 }
- 

@@ -44,9 +44,23 @@ def test_index(runtmp):
     assert 'index is done' in runtmp.last_result.err
 
 
+def test_index_missing_siglist(runtmp, capfd):
+    # test missing siglist file
+    siglist = runtmp.output('db-sigs.txt')
+    output = runtmp.output('out.db')
+    # make_file_list(siglist, []) # don't make siglist file
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'index', siglist,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert 'Error: No such file or directory ' in captured.err
+
+
 def test_index_bad_siglist(runtmp, capfd):
     # test index with a bad siglist (.sig.gz file instead of pathlist)
-
     sig2 = get_test_data('2.fa.sig.gz')
     output = runtmp.output('out.db')
 
@@ -60,8 +74,8 @@ def test_index_bad_siglist(runtmp, capfd):
     print(runtmp.last_result.err)
 
 
-def test_index_missing_siglist(runtmp, capfd):
-    # test with a bad against list (a missing file)
+def test_index_bad_siglist_2(runtmp, capfd):
+    # test with a bad siglist (containing a missing file)
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -80,28 +94,41 @@ def test_index_missing_siglist(runtmp, capfd):
     assert 'Error processing "no-exist"' in captured.err
 
 
-def test_index_check(runtmp):
-    # test check index
+def test_index_empty_siglist(runtmp, capfd):
+    # test empty siglist file
     siglist = runtmp.output('db-sigs.txt')
+    output = runtmp.output('out.db')
+    make_file_list(siglist, []) # empty
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'index', siglist,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "No signatures to index loaded, exiting." in captured.err
+
+
+def test_index_nomatch_sig_in_siglist(runtmp, capfd):
+    # test index with a siglist file that has (only) a non-matching ksize sig
+    siglist = runtmp.output('against.txt')
+    db = runtmp.output('db.rdb')
 
     sig2 = get_test_data('2.fa.sig.gz')
-    sig47 = get_test_data('47.fa.sig.gz')
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    make_file_list(siglist, [sig2, sig1])
 
-    make_file_list(siglist, [sig2, sig47])
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'index', siglist,
+                        '-o', db)
 
-    output = runtmp.output('db.rdb')
-
-    runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', output)
-
-    runtmp.sourmash('scripts', 'check', output)
-    print(runtmp.last_result.err)
-
-    assert 'index is ok' in runtmp.last_result.err
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Couldn't find a compatible MinHash" in captured.err
 
 
 def test_index_zipfile(runtmp, capfd):
-    # test basic index!
+    # test basic index from sourmash zipfile
     siglist = runtmp.output('db-sigs.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -124,3 +151,43 @@ def test_index_zipfile(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
     captured = capfd.readouterr()
     assert 'Loaded 3 sig paths in siglist' in captured.out
+
+
+def test_index_check(runtmp):
+    # test check index
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47])
+
+    output = runtmp.output('db.rdb')
+
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', output)
+
+    runtmp.sourmash('scripts', 'check', output)
+    print(runtmp.last_result.err)
+
+    assert 'index is ok' in runtmp.last_result.err
+
+
+def test_index_check_quick(runtmp):
+    # test check index
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47])
+
+    output = runtmp.output('db.rdb')
+
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', output)
+
+    runtmp.sourmash('scripts', 'check', '--quick', output)
+    print(runtmp.last_result.err)
+
+    assert 'index is ok' in runtmp.last_result.err
