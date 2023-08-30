@@ -22,9 +22,9 @@ def make_file_list(filename, paths):
 
 def test_installed(runtmp):
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'gather')
+        runtmp.sourmash('scripts', 'fastmultigather')
 
-    assert 'usage:  gather' in runtmp.last_result.err
+    assert 'usage:  fastmultigather' in runtmp.last_result.err
 
 def test_gather_simple(runtmp):
     # test basic execution!
@@ -47,7 +47,7 @@ def test_gather_simple(runtmp):
                     '-o', db)
     
     # run gather
-    runtmp.sourmash('scripts', 'gather', query_list, db,
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, db,
                     '-o', output, '-t', '0', '--scaled', '100000')
 
     assert os.path.exists(output)

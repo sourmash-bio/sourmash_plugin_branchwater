@@ -825,7 +825,23 @@ fn index<P: AsRef<Path>>(
     Ok(())
 }
 
+fn is_revindex_database(path: &Path) -> bool {
+    // quick file check for Revindex database:
+    // is path a directory that contains a file named 'CURRENT'?
+    if path.is_dir() {
+        let current_file = path.join("CURRENT");
+        current_file.exists() && current_file.is_file()
+    } else {
+        false
+    }
+}
+
 fn check<P: AsRef<Path>>(index: P, quick: bool) -> Result<(), Box<dyn std::error::Error>> {
+
+    if !is_revindex_database(index.as_ref()) {
+        bail!("'{}' is not a valid RevIndex database", index.as_ref().display());
+    }
+
     info!("Opening DB");
     let db = RevIndex::open(index.as_ref(), true);
 
@@ -846,14 +862,20 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     output: Option<P>,
     ) -> Result<(), Box<dyn std::error::Error>> {
 
+    if !is_revindex_database(index.as_ref()) {
+        bail!("'{}' is not a valid RevIndex database", index.as_ref().display());
+    }
     // Open database once
-    // TODO: exit if there are errors opening the database
     let db = RevIndex::open(index.as_ref(), true);
     info!("Loaded DB");
-    // NTP: can we set threshold here too?
 
     // Load query paths
     let query_paths = load_sketchlist_filenames(&queries_file)?;
+
+    // if query_paths is empty, exit with error
+    if query_paths.is_empty() {
+        bail!("No query signatures loaded, exiting.");
+    }
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -903,7 +925,6 @@ fn mastiff_manysearch<P: AsRef<Path>>(
 
                     // filter the matches for containment
 
-                    // TODO: get match md5sum here so we can report it?
                     for (path, overlap) in matches {
                         let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {
@@ -969,13 +990,13 @@ fn mastiff_manygather<P: AsRef<Path>>(
     template: Sketch,
     threshold_bp: usize,
     output: Option<P>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-
+) -> Result<(), Box<dyn std::error::Error>> {
+    if !is_revindex_database(index.as_ref()) {
+        bail!("'{}' is not a valid RevIndex database", index.as_ref().display());
+    }
     // Open database once
-    // TODO: exit if there are errors opening the database
     let db = RevIndex::open(index.as_ref(), true);
     info!("Loaded DB");
-    // NTP: can we set threshold here too?
 
     // Load query paths
     let query_paths = load_sketchlist_filenames(&queries_file)?;
@@ -1026,7 +1047,6 @@ fn mastiff_manygather<P: AsRef<Path>>(
                     // mastiff gather code
                     info!("Building counter");
                     let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query.minhash);
-                    // // TODO: truncate on threshold?
                     info!("Counter built");
 
                     let matches = db.gather(
@@ -1039,7 +1059,6 @@ fn mastiff_manygather<P: AsRef<Path>>(
                     );
 
                     // extract matches from Result
-                    // let matches = matches.ok().unwrap();
                     if let Ok(matches) = matches {
                         info!("matches: {}", matches.len());
                         for match_ in &matches {
@@ -1113,14 +1132,27 @@ fn do_manysearch(querylist_path: String,
                  threshold: f64,
                  ksize: u8,
                  scaled: usize,
-                 output_path: String
+                 output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
-                     Some(output_path)) {
-        Ok(_) => Ok(0),
-        Err(e) => {
-            eprintln!("Error: {e}");
-            Ok(1)
+    // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
+    if is_revindex_database(siglist_path.as_ref()) {
+        let template = build_template(ksize, scaled);
+        let threshold_bp = (threshold * scaled as f64) as usize;
+        match mastiff_manysearch(querylist_path, siglist_path, template, threshold_bp, threshold, output_path) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
+    } else {
+        match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
+                     output_path) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
         }
     }
 }
@@ -1151,14 +1183,26 @@ fn do_multigather(query_filenames: String,
                      siglist_path: String,
                      threshold_bp: usize,
                      ksize: u8,
-                     scaled: usize
+                     scaled: usize,
+                     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    match multigather(query_filenames, siglist_path, threshold_bp,
-                         ksize, scaled) {
-        Ok(_) => Ok(0),
-        Err(e) => {
-            eprintln!("Error: {e}");
-            Ok(1)
+    // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
+    if is_revindex_database(siglist_path.as_ref()) {
+        let template = build_template(ksize, scaled);
+        match mastiff_manygather(query_filenames, siglist_path, template, threshold_bp, output_path) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
+    } else {
+        match multigather(query_filenames, siglist_path, threshold_bp, ksize, scaled) {
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
         }
     }
 }
@@ -1205,43 +1249,6 @@ fn do_check(index: String,
         }
     }
 
-#[pyfunction]
-fn do_mastiffmanysearch(queries_file: String,
-                index: String,
-                ksize: u8,
-                scaled: usize,
-                threshold_bp: usize,
-                minimum_containment: f64,
-                output: Option<String>,
-) -> anyhow::Result<u8> {
-        let template = build_template(ksize, scaled);
-        match mastiff_manysearch(queries_file, index, template, threshold_bp,
-                     minimum_containment, output) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
-    }
-
-#[pyfunction]
-fn do_mastiffmanygather(queries_file: String,
-                index: String,
-                ksize: u8,
-                scaled: usize,
-                threshold_bp: usize,
-                output: Option<String>,
-) -> anyhow::Result<u8> {
-        let template = build_template(ksize, scaled);
-        match mastiff_manygather(queries_file, index, template, threshold_bp, output) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
-    }
 
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -1250,8 +1257,7 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
     m.add_function(wrap_pyfunction!(do_index, m)?)?;
     m.add_function(wrap_pyfunction!(do_check, m)?)?;
-    m.add_function(wrap_pyfunction!(do_mastiffmanysearch, m)?)?;
-    m.add_function(wrap_pyfunction!(do_mastiffmanygather, m)?)?;
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     Ok(())
 }
+ 
