@@ -33,6 +33,14 @@ use sourmash::index::revindex::{RevIndex};
 use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 
+
+// initialize logging
+fn initialize_logger() {
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Info) // Set the desired log level
+        .init();
+}
+
 /// Track a name/minhash.
 
 struct SmallSignature {
@@ -889,8 +897,9 @@ impl ResultType for SearchResult {
     }
 }
 
+
 fn start_writer_thread<T: ResultType + Send + 'static, P>(
-    recv: std::sync::mpsc::Receiver<Vec<T>>,
+    recv: std::sync::mpsc::Receiver<T>, // Change the receiver type
     output: Option<P>,
 ) -> std::thread::JoinHandle<()>
 where
@@ -901,7 +910,7 @@ where
         Some(path) => {
             let file = std::fs::File::create(&path).unwrap_or_else(|e| {
                 error!("Error creating output file: {:?}", e);
-                std::process::exit(1);
+                std::process::exit(1); // Avoid exiting the whole process here
             });
             Box::new(std::io::BufWriter::new(file))
         }
@@ -913,20 +922,19 @@ where
         let header = T::header_fields();
         if let Err(e) = writeln!(&mut writer, "{}", header.join(",")) {
             error!("Error writing header: {:?}", e);
-            return;
         }
+        writer.flush().unwrap();
 
-        for results in recv.iter() {
-            for item in results {
-                let formatted_fields = item.format_fields();
-                if let Err(e) = writeln!(&mut writer, "{}", formatted_fields.join(",")) {
-                    error!("Error writing item: {:?}", e);
-                    return;
-                }
+        for item in recv.iter() {
+            let formatted_fields = item.format_fields();
+            if let Err(e) = writeln!(&mut writer, "{}", formatted_fields.join(",")) {
+                error!("Error writing item: {:?}", e);
             }
+            writer.flush().unwrap();
         }
     })
 }
+
 
 fn mastiff_manysearch<P: AsRef<Path>>(
     queries_file: P,
@@ -952,11 +960,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     }
 
     // set up a multi-producer, single-consumer channel.
-    // let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
-    // let (send, recv) = std::sync::mpsc::sync_channel::<Vec<String>>(rayon::current_num_threads());
-    // let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
-    let (send, recv) = std::sync::mpsc::sync_channel::<Vec<SearchResult>>(rayon::current_num_threads());
-
+    let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = start_writer_thread(recv, output.as_ref());
@@ -990,7 +994,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                     let matches = db.matches_from_counter(counter, minimum_containment as usize);
 
                     // filter the matches for containment
-
+                    info!("Found {} matches for query '{}'", matches.len(), query.name);
                     for (path, overlap) in matches {
                         let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {
@@ -1019,19 +1023,22 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                 None
             } else {
                 Some(results)
-            }
-        })
-        .for_each(|results| {
-            // Send the non-empty results to the writer thread
-            if let Err(e) = send.send(results) {
-                error!("Unable to send internal data: {:?}", e);
-            }
-        });
+            }    
+          })
+        .flatten()
+        .try_for_each_with(&send, |sender, results| {
+        // Send the non-empty results to the writer thread
+        if let Err(e) = sender.send(results) {
+            Err(format!("Unable to send internal data: {:?}", e))
+        } else {
+            Ok(())
+        }
+    });
 
     // do some cleanup and error handling -
     if let Err(e) = thrd.join() {
         error!("Unable to join internal thread: {:?}", e);
-    }
+    }  
     
     // clean up the sender channel (not strictly necessary, but good practice?)
     drop(send);
@@ -1204,8 +1211,13 @@ fn do_manysearch(querylist_path: String,
                  threshold: f64,
                  ksize: u8,
                  scaled: usize,
+                 debug: bool,
                  output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    // if debug is true, initialize logger
+    if debug {
+        initialize_logger();
+    }
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
     if is_revindex_database(siglist_path.as_ref()) {
         let template = build_template(ksize, scaled);
@@ -1257,6 +1269,7 @@ fn do_multigather(query_filenames: String,
                      scaled: usize,
                      output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    initialize_logger();
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
     if is_revindex_database(siglist_path.as_ref()) {
         let template = build_template(ksize, scaled);
