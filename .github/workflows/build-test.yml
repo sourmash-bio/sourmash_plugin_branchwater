@@ -18,6 +18,9 @@ jobs:
          override: true
          components: rustfmt, clippy
 
+    - name: cache rust
+       uses: Swatinem/rust-cache@v2
+
     - name: cache conda
       uses: actions/cache@v3
       env:
