@@ -985,7 +985,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    query_paths
+    let send_result = query_paths
         .par_iter()
         .filter_map(|filename| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
@@ -1035,20 +1035,19 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                 Some(results)
             }    
           })
-        .flatten()
-        .try_for_each_with(&send, |sender, results| {
-        // Send the non-empty results to the writer thread
-        if let Err(e) = sender.send(results) {
-            Err(format!("Unable to send internal data: {:?}", e))
-        } else {
-            Ok(())
-        }
-    });
-    info!("Finished searching");
-    // do some cleanup and error handling -
+          .flatten()
+          .try_for_each_with(send, |s, results| {
+            if let Err(e) = s.send(results) {
+                Err(format!("Unable to send internal data: {:?}", e))
+            } else {
+                Ok(())
+            }
+        });
 
-    // drop the sender channel to signal to the writer thread that we're done.
-    drop(send);
+    // do some cleanup and error handling -
+    if let Err(e) = send_result {
+        error!("Error during parallel processing: {}", e);
+    }
 
     // join the writer thread
     if let Err(e) = thrd.join() {
