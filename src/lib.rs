@@ -864,9 +864,9 @@ trait ResultType {
 }
 
 struct SearchResult {
-    name: String,
+    query_name: String,
     query_md5: String,
-    path: String,
+    match_name: String,
     containment: f64,
     intersect_hashes: usize,
     // match_md5sum: Option<String>,
@@ -874,14 +874,14 @@ struct SearchResult {
 
 impl ResultType for SearchResult {
     fn header_fields() -> Vec<&'static str> {
-        vec!["name", "query_md5", "path", "containment", "intersect_hashes"]
+        vec!["query_name", "query_md5", "match_name", "containment", "intersect_hashes"]
     }
 
     fn format_fields(&self) -> Vec<String> {
         vec![
-            self.name.clone(),
+            format!("\"{}\"", self.query_name),  // Wrap query_name with quotes
             self.query_md5.clone(),
-            self.path.clone(),
+            format!("\"{}\"", self.match_name),  // Wrap match_name with quotes
             self.containment.to_string(),
             self.intersect_hashes.to_string(),
             //self.match_md5sum.as_ref().unwrap_or("").to_string()
@@ -991,9 +991,9 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                         let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {
                             let search_result = SearchResult {
-                                name: query.name.clone(),
+                                query_name: query.name.clone(),
                                 query_md5: query.md5sum.clone(),
-                                path: path.clone(),
+                                match_name: path.clone(),
                                 containment: containment,
                                 intersect_hashes: overlap,
                             };
