@@ -918,7 +918,8 @@ where
     };
 
     std::thread::spawn(move || {
-        let mut writer = std::io::BufWriter::new(out);
+        let mut writer = out;  // Just use the already defined out, no need to wrap it in BufWriter again
+
         let header = T::header_fields();
         if let Err(e) = writeln!(&mut writer, "{}", header.join(",")) {
             error!("Error writing header: {:?}", e);
@@ -1018,7 +1019,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                 eprintln!("WARNING: could not load sketches from path '{}'",
                           filename.display());
             }
-
+            info!("Checking results");
             if results.is_empty() {
                 None
             } else {
@@ -1027,6 +1028,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
           })
         .flatten()
         .try_for_each_with(&send, |sender, results| {
+        info!("Sending results to writer thread");
         // Send the non-empty results to the writer thread
         if let Err(e) = sender.send(results) {
             Err(format!("Unable to send internal data: {:?}", e))
@@ -1034,14 +1036,17 @@ fn mastiff_manysearch<P: AsRef<Path>>(
             Ok(())
         }
     });
-
+    info!("Finished searching");
     // do some cleanup and error handling -
+
+    // clean up the sender channel
+    drop(send);
+    info!("Clean up the sender channel");
+
     if let Err(e) = thrd.join() {
         error!("Unable to join internal thread: {:?}", e);
     }  
-    
-    // clean up the sender channel (not strictly necessary, but good practice?)
-    drop(send);
+    info!("Joined writer thread");
 
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
