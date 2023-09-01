@@ -891,12 +891,14 @@ struct SearchResult {
     match_name: String,
     containment: f64,
     intersect_hashes: usize,
-    match_md5sum: Option<String>,
+    match_md5: Option<String>,
+    jaccard: Option<f64>,
+    max_containment: Option<f64>,
 }
 
 impl ResultType for SearchResult {
     fn header_fields() -> Vec<&'static str> {
-        vec!["query_name", "query_md5", "match_name", "containment", "intersect_hashes", "match_md5"]
+        vec!["query_name", "query_md5", "match_name", "containment", "intersect_hashes", "match_md5", "jaccard", "max_containment"]
     }
 
     fn format_fields(&self) -> Vec<String> {
@@ -906,8 +908,16 @@ impl ResultType for SearchResult {
             format!("\"{}\"", self.match_name),  // Wrap match_name with quotes
             self.containment.to_string(),
             self.intersect_hashes.to_string(),
-            match &self.match_md5sum {
+            match &self.match_md5 {
                 Some(md5) => md5.clone(),
+                None => "".to_string(),
+            },
+            match &self.jaccard {
+                Some(jaccard) => jaccard.to_string(),
+                None => "".to_string(),
+            },
+            match &self.max_containment {
+                Some(max_containment) => max_containment.to_string(),
                 None => "".to_string(),
             }
         ]
@@ -1021,7 +1031,9 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                                 match_name: path.clone(),
                                 containment: containment,
                                 intersect_hashes: overlap,
-                                match_md5sum: None,
+                                match_md5: None,
+                                jaccard: None,
+                                max_containment: None,
                             });
                         }
                     }
