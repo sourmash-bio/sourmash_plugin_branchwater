@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.18.1", features = ["extension-module", "anyhow"] }
 rayon = "1.5.1"
 serde = { version = "1.0.136", features = ["derive"] }
-sourmash = "0.11.0"
+sourmash = { git = "https://github.com/sourmash-bio/sourmash", "rev" = "ff1092f8f366339caa59d7203f623813228f4356" }
 clap = { version = "3.1.0", features = ["derive"] }
 serde_json = "1.0.79"
 niffler = "2.4.0"
@@ -20,6 +20,8 @@ log = "0.4.14"
 env_logger = "0.9.0"
 simple-error = "0.3.0"
 anyhow = "1.0.75"
+zip = "0.6"
+tempfile = "3.8"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"

@@ -18,6 +18,9 @@ build-backend = "maturin"
 manysearch = "pyo3_branchwater:Branchwater_Manysearch"
 fastgather = "pyo3_branchwater:Branchwater_Fastgather"
 fastmultigather = "pyo3_branchwater:Branchwater_Fastmultigather"
+index = "pyo3_branchwater:Branchwater_Index"
+check = "pyo3_branchwater:Branchwater_Check"
+
 
 [tool.maturin]
 python-source = "src/python"
