@@ -57,9 +57,9 @@ def test_simple(runtmp):
         # identical?
         if row['match_name'] == row['query_name']:
             assert row['query_md5'] == row['match_md5'], row
-            assert float(row['containment'] == 1.0)
-            assert float(row['jaccard'] == 1.0)
-            assert float(row['max_containment'] == 1.0)
+            assert float(row['containment']) == 1.0
+            assert float(row['jaccard']) == 1.0
+            assert float(row['max_containment']) == 1.0
 
         else:
             # confirm hand-checked numbers

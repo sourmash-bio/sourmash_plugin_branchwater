@@ -86,10 +86,10 @@ pub fn manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,jaccard,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, jaccard, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{}",
-                     query, query_md5, m, m_md5, cont, jaccard, overlap).ok();
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
+        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{},{}",
+                     query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap).ok();
         }
     });
 
@@ -120,22 +120,20 @@ pub fn manysearch<P: AsRef<Path>>(
                     for q in queries.iter() {
                         let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
                         let query_size = q.minhash.size() as f64;
+                        let target_size = search_sm.minhash.size() as f64;
 
-                        /*
-                        let mut merged = q.minhash.clone();
-                        merged.merge(&search_sm.minhash).ok();
-                        let total_size = merged.size() as f64;
-                        */
+                        let containment_query_in_target = overlap / query_size;
+                        let containment_in_target = overlap / target_size;
+                        let max_containment = containment_query_in_target.max(containment_in_target);
+                        let jaccard = overlap / (target_size + query_size - overlap);
 
-                        let containment = overlap / query_size;
-                        // let jaccard = overlap / total_size;
-                        let jaccard = 0;
-                        if containment > threshold {
+                        if containment_query_in_target > threshold {
                             results.push((q.name.clone(),
                                           q.md5sum.clone(),
                                           search_sm.name.clone(),
                                           search_sm.md5sum.clone(),
-                                          containment,
+                                          containment_query_in_target,
+                                          max_containment,
                                           jaccard,
                                           overlap))
                         }
