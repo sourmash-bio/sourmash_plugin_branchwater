@@ -497,9 +497,13 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
+    let mut last_hashes = query.size();
+    let mut last_matches = matching_sketches.len();
+
+    eprintln!("{} iter {}: start: query hashes={} matches={}", query_label, rank,
+            query.size(), matching_sketches.len());
+
     while !matching_sketches.is_empty() {
-        eprintln!("{} remaining: {} {}", query_label,
-                  query.size(), matching_sketches.len());
         let best_element = matching_sketches.peek().unwrap();
 
         // remove!
@@ -513,6 +517,16 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         // note: this is parallelized.
         matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
         rank += 1;
+
+        let sub_hashes = last_hashes - query.size();
+        let sub_matches = last_matches - matching_sketches.len();
+
+        eprintln!("{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})", query_label, rank,
+            query.size(), sub_hashes, matching_sketches.len(), sub_matches);
+
+        last_hashes = query.size();
+        last_matches = matching_sketches.len();
+
     }
     Ok(())
 }
@@ -594,7 +608,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         return Ok(());
     }
 
-    write_prefetch(query_label.clone(), prefetch_output, &matchlist).ok();
+    if prefetch_output.is_some() {
+        write_prefetch(query_label.clone(), prefetch_output, &matchlist).ok();
+    }
 
     // run the gather!
     consume_query_by_gather(query.minhash, matchlist, threshold_hashes,
