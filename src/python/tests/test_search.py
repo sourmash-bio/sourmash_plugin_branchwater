@@ -29,8 +29,7 @@ def index_siglist(runtmp, siglist, db):
                     '-o', db)
     return db
 
-@pytest.mark.parametrize("indexed", [False, True])
-def test_simple(runtmp, indexed):
+def test_simple(runtmp):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -43,9 +42,6 @@ def test_simple(runtmp, indexed):
     make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
-
-    if indexed:
-        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
@@ -60,8 +56,67 @@ def test_simple(runtmp, indexed):
     for idx, row in dd.items():
         # identical?
         if row['match_name'] == row['query_name']:
-            if not indexed:
-                assert row['query_md5'] == row['match_md5']
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            maxcont = round(maxcont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
+
+            if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4828
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+
+            if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4885
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+
+
+def test_simple_indexed(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                    '-o', output)
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
             assert float(row['containment'] == 1.0)
         else:
             # confirm hand-checked numbers

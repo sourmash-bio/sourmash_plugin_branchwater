@@ -212,10 +212,10 @@ fn manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{}",
-                     query, query_md5, m, m_md5, cont, overlap).ok();
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
+        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{},{}",
+                     query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap).ok();
         }
     });
 
@@ -246,14 +246,21 @@ fn manysearch<P: AsRef<Path>>(
                     for q in queries.iter() {
                         let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
                         let query_size = q.minhash.size() as f64;
+                        let target_size = search_sm.minhash.size() as f64;
 
-                        let containment = overlap / query_size;
-                        if containment > threshold {
+                        let containment_query_in_target = overlap / query_size;
+                        let containment_in_target = overlap / target_size;
+                        let max_containment = containment_query_in_target.max(containment_in_target);
+                        let jaccard = overlap / (target_size + query_size - overlap);
+
+                        if containment_query_in_target > threshold {
                             results.push((q.name.clone(),
                                           q.md5sum.clone(),
                                           search_sm.name.clone(),
                                           search_sm.md5sum.clone(),
-                                          containment,
+                                          containment_query_in_target,
+                                          max_containment,
+                                          jaccard,
                                           overlap))
                         }
                     }
@@ -500,9 +507,13 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
+    let mut last_hashes = query.size();
+    let mut last_matches = matching_sketches.len();
+
+    eprintln!("{} iter {}: start: query hashes={} matches={}", query_label, rank,
+            query.size(), matching_sketches.len());
+
     while !matching_sketches.is_empty() {
-        eprintln!("{} remaining: {} {}", query_label,
-                  query.size(), matching_sketches.len());
         let best_element = matching_sketches.peek().unwrap();
 
         // remove!
@@ -516,6 +527,16 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         // note: this is parallelized.
         matching_sketches = prefetch(&query, matching_sketches, threshold_hashes);
         rank += 1;
+
+        let sub_hashes = last_hashes - query.size();
+        let sub_matches = last_matches - matching_sketches.len();
+
+        eprintln!("{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})", query_label, rank,
+            query.size(), sub_hashes, matching_sketches.len(), sub_matches);
+
+        last_hashes = query.size();
+        last_matches = matching_sketches.len();
+
     }
     Ok(())
 }
@@ -597,7 +618,9 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         return Ok(());
     }
 
-    write_prefetch(query_label.clone(), prefetch_output, &matchlist).ok();
+    if prefetch_output.is_some() {
+        write_prefetch(query_label.clone(), prefetch_output, &matchlist).ok();
+    }
 
     // run the gather!
     consume_query_by_gather(query.minhash, matchlist, threshold_hashes,
@@ -1044,7 +1067,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
             // load query signature from path:
             if let Ok(query_sig) = Signature::from_path(filename) {
                 if let Some(query) = prepare_query(&query_sig, &template) {
-                    let query_size = query.minhash.size() as f64;
+                    // let query_size = query.minhash.size() as f64;
                     let threshold = threshold_bp / query.minhash.scaled() as usize;
  
                     // mastiff gather code
@@ -1211,10 +1234,13 @@ fn do_multigather(query_filenames: String,
 
 #[pyfunction]
 fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
-    if let Ok(_) = std::panic::catch_unwind(|| rayon::ThreadPoolBuilder::new().num_threads(num_threads).build_global()) {
+    if std::panic::catch_unwind(||
+        rayon::ThreadPoolBuilder::new().num_threads(num_threads).build_global()
+    ).is_ok() {
         Ok(rayon::current_num_threads())
     } else {
-        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Could not set the number of threads. Global thread pool might already be initialized."))
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+            "Could not set the number of threads. Global thread pool might already be initialized."))
     }
 }
 
