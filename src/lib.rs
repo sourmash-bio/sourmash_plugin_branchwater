@@ -155,19 +155,10 @@ fn prepare_query(search_sigs: &[Signature], template: &Sketch) -> Option<SmallSi
 fn manysearch<P: AsRef<Path>>(
     querylist: P,
     siglist: P,
+    template: Sketch,
     threshold: f64,
-    ksize: u8,
-    scaled: usize,
     output: Option<P>,
 ) -> Result<()> {
-    // construct a MinHash template for loading.
-    let max_hash = max_hash_for_scaled(scaled as u64);
-    let template_mh = KmerMinHash::builder()
-        .num(0u32)
-        .ksize(ksize as u32)
-        .max_hash(max_hash)
-        .build();
-    let template = Sketch::MinHash(template_mh);
 
     // Read in list of query paths.
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
@@ -203,21 +194,10 @@ fn manysearch<P: AsRef<Path>>(
     eprintln!("Loaded {} sig paths to search.", search_sigs_paths.len());
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+    let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let out: Box<dyn Write + Send> = match output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let thrd = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{},{}",
-                     query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap).ok();
-        }
-    });
+    let thrd = start_writer_thread(recv, output.as_ref());
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,
@@ -254,14 +234,16 @@ fn manysearch<P: AsRef<Path>>(
                         let jaccard = overlap / (target_size + query_size - overlap);
 
                         if containment_query_in_target > threshold {
-                            results.push((q.name.clone(),
-                                          q.md5sum.clone(),
-                                          search_sm.name.clone(),
-                                          search_sm.md5sum.clone(),
-                                          containment_query_in_target,
-                                          max_containment,
-                                          jaccard,
-                                          overlap))
+                            results.push(SearchResult {
+                                query_name: q.name.clone(),
+                                query_md5: q.md5sum.clone(),
+                                match_name: search_sm.name.clone(),
+                                containment: containment_query_in_target,
+                                intersect_hashes: overlap as usize,
+                                match_md5: Some(search_sm.md5sum.clone()),
+                                jaccard: Some(jaccard),
+                                max_containment: Some(max_containment),
+                            });
                         }
                     }
                 } else {
@@ -1244,8 +1226,8 @@ fn do_manysearch(querylist_path: String,
                  output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
+    let template = build_template(ksize, scaled);
     if is_revindex_database(siglist_path.as_ref()) {
-        let template = build_template(ksize, scaled);
         match mastiff_manysearch(querylist_path, siglist_path, template, threshold, output_path) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -1254,7 +1236,7 @@ fn do_manysearch(querylist_path: String,
             }
         }
     } else {
-        match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
+        match manysearch(querylist_path, siglist_path, template, threshold,
                      output_path) {
             Ok(_) => Ok(0),
             Err(e) => {
