@@ -1067,7 +1067,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
             // load query signature from path:
             if let Ok(query_sig) = Signature::from_path(filename) {
                 if let Some(query) = prepare_query(&query_sig, &template) {
-                    let query_size = query.minhash.size() as f64;
+                    // let query_size = query.minhash.size() as f64;
                     let threshold = threshold_bp / query.minhash.scaled() as usize;
  
                     // mastiff gather code
