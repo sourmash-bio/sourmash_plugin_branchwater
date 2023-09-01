@@ -34,13 +34,6 @@ use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 
 
-// initialize logging
-fn initialize_logger() {
-    env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Info) // Set the desired log level
-        .init();
-}
-
 /// Track a name/minhash.
 
 struct SmallSignature {
@@ -1211,13 +1204,8 @@ fn do_manysearch(querylist_path: String,
                  threshold: f64,
                  ksize: u8,
                  scaled: usize,
-                 debug: bool,
                  output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    // if debug is true, initialize logger
-    if debug {
-        initialize_logger();
-    }
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
     if is_revindex_database(siglist_path.as_ref()) {
         let template = build_template(ksize, scaled);
@@ -1269,7 +1257,6 @@ fn do_multigather(query_filenames: String,
                      scaled: usize,
                      output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    initialize_logger();
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
     if is_revindex_database(siglist_path.as_ref()) {
         let template = build_template(ksize, scaled);

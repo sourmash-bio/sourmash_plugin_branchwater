@@ -50,8 +50,6 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help='scaled factor at which to do comparisons')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
-        p.add_argument('--info', action='store_true',
-                       help='print debug output')
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
@@ -66,7 +64,6 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                 args.threshold,
                                                 args.ksize,
                                                 args.scaled,
-                                                args.info,
                                                 args.output)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
