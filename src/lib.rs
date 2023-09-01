@@ -204,10 +204,10 @@ fn manysearch<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, max_cont, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{}",
-                     query, query_md5, m, m_md5, cont, max_cont, overlap).ok();
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
+        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
+            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{},{}",
+                     query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap).ok();
         }
     });
 
@@ -243,6 +243,7 @@ fn manysearch<P: AsRef<Path>>(
                         let containment_query_in_target = overlap / query_size;
                         let containment_in_target = overlap / target_size;
                         let max_containment = containment_query_in_target.max(containment_in_target);
+                        let jaccard = overlap / (target_size + query_size - overlap);
 
                         if containment_query_in_target > threshold {
                             results.push((q.name.clone(),
@@ -251,6 +252,7 @@ fn manysearch<P: AsRef<Path>>(
                                           search_sm.md5sum.clone(),
                                           containment_query_in_target,
                                           max_containment,
+                                          jaccard,
                                           overlap))
                         }
                     }

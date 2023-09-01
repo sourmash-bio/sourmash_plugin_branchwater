@@ -53,20 +53,26 @@ def test_simple(runtmp):
         if row['query_md5'] == row['match_md5']:
             assert row['match_name'] == row['query_name']
             assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
         else:
             # confirm hand-checked numbers
             q = row['query_name'].split()[0]
             m = row['match_name'].split()[0]
             cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
             intersect_hashes = int(row['intersect_hashes'])
 
+            jaccard = round(jaccard, 4)
             cont = round(cont, 4)
-            print(q, m, f"{cont:.04}")
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}")
 
             if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert jaccard == 0.3207
                 assert cont == 0.4828
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert jaccard == 0.3207
                 assert cont == 0.4885
 
 
