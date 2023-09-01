@@ -4,8 +4,14 @@ import argparse
 from sourmash.plugins import CommandLinePlugin
 from sourmash.logging import notify
 import os
+import importlib.metadata
 
 from . import pyo3_branchwater
+
+__version__ = importlib.metadata.version("pyo3_branchwater")
+
+def print_version():
+    notify(f"=> pyo3_branchwater {__version__}; cite Irber et al., doi: 10.1101/2022.11.02.514947\n")
 
 
 def get_max_cores():
@@ -52,6 +58,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
+        print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
 
         num_threads = set_thread_pool(args.cores)
@@ -77,7 +84,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('query_sig', help="metagenome sketch")
-        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files \
+                       OR a branchwater indexed database generated with 'sourmash scripts index'")
         p.add_argument('-o', '--output-gather', required=True,
                        help="save gather output (minimum metagenome cover) to this file")
         p.add_argument('--output-prefetch',
@@ -93,6 +101,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
 
 
     def main(self, args):
+        print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
 
         num_threads = set_thread_pool(args.cores)
@@ -121,7 +130,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('query_paths', help="a text file containing paths to .sig/.sig.gz files to query")
-        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files to search against")
+        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files to search against \
+                       OR a branchwater indexed database generated with 'sourmash scripts index'")
         p.add_argument('-t', '--threshold-bp', default=50000, type=float,
                        help='threshold in estimated base pairs, for reporting matches (default: 50kb)')
         p.add_argument('-k', '--ksize', default=31, type=int,
@@ -130,9 +140,11 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
+        p.add_argument('-o', '--output', help='CSV output file for matches')
 
 
     def main(self, args):
+        print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
 
         num_threads = set_thread_pool(args.cores)
@@ -143,7 +155,64 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                                                  args.against_paths,
                                                  int(args.threshold_bp),
                                                  args.ksize,
-                                                 args.scaled)
+                                                 args.scaled,
+                                                 args.output)
         if status == 0:
             notify(f"...fastmultigather is done!")
+        return status
+
+
+class Branchwater_Index(CommandLinePlugin):
+    command = 'index'
+    description = 'Build Branchwater RevIndex'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('siglist',
+                       help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('-o', '--output', required=True,
+                       help='output file for the index')
+        p.add_argument('-k', '--ksize', default=31, type=int,
+                       help='k-mer size at which to select sketches')
+        p.add_argument('-s', '--scaled', default=1000, type=int,
+                       help='scaled factor at which to do comparisons')
+        p.add_argument('--save-paths', action='store_true',
+                       help='save paths to signatures into index. Default: save full sig into index')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
+
+    def main(self, args):
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled}")
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"indexing all sketches in '{args.siglist}'")
+
+        super().main(args)
+        status = pyo3_branchwater.do_index(args.siglist,
+                                                args.ksize,
+                                                args.scaled,
+                                                args.output,
+                                                args.save_paths,
+                                                False) # colors - currently must be false?
+        if status == 0:
+            notify(f"...index is done! results in '{args.output}'")
+        return status
+
+class Branchwater_Check(CommandLinePlugin):
+    command = 'check'
+    description = 'Check Branchwater RevIndex'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('index',
+                       help='index file')
+        p.add_argument('--quick', action='store_true')
+
+    def main(self, args):
+        notify(f"checking index '{args.index}'")
+        super().main(args)
+        status = pyo3_branchwater.do_check(args.index, args.quick)
+        if status == 0:
+            notify(f"...index is ok!")
         return status
