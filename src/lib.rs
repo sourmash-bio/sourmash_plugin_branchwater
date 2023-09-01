@@ -5,15 +5,11 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-
-use zip::read::ZipArchive;
-use tempfile::tempdir;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use std::io::Read;
 
 use std::collections::BinaryHeap;
 
@@ -39,9 +35,7 @@ extern crate simple_error;
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
-use sourmash::index::revindex::{RevIndex};
-use sourmash::prelude::MinHashOps;
-use sourmash::prelude::FracMinHashOps;
+use sourmash::index::revindex::RevIndex;
 use sourmash::signature::SigsTrait;
 
 /// Run counter-gather with a query against a list of files.
