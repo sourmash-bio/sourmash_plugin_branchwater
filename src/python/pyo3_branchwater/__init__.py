@@ -4,8 +4,14 @@ import argparse
 from sourmash.plugins import CommandLinePlugin
 from sourmash.logging import notify
 import os
+import importlib.metadata
 
 from . import pyo3_branchwater
+
+__version__ = importlib.metadata.version("pyo3_branchwater")
+
+def print_version():
+    notify(f"=> pyo3_branchwater {__version__}; cite Irber et al., doi: 10.1101/2022.11.02.514947\n")
 
 
 def get_max_cores():
@@ -52,6 +58,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
+        print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
 
         num_threads = set_thread_pool(args.cores)
@@ -93,6 +100,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
 
 
     def main(self, args):
+        print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
 
         num_threads = set_thread_pool(args.cores)
@@ -133,6 +141,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
 
 
     def main(self, args):
+        print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
 
         num_threads = set_thread_pool(args.cores)
