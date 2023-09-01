@@ -8,6 +8,10 @@ edition = "2021"
 name = "pyo3_branchwater"
 crate-type = ["cdylib"]
 
+[[bin]]
+name = "manysearch"
+path = "src/main.rs"
+
 [dependencies]
 pyo3 = { version = "0.18.1", features = ["extension-module", "anyhow"] }
 rayon = "1.5.1"
@@ -31,3 +35,4 @@ tempfile = "3.3.0"
 #target-cpu=native
 lto = "thin"
 opt-level = 3
+debug = true
