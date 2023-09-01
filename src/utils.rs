@@ -3,8 +3,12 @@
 use rayon::prelude::*;
 
 use std::fs::File;
+use std::io::Read;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
+
+use zip::read::ZipArchive;
+use tempfile::tempdir;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -18,6 +22,8 @@ use std::cmp::{PartialOrd, Ordering};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
+use sourmash::prelude::MinHashOps;
+use sourmash::prelude::FracMinHashOps;
 
 /// Track a name/minhash.
 
@@ -347,4 +353,52 @@ fn prefetch(
             mm
         })
         .collect()
+}
+
+// mastiff rocksdb functions
+
+pub fn build_template(ksize: u8, scaled: usize) -> Sketch {
+    let max_hash = max_hash_for_scaled(scaled as u64);
+    let template_mh = KmerMinHash::builder()
+        .num(0u32)
+        .ksize(ksize as u32)
+        .max_hash(max_hash)
+        .build();
+    Sketch::MinHash(template_mh)
+}
+
+pub fn read_signatures_from_zip<P: AsRef<Path>>(
+    zip_path: P,
+) -> Result<(Vec<PathBuf>, tempfile::TempDir), Box<dyn std::error::Error>> {
+    let mut signature_paths = Vec::new();
+    let temp_dir = tempdir()?;
+    let zip_file = File::open(&zip_path)?;
+    let mut zip_archive = ZipArchive::new(zip_file)?;
+
+    for i in 0..zip_archive.len() {
+        let mut file = zip_archive.by_index(i)?;
+        let mut sig = Vec::new();
+        file.read_to_end(&mut sig)?;
+
+        let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap();
+        if file_name.ends_with(".sig") || file_name.ends_with(".sig.gz") {
+            let new_path = temp_dir.path().join(file_name);
+            let mut new_file = File::create(&new_path)?;
+            new_file.write_all(&sig)?;
+            signature_paths.push(new_path);
+        }
+    }
+    println!("wrote {} signatures to temp dir", signature_paths.len());
+    Ok((signature_paths, temp_dir))
+}
+
+pub fn is_revindex_database(path: &Path) -> bool {
+    // quick file check for Revindex database:
+    // is path a directory that contains a file named 'CURRENT'?
+    if path.is_dir() {
+        let current_file = path.join("CURRENT");
+        current_file.exists() && current_file.is_file()
+    } else {
+        false
+    }
 }

@@ -90,8 +90,26 @@ of sourmash plugins and Rust to provide some fast functionality
 that may be of use to some people, and it can serve as a testbed for
 future sourmash functionality.
 
-## Develoer notes
+## Developer notes
 
+### Installing a development environment
+
+You'll need sourmash, rust, and [maturin](https://github.com/PyO3/maturin).
+
+A simple way to get up and running is to run:
+```
+mamba env create -n branchwatever-dev -f environment.yml
+```
+in the top directory of the repo, and then activate the environment and
+install in editable mode:
+```
+mamba activate branchwater-dev
+pip install -e .
+```
+
+### Running the tests locally
+
+Executing:
 ```
 make test
 ```
@@ -99,25 +117,27 @@ will run the Python tests.
 
 ### Generating a release
 
-Bump version number in `Cargo.toml` and push.
+1. Bump version number in `Cargo.toml` and run `make` to update `Cargo.lock`.
+Then commit and push to `origin/main`.
 
-Make a new release on github.
+2. Make a new release on github with a matching version tag.
 
-Then pull, and:
+3. Then pull, and:
 
 ```
-rm -fr target/wheels/
-maturin sdist
+make sdist
+make upload_sdist
 ```
 
-followed by `twine upload target/wheels/pyo3_branchwater-*.tar.gz`
+to create a new release on PyPI.
 
 ### Building wheels
 
-You can build a wheel for your current platform with:
+You can build a release wheel for your current platform with:
 ```
-maturin build
+make wheel
 ```
+and it will be placed under `target/wheels/`.
 
 ---
 
@@ -127,7 +147,7 @@ This software is under the AGPL license. Please see [LICENSE.txt](LICENSE.txt).
 
 ## Authors
 
-Luiz Irber
-C. Titus Brown
-Mohamed Abuelanin
-N. Tessa Pierce-Ward
+* Luiz Irber
+* C. Titus Brown
+* Mohamed Abuelanin
+* N. Tessa Pierce-Ward
