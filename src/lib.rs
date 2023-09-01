@@ -887,7 +887,6 @@ impl ResultType for SearchResult {
     fn format_fields(&self) -> Vec<String> {
         vec![
             self.name.clone(),
-            // self.md5sum.as_ref().unwrap_or(&"".to_string()), // Format md5sum if available, otherwise use empty string
             self.query_md5sum.clone(),
             self.path.clone(),
             self.containment.to_string(),
@@ -899,7 +898,7 @@ impl ResultType for SearchResult {
 
 
 fn start_writer_thread<T: ResultType + Send + 'static, P>(
-    recv: std::sync::mpsc::Receiver<T>, // Change the receiver type
+    recv: std::sync::mpsc::Receiver<T>,
     output: Option<P>,
 ) -> std::thread::JoinHandle<()>
 where
@@ -910,7 +909,7 @@ where
         Some(path) => {
             let file = std::fs::File::create(&path).unwrap_or_else(|e| {
                 error!("Error creating output file: {:?}", e);
-                std::process::exit(1); // Avoid exiting the whole process here
+                std::process::exit(1);
             });
             Box::new(std::io::BufWriter::new(file))
         }
@@ -918,7 +917,7 @@ where
     };
 
     std::thread::spawn(move || {
-        let mut writer = out;  // Just use the already defined out, no need to wrap it in BufWriter again
+        let mut writer = out;
 
         let header = T::header_fields();
         if let Err(e) = writeln!(&mut writer, "{}", header.join(",")) {
@@ -995,7 +994,6 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                     let matches = db.matches_from_counter(counter, minimum_containment as usize);
 
                     // filter the matches for containment
-                    info!("Found {} matches for query '{}'", matches.len(), query.name);
                     for (path, overlap) in matches {
                         let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {
@@ -1019,7 +1017,6 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                 eprintln!("WARNING: could not load sketches from path '{}'",
                           filename.display());
             }
-            info!("Checking results");
             if results.is_empty() {
                 None
             } else {
@@ -1028,7 +1025,6 @@ fn mastiff_manysearch<P: AsRef<Path>>(
           })
         .flatten()
         .try_for_each_with(&send, |sender, results| {
-        info!("Sending results to writer thread");
         // Send the non-empty results to the writer thread
         if let Err(e) = sender.send(results) {
             Err(format!("Unable to send internal data: {:?}", e))
@@ -1039,14 +1035,13 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     info!("Finished searching");
     // do some cleanup and error handling -
 
-    // clean up the sender channel
+    // drop the sender channel to signal to the writer thread that we're done.
     drop(send);
-    info!("Clean up the sender channel");
 
+    // join the writer thread
     if let Err(e) = thrd.join() {
         error!("Unable to join internal thread: {:?}", e);
     }  
-    info!("Joined writer thread");
 
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
