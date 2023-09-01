@@ -23,8 +23,14 @@ def test_installed(runtmp):
 
     assert 'usage:  manysearch' in runtmp.last_result.err
 
+def index_siglist(runtmp, siglist, db):
+    # build index
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', db)
+    return db
 
-def test_simple(runtmp):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_simple(runtmp, indexed):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -38,6 +44,9 @@ def test_simple(runtmp):
 
     output = runtmp.output('out.csv')
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
@@ -50,27 +59,40 @@ def test_simple(runtmp):
 
     for idx, row in dd.items():
         # identical?
-        if row['query_md5'] == row['match_md5']:
-            assert row['match_name'] == row['query_name']
+        if row['match_name'] == row['query_name']:
+            if not indexed:
+                assert row['query_md5'] == row['match_md5']
             assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
         else:
             # confirm hand-checked numbers
             q = row['query_name'].split()[0]
             m = row['match_name'].split()[0]
             cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
             intersect_hashes = int(row['intersect_hashes'])
 
+            jaccard = round(jaccard, 4)
             cont = round(cont, 4)
-            print(q, m, f"{cont:.04}")
+            maxcont = round(maxcont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
             if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert jaccard == 0.3207
                 assert cont == 0.4828
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert jaccard == 0.3207
                 assert cont == 0.4885
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
 
 
-def test_simple_with_cores(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_simple_with_cores(runtmp, capfd, indexed):
     # test basic execution with -c argument (that it runs, at least!)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -81,6 +103,9 @@ def test_simple_with_cores(runtmp, capfd):
 
     make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     output = runtmp.output('out.csv')
 
@@ -96,7 +121,8 @@ def test_simple_with_cores(runtmp, capfd):
     assert " using 4 threads" in result.err
 
 
-def test_simple_threshold(runtmp):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_simple_threshold(runtmp, indexed):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -108,6 +134,9 @@ def test_simple_threshold(runtmp):
     make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
     output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
@@ -118,7 +147,8 @@ def test_simple_threshold(runtmp):
     assert len(df) == 3
 
 
-def test_missing_query(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_missing_query(runtmp, capfd, indexed):
     # test with a missing query list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -129,6 +159,9 @@ def test_missing_query(runtmp, capfd):
 
     #make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     output = runtmp.output('out.csv')
 
@@ -142,7 +175,8 @@ def test_missing_query(runtmp, capfd):
     assert 'Error: No such file or directory ' in captured.err
 
 
-def test_bad_query(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_bad_query(runtmp, capfd, indexed):
     # test with a bad query (a .sig.gz file)
     against_list = runtmp.output('against.txt')
 
@@ -151,6 +185,9 @@ def test_bad_query(runtmp, capfd):
     sig63 = get_test_data('63.fa.sig.gz')
 
     make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     output = runtmp.output('out.csv')
 
@@ -164,7 +201,8 @@ def test_bad_query(runtmp, capfd):
     assert 'Error: invalid line in fromfile ' in captured.err
 
 
-def test_bad_query_2(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_bad_query_2(runtmp, capfd, indexed):
     # test with a bad query list (a missing file)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -175,6 +213,8 @@ def test_bad_query_2(runtmp, capfd):
     make_file_list(query_list, [sig2, "no-exist"])
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
     output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
@@ -187,7 +227,8 @@ def test_bad_query_2(runtmp, capfd):
     assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
 
 
-def test_missing_against(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_missing_against(runtmp, capfd, indexed):
     # test with a missing against list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -258,7 +299,8 @@ def test_bad_against_2(runtmp, capfd):
     assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
 
 
-def test_empty_query(runtmp):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_empty_query(runtmp, indexed):
     # test with an empty query list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -270,6 +312,9 @@ def test_empty_query(runtmp):
     make_file_list(query_list, [])
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
     output = runtmp.output('out.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
@@ -279,7 +324,8 @@ def test_empty_query(runtmp):
     print(runtmp.last_result.err)
 
 
-def test_nomatch_query(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_nomatch_query(runtmp, capfd, indexed):
     # test a non-matching (diff ksize) in query; do we get warning message?
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -294,6 +340,9 @@ def test_nomatch_query(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
@@ -304,7 +353,8 @@ def test_nomatch_query(runtmp, capfd):
     assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
 
 
-def test_load_only_one_bug(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_load_only_one_bug(runtmp, capfd, indexed):
     # check that we behave properly when presented with multiple against
     # sketches
     query_list = runtmp.output('query.txt')
@@ -321,6 +371,9 @@ def test_load_only_one_bug(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
@@ -332,7 +385,8 @@ def test_load_only_one_bug(runtmp, capfd):
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
-def test_load_only_one_bug_as_query(runtmp, capfd):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_load_only_one_bug_as_query(runtmp, capfd, indexed):
     # check that we behave properly when presented with multiple query
     # sketches in one file, with only one matching.
     query_list = runtmp.output('query.txt')
@@ -347,6 +401,8 @@ def test_load_only_one_bug_as_query(runtmp, capfd):
     make_file_list(query_list, [sig1_all])
     make_file_list(against_list, [sig1_k31])
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
     output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
@@ -360,7 +416,8 @@ def test_load_only_one_bug_as_query(runtmp, capfd):
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
-def test_md5(runtmp):
+@pytest.mark.parametrize("indexed", [False, True])
+def test_md5(runtmp, indexed):
     # test that md5s match what was in the original files, not downsampled etc.
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -372,6 +429,8 @@ def test_md5(runtmp):
     make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
     output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
@@ -381,16 +440,17 @@ def test_md5(runtmp):
     df = pandas.read_csv(output)
     assert len(df) == 5
 
-    md5s = list(df['match_md5'])
-    print(md5s)
-
-    for against_file in (sig2, sig47, sig63):
-        for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
-            assert ss.md5sum() in md5s
-
     md5s = list(df['query_md5'])
     print(md5s)
 
     for query_file in (sig2, sig47, sig63):
         for ss in sourmash.load_file_as_signatures(query_file, ksize=31):
             assert ss.md5sum() in md5s
+
+    if not indexed: # indexed search cannot produce match_md5
+        md5s = list(df['match_md5'])
+        print(md5s)
+
+        for against_file in (sig2, sig47, sig63):
+            for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
+                assert ss.md5sum() in md5s
