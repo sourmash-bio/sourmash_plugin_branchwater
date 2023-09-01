@@ -43,9 +43,6 @@ def test_simple(runtmp):
 
     output = runtmp.output('out.csv')
 
-
-    against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
-
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
@@ -59,7 +56,7 @@ def test_simple(runtmp):
     for idx, row in dd.items():
         # identical?
         if row['match_name'] == row['query_name']:
-            assert row['query_md5'] == row['match_md5']
+            assert row['query_md5'] == row['match_md5'], row
             assert float(row['containment'] == 1.0)
             assert float(row['jaccard'] == 1.0)
             assert float(row['max_containment'] == 1.0)
@@ -120,7 +117,6 @@ def test_simple_indexed(runtmp):
     for idx, row in dd.items():
         # identical?
         if row['match_name'] == row['query_name']:
-            assert row['query_md5'] == row['match_md5']
             assert float(row['containment'] == 1.0)
         else:
             # confirm hand-checked numbers
