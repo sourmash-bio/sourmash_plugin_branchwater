@@ -65,15 +65,18 @@ def test_simple(runtmp):
 
             jaccard = round(jaccard, 4)
             cont = round(cont, 4)
-            print(q, m, f"{jaccard:.04}", f"{cont:.04}")
+            maxcont = round(maxcont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
             if q == 'NC_011665.1' and m == 'NC_009661.1':
                 assert jaccard == 0.3207
                 assert cont == 0.4828
+                assert maxcont == 0.4885
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
                 assert jaccard == 0.3207
                 assert cont == 0.4885
+                assert maxcont == 0.4885
 
 
 def test_simple_with_cores(runtmp, capfd):
