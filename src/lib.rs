@@ -33,7 +33,6 @@ use sourmash::index::revindex::{RevIndex};
 use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 
-
 /// Track a name/minhash.
 
 struct SmallSignature {
@@ -892,12 +891,12 @@ struct SearchResult {
     match_name: String,
     containment: f64,
     intersect_hashes: usize,
-    // match_md5sum: Option<String>,
+    match_md5sum: Option<String>,
 }
 
 impl ResultType for SearchResult {
     fn header_fields() -> Vec<&'static str> {
-        vec!["query_name", "query_md5", "match_name", "containment", "intersect_hashes"]
+        vec!["query_name", "query_md5", "match_name", "containment", "intersect_hashes", "match_md5"]
     }
 
     fn format_fields(&self) -> Vec<String> {
@@ -907,7 +906,10 @@ impl ResultType for SearchResult {
             format!("\"{}\"", self.match_name),  // Wrap match_name with quotes
             self.containment.to_string(),
             self.intersect_hashes.to_string(),
-            //self.match_md5sum.as_ref().unwrap_or("").to_string()
+            match &self.match_md5sum {
+                Some(md5) => md5.clone(),
+                None => "".to_string(),
+            }
         ]
     }
 }
@@ -1013,14 +1015,14 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                     for (path, overlap) in matches {
                         let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {
-                            let search_result = SearchResult {
+                            results.push( SearchResult {
                                 query_name: query.name.clone(),
                                 query_md5: query.md5sum.clone(),
                                 match_name: path.clone(),
                                 containment: containment,
                                 intersect_hashes: overlap,
-                            };
-                            results.push(search_result);
+                                match_md5sum: None,
+                            });
                         }
                     }
                 } else {
