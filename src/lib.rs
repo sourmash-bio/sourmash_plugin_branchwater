@@ -799,15 +799,18 @@ fn read_signatures_from_zip<P: AsRef<Path>>(
 
         let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap();
         if file_name.ends_with(".sig") || file_name.ends_with(".sig.gz") {
-            let new_path = temp_dir.path().join(file_name);
-            let mut new_file = File::create(&new_path)?;
+            info!("Found signature file: {}", file_name);
+            let mut new_file = File::create(temp_dir.path().join(file_name))?;
             new_file.write_all(&sig)?;
-            signature_paths.push(new_path);
+
+            // Push the created path directly to the vector
+            signature_paths.push(temp_dir.path().join(file_name));
         }
     }
     println!("wrote {} signatures to temp dir", signature_paths.len());
     Ok((signature_paths, temp_dir))
 }
+
 
 fn index<P: AsRef<Path>>(
     siglist: P,
@@ -1009,14 +1012,16 @@ where
     // create and open output file
     let out = open_output_file(output.as_ref());
     let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored); // no need for zip compression since sigs already gzipped
+    info!("Creating ZipWriter"); 
     let mut zip = zip::ZipWriter::new(out);
 
     // spawn a thread that is dedicated to printing to a buffered output
     std::thread::spawn(move || {
         // iterate over received signatures and write as gzipped json to zip file
         for sig in recv {
+            info!("Starting signature write loop");
             let json_bytes = serde_json::to_vec(&sig).unwrap(); // Serialize Sig to JSON
-
+            info!("Serialized signature to JSON.");
             let gzipped_buffer = {
                 let mut buffer = std::io::Cursor::new(Vec::new());
                 {
@@ -1029,8 +1034,10 @@ where
                 }
                 buffer.into_inner() // Convert Cursor<Vec<u8>> back to Vec<u8>
             };
+            info!("Gzipped signature.");
             // Add the gzipped JSON file to the archive
-            let sig_filename = format!("{}.sig.gz", sig.name());
+            // let sig_filename = format!("{}.sig.gz", sig.name()); //panic bc unimplemented!(); (TODO: fix or pass name in from loop)
+            let sig_filename = format!("{}.sig.gz", "x");
             zip.start_file(sig_filename, options).unwrap();
             zip.write_all(&gzipped_buffer).unwrap();
         }
@@ -1308,7 +1315,6 @@ fn manysketch<P: AsRef<Path>>(
     filelist: P,
     ksize: u8,
     scaled: usize,
-    moltype: Option<&str>,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -1341,7 +1347,7 @@ fn manysketch<P: AsRef<Path>>(
 
             // build signature from params
             let mut cp = ComputeParameters::default();
-            //todo: actually use the passed params (ksize, scaled, moltype)
+            //todo: use params!  
 
             // print filename so we know what we're working with
             println!("filename: {}", filename.display());
@@ -1355,12 +1361,25 @@ fn manysketch<P: AsRef<Path>>(
 
             let mut parser = parse_fastx_reader(&data[..]).unwrap();
             info!("fastx parser created");
-            while let Some(record) = parser.next() {
-                let record = record.unwrap();
-                // add sequence to signature
-                sig.add_sequence(&record.seq(), true).unwrap();
+            // iterate over records in fasta file
+            // todo - after debugging, remove record_count
+            let mut record_count = 0;
+            while let Some(record_result) = parser.next() {
+                match record_result {
+                    Ok(record) => {
+                        // add sequence to signature
+                        sig.add_sequence(&record.seq(), true).unwrap();
+                        record_count += 1;
+                    }
+                    Err(error) => {
+                        // Handle the error, if needed
+                        println!("Error while processing record: {:?}", error);
+                    }
+                }
             }
-            info!("sequence added");
+            info!("Processed {} records", record_count);
+            info!("sig size: {}", sig.size());
+            // info!("sig name: {}", sig.name());
             Some(sig)
 
         })
@@ -1533,11 +1552,10 @@ fn do_check(index: String,
 fn do_manysketch(filelist: String,
                  ksize: u8,
                  scaled: usize,
-                 moltype: Option<String>,
                  output: Option<String>,
     ) -> anyhow::Result<u8>{
     initialize_logger(); // initialize logger
-    match manysketch(filelist, ksize, scaled, moltype.as_deref(), output) {
+    match manysketch(filelist, ksize, scaled, output) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
