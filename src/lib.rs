@@ -1001,10 +1001,10 @@ where
     })
 }
 
-
 fn sig_zipwriter<P>(
     recv: std::sync::mpsc::Receiver<Signature>,
     output: Option<P>,
+    gzipped: bool,
 ) -> std::thread::JoinHandle<()>
 where
     P: Clone + std::convert::AsRef<std::path::Path>,
@@ -1012,34 +1012,46 @@ where
     // create and open output file
     let out = open_output_file(output.as_ref());
     let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored); // no need for zip compression since sigs already gzipped
-    info!("Creating ZipWriter"); 
+    info!("Creating ZipWriter");
     let mut zip = zip::ZipWriter::new(out);
 
     // spawn a thread that is dedicated to printing to a buffered output
     std::thread::spawn(move || {
         // iterate over received signatures and write as gzipped json to zip file
         for sig in recv {
+            // loop through each sketch and write as an individual file
             info!("Starting signature write loop");
             let json_bytes = serde_json::to_vec(&sig).unwrap(); // Serialize Sig to JSON
             info!("Serialized signature to JSON.");
-            let gzipped_buffer = {
-                let mut buffer = std::io::Cursor::new(Vec::new());
-                {
-                    let mut gz_writer = niffler::get_writer(
-                        Box::new(&mut buffer),
-                        niffler::compression::Format::Gzip,
-                        niffler::compression::Level::Nine,
-                    ).unwrap();
-                    gz_writer.write_all(&json_bytes).unwrap();
-                }
-                buffer.into_inner() // Convert Cursor<Vec<u8>> back to Vec<u8>
-            };
-            info!("Gzipped signature.");
-            // Add the gzipped JSON file to the archive
-            // let sig_filename = format!("{}.sig.gz", sig.name()); //panic bc unimplemented!(); (TODO: fix or pass name in from loop)
-            let sig_filename = format!("{}.sig.gz", "x");
-            zip.start_file(sig_filename, options).unwrap();
-            zip.write_all(&gzipped_buffer).unwrap();
+            // print json with info
+            info!("JSON: {}", String::from_utf8(json_bytes.clone()).unwrap());
+            // if gzipped, compress the JSON file
+            if !gzipped {
+                info!("Not gzipping signature.");
+                // Add the JSON file to the archive
+                let sig_filename = format!("{}.sig", sig.md5sum());
+                zip.start_file(sig_filename, options).unwrap();
+                zip.write_all(&json_bytes).unwrap();
+                continue;
+            } else {
+                info!("Gzipping signature.");
+                let gzipped_buffer = {
+                    let mut buffer = std::io::Cursor::new(Vec::new());
+                    {
+                        let mut gz_writer = niffler::get_writer(
+                            Box::new(&mut buffer),
+                            niffler::compression::Format::Gzip,
+                            niffler::compression::Level::Nine,
+                        ).unwrap();
+                        gz_writer.write_all(&json_bytes).unwrap();
+                    }
+                    buffer.into_inner() // Convert Cursor<Vec<u8>> back to Vec<u8>
+                };
+                // Add the gzipped JSON file to the archive
+                let sig_filename = format!("{}.sig.gz", sig.md5sum());
+                zip.start_file(sig_filename, options).unwrap();
+                zip.write_all(&gzipped_buffer).unwrap();
+            }
         }
     })
 }
@@ -1330,7 +1342,7 @@ fn manysketch<P: AsRef<Path>>(
     let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sig_zipwriter(recv, output.as_ref());
+    let thrd = sig_zipwriter(recv, output.as_ref(), false); // set gzip false for now
 
     // iterate over filelist_paths
     let processed_sigs = AtomicUsize::new(0);
@@ -1346,13 +1358,18 @@ fn manysketch<P: AsRef<Path>>(
             }
 
             // build signature from params
-            let mut cp = ComputeParameters::default();
-            //todo: use params!  
+            // future: allow multiple ksizes, moltype, etc
+            let cp = ComputeParameters::builder()
+            .ksizes(vec![ksize as u32])
+            .scaled(scaled as u64)
+            .protein(false)
+            .dna(true)
+            .build();
 
             // print filename so we know what we're working with
             println!("filename: {}", filename.display());
             let mut sig = Signature::from_params(&cp);
-            info!("sig built");
+            info!("sig initialized");
             let mut data: Vec<u8> = vec![];
             let mut f = File::open(filename).unwrap();
             info!("file opened");
@@ -1379,7 +1396,6 @@ fn manysketch<P: AsRef<Path>>(
             }
             info!("Processed {} records", record_count);
             info!("sig size: {}", sig.size());
-            // info!("sig name: {}", sig.name());
             Some(sig)
 
         })
