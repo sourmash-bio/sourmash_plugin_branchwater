@@ -1007,7 +1007,7 @@ where
     P: Clone + std::convert::AsRef<std::path::Path>,
 {
     // create and open output file
-    let out = open_output_file(output);
+    let out = open_output_file(output.as_ref());
     let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored); // no need for zip compression since sigs already gzipped
     let mut zip = zip::ZipWriter::new(out);
 
@@ -1340,26 +1340,27 @@ fn manysketch<P: AsRef<Path>>(
             }
 
             // build signature from params
-            // then iterate through fasta file, adding sequence
-
             let mut cp = ComputeParameters::default();
-            // cp.set_dayhoff(true);
-            // cp.set_protein(true);
-            // cp.set_hp(true);
-            // cp.set_dna(true);
+            //todo: actually use the passed params (ksize, scaled, moltype)
 
             // print filename so we know what we're working with
             println!("filename: {}", filename.display());
             let mut sig = Signature::from_params(&cp);
+            info!("sig built");
             let mut data: Vec<u8> = vec![];
             let mut f = File::open(filename).unwrap();
+            info!("file opened");
             let _ = f.read_to_end(&mut data);
+            info!("file read");
 
             let mut parser = parse_fastx_reader(&data[..]).unwrap();
+            info!("fastx parser created");
             while let Some(record) = parser.next() {
                 let record = record.unwrap();
-                sig.add_sequence(&record.seq(), false).unwrap();
+                // add sequence to signature
+                sig.add_sequence(&record.seq(), true).unwrap();
             }
+            info!("sequence added");
             Some(sig)
 
         })
@@ -1374,6 +1375,8 @@ fn manysketch<P: AsRef<Path>>(
     if let Err(e) = thrd.join() {
         error!("Unable to join internal thread: {:?}", e);
     }
+
+    // todo: collect signature info above and then write to csv manifest in the zip?
 
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
