@@ -197,7 +197,7 @@ fn manysearch<P: AsRef<Path>>(
     let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = start_writer_thread(recv, output.as_ref());
+    let thrd = csvwriter_thread(recv, output.as_ref());
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,
@@ -906,16 +906,8 @@ impl ResultType for SearchResult {
     }
 }
 
-
-fn start_writer_thread<T: ResultType + Send + 'static, P>(
-    recv: std::sync::mpsc::Receiver<T>,
-    output: Option<P>,
-) -> std::thread::JoinHandle<()>
-where
-    T: ResultType,
-    P: Clone + std::convert::AsRef<std::path::Path>,
-{
-    let out: Box<dyn std::io::Write + Send> = match output {
+fn open_output_file<P: AsRef<Path>>(output: Option<P>) -> Box<dyn std::io::Write + Send> {
+    match output {
         Some(path) => {
             let file = std::fs::File::create(&path).unwrap_or_else(|e| {
                 error!("Error creating output file: {:?}", e);
@@ -924,8 +916,21 @@ where
             Box::new(std::io::BufWriter::new(file))
         }
         None => Box::new(std::io::stdout()),
-    };
+    }
+}
 
+
+fn csvwriter_thread<T: ResultType + Send + 'static, P>(
+    recv: std::sync::mpsc::Receiver<T>,
+    output: Option<P>,
+) -> std::thread::JoinHandle<()>
+where
+    T: ResultType,
+    P: Clone + std::convert::AsRef<std::path::Path>,
+{
+    // create output file
+    let out = open_output_file(output);
+    // spawn a thread that is dedicated to printing to a buffered output
     std::thread::spawn(move || {
         let mut writer = out;
 
@@ -944,6 +949,31 @@ where
         }
     })
 }
+
+
+// fn sig_zipwriter<T: Signature + Send + 'static, P>(
+//     recv: std::sync::mpsc::Receiver<T>,
+//     output: Option<P>,
+// ) -> std::thread::JoinHandle<()>
+// where
+//     T: SigsTrait,
+//     P: Clone + std::convert::AsRef<std::path::Path>,
+// {
+//     // create and open output file
+//     let out = open_output_file(output);
+//     std::thread::spawn(move || {
+//         // open zip archive for writing
+//         let mut zip = zip::ZipWriter::new(out);
+//         // iterate over received signatures and write as gzipped json to zip file
+//         for sig in recv {
+//             let json = serde_json::to_string(&sig).unwrap();
+//             let gzipped_json = gzip_json(&json); // Gzip the JSON data
+//             // write_signature_to_zip(&mut zip, &sig.name, &gzipped_json)
+//             write_signature_to_zip(&mut zip, &gzipped_json)
+//                 .expect("Failed to write signature to ZIP");
+//         }           
+//     })
+// }
 
 
 fn mastiff_manysearch<P: AsRef<Path>>(
@@ -973,7 +1003,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = start_writer_thread(recv, output.as_ref());
+    let thrd = csvwriter_thread(recv, output.as_ref());
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,
@@ -1210,6 +1240,10 @@ fn mastiff_manygather<P: AsRef<Path>>(
 
     Ok(())
 }
+
+
+
+
 
 
 //
