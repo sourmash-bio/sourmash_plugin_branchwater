@@ -155,19 +155,10 @@ fn prepare_query(search_sigs: &[Signature], template: &Sketch) -> Option<SmallSi
 fn manysearch<P: AsRef<Path>>(
     querylist: P,
     siglist: P,
+    template: Sketch,
     threshold: f64,
-    ksize: u8,
-    scaled: usize,
     output: Option<P>,
 ) -> Result<()> {
-    // construct a MinHash template for loading.
-    let max_hash = max_hash_for_scaled(scaled as u64);
-    let template_mh = KmerMinHash::builder()
-        .num(0u32)
-        .ksize(ksize as u32)
-        .max_hash(max_hash)
-        .build();
-    let template = Sketch::MinHash(template_mh);
 
     // Read in list of query paths.
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
@@ -203,21 +194,10 @@ fn manysearch<P: AsRef<Path>>(
     eprintln!("Loaded {} sig paths to search.", search_sigs_paths.len());
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+    let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let out: Box<dyn Write + Send> = match output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let thrd = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{},{},{},{}",
-                     query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap).ok();
-        }
-    });
+    let thrd = start_writer_thread(recv, output.as_ref());
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,
@@ -254,14 +234,16 @@ fn manysearch<P: AsRef<Path>>(
                         let jaccard = overlap / (target_size + query_size - overlap);
 
                         if containment_query_in_target > threshold {
-                            results.push((q.name.clone(),
-                                          q.md5sum.clone(),
-                                          search_sm.name.clone(),
-                                          search_sm.md5sum.clone(),
-                                          containment_query_in_target,
-                                          max_containment,
-                                          jaccard,
-                                          overlap))
+                            results.push(SearchResult {
+                                query_name: q.name.clone(),
+                                query_md5: q.md5sum.clone(),
+                                match_name: search_sm.name.clone(),
+                                containment: containment_query_in_target,
+                                intersect_hashes: overlap as usize,
+                                match_md5: Some(search_sm.md5sum.clone()),
+                                jaccard: Some(jaccard),
+                                max_containment: Some(max_containment),
+                            });
                         }
                     }
                 } else {
@@ -880,6 +862,89 @@ fn check<P: AsRef<Path>>(index: P, quick: bool) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+trait ResultType {
+    fn header_fields() -> Vec<&'static str>;
+    fn format_fields(&self) -> Vec<String>;
+}
+
+struct SearchResult {
+    query_name: String,
+    query_md5: String,
+    match_name: String,
+    containment: f64,
+    intersect_hashes: usize,
+    match_md5: Option<String>,
+    jaccard: Option<f64>,
+    max_containment: Option<f64>,
+}
+
+impl ResultType for SearchResult {
+    fn header_fields() -> Vec<&'static str> {
+        vec!["query_name", "query_md5", "match_name", "containment", "intersect_hashes", "match_md5", "jaccard", "max_containment"]
+    }
+
+    fn format_fields(&self) -> Vec<String> {
+        vec![
+            format!("\"{}\"", self.query_name),  // Wrap query_name with quotes
+            self.query_md5.clone(),
+            format!("\"{}\"", self.match_name),  // Wrap match_name with quotes
+            self.containment.to_string(),
+            self.intersect_hashes.to_string(),
+            match &self.match_md5 {
+                Some(md5) => md5.clone(),
+                None => "".to_string(),
+            },
+            match &self.jaccard {
+                Some(jaccard) => jaccard.to_string(),
+                None => "".to_string(),
+            },
+            match &self.max_containment {
+                Some(max_containment) => max_containment.to_string(),
+                None => "".to_string(),
+            }
+        ]
+    }
+}
+
+
+fn start_writer_thread<T: ResultType + Send + 'static, P>(
+    recv: std::sync::mpsc::Receiver<T>,
+    output: Option<P>,
+) -> std::thread::JoinHandle<()>
+where
+    T: ResultType,
+    P: Clone + std::convert::AsRef<std::path::Path>,
+{
+    let out: Box<dyn std::io::Write + Send> = match output {
+        Some(path) => {
+            let file = std::fs::File::create(&path).unwrap_or_else(|e| {
+                error!("Error creating output file: {:?}", e);
+                std::process::exit(1);
+            });
+            Box::new(std::io::BufWriter::new(file))
+        }
+        None => Box::new(std::io::stdout()),
+    };
+
+    std::thread::spawn(move || {
+        let mut writer = out;
+
+        let header = T::header_fields();
+        if let Err(e) = writeln!(&mut writer, "{}", header.join(",")) {
+            error!("Error writing header: {:?}", e);
+        }
+        writer.flush().unwrap();
+
+        for item in recv.iter() {
+            let formatted_fields = item.format_fields();
+            if let Err(e) = writeln!(&mut writer, "{}", formatted_fields.join(",")) {
+                error!("Error writing item: {:?}", e);
+            }
+            writer.flush().unwrap();
+        }
+    })
+}
+
 
 fn mastiff_manysearch<P: AsRef<Path>>(
     queries_file: P,
@@ -905,21 +970,10 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     }
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+    let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let out: Box<dyn Write + Send> = match output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let thrd = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,containment,intersect_hashes").unwrap();
-        for (query, query_md5, m, cont, overlap) in recv.into_iter() { //m_md5 is missing rn
-            writeln!(&mut writer, "\"{}\",{},\"{}\",{},{}",
-                        query, query_md5, m, cont, overlap).ok();
-        }
-    });
+    let thrd = start_writer_thread(recv, output.as_ref());
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,
@@ -931,7 +985,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let send = query_paths
+    let send_result = query_paths
         .par_iter()
         .filter_map(|filename| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
@@ -950,15 +1004,19 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                     let matches = db.matches_from_counter(counter, minimum_containment as usize);
 
                     // filter the matches for containment
-
                     for (path, overlap) in matches {
                         let containment = overlap as f64 / query_size;
                         if containment >= minimum_containment {
-                            results.push((query.name.clone(),
-                                          query.md5sum.clone(),
-                                          path.clone(),
-                                          containment,
-                                          overlap));
+                            results.push( SearchResult {
+                                query_name: query.name.clone(),
+                                query_md5: query.md5sum.clone(),
+                                match_name: path.clone(),
+                                containment: containment,
+                                intersect_hashes: overlap,
+                                match_md5: None,
+                                jaccard: None,
+                                max_containment: None,
+                            });
                         }
                     }
                 } else {
@@ -971,24 +1029,30 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                 eprintln!("WARNING: could not load sketches from path '{}'",
                           filename.display());
             }
-
             if results.is_empty() {
                 None
             } else {
                 Some(results)
+            }    
+          })
+          .flatten()
+          .try_for_each_with(send, |s, results| {
+            if let Err(e) = s.send(results) {
+                Err(format!("Unable to send internal data: {:?}", e))
+            } else {
+                Ok(())
             }
-        })
-        .flatten()
-        .try_for_each_with(send, |s, m| s.send(m));
+        });
 
     // do some cleanup and error handling -
-    if let Err(e) = send {
-        error!("Unable to send internal data: {:?}", e);
+    if let Err(e) = send_result {
+        error!("Error during parallel processing: {}", e);
     }
 
+    // join the writer thread
     if let Err(e) = thrd.join() {
         error!("Unable to join internal thread: {:?}", e);
-    }
+    }  
 
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
@@ -1311,8 +1375,8 @@ fn do_manysearch(querylist_path: String,
                  output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
+    let template = build_template(ksize, scaled);
     if is_revindex_database(siglist_path.as_ref()) {
-        let template = build_template(ksize, scaled);
         match mastiff_manysearch(querylist_path, siglist_path, template, threshold, output_path) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -1321,7 +1385,7 @@ fn do_manysearch(querylist_path: String,
             }
         }
     } else {
-        match manysearch(querylist_path, siglist_path, threshold, ksize, scaled,
+        match manysearch(querylist_path, siglist_path, template, threshold,
                      output_path) {
             Ok(_) => Ok(0),
             Err(e) => {
