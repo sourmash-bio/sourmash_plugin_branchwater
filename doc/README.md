@@ -15,22 +15,18 @@ To prepare a fromfile from a database, first you need to split the database into
 ```
 mkdir gtdb-reps-rs214-k21/
 cd gtdb-reps-rs214-k21/
-sourmash sig split -k 21 /group/ctbrowngrp/sourmash-db/gtdb-rs214/gtdb-rs214-reps.k21.zip
+sourmash sig split -k 21 /group/ctbrowngrp/sourmash-db/gtdb-rs214/gtdb-rs214-reps.k21.zip -E .gz
 cd ..
 ```
 
-and then gzip the signatures and build a "fromfile":
+and then build a "fromfile":
 ```
-find gtdb-reps-rs214-k21/ -name "*.sig" -exec gzip {} \;
-
-find gtdb-reps-rs214-k21/ -type f > list.gtdb-reps-rs214-k21.txt
+find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.txt
 ```
-(Note that once [sourmash#2712](https://github.com/sourmash-bio/sourmash/pull/2712) is released, you will be able to do `sourmash sig split ... -E .sig.gz` to skip the additional find/gzip command.)
 
 ## Running the commands
 
 ### Running `manysearch`
-
 
 The `manysearch` command finds overlaps between one or more query genomes, and one or more subject genomes.
 
@@ -48,7 +44,7 @@ head -10 list.gtdb-reps-rs214-k21.txt > list.query.txt
 and then run `manysearch` like so:
 
 ```
-sourmash scripts manysearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21
+sourmash scripts manysearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21 --cores 4
 ```
 
 The results file here, `query.x.gtdb-reps.csv`, will have five columns: `query` and `query_md5`, `match` and `match_md5`, and `containment.`
@@ -59,7 +55,7 @@ The `fastgather` command is a much faster version of sourmash gather.
 
 `fastgather` takes a query metagenome and a file list as the database, and outputs a CSV:
 ```
-sourmash scripts fastgather query.sig.gz podar-ref-list.txt -o results.csv
+sourmash scripts fastgather query.sig.gz podar-ref-list.txt -o results.csv --cores 4
 ```
 
 #### Using `fastgather` to create a picklist for `sourmash gather`
@@ -81,17 +77,17 @@ sourmash gather SRR606249.trim.sig.gz /group/ctbrowngrp/sourmash-db/gtdb-rs214/g
     -o SRR606249.gather.csv
 ```
 
-Here the picklist should be used on a sourmash collection that contains a manifest - this will prevent sourmash from loading any sketches other than the ones in the fastgather CSV file. We recommend zip files - zip file collections with manifests are produced automatically when `-o filename.zip` is used with `sketch dna`, and they also be prepared with `sourmash sig cat`. (If you are using a GTDB database, as above, then you already have a manifest!)
+Here the picklist should be used on a sourmash collection that contains a manifest - this will prevent sourmash from loading any sketches other than the ones in the fastgather CSV file. We recommend using zip file databases - manifests are produced automatically when `-o filename.zip` is used with `sketch dna`, and they also be prepared with `sourmash sig cat`. (If you are using a GTDB database, as above, then you already have a manifest!)
 
 #### Example of picklist
 
-A complete example Snakefile implementing the above workflow is available [in the 2023-swine-usda](https://github.com/ctb/2023-swine-usda/blob/main/Snakefile) repository.
+A complete example Snakefile implementing the above workflow is available [in the 2023-swine-usda](https://github.com/ctb/2023-swine-usda/blob/main/Snakefile) repository. Note, it is slightly out of date at the moment!
 
 ### Running `fastmultigather`
 
 `fastmultigather` takes a file list of query metagenomes and a file list for the database, and outputs many CSVs:
 ```
-sourmash scripts fastmultigather query-list.txt podar-ref-lists.txt
+sourmash scripts fastmultigather query-list.txt podar-ref-lists.txt --cores 4
 ```
 
 The main advantage that `fastmultigather` has over `fastgather` is that you only load the database files once, which can be a significant time savings for large databases!
@@ -103,5 +99,3 @@ The main advantage that `fastmultigather` has over `fastgather` is that you only
 The prefetch CSV will be named `{basename}.prefetch.csv`, and the gather CSV will be named `{basename}.gather.csv`.  Here, `{basename}` is the filename, stripped of its path.
 
 **Warning:** At the moment, if two different queries have the same `{basename}`, the CSVs for one of the queries will be overwritten by the other query. The behavior here is undefined in practice, because of multithreading: we don't know what queries will be executed when or files will be written first.
-
-
