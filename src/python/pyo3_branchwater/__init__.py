@@ -225,12 +225,12 @@ class Branchwater_Manysketch(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('input_paths', help="a text file containing paths to files to sketch")
-        p.add_argument('-o', '--output', required=True,
-                       help='output zip file for the index')
+        p.add_argument('-o', '--output',
+                       help='output zip file for the signatures')
         p.add_argument('-k', '--ksize', default=31, type=int,
-                       help='k-mer size at which to select sketches')
+                       help='k-mer size at which to build sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
-                       help='scaled factor at which to do comparisons')
+                       help='scaled factor at which build sketches')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 

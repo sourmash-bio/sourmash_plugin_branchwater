@@ -1001,59 +1001,85 @@ where
     })
 }
 
-fn sig_zipwriter<P>(
-    recv: std::sync::mpsc::Receiver<Signature>,
-    output: Option<P>,
-    gzipped: bool,
-) -> std::thread::JoinHandle<()>
-where
-    P: Clone + std::convert::AsRef<std::path::Path>,
-{
-    // create and open output file
-    let out = open_output_file(output.as_ref());
-    let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored); // no need for zip compression since sigs already gzipped
-    info!("Creating ZipWriter");
-    let mut zip = zip::ZipWriter::new(out);
 
-    // spawn a thread that is dedicated to printing to a buffered output
+fn sigwriter(
+    recv: std::sync::mpsc::Receiver<Signature>,
+    output: Option<Box<std::path::PathBuf>>,
+    gzipped: bool,
+) -> std::thread::JoinHandle<()> 
+{
     std::thread::spawn(move || {
-        // iterate over received signatures and write as gzipped json to zip file
-        for sig in recv {
-            // loop through each sketch and write as an individual file
-            info!("Starting signature write loop");
-            let json_bytes = serde_json::to_vec(&sig).unwrap(); // Serialize Sig to JSON
-            info!("Serialized signature to JSON.");
-            // print json with info
-            info!("JSON: {}", String::from_utf8(json_bytes.clone()).unwrap());
-            // if gzipped, compress the JSON file
-            if !gzipped {
-                info!("Not gzipping signature.");
-                // Add the JSON file to the archive
-                let sig_filename = format!("{}.sig", sig.md5sum());
-                zip.start_file(sig_filename, options).unwrap();
-                zip.write_all(&json_bytes).unwrap();
-                continue;
+        if let Some(out_path) = &output {
+            if out_path.extension() == Some(std::ffi::OsStr::new("zip")) {
+                // ZipWriter 
+                let out = open_output_file(Some(&**out_path));
+                let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+                info!("Creating ZipWriter");
+                let mut zip = zip::ZipWriter::new(out);
+                for sig in recv {
+                    write_signature(&sig, gzipped, &mut Some(&mut zip), Some(options));
+                }
             } else {
-                info!("Gzipping signature.");
-                let gzipped_buffer = {
-                    let mut buffer = std::io::Cursor::new(Vec::new());
-                    {
-                        let mut gz_writer = niffler::get_writer(
-                            Box::new(&mut buffer),
-                            niffler::compression::Format::Gzip,
-                            niffler::compression::Level::Nine,
-                        ).unwrap();
-                        gz_writer.write_all(&json_bytes).unwrap();
-                    }
-                    buffer.into_inner() // Convert Cursor<Vec<u8>> back to Vec<u8>
-                };
-                // Add the gzipped JSON file to the archive
-                let sig_filename = format!("{}.sig.gz", sig.md5sum());
-                zip.start_file(sig_filename, options).unwrap();
-                zip.write_all(&gzipped_buffer).unwrap();
+                // only zip for now
+                error!("Output path must be a zip file.");
+            }
+        } else {
+            for sig in recv {
+                write_signature(&sig, gzipped, &mut None::<&mut _>, None);
             }
         }
     })
+}
+
+
+fn write_signature(
+    sig: &Signature,
+    gzipped: bool,
+    zip: &mut Option<&mut zip::ZipWriter<WriterWrapper>>,
+    zip_options: Option<zip::write::FileOptions>,
+) {
+    let json_bytes = serde_json::to_vec(sig).unwrap();
+    info!("Serialized signature to JSON.");
+    info!("JSON: {}", String::from_utf8(json_bytes.clone()).unwrap());
+    if !gzipped {
+        info!("Not gzipping signature.");
+        let sig_filename = format!("{}.sig", sig.md5sum());
+        match zip {
+            Some(zip) => {
+                zip.start_file(sig_filename, zip_options.unwrap()).unwrap();
+                zip.write_all(&json_bytes).unwrap();
+            }
+            None => {
+                // write json to sig_filename
+                std::fs::write(&sig_filename, &json_bytes).unwrap();
+            }
+        }
+    } else {
+        info!("Gzipping signature.");
+        let gzipped_buffer = {
+            let mut buffer = std::io::Cursor::new(Vec::new());
+            {
+                let mut gz_writer = niffler::get_writer(
+                    Box::new(&mut buffer),
+                    niffler::compression::Format::Gzip,
+                    niffler::compression::Level::Nine,
+                ).unwrap();
+                gz_writer.write_all(&json_bytes).unwrap();
+            }
+            buffer.into_inner()
+        };
+        let sig_filename = format!("{}.sig.gz", sig.md5sum());
+        match zip {
+            Some(zip) => {
+                zip.start_file(sig_filename, zip_options.unwrap()).unwrap();
+                zip.write_all(&gzipped_buffer).unwrap();
+            }
+            None => {
+                // write gzipped signature to sig_filename
+                std::fs::write(&sig_filename, &gzipped_buffer).unwrap();
+            }
+        }
+    }
 }
 
 
@@ -1323,11 +1349,12 @@ fn mastiff_manygather<P: AsRef<Path>>(
 }
 
 
-fn manysketch<P: AsRef<Path>>(
+fn manysketch<P: AsRef<Path> + Sync>(
     filelist: P,
     ksize: u8,
     scaled: usize,
-    output: Option<P>,
+    //output as pathbuf
+    output: Option<Box<std::path::PathBuf>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
     // load list of file paths (todo: modify for fasta files)
@@ -1342,7 +1369,9 @@ fn manysketch<P: AsRef<Path>>(
     let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sig_zipwriter(recv, output.as_ref(), false); // set gzip false for now
+    let thrd = sigwriter(recv, output, false);
+
+    // let thrd = sigwriter(recv, output.as_ref(), false); // set gzip false for now
 
     // iterate over filelist_paths
     let processed_sigs = AtomicUsize::new(0);
@@ -1571,6 +1600,11 @@ fn do_manysketch(filelist: String,
                  output: Option<String>,
     ) -> anyhow::Result<u8>{
     initialize_logger(); // initialize logger
+    // make output a pathbuf if it exists
+    let output = match output {
+        Some(path) => Some(Box::new(std::path::PathBuf::from(path))),
+        None => None,
+    };
     match manysketch(filelist, ksize, scaled, output) {
         Ok(_) => Ok(0),
         Err(e) => {
