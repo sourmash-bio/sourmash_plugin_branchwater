@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write, Seek, Stdout};
 use std::path::{Path, PathBuf};
 
 use zip::read::ZipArchive;
@@ -906,18 +906,50 @@ impl ResultType for SearchResult {
     }
 }
 
-fn open_output_file<P: AsRef<Path>>(output: Option<P>) -> Box<dyn std::io::Write + Send> {
-    match output {
-        Some(path) => {
-            let file = std::fs::File::create(&path).unwrap_or_else(|e| {
-                error!("Error creating output file: {:?}", e);
-                std::process::exit(1);
-            });
-            Box::new(std::io::BufWriter::new(file))
+
+enum WriterWrapper {
+    File(BufWriter<File>),
+    Stdout(Stdout),
+}
+
+impl Write for WriterWrapper {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            WriterWrapper::File(writer) => writer.write(buf),
+            WriterWrapper::Stdout(stdout) => stdout.write(buf),
         }
-        None => Box::new(std::io::stdout()),
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            WriterWrapper::File(writer) => writer.flush(),
+            WriterWrapper::Stdout(stdout) => stdout.flush(),
+        }
     }
 }
+
+impl Seek for WriterWrapper {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        match self {
+            WriterWrapper::File(writer) => writer.seek(pos),
+            WriterWrapper::Stdout(_) => Err(std::io::Error::new(std::io::ErrorKind::Other, "Cannot seek on stdout")),
+        }
+    }
+}
+
+fn open_output_file<P: AsRef<Path>>(output: Option<P>) -> WriterWrapper {
+    match output {
+        Some(path) => {
+            let file = File::create(&path).unwrap_or_else(|e| {
+                eprintln!("Error creating output file: {:?}", e);
+                std::process::exit(1);
+            });
+            WriterWrapper::File(BufWriter::new(file))
+        }
+        None => WriterWrapper::Stdout(std::io::stdout()),
+    }
+}
+
 
 
 fn csvwriter_thread<T: ResultType + Send + 'static, P>(
@@ -951,29 +983,43 @@ where
 }
 
 
-// fn sig_zipwriter<T: Signature + Send + 'static, P>(
-//     recv: std::sync::mpsc::Receiver<T>,
-//     output: Option<P>,
-// ) -> std::thread::JoinHandle<()>
-// where
-//     T: SigsTrait,
-//     P: Clone + std::convert::AsRef<std::path::Path>,
-// {
-//     // create and open output file
-//     let out = open_output_file(output);
-//     std::thread::spawn(move || {
-//         // open zip archive for writing
-//         let mut zip = zip::ZipWriter::new(out);
-//         // iterate over received signatures and write as gzipped json to zip file
-//         for sig in recv {
-//             let json = serde_json::to_string(&sig).unwrap();
-//             let gzipped_json = gzip_json(&json); // Gzip the JSON data
-//             // write_signature_to_zip(&mut zip, &sig.name, &gzipped_json)
-//             write_signature_to_zip(&mut zip, &gzipped_json)
-//                 .expect("Failed to write signature to ZIP");
-//         }           
-//     })
-// }
+fn sig_zipwriter<P>(
+    recv: std::sync::mpsc::Receiver<Signature>,
+    output: Option<P>,
+) -> std::thread::JoinHandle<()>
+where
+    P: Clone + std::convert::AsRef<std::path::Path>,
+{
+    // create and open output file
+    let out = open_output_file(output);
+    let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored); // no need for zip compression since sigs already gzipped
+    let mut zip = zip::ZipWriter::new(out);
+
+    // spawn a thread that is dedicated to printing to a buffered output
+    std::thread::spawn(move || {
+        // iterate over received signatures and write as gzipped json to zip file
+        for sig in recv {
+            let json_bytes = serde_json::to_vec(&sig).unwrap(); // Serialize Sig to JSON
+
+            let gzipped_buffer = {
+                let mut buffer = std::io::Cursor::new(Vec::new());
+                {
+                    let mut gz_writer = niffler::get_writer(
+                        Box::new(&mut buffer),
+                        niffler::compression::Format::Gzip,
+                        niffler::compression::Level::Nine,
+                    ).unwrap();
+                    gz_writer.write_all(&json_bytes).unwrap();
+                }
+                buffer.into_inner() // Convert Cursor<Vec<u8>> back to Vec<u8>
+            };
+            // Add the gzipped JSON file to the archive
+            let sig_filename = format!("{}.sig.gz", sig.name());
+            zip.start_file(sig_filename, options).unwrap();
+            zip.write_all(&gzipped_buffer).unwrap();
+        }
+    })
+}
 
 
 fn mastiff_manysearch<P: AsRef<Path>>(
@@ -1242,6 +1288,91 @@ fn mastiff_manygather<P: AsRef<Path>>(
 }
 
 
+// fn manysketch<P: AsRef<Path>>(
+//     filelist: P,
+//     ksize: u8,
+//     scaled: usize,
+//     moltype: Option<&str>,
+//     output: Option<P>,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+
+//     // load list of file paths (todo: modify for fasta files)
+//     let filelist_paths = load_sketchlist_filenames(&filelist)?;
+
+//     // if filelist_paths is empty, exit with error
+//     if filelist_paths.is_empty() {
+//         bail!("No files to load, exiting.");
+//     }
+
+//     // set up a multi-producer, single-consumer channel that receives Signature
+//     let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
+
+//     // & spawn a thread that is dedicated to printing to a buffered output
+//     let thrd = sig_zipwriter(recv, output.as_ref());
+
+//     // iterate over filelist_paths
+//     let processed_sigs = AtomicUsize::new(0);
+//     let skipped_paths = AtomicUsize::new(0);
+//     let failed_paths = AtomicUsize::new(0);
+
+//     let send_result = filelist_paths
+//         .par_iter()
+//         .filter_map(|filename| {
+//             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
+//             if i % 1000 == 0 {
+//                 info!("Processed {} fasta files", i);
+//             }
+
+//             // build signature from params
+//             if let Ok(sig) = Signature::from_params(params, filename, ksize, scaled, moltype) {
+//                 if let Err(e) = send.send(sig) {
+//                     Err(format!("Unable to send internal data: {:?}", e))
+//                 } else {
+//                     Ok(())
+//                 }
+//             } else {
+//                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+//                 eprintln!("WARNING: could not load signature from path '{}'",
+//                           filename.display());
+//                 let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+//                 None
+//             }
+
+//         })
+//         .try_for_each_with(send, |s, sig| s.send(sig));
+
+//     // do some cleanup and error handling -
+//     if let Err(e) = send_result {
+//         error!("Error during parallel processing: {}", e);
+//     }
+
+//     // join the writer thread
+//     if let Err(e) = thrd.join() {
+//         error!("Unable to join internal thread: {:?}", e);
+//     }
+
+//     // done!
+//     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
+//     eprintln!("DONE. Processed {} fasta files", i);
+
+//     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+//     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+//     if skipped_paths > 0 {
+//         eprintln!("WARNING: skipped {} fasta files.",
+//                   skipped_paths);
+//     }
+
+//     if failed_paths > 0 {
+//         eprintln!("WARNING: {} fasta files failed to load. See error messages above.",
+//                   failed_paths);
+//     }
+
+//     Ok(())
+
+// }
+
+
 
 
 
@@ -1386,3 +1517,4 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     Ok(())
 }
+                           
