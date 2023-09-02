@@ -35,6 +35,19 @@ use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 use sourmash::cmd::ComputeParameters;
 
+// set up logging to print info messages using env logger
+use std::sync::Once;
+use env_logger;
+
+static LOGGER_INITIALIZED: Once = Once::new();
+
+fn initialize_logger() {
+    LOGGER_INITIALIZED.call_once(|| {
+        std::env::set_var("RUST_LOG", "info");
+        env_logger::init();
+    });
+}
+
 /// Track a name/minhash.
 
 struct SmallSignature {
@@ -946,6 +959,7 @@ fn open_output_file<P: AsRef<Path>>(output: Option<P>) -> WriterWrapper {
                 eprintln!("Error creating output file: {:?}", e);
                 std::process::exit(1);
             });
+            info!("Writing to file: {}", path.as_ref().display());
             WriterWrapper::File(BufWriter::new(file))
         }
         None => WriterWrapper::Stdout(std::io::stdout()),
@@ -1334,8 +1348,9 @@ fn manysketch<P: AsRef<Path>>(
             // cp.set_hp(true);
             // cp.set_dna(true);
 
+            // print filename so we know what we're working with
+            println!("filename: {}", filename.display());
             let mut sig = Signature::from_params(&cp);
-
             let mut data: Vec<u8> = vec![];
             let mut f = File::open(filename).unwrap();
             let _ = f.read_to_end(&mut data);
@@ -1518,6 +1533,7 @@ fn do_manysketch(filelist: String,
                  moltype: Option<String>,
                  output: Option<String>,
     ) -> anyhow::Result<u8>{
+    initialize_logger(); // initialize logger
     match manysketch(filelist, ksize, scaled, moltype.as_deref(), output) {
         Ok(_) => Ok(0),
         Err(e) => {
