@@ -69,7 +69,7 @@ ls -1 podar-ref/* > podar-ref-list.txt
 
 Now run `manysearch`:
 ```
-sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv
+sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv --cores 4
 ```
 
 You will (hopefully ;) see a set of results in `results.csv`. These are the containments of each query in any matching genomes.
