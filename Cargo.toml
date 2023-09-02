@@ -21,6 +21,7 @@ simple-error = "0.3.0"
 anyhow = "1.0.75"
 zip = "0.6"
 tempfile = "3.8"
+needletail = "0.5.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"

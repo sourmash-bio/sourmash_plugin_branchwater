@@ -21,6 +21,7 @@ use std::cmp::{PartialOrd, Ordering};
 
 use anyhow::{Result, anyhow};
 
+use needletail::parse_fastx_reader;
 
 #[macro_use]
 extern crate simple_error;
@@ -32,6 +33,7 @@ use sourmash::sketch::Sketch;
 use sourmash::index::revindex::{RevIndex};
 use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
+use sourmash::cmd::ComputeParameters;
 
 /// Track a name/minhash.
 
@@ -1288,93 +1290,96 @@ fn mastiff_manygather<P: AsRef<Path>>(
 }
 
 
-// fn manysketch<P: AsRef<Path>>(
-//     filelist: P,
-//     ksize: u8,
-//     scaled: usize,
-//     moltype: Option<&str>,
-//     output: Option<P>,
-// ) -> Result<(), Box<dyn std::error::Error>> {
+fn manysketch<P: AsRef<Path>>(
+    filelist: P,
+    ksize: u8,
+    scaled: usize,
+    moltype: Option<&str>,
+    output: Option<P>,
+) -> Result<(), Box<dyn std::error::Error>> {
 
-//     // load list of file paths (todo: modify for fasta files)
-//     let filelist_paths = load_sketchlist_filenames(&filelist)?;
+    // load list of file paths (todo: modify for fasta files)
+    let filelist_paths = load_sketchlist_filenames(&filelist)?;
 
-//     // if filelist_paths is empty, exit with error
-//     if filelist_paths.is_empty() {
-//         bail!("No files to load, exiting.");
-//     }
+    // if filelist_paths is empty, exit with error
+    if filelist_paths.is_empty() {
+        bail!("No files to load, exiting.");
+    }
 
-//     // set up a multi-producer, single-consumer channel that receives Signature
-//     let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
+    // set up a multi-producer, single-consumer channel that receives Signature
+    let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
 
-//     // & spawn a thread that is dedicated to printing to a buffered output
-//     let thrd = sig_zipwriter(recv, output.as_ref());
+    // & spawn a thread that is dedicated to printing to a buffered output
+    let thrd = sig_zipwriter(recv, output.as_ref());
 
-//     // iterate over filelist_paths
-//     let processed_sigs = AtomicUsize::new(0);
-//     let skipped_paths = AtomicUsize::new(0);
-//     let failed_paths = AtomicUsize::new(0);
+    // iterate over filelist_paths
+    let processed_sigs = AtomicUsize::new(0);
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
 
-//     let send_result = filelist_paths
-//         .par_iter()
-//         .filter_map(|filename| {
-//             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-//             if i % 1000 == 0 {
-//                 info!("Processed {} fasta files", i);
-//             }
+    let send_result = filelist_paths
+        .par_iter()
+        .filter_map(|filename| {
+            let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
+            if i % 1000 == 0 {
+                info!("Processed {} fasta files", i);
+            }
 
-//             // build signature from params
-//             if let Ok(sig) = Signature::from_params(params, filename, ksize, scaled, moltype) {
-//                 if let Err(e) = send.send(sig) {
-//                     Err(format!("Unable to send internal data: {:?}", e))
-//                 } else {
-//                     Ok(())
-//                 }
-//             } else {
-//                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-//                 eprintln!("WARNING: could not load signature from path '{}'",
-//                           filename.display());
-//                 let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-//                 None
-//             }
+            // build signature from params
+            // then iterate through fasta file, adding sequence
 
-//         })
-//         .try_for_each_with(send, |s, sig| s.send(sig));
+            let mut cp = ComputeParameters::default();
+            // cp.set_dayhoff(true);
+            // cp.set_protein(true);
+            // cp.set_hp(true);
+            // cp.set_dna(true);
 
-//     // do some cleanup and error handling -
-//     if let Err(e) = send_result {
-//         error!("Error during parallel processing: {}", e);
-//     }
+            let mut sig = Signature::from_params(&cp);
 
-//     // join the writer thread
-//     if let Err(e) = thrd.join() {
-//         error!("Unable to join internal thread: {:?}", e);
-//     }
+            let mut data: Vec<u8> = vec![];
+            let mut f = File::open(filename).unwrap();
+            let _ = f.read_to_end(&mut data);
 
-//     // done!
-//     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
-//     eprintln!("DONE. Processed {} fasta files", i);
+            let mut parser = parse_fastx_reader(&data[..]).unwrap();
+            while let Some(record) = parser.next() {
+                let record = record.unwrap();
+                sig.add_sequence(&record.seq(), false).unwrap();
+            }
+            Some(sig)
 
-//     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
-//     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+        })
+        .try_for_each_with(send, |s, sig| s.send(sig));
 
-//     if skipped_paths > 0 {
-//         eprintln!("WARNING: skipped {} fasta files.",
-//                   skipped_paths);
-//     }
+    // do some cleanup and error handling -
+    if let Err(e) = send_result {
+        error!("Error during parallel processing: {}", e);
+    }
 
-//     if failed_paths > 0 {
-//         eprintln!("WARNING: {} fasta files failed to load. See error messages above.",
-//                   failed_paths);
-//     }
+    // join the writer thread
+    if let Err(e) = thrd.join() {
+        error!("Unable to join internal thread: {:?}", e);
+    }
 
-//     Ok(())
+    // done!
+    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
+    eprintln!("DONE. Processed {} fasta files", i);
 
-// }
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
+    if skipped_paths > 0 {
+        eprintln!("WARNING: skipped {} fasta files.",
+                  skipped_paths);
+    }
 
+    if failed_paths > 0 {
+        eprintln!("WARNING: {} fasta files failed to load. See error messages above.",
+                  failed_paths);
+    }
 
+    Ok(())
 
+}
 
 
 //
@@ -1506,6 +1511,21 @@ fn do_check(index: String,
         }
     }
 
+#[pyfunction]
+fn do_manysketch(filelist: String,
+                 ksize: u8,
+                 scaled: usize,
+                 moltype: Option<String>,
+                 output: Option<String>,
+    ) -> anyhow::Result<u8>{
+    match manysketch(filelist, ksize, scaled, moltype.as_deref(), output) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+            }
+        }
+    }
 
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -1514,7 +1534,7 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
     m.add_function(wrap_pyfunction!(do_index, m)?)?;
     m.add_function(wrap_pyfunction!(do_check, m)?)?;
+    m.add_function(wrap_pyfunction!(do_manysketch, m)?)?;
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     Ok(())
 }
-                           

@@ -216,3 +216,36 @@ class Branchwater_Check(CommandLinePlugin):
         if status == 0:
             notify(f"...index is ok!")
         return status
+
+
+class Branchwater_Manysketch(CommandLinePlugin):
+    command = 'manysketch'
+    description = 'massively parallel sketching'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('input_paths', help="a text file containing paths to files to sketch")
+        p.add_argument('-o', '--output', required=True,
+                       help='output zip file for the index')
+        p.add_argument('-k', '--ksize', default=31, type=int,
+                       help='k-mer size at which to select sketches')
+        p.add_argument('-s', '--scaled', default=1000, type=int,
+                       help='scaled factor at which to do comparisons')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
+
+    def main(self, args):
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled}")
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"sketching all files in '{args.input_paths}'")
+
+        super().main(args)
+        status = pyo3_branchwater.do_manysketch(args.input_paths,
+                                            args.ksize,
+                                            args.scaled,
+                                            args.output)
+        if status == 0:
+            notify(f"...manysketch is done! results in '{args.output}'")
+        return status
