@@ -216,3 +216,44 @@ class Branchwater_Check(CommandLinePlugin):
         if status == 0:
             notify(f"...index is ok!")
         return status
+
+
+class Branchwater_Manycompare(CommandLinePlugin):
+    command = 'manycompare'
+    description = 'massively parallel sketch search #2'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('query_paths',
+                       help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('against_paths',
+                       help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('-o', '--output', required=True,
+                       help='CSV output file for matches')
+        p.add_argument('-t', '--threshold', default=0.01, type=float,
+                       help='containment threshold for reporting matches')
+        p.add_argument('-k', '--ksize', default=31, type=int,
+                       help='k-mer size at which to select sketches')
+        p.add_argument('-s', '--scaled', default=1000, type=int,
+                       help='scaled factor at which to do comparisons')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
+
+    def main(self, args):
+        print_version()
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
+
+        super().main(args)
+        status = pyo3_branchwater.do_manycompare(args.query_paths,
+                                                args.against_paths,
+                                                args.threshold,
+                                                args.ksize,
+                                                args.scaled,
+                                                args.output)
+        if status == 0:
+            notify(f"...manycompare is done! results in '{args.output}'")
+        return status
