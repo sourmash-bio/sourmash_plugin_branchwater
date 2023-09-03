@@ -30,7 +30,7 @@ There is a quickstart below, as well as [more documentation here](doc/README.md)
 
 To try out branchwater, you'll need to install sourmash 4.8.3 or later.
 
-This quickstart demonstrates `manysearch` using
+This quickstart demonstrates `multisearch` using
 [the 64 genomes from Awad et al., 2017](https://osf.io/vk4fa/).
 
 ### Install necessary dependencies
@@ -57,7 +57,7 @@ unzip -u podar-reference-genomes-updated-sigs-2017.06.10.zip
 
 ### Third, create lists of query and subject files.
 
-`manysearch` takes in lists of signatures to search, so we need to
+`multisearch` takes in lists of signatures to search, so we need to
 create those files:
 
 ```
@@ -67,12 +67,12 @@ ls -1 podar-ref/* > podar-ref-list.txt
 
 ### Fourth: Execute!
 
-Now run `manysearch`:
+Now run `multisearch`:
 ```
-sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv --cores 4
+sourmash scripts multisearch query-list.txt podar-ref-list.txt -o results.csv --cores 4
 ```
 
-You will (hopefully ;) see a set of results in `results.csv`. These are the containments of each query in any matching genomes.
+You will (hopefully ;) see a set of results in `results.csv`. These are comparisons of each query against all matching genomes.
 
 ## Debugging help
 
