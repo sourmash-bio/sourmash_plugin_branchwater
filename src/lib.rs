@@ -1038,7 +1038,8 @@ fn write_signature(
     zip: &mut Option<&mut zip::ZipWriter<WriterWrapper>>,
     zip_options: Option<zip::write::FileOptions>,
 ) {
-    let json_bytes = serde_json::to_vec(sig).unwrap();
+    let wrapped_sig = vec![sig];
+    let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
     info!("Serialized signature to JSON.");
     info!("JSON: {}", String::from_utf8(json_bytes.clone()).unwrap());
     if !gzipped {
@@ -1393,6 +1394,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
             .scaled(scaled as u64)
             .protein(false)
             .dna(true)
+            .num_hashes(0)
             .build();
 
             // print filename so we know what we're working with
