@@ -1005,7 +1005,6 @@ where
 fn sigwriter(
     recv: std::sync::mpsc::Receiver<Signature>,
     output: Option<Box<std::path::PathBuf>>,
-    gzipped: bool,
 ) -> std::thread::JoinHandle<()> 
 {
     std::thread::spawn(move || {
@@ -1017,7 +1016,7 @@ fn sigwriter(
                 info!("Creating ZipWriter");
                 let mut zip = zip::ZipWriter::new(out);
                 for sig in recv {
-                    write_signature(&sig, gzipped, &mut Some(&mut zip), Some(options));
+                    write_signature(&sig, &mut Some(&mut zip), Some(options));
                 }
             } else {
                 // only zip for now
@@ -1025,7 +1024,7 @@ fn sigwriter(
             }
         } else {
             for sig in recv {
-                write_signature(&sig, gzipped, &mut None::<&mut _>, None);
+                write_signature(&sig, &mut None::<&mut _>, None);
             }
         }
     })
@@ -1034,7 +1033,6 @@ fn sigwriter(
 
 fn write_signature(
     sig: &Signature,
-    gzipped: bool,
     zip: &mut Option<&mut zip::ZipWriter<WriterWrapper>>,
     zip_options: Option<zip::write::FileOptions>,
 ) {
@@ -1042,43 +1040,28 @@ fn write_signature(
     let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
     info!("Serialized signature to JSON.");
     info!("JSON: {}", String::from_utf8(json_bytes.clone()).unwrap());
-    if !gzipped {
-        info!("Not gzipping signature.");
-        let sig_filename = format!("{}.sig", sig.md5sum());
-        match zip {
-            Some(zip) => {
-                zip.start_file(sig_filename, zip_options.unwrap()).unwrap();
-                zip.write_all(&json_bytes).unwrap();
-            }
-            None => {
-                // write json to sig_filename
-                std::fs::write(&sig_filename, &json_bytes).unwrap();
-            }
+    info!("Gzipping signature.");
+    let gzipped_buffer = {
+        let mut buffer = std::io::Cursor::new(Vec::new());
+        {
+            let mut gz_writer = niffler::get_writer(
+                Box::new(&mut buffer),
+                niffler::compression::Format::Gzip,
+                niffler::compression::Level::Nine,
+            ).unwrap();
+            gz_writer.write_all(&json_bytes).unwrap();
         }
-    } else {
-        info!("Gzipping signature.");
-        let gzipped_buffer = {
-            let mut buffer = std::io::Cursor::new(Vec::new());
-            {
-                let mut gz_writer = niffler::get_writer(
-                    Box::new(&mut buffer),
-                    niffler::compression::Format::Gzip,
-                    niffler::compression::Level::Nine,
-                ).unwrap();
-                gz_writer.write_all(&json_bytes).unwrap();
-            }
-            buffer.into_inner()
-        };
-        let sig_filename = format!("{}.sig.gz", sig.md5sum());
-        match zip {
-            Some(zip) => {
-                zip.start_file(sig_filename, zip_options.unwrap()).unwrap();
-                zip.write_all(&gzipped_buffer).unwrap();
-            }
-            None => {
-                // write gzipped signature to sig_filename
-                std::fs::write(&sig_filename, &gzipped_buffer).unwrap();
-            }
+        buffer.into_inner()
+    };
+    let sig_filename = format!("{}.sig.gz", sig.md5sum());
+    match zip {
+        Some(zip) => {
+            zip.start_file(sig_filename, zip_options.unwrap()).unwrap();
+            zip.write_all(&gzipped_buffer).unwrap();
+        }
+        None => {
+            // write gzipped signature to sig_filename
+            std::fs::write(&sig_filename, &gzipped_buffer).unwrap();
         }
     }
 }
@@ -1370,7 +1353,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sigwriter(recv, output, false);
+    let thrd = sigwriter(recv, output);
 
     // let thrd = sigwriter(recv, output.as_ref(), false); // set gzip false for now
 
