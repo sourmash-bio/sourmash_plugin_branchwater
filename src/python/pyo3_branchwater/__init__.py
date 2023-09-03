@@ -218,9 +218,9 @@ class Branchwater_Check(CommandLinePlugin):
         return status
 
 
-class Branchwater_Manycompare(CommandLinePlugin):
-    command = 'manycompare'
-    description = 'massively parallel sketch search #2'
+class Branchwater_Multisearch(CommandLinePlugin):
+    command = 'multisearch'
+    description = 'massively parallel sketch search'
 
     def __init__(self, p):
         super().__init__(p)
@@ -248,12 +248,12 @@ class Branchwater_Manycompare(CommandLinePlugin):
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
 
         super().main(args)
-        status = pyo3_branchwater.do_manycompare(args.query_paths,
+        status = pyo3_branchwater.do_multisearch(args.query_paths,
                                                 args.against_paths,
                                                 args.threshold,
                                                 args.ksize,
                                                 args.scaled,
                                                 args.output)
         if status == 0:
-            notify(f"...manycompare is done! results in '{args.output}'")
+            notify(f"...multisearch is done! results in '{args.output}'")
         return status

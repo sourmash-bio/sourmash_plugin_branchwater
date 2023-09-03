@@ -19,9 +19,9 @@ def make_file_list(filename, paths):
 
 def test_installed(runtmp):
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manycompare')
+        runtmp.sourmash('scripts', 'multisearch')
 
-    assert 'usage:  manycompare' in runtmp.last_result.err
+    assert 'usage:  multisearch' in runtmp.last_result.err
 
 def test_simple(runtmp):
     # test basic execution!
@@ -37,7 +37,7 @@ def test_simple(runtmp):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
 
@@ -96,7 +96,7 @@ def test_simple_threshold(runtmp):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output, '-t', '0.5')
     assert os.path.exists(output)
 
@@ -119,7 +119,7 @@ def test_missing_query(runtmp, capfd):
     output = runtmp.output('out.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                         '-o', output)
 
     captured = capfd.readouterr()
@@ -141,7 +141,7 @@ def test_bad_query(runtmp, capfd):
     output = runtmp.output('out.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manycompare', sig2, against_list,
+        runtmp.sourmash('scripts', 'multisearch', sig2, against_list,
                         '-o', output)
 
     captured = capfd.readouterr()
@@ -163,7 +163,7 @@ def test_bad_query_2(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
 
     captured = capfd.readouterr()
@@ -188,7 +188,7 @@ def test_missing_against(runtmp, capfd):
     output = runtmp.output('out.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                         '-o', output)
 
     captured = capfd.readouterr()
@@ -212,7 +212,7 @@ def test_bad_against(runtmp, capfd):
     output = runtmp.output('out.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manycompare', query_list, sig2,
+        runtmp.sourmash('scripts', 'multisearch', query_list, sig2,
                         '-o', output)
 
     captured = capfd.readouterr()
@@ -234,7 +234,7 @@ def test_bad_against_2(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
 
     captured = capfd.readouterr()
@@ -259,7 +259,7 @@ def test_empty_query(runtmp):
     output = runtmp.output('out.csv')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                         '-o', output)
 
     print(runtmp.last_result.err)
@@ -281,7 +281,7 @@ def test_nomatch_query(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
 
@@ -308,7 +308,7 @@ def test_load_only_one_bug(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
 
@@ -336,7 +336,7 @@ def test_load_only_one_bug_as_query(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
 
@@ -361,7 +361,7 @@ def test_md5(runtmp):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manycompare', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
 

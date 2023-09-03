@@ -1216,7 +1216,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
 /// Note: this function loads all _queries_ into memory, and iterates over
 /// database once.
 
-fn manycompare<P: AsRef<Path>>(
+fn multisearch<P: AsRef<Path>>(
         querylist: P,
         againstlist: P,
         threshold: f64,
@@ -1492,14 +1492,14 @@ fn do_check(index: String,
     }
 
 #[pyfunction]
-fn do_manycompare(querylist_path: String,
+fn do_multisearch(querylist_path: String,
                     siglist_path: String,
                     threshold: f64,
                     ksize: u8,
                     scaled: usize,
                     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    match manycompare(querylist_path, siglist_path, threshold, ksize, scaled,
+    match multisearch(querylist_path, siglist_path, threshold, ksize, scaled,
                         output_path) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -1517,6 +1517,6 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_index, m)?)?;
     m.add_function(wrap_pyfunction!(do_check, m)?)?;
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
-    m.add_function(wrap_pyfunction!(do_manycompare, m)?)?;
+    m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     Ok(())
 }
