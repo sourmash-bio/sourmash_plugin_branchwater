@@ -33,20 +33,20 @@ To try out branchwater, you'll need to install sourmash 4.8.3 or later.
 This quickstart demonstrates `multisearch` using
 [the 64 genomes from Awad et al., 2017](https://osf.io/vk4fa/).
 
-### Install necessary dependencies
+### 1. Install necessary dependencies
 
 You'll need rust, Python, and maturin to build, and sourmash to run. See [environment.yml](environment.yml) for a list of conda packages, and developer docs below for example command lines.
 
-### Install pyo3_branchwater.
+### 2. Install pyo3_branchwater.
 
 Install this repo in developer mode:
 ```
 pip install -e .
 ```
 
-### Download sketches.
+### 3. Download sketches.
 
-The following commands will download sourmash sketches for them and
+The following commands will download sourmash sketches for the podar genomes and
 unpack them into the directory `podar-ref/`:
 
 ```
@@ -55,7 +55,7 @@ curl -JLO https://osf.io/4t6cq/download
 unzip -u podar-reference-genomes-updated-sigs-2017.06.10.zip
 ```
 
-### Third, create lists of query and subject files.
+### 4. Create lists of query and subject files.
 
 `multisearch` takes in lists of signatures to search, so we need to
 create those files:
@@ -65,14 +65,14 @@ ls -1 podar-ref/{2,47,63}.* > query-list.txt
 ls -1 podar-ref/* > podar-ref-list.txt
 ```
 
-### Fourth: Execute!
+### 5. Execute!
 
 Now run `multisearch`:
 ```
 sourmash scripts multisearch query-list.txt podar-ref-list.txt -o results.csv --cores 4
 ```
 
-You will (hopefully ;) see a set of results in `results.csv`. These are comparisons of each query against all matching genomes.
+You will (hopefully ;)) see a set of results in `results.csv`. These are comparisons of each query against all matching genomes.
 
 ## Debugging help
 
