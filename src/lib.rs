@@ -1011,7 +1011,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                                 query_name: query.name.clone(),
                                 query_md5: query.md5sum.clone(),
                                 match_name: path.clone(),
-                                containment: containment,
+                                containment,
                                 intersect_hashes: overlap,
                                 match_md5: None,
                                 jaccard: None,
