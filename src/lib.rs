@@ -1446,6 +1446,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     scaled: usize,
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
+// ) -> Result<(), sourmash::Error> {
 
     // load list of file paths (todo: modify for fasta files)
     let filelist_paths = load_sketchlist_filenames(&filelist)?;
@@ -1545,8 +1546,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     if failed_paths == i {
-        error!("ERROR: Could not load fasta files: no signatures created.");
-        std::process::exit(1);
+        bail!("Could not load fasta files: no signatures created.");
     }
     if failed_paths > 0 {
         eprintln!("WARNING: {} fasta files failed to load. See error messages above.",

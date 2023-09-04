@@ -44,7 +44,7 @@ def test_manysketch(runtmp):
     assert len(sigs) == 3
 
 
-def test_sketch_missing_falist(runtmp, capfd):
+def test_manysketch_missing_falist(runtmp, capfd):
     # test missing falist file
     falist = runtmp.output('falist.txt')
     output = runtmp.output('out.zip')
@@ -56,24 +56,11 @@ def test_sketch_missing_falist(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
 def test_manysketch_bad_falist(runtmp, capfd):
-    # test sketch with fasta provided instead of falist
-    fa1 = get_test_data('short.fa')
-    output = runtmp.output('db.zip')
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysketch', fa1, '-o', output)
-
-    captured = capfd.readouterr()
-    print(captured.err)
-    assert "ERROR: Could not load fasta files: no signatures created." in captured.err
-
-
-def test_manysketch_bad_falist_2(runtmp, capfd):
-    # test index with a bad siglist (.sig.gz file instead of fasta)
+    # siglist instead of fastalist
     siglist = runtmp.output('db-sigs.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -89,7 +76,22 @@ def test_manysketch_bad_falist_2(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "ERROR: Could not load fasta files: no signatures created." in captured.err
+    assert "Could not load fasta files: no signatures created." in captured.err
+
+
+def test_manysketch_bad_falist_2(runtmp, capfd):
+    # test sketch with fasta provided instead of falist
+    output = runtmp.output('out.zip')
+    fa1 = get_test_data('short.fa')
+    print(fa1)
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysketch', fa1,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Could not load fasta files: no signatures created." in captured.err
 
 
 def test_manysketch_empty_falist(runtmp, capfd):
@@ -104,5 +106,4 @@ def test_manysketch_empty_falist(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "ERROR: Could not load fasta files: no signatures created." in captured.err
-
+    assert "Error: No files to load, exiting." in captured.err
