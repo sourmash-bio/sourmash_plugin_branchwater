@@ -1446,7 +1446,6 @@ fn manysketch<P: AsRef<Path> + Sync>(
     scaled: usize,
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-// ) -> Result<(), sourmash::Error> {
 
     // load list of file paths (todo: modify for fasta files)
     let filelist_paths = load_sketchlist_filenames(&filelist)?;
