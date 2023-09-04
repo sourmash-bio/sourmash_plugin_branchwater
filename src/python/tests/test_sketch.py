@@ -59,16 +59,20 @@ def test_sketch_missing_falist(runtmp, capfd):
     assert 'Error: No such file or directory ' in captured.err
 
 
-def test_manysketch_bad_falist(runtmp):
+def test_manysketch_bad_falist(runtmp, capfd):
     # test sketch with fasta provided instead of falist
     fa1 = get_test_data('short.fa')
     output = runtmp.output('db.zip')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysketch', fa1, '-o', output) 
+        runtmp.sourmash('scripts', 'manysketch', fa1, '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "ERROR: Could not load fasta files: no signatures created." in captured.err
 
 
-def test_manysketch_bad_not_fastas(runtmp):
+def test_manysketch_bad_falist_2(runtmp, capfd):
     # test index with a bad siglist (.sig.gz file instead of fasta)
     siglist = runtmp.output('db-sigs.txt')
 
@@ -82,4 +86,23 @@ def test_manysketch_bad_not_fastas(runtmp):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'manysketch', siglist, '-o', output) 
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "ERROR: Could not load fasta files: no signatures created." in captured.err
+
+
+def test_manysketch_empty_falist(runtmp, capfd):
+    # test empty falist file
+    falist = runtmp.output('fa.txt')
+    output = runtmp.output('out.zip')
+    make_file_list(falist, []) # empty
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysketch', falist,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "ERROR: Could not load fasta files: no signatures created." in captured.err
 

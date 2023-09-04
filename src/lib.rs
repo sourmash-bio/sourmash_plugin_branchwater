@@ -1397,8 +1397,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     if failed_paths == i {
-        error!("WARNING: {} fasta files failed to load. See error messages above.",
-                  failed_paths);
+        error!("ERROR: Could not load fasta files: no signatures created.");
         std::process::exit(1);
     }
     if failed_paths > 0 {
