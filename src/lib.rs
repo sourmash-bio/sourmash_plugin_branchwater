@@ -26,7 +26,7 @@ use needletail::parse_fastx_reader;
 #[macro_use]
 extern crate simple_error;
 
-use log::{error, info};
+use log::error;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
@@ -34,19 +34,6 @@ use sourmash::index::revindex::{RevIndex};
 use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 use sourmash::cmd::ComputeParameters;
-
-// set up logging to print info messages using env logger
-use std::sync::Once;
-use env_logger;
-
-static LOGGER_INITIALIZED: Once = Once::new();
-
-fn initialize_logger() {
-    LOGGER_INITIALIZED.call_once(|| {
-        std::env::set_var("RUST_LOG", "info");
-        env_logger::init();
-    });
-}
 
 /// Track a name/minhash.
 
@@ -799,7 +786,7 @@ fn read_signatures_from_zip<P: AsRef<Path>>(
 
         let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap();
         if file_name.ends_with(".sig") || file_name.ends_with(".sig.gz") {
-            info!("Found signature file: {}", file_name);
+            println!("Found signature file: {}", file_name);
             let mut new_file = File::create(temp_dir.path().join(file_name))?;
             new_file.write_all(&sig)?;
 
@@ -820,7 +807,7 @@ fn index<P: AsRef<Path>>(
     colors: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut temp_dir = None;
-    info!("Loading siglist");
+    println!("Loading siglist");
 
     let index_sigs: Vec<PathBuf>;
 
@@ -869,13 +856,13 @@ fn check<P: AsRef<Path>>(index: P, quick: bool) -> Result<(), Box<dyn std::error
         bail!("'{}' is not a valid RevIndex database", index.as_ref().display());
     }
 
-    info!("Opening DB");
+    println!("Opening DB");
     let db = RevIndex::open(index.as_ref(), true);
 
-    info!("Starting check");
+    println!("Starting check");
     db.check(quick);
 
-    info!("Finished check");
+    println!("Finished check");
     Ok(())
 }
 
@@ -1000,10 +987,6 @@ fn write_signature(
     let wrapped_sig = vec![sig];
     let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
 
-    info!("Serialized signature to JSON.");
-    info!("JSON: {}", String::from_utf8(json_bytes.clone()).unwrap());
-    info!("Gzipping signature.");
-
     let gzipped_buffer = {
         let mut buffer = std::io::Cursor::new(Vec::new());
         {
@@ -1038,7 +1021,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
     }
     // Open database once
     let db = RevIndex::open(index.as_ref(), true);
-    info!("Loaded DB");
+    println!("Loaded DB");
 
     // Load query paths
     let query_paths = load_sketchlist_filenames(&queries_file)?;
@@ -1165,7 +1148,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
     }
     // Open database once
     let db = RevIndex::open(index.as_ref(), true);
-    info!("Loaded DB");
+    println!("Loaded DB");
 
     // Load query paths
     let query_paths = load_sketchlist_filenames(&queries_file)?;
@@ -1214,9 +1197,9 @@ fn mastiff_manygather<P: AsRef<Path>>(
                     let threshold = threshold_bp / query.minhash.scaled() as usize;
  
                     // mastiff gather code
-                    info!("Building counter");
+                    println!("Building counter");
                     let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query.minhash);
-                    info!("Counter built");
+                    println!("Counter built");
 
                     let matches = db.gather(
                         counter,
@@ -1475,7 +1458,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     .filter_map(|filename| {
         let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
         if i % 1000 == 0 {
-            info!("Processed {} fasta files", i);
+            println!("Processed {} fasta files", i);
         }
 
         // build signature from params
@@ -1494,11 +1477,9 @@ fn manysketch<P: AsRef<Path> + Sync>(
         match File::open(filename) {
             Ok(mut f) => {
                 let _ = f.read_to_end(&mut data);
-                info!("file read");
 
                 match parse_fastx_reader(&data[..]) {
                     Ok(mut parser) => {
-                        info!("fastx parser created");
                         while let Some(record_result) = parser.next() {
                             match record_result {
                                 Ok(record) => {
@@ -1710,7 +1691,6 @@ fn do_manysketch(filelist: String,
                  scaled: usize,
                  output: String,
     ) -> anyhow::Result<u8>{
-    initialize_logger(); // initialize logger
     match manysketch(filelist, ksize, scaled, output) {
               Ok(_) => Ok(0),
         Err(e) => {
