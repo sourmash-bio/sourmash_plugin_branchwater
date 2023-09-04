@@ -1318,61 +1318,67 @@ fn manysketch<P: AsRef<Path> + Sync>(
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = sigwriter::<&str>(recv, output);
 
-
     // iterate over filelist_paths
     let processed_sigs = AtomicUsize::new(0);
-    let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
     let send_result = filelist_paths
-        .par_iter()
-        .filter_map(|filename| {
-            let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-            if i % 1000 == 0 {
-                info!("Processed {} fasta files", i);
-            }
+    .par_iter()
+    .filter_map(|filename| {
+        let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
+        if i % 1000 == 0 {
+            info!("Processed {} fasta files", i);
+        }
 
-            // build signature from params
-            // future: allow multiple ksizes, moltype, etc
-            let cp = ComputeParameters::builder()
-            .ksizes(vec![ksize as u32])
-            .scaled(scaled as u64)
-            .protein(false)
-            .dna(true)
-            .num_hashes(0)
-            .build();
+        // build signature from params
+        let cp = ComputeParameters::builder()
+        .ksizes(vec![ksize as u32])
+        .scaled(scaled as u64)
+        .protein(false)
+        .dna(true)
+        .num_hashes(0)
+        .build();
 
-            // print filename so we know what we're working with
-            println!("filename: {}", filename.display());
-            let mut sig = Signature::from_params(&cp);
-            info!("sig initialized");
-            let mut data: Vec<u8> = vec![];
-            let mut f = File::open(filename).unwrap();
-            info!("file opened");
-            let _ = f.read_to_end(&mut data);
-            info!("file read");
+        let mut sig = Signature::from_params(&cp);
+        let mut data: Vec<u8> = vec![];
 
-            let mut parser = parse_fastx_reader(&data[..]).unwrap();
-            info!("fastx parser created");
-            // iterate over records in fasta file
-            while let Some(record_result) = parser.next() {
-                match record_result {
-                    Ok(record) => {
-                        // add sequence to signature
-                        sig.add_sequence(&record.seq(), false).unwrap();
-                    }
-                    Err(error) => {
-                        // Handle the error, if needed
-                        println!("Error while processing record: {:?}", error);
+        // parse fasta file and add to signature
+        match File::open(filename) {
+            Ok(mut f) => {
+                let _ = f.read_to_end(&mut data);
+                info!("file read");
+
+                match parse_fastx_reader(&data[..]) {
+                    Ok(mut parser) => {
+                        info!("fastx parser created");
+                        while let Some(record_result) = parser.next() {
+                            match record_result {
+                                Ok(record) => {
+                                    sig.add_sequence(&record.seq(), false).unwrap();
+                                },
+                                Err(error) => {
+                                    error!("Error while processing record: {:?}", error);
+                                }
+                            }
+                        }
+                        Some(sig)
+                    },
+                    Err(err) => {
+                        error!("Error creating parser for file {}: {:?}", filename.display(), err);
+                        let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        None
                     }
                 }
+            },
+            Err(err) => {
+                error!("Error opening file {}: {:?}", filename.display(), err);
+                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                None
             }
-            // info!("Processed {} records", record_count);
-            info!("sig size: {}", sig.size());
-            Some(sig)
+        }
+    })
+    .try_for_each_with(send, |s, sig| s.send(sig));
 
-        })
-        .try_for_each_with(send, |s, sig| s.send(sig));
 
     // do some cleanup and error handling -
     if let Err(e) = send_result {
@@ -1384,20 +1390,17 @@ fn manysketch<P: AsRef<Path> + Sync>(
         error!("Unable to join internal thread: {:?}", e);
     }
 
-    // todo: collect signature info above and then write to csv manifest in the zip?
-
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
     eprintln!("DONE. Processed {} fasta files", i);
 
-    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
-    if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} fasta files.",
-                  skipped_paths);
+    if failed_paths == i {
+        error!("WARNING: {} fasta files failed to load. See error messages above.",
+                  failed_paths);
+        std::process::exit(1);
     }
-
     if failed_paths > 0 {
         eprintln!("WARNING: {} fasta files failed to load. See error messages above.",
                   failed_paths);
