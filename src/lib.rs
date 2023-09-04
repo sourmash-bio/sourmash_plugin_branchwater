@@ -214,7 +214,7 @@ fn manysearch<P: AsRef<Path>>(
         .filter_map(|filename| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
-                info!("Processed {} search sigs", i);
+                eprintln!("Processed {} search sigs", i);
             }
 
             let mut results = vec![];
@@ -819,8 +819,7 @@ fn index<P: AsRef<Path>>(
         bail!("No signatures to index loaded, exiting.");
     }
 
-    info!("Loaded {} sig paths in siglist", index_sigs.len());
-    println!("Loaded {} sig paths in siglist", index_sigs.len());
+    eprintln!("Loaded {} sig paths in siglist", index_sigs.len());
 
     // Create or open the RevIndex database with the provided output path and colors flag
     let db = RevIndex::create(output.as_ref(), colors);
@@ -990,7 +989,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
         .filter_map(|filename| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
-                info!("Processed {} search sigs", i);
+                eprintln!("Processed {} search sigs", i);
             }
 
             let mut results = vec![];
@@ -1123,7 +1122,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
         .filter_map(|filename| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
-                info!("Processed {} search sigs", i);
+                eprintln!("Processed {} search sigs", i);
             }
 
             let mut results = vec![];
@@ -1150,7 +1149,6 @@ fn mastiff_manygather<P: AsRef<Path>>(
 
                     // extract matches from Result
                     if let Ok(matches) = matches {
-                        info!("matches: {}", matches.len());
                         for match_ in &matches {
                             results.push((query.name.clone(),
                                       query.md5sum.clone(),
@@ -1312,8 +1310,8 @@ fn multisearch<P: AsRef<Path>>(
             // search for matches & save containment.
             for q in queries.iter() {
                 let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
-                if i % 1000 == 0 {
-                    info!("Processed {} comparisons", i);
+                if i % 100000 == 0 {
+                    eprintln!("Processed {} comparisons", i);
                 }
 
                 let overlap = q.minhash.count_common(&target.minhash, false).unwrap() as f64;
