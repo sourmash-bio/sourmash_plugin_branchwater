@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write, Seek, Stdout};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use zip::read::ZipArchive;
@@ -924,52 +924,43 @@ impl ResultType for SearchResult {
     }
 }
 
-
-enum WriterWrapper {
-    File(BufWriter<File>),
-    Stdout(Stdout),
-}
-
-impl Write for WriterWrapper {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        match self {
-            WriterWrapper::File(writer) => writer.write(buf),
-            WriterWrapper::Stdout(stdout) => stdout.write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        match self {
-            WriterWrapper::File(writer) => writer.flush(),
-            WriterWrapper::Stdout(stdout) => stdout.flush(),
-        }
+fn open_stdout_or_file<P: AsRef<Path>>(
+    output: Option<P>
+) -> Box<dyn Write + Send + 'static> {
+    // if output is a file, use open_output_file
+    if let Some(path) = output {
+        Box::new(open_output_file(&path))
+    } else {
+        Box::new(std::io::stdout())
     }
 }
 
-impl Seek for WriterWrapper {
-    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        match self {
-            WriterWrapper::File(writer) => writer.seek(pos),
-            WriterWrapper::Stdout(_) => Err(std::io::Error::new(std::io::ErrorKind::Other, "Cannot seek on stdout")),
-        }
-    }
+fn open_output_file<P: AsRef<Path>>(
+    output: &P
+) -> BufWriter<File> {
+    let file = File::create(output).unwrap_or_else(|e| {
+        error!("Error creating output file: {:?}", e);
+        std::process::exit(1); 
+    });
+    BufWriter::new(file)
 }
 
-fn open_output_file<P: AsRef<Path>>(output: Option<P>) -> WriterWrapper {
-    match output {
-        Some(path) => {
-            let file = File::create(&path).unwrap_or_else(|e| {
-                eprintln!("Error creating output file: {:?}", e);
-                std::process::exit(1);
-            });
-            info!("Writing to file: {}", path.as_ref().display());
-            WriterWrapper::File(BufWriter::new(file))
+fn sigwriter<P: AsRef<Path> + Send + 'static>(
+    recv: std::sync::mpsc::Receiver<Signature>,
+    output: String,
+) -> std::thread::JoinHandle<()>
+{
+    std::thread::spawn(move || {
+        let file_writer = open_output_file(&output); //open_output_file(&output);
+
+        let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let mut zip = zip::ZipWriter::new(file_writer);
+
+        for sig in recv {
+            write_signature(&sig, &mut zip, options);
         }
-        None => WriterWrapper::Stdout(std::io::stdout()),
-    }
+    })
 }
-
-
 
 fn csvwriter_thread<T: ResultType + Send + 'static, P>(
     recv: std::sync::mpsc::Receiver<T>,
@@ -980,7 +971,7 @@ where
     P: Clone + std::convert::AsRef<std::path::Path>,
 {
     // create output file
-    let out = open_output_file(output);
+    let out = open_stdout_or_file(output.as_ref());
     // spawn a thread that is dedicated to printing to a buffered output
     std::thread::spawn(move || {
         let mut writer = out;
@@ -1002,45 +993,18 @@ where
 }
 
 
-fn sigwriter(
-    recv: std::sync::mpsc::Receiver<Signature>,
-    output: Option<Box<std::path::PathBuf>>,
-) -> std::thread::JoinHandle<()> 
-{
-    std::thread::spawn(move || {
-        if let Some(out_path) = &output {
-            if out_path.extension() == Some(std::ffi::OsStr::new("zip")) {
-                // ZipWriter 
-                let out = open_output_file(Some(&**out_path));
-                let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
-                info!("Creating ZipWriter");
-                let mut zip = zip::ZipWriter::new(out);
-                for sig in recv {
-                    write_signature(&sig, &mut Some(&mut zip), Some(options));
-                }
-            } else {
-                // only zip for now
-                error!("Output path must be a zip file.");
-            }
-        } else {
-            for sig in recv {
-                write_signature(&sig, &mut None::<&mut _>, None);
-            }
-        }
-    })
-}
-
-
 fn write_signature(
     sig: &Signature,
-    zip: &mut Option<&mut zip::ZipWriter<WriterWrapper>>,
-    zip_options: Option<zip::write::FileOptions>,
+    zip: &mut zip::ZipWriter<BufWriter<File>>,
+    zip_options: zip::write::FileOptions,
 ) {
     let wrapped_sig = vec![sig];
     let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
+
     info!("Serialized signature to JSON.");
     info!("JSON: {}", String::from_utf8(json_bytes.clone()).unwrap());
     info!("Gzipping signature.");
+
     let gzipped_buffer = {
         let mut buffer = std::io::Cursor::new(Vec::new());
         {
@@ -1053,18 +1017,13 @@ fn write_signature(
         }
         buffer.into_inner()
     };
+
     let sig_filename = format!("{}.sig.gz", sig.md5sum());
-    match zip {
-        Some(zip) => {
-            zip.start_file(sig_filename, zip_options.unwrap()).unwrap();
-            zip.write_all(&gzipped_buffer).unwrap();
-        }
-        None => {
-            // write gzipped signature to sig_filename
-            std::fs::write(&sig_filename, &gzipped_buffer).unwrap();
-        }
-    }
+
+    zip.start_file(sig_filename, zip_options).unwrap();
+    zip.write_all(&gzipped_buffer).unwrap();
 }
+
 
 
 fn mastiff_manysearch<P: AsRef<Path>>(
@@ -1337,8 +1296,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     filelist: P,
     ksize: u8,
     scaled: usize,
-    //output as pathbuf
-    output: Option<Box<std::path::PathBuf>>,
+    output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
     // load list of file paths (todo: modify for fasta files)
@@ -1349,13 +1307,17 @@ fn manysketch<P: AsRef<Path> + Sync>(
         bail!("No files to load, exiting.");
     }
 
+    // if output doesnt end in zip, bail
+    if Path::new(&output).extension().map_or(true, |ext| ext != "zip") {
+        bail!("Output must be a zip file.");
+    }
+
     // set up a multi-producer, single-consumer channel that receives Signature
     let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sigwriter(recv, output);
+    let thrd = sigwriter::<&str>(recv, output);
 
-    // let thrd = sigwriter(recv, output.as_ref(), false); // set gzip false for now
 
     // iterate over filelist_paths
     let processed_sigs = AtomicUsize::new(0);
@@ -1393,14 +1355,11 @@ fn manysketch<P: AsRef<Path> + Sync>(
             let mut parser = parse_fastx_reader(&data[..]).unwrap();
             info!("fastx parser created");
             // iterate over records in fasta file
-            // todo - after debugging, remove record_count
-            let mut record_count = 0;
             while let Some(record_result) = parser.next() {
                 match record_result {
                     Ok(record) => {
                         // add sequence to signature
-                        sig.add_sequence(&record.seq(), true).unwrap();
-                        record_count += 1;
+                        sig.add_sequence(&record.seq(), false).unwrap();
                     }
                     Err(error) => {
                         // Handle the error, if needed
@@ -1408,7 +1367,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
                     }
                 }
             }
-            info!("Processed {} records", record_count);
+            // info!("Processed {} records", record_count);
             info!("sig size: {}", sig.size());
             Some(sig)
 
@@ -1582,14 +1541,9 @@ fn do_check(index: String,
 fn do_manysketch(filelist: String,
                  ksize: u8,
                  scaled: usize,
-                 output: Option<String>,
+                 output: String,
     ) -> anyhow::Result<u8>{
     initialize_logger(); // initialize logger
-    // make output a pathbuf if it exists
-    let output = match output {
-        Some(path) => Some(Box::new(std::path::PathBuf::from(path))),
-        None => None,
-    };
     match manysketch(filelist, ksize, scaled, output) {
         Ok(_) => Ok(0),
         Err(e) => {
