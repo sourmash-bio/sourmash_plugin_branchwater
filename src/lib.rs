@@ -1681,9 +1681,9 @@ fn do_multisearch(querylist_path: String,
         Err(e) => {
             eprintln!("Error: {e}");
             Ok(1)
-            }
         }
     }
+}
 
 #[pyfunction]
 fn do_manysketch(filelist: String,
@@ -1696,9 +1696,9 @@ fn do_manysketch(filelist: String,
         Err(e) => {
             eprintln!("Error: {e}");
             Ok(1)
-            }
         }
     }
+}
 
 
 #[pymodule]
