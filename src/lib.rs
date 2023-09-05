@@ -933,6 +933,13 @@ struct ManifestRow {
     internal_location: String,
 }
 
+fn bool_to_python_string(b: bool) -> String {
+    match b {
+        true => "True".to_string(),
+        false => "False".to_string(),
+    }
+}
+
 impl ResultType for ManifestRow {
     fn header_fields() -> Vec<&'static str> {
         vec!["internal_location", "md5", "md5short", "ksize", "moltype", "num", "scaled", "n_hashes", "with_abundance", "name", "filename"]
@@ -948,7 +955,7 @@ impl ResultType for ManifestRow {
             self.num.to_string(),
             self.scaled.to_string(),
             self.n_hashes.to_string(),
-            self.with_abundance.to_string(),
+            bool_to_python_string(self.with_abundance),
             format!("\"{}\"", self.name),  // Wrap name with quotes
             self.filename.clone(),
         ]
@@ -963,7 +970,7 @@ fn make_manifest_row(sig: &Signature, filename: &Path) -> ManifestRow {
         md5short: sig.md5sum()[0..8].to_string(),
         ksize: sketch.ksize() as u32,
         moltype: "DNA".to_string(),
-        num: 0 as u32, //sketch.num(),
+        num: 0 as u32, // sketch.num(),
         scaled: 1000 as u64, //sketch.scaled(),
         n_hashes: sketch.size() as usize, //10 as usize, //sketch.size(),
         with_abundance: false, //sketch.abunds().is_some(),
@@ -1019,15 +1026,14 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                     manifest_rows.push(mf_row);
                 },
                 ZipMessage::WriteManifest => {
+                    println!("Writing manifest");
                     // Start the CSV file inside the zip
                     zip.start_file("SOURMASH-MANIFEST.csv", options).unwrap();
 
                     // write manifest version line
                     writeln!(&mut zip, "# SOURMASH-MANIFEST-VERSION: 1.0").unwrap();
-                    println!("# SOURMASH-MANIFEST-VERSION: 1.0");
                     // Write the header
                     let header = ManifestRow::header_fields();
-                    println!("header: {:?}", header.join(","));
                     if let Err(e) = writeln!(&mut zip, "{}", header.join(",")) {
                         error!("Error writing header: {:?}", e);
                     }
@@ -1038,7 +1044,6 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                         if let Err(e) = writeln!(&mut zip, "{}", formatted_fields.join(",")) {
                             error!("Error writing item: {:?}", e);
                         }
-                        println!("row: {:?}", formatted_fields.join(","));
                     }
                     // finalize the zip file writing.
                     zip.finish().unwrap();
