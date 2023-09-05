@@ -109,13 +109,13 @@ class Branchwater_Fastgather(CommandLinePlugin):
 
         notify(f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
-        status = pyo3_branchwater.do_countergather(args.query_sig,
-                                                   args.against_paths,
-                                                   int(args.threshold_bp),
-                                                   args.ksize,
-                                                   args.scaled,
-                                                   args.output_gather,
-                                                   args.output_prefetch)
+        status = pyo3_branchwater.do_fastgather(args.query_sig,
+                                                args.against_paths,
+                                                int(args.threshold_bp),
+                                                args.ksize,
+                                                args.scaled,
+                                                args.output_gather,
+                                                args.output_prefetch)
         if status == 0:
             notify(f"...fastgather is done! gather results in '{args.output_gather}'")
             if args.output_prefetch:
@@ -151,12 +151,12 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
 
         notify(f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
         super().main(args)
-        status = pyo3_branchwater.do_multigather(args.query_paths,
-                                                 args.against_paths,
-                                                 int(args.threshold_bp),
-                                                 args.ksize,
-                                                 args.scaled,
-                                                 args.output)
+        status = pyo3_branchwater.do_fastmultigather(args.query_paths,
+                                                     args.against_paths,
+                                                     int(args.threshold_bp),
+                                                     args.ksize,
+                                                     args.scaled,
+                                                     args.output)
         if status == 0:
             notify(f"...fastmultigather is done!")
         return status
@@ -249,11 +249,11 @@ class Branchwater_Multisearch(CommandLinePlugin):
 
         super().main(args)
         status = pyo3_branchwater.do_multisearch(args.query_paths,
-                                                args.against_paths,
-                                                args.threshold,
-                                                args.ksize,
-                                                args.scaled,
-                                                args.output)
+                                                 args.against_paths,
+                                                 args.threshold,
+                                                 args.ksize,
+                                                 args.scaled,
+                                                 args.output)
         if status == 0:
             notify(f"...multisearch is done! results in '{args.output}'")
         return status

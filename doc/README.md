@@ -26,35 +26,13 @@ find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.tx
 
 ## Running the commands
 
-### Running `manysearch`
-
-The `manysearch` command finds overlaps between one or more query genomes, and one or more subject (meta)genomes. It is the core command we use for searching petabase-scale databases.
-
-`manysearch` takes two file lists as input, and outputs a CSV:
-```
-sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv
-```
-
-To run it, you need to provide two "fromfiles" containing lists of paths to signature files (`.sig` or `.sig.gz`). If you create a fromfile as above with GTDB reps, you can generate a query fromfile like so:
-
-```
-head -10 list.gtdb-reps-rs214-k21.txt > list.query.txt
-```
-and then run `manysearch` like so:
-
-```
-sourmash scripts manysearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21 --cores 4
-```
-
-The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
-
 ### Running `multisearch`
 
 The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading everything into memory.
 
-`manysearch` takes two file lists as input, and outputs a CSV:
+`multisearch` takes two file lists as input, and outputs a CSV:
 ```
-sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv
+sourmash scripts multisearch query-list.txt podar-ref-list.txt -o results.csv
 ```
 
 To run it, you need to provide two "fromfiles" containing lists of paths to signature files (`.sig` or `.sig.gz`). If you create a fromfile as above with GTDB reps, you can generate a query fromfile like so:
@@ -62,17 +40,17 @@ To run it, you need to provide two "fromfiles" containing lists of paths to sign
 ```
 head -10 list.gtdb-reps-rs214-k21.txt > list.query.txt
 ```
-and then run `manysearch` like so:
+and then run `multisearch` like so:
 
 ```
-sourmash scripts manysearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21 --cores 4
+sourmash scripts multisearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21 --cores 4
 ```
 
 The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
 ### Running `fastgather`
 
-The `fastgather` command is a much faster version of `sourmash gather``.
+The `fastgather` command is a much faster version of `sourmash gather`.
 
 `fastgather` takes a query metagenome and a file list as the database, and outputs a CSV:
 ```
@@ -111,7 +89,7 @@ A complete example Snakefile implementing the above workflow is available [in th
 sourmash scripts fastmultigather query-list.txt podar-ref-lists.txt --cores 4
 ```
 
-The main advantage that `fastmultigather` has over `fastgather` is that you only load the database files once, which can be a significant time savings for large databases!
+The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that you only load the database files once, which can be a significant time savings for large databases!
 
 #### Output files for `fastmultigather`
 
@@ -120,6 +98,28 @@ The main advantage that `fastmultigather` has over `fastgather` is that you only
 The prefetch CSV will be named `{basename}.prefetch.csv`, and the gather CSV will be named `{basename}.gather.csv`.  Here, `{basename}` is the filename, stripped of its path.
 
 **Warning:** At the moment, if two different queries have the same `{basename}`, the CSVs for one of the queries will be overwritten by the other query. The behavior here is undefined in practice, because of multithreading: we don't know what queries will be executed when or files will be written first.
+
+### Running `manysearch`
+
+The `manysearch` command compares one or more query sketches, and one or more subject sketches. It is the core command we use for searching petabase-scale databases of metagenomes for contained genomes.
+
+`manysearch` takes two file lists as input, and outputs a CSV:
+```
+sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv
+```
+
+To run it, you need to provide two "fromfiles" containing lists of paths to signature files (`.sig` or `.sig.gz`). If you create a fromfile as above with GTDB reps, you can generate a query fromfile like so:
+
+```
+head -10 list.gtdb-reps-rs214-k21.txt > list.query.txt
+```
+and then run `manysearch` like so:
+
+```
+sourmash scripts manysearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21 --cores 4
+```
+
+The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
 ## Notes on concurrency and efficiency
 
