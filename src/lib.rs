@@ -339,10 +339,11 @@ fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(prefetch_out);
-    writeln!(&mut writer, "query_filename,match_name,match_md5,intersect_bp").ok();
+    writeln!(&mut writer, "query_filename,query_name,query_md5,match_name,match_md5,intersect_bp").ok();
 
     for m in matchlist.iter() {
-        writeln!(&mut writer, "{},\"{}\",{},{}", query.location,
+        writeln!(&mut writer, "{},\"{}\",{},\"{}\",{},{}", query.location,
+                 query.name, query.md5sum,
                  m.name, m.md5sum, m.overlap).ok();
     }
 
@@ -489,7 +490,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         None => Box::new(std::io::stdout()),
     };
     let mut writer = BufWriter::new(gather_out);
-    writeln!(&mut writer, "query_filename,rank,match_name,match_md5,intersect_bp").ok();
+    writeln!(&mut writer, "query_filename,rank,query_name,query_md5,match_name,match_md5,intersect_bp").ok();
 
     let mut matching_sketches = matchlist;
     let mut rank = 0;
@@ -509,7 +510,8 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
 
-        writeln!(&mut writer, "{},{},\"{}\",{},{}", location, rank,
+        writeln!(&mut writer, "{},{},\"{}\",{},\"{}\",{},{}", location, rank,
+                 query.name, query.md5sum,
                  best_element.name, best_element.md5sum,
                  best_element.overlap).ok();
 
