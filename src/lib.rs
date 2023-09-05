@@ -780,7 +780,7 @@ fn build_template(ksize: u8, scaled: usize) -> Sketch {
     Sketch::MinHash(template_mh)
 }
 
-fn read_signatures_from_zip<P: AsRef<Path>>(
+fn read_sigpaths_from_zip<P: AsRef<Path>>(
     zip_path: P,
 ) -> Result<(Vec<PathBuf>, tempfile::TempDir), Box<dyn std::error::Error>> {
     let mut signature_paths = Vec::new();
@@ -807,6 +807,44 @@ fn read_signatures_from_zip<P: AsRef<Path>>(
     Ok((signature_paths, temp_dir))
 }
 
+use std::path::{Path, PathBuf};
+use std::fs::File;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use zip::read::ZipArchive;
+use tempfile;
+
+fn load_sketches_from_zip<P: AsRef<Path>>(
+    zip_path: P,
+    template: &str,
+) -> Result<(Vec<PathBuf>, usize, usize), Box<dyn std::error::Error>> {
+    let mut sketchlist = Vec::new();
+    let zip_file = File::open(&zip_path)?;
+    let mut zip_archive = ZipArchive::new(zip_file)?;
+    
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
+
+    // loop through, loading signatures
+    for i in 0..zip_archive.len() {
+        let mut file = zip_archive.by_index(i)?;
+        let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap();
+
+        if let Ok(sigs) = Signature::from_path(&file) {
+            if let Some(sm) = prepare_query(&sigs, &template, &zip_path) {
+                sketchlist.push(sm);
+            } else {
+                // track number of paths that have no matching sigs
+                skipped_paths.fetch_add(1, Ordering::SeqCst);
+            }
+        } else {
+            // failed to load from this path - print error & track.
+            eprintln!("WARNING: could not load sketches from path '{}'", file_name);
+            failed_paths.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    Ok((sketchlist, skipped_paths.load(Ordering::SeqCst), failed_paths.load(Ordering::SeqCst)))
+}
+
 
 fn index<P: AsRef<Path>>(
     siglist: P,
@@ -821,7 +859,7 @@ fn index<P: AsRef<Path>>(
     let index_sigs: Vec<PathBuf>;
 
     if siglist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
-        let (paths, tempdir) = read_signatures_from_zip(&siglist)?;
+        let (paths, tempdir) = read_sigpaths_from_zip(&siglist)?;
         temp_dir = Some(tempdir);
         index_sigs = paths;
     } else {
