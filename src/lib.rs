@@ -1544,7 +1544,7 @@ fn multisearch<P: AsRef<Path>>(
     Ok(())
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Params {
     ksize: u32,
     track_abundance: bool,
@@ -1554,60 +1554,84 @@ struct Params {
     is_protein: bool,
     is_dna: bool,
 }
+use std::hash::Hash;
+use std::hash::Hasher;
 
-fn parse_params_str(params_str: &str) -> Result<Vec<Params>, String> {
-    let items: Vec<&str> = params_str.split(',').collect();
+impl Hash for Params {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ksize.hash(state);
+        self.track_abundance.hash(state);
+        self.num.hash(state);
+        self.scaled.hash(state);
+        self.seed.hash(state);
+        self.is_protein.hash(state);
+        self.is_dna.hash(state);
+    }
+}
 
-    let mut ksizes = Vec::new();
-    let mut track_abundance = false;
-    let mut num = 0;
-    let mut scaled = 1000;
-    let mut seed = 42;
-    let mut is_protein = false;
-    let mut is_dna = true;
+fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
+    let mut unique_params: std::collections::HashSet<Params> = std::collections::HashSet::new();
 
-    for item in items.iter() {
-        match *item {
-            _ if item.starts_with("k=") => {
-                let k_value = item[2..].parse().map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
-                ksizes.push(k_value);
-            },
-            "abund" => track_abundance = true,
-            "noabund" => track_abundance = false,
-            _ if item.starts_with("num=") => {
-                num = item[4..].parse().map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
-            },
-            _ if item.starts_with("scaled=") => {
-                scaled = item[7..].parse().map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
-            },
-            _ if item.starts_with("seed=") => {
-                seed = item[5..].parse().map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
-            },
-            "protein" => {
-                is_protein = true;
-                is_dna = false;
-            },
-            "dna" => {
-                is_protein = false;
-                is_dna = true;
-            },
-            _ => return Err(format!("unknown component '{}' in params string", item)),
+    // split params_strs by _ and iterate over each param
+    for p_str in params_strs.split('_').collect::<Vec<&str>>().iter() {
+        let items: Vec<&str> = p_str.split(',').collect();
+
+        let mut ksizes = Vec::new();
+        let mut track_abundance = false;
+        let mut num = 0;
+        let mut scaled = 1000;
+        let mut seed = 42;
+        let mut is_protein = false;
+        let mut is_dna = true;
+
+        for item in items.iter() {
+            match *item {
+                _ if item.starts_with("k=") => {
+                    let k_value = item[2..].parse()
+                        .map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
+                    ksizes.push(k_value);
+                },
+                "abund" => track_abundance = true,
+                "noabund" => track_abundance = false,
+                _ if item.starts_with("num=") => {
+                    num = item[4..].parse()
+                        .map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
+                },
+                _ if item.starts_with("scaled=") => {
+                    scaled = item[7..].parse()
+                        .map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
+                },
+                _ if item.starts_with("seed=") => {
+                    seed = item[5..].parse()
+                        .map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
+                },
+                "protein" => {
+                    is_protein = true;
+                    is_dna = false;
+                },
+                "dna" => {
+                    is_protein = false;
+                    is_dna = true;
+                },
+                _ => return Err(format!("unknown component '{}' in params string", item)),
+            }
+        }
+
+        for &k in &ksizes {
+            let param = Params {
+                ksize: k,
+                track_abundance,
+                num,
+                scaled,
+                seed,
+                is_protein,
+                is_dna
+            };
+            unique_params.insert(param);
         }
     }
 
-    let results: Vec<Params> = ksizes.into_iter().map(|k| {
-        Params {
-            ksize: k,
-            track_abundance,
-            num,
-            scaled,
-            seed,
-            is_protein,
-            is_dna
-        }
-    }).collect();
-
-    Ok(results)
+    Ok(unique_params.into_iter().collect())
 }
 
 
@@ -1627,7 +1651,7 @@ fn build_siginfo(params: &[Params]) -> (Vec<Signature>, Vec<Params>) {
         let sig = Signature::from_params(&cp);
         sigs.push(sig);
         // print param
-        println!("ksize: {}, scaled: {}, num: {}, seed: {}, is_protein: {}, is_dna: {}", param.ksize, param.scaled, param.num, param.seed, param.is_protein, param.is_dna);
+        // println!("ksize: {}, scaled: {}, num: {}, seed: {}, is_protein: {}, is_dna: {}", param.ksize, param.scaled, param.num, param.seed, param.is_protein, param.is_dna);
         params_vec.push(param);
     }
     (sigs, params_vec)
@@ -1635,11 +1659,10 @@ fn build_siginfo(params: &[Params]) -> (Vec<Signature>, Vec<Params>) {
 
 fn manysketch<P: AsRef<Path> + Sync>(
     filelist: P,
-    params_str: String,
+    param_str: String,
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
-    // load list of file paths (todo: modify for fasta files)
     let filelist_paths = load_sketchlist_filenames(&filelist)?;
 
     // if filelist_paths is empty, exit with error
@@ -1661,7 +1684,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     let thrd = sigwriter::<&str>(recv, output);
 
     // parse param string into params_vec, print error if fail
-    let param_result = parse_params_str(&params_str);
+    let param_result = parse_params_str(param_str);
     let params_vec = match param_result {
         Ok(params) => params,
         Err(e) => {

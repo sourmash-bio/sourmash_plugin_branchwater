@@ -49,6 +49,54 @@ def test_manysketch(runtmp):
     assert len(sigs) == 3
 
 
+def test_manysketch_mult_k(runtmp):
+    falist = runtmp.output('db-fa.txt')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+
+    make_file_list(falist, [fa1, fa2, fa3])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', falist, '-o', output,
+                    '--param-str', "dna,k=21,k=31,scaled=1")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 6
+
+
+def test_manysketch_mult_k_2(runtmp):
+    falist = runtmp.output('db-fa.txt')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+
+    make_file_list(falist, [fa1, fa2, fa3])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', falist, '-o', output,
+                    '--param-str', "dna,k=21,scaled=1", '--param-str', "dna,k=31,scaled=1")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 6
+
+
 def test_manysketch_missing_falist(runtmp, capfd):
     # test missing falist file
     falist = runtmp.output('falist.txt')

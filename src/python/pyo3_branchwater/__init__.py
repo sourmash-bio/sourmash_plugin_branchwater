@@ -268,16 +268,21 @@ class Branchwater_Manysketch(CommandLinePlugin):
         p.add_argument('input_paths', help="a text file containing paths to files to sketch")
         p.add_argument('-o', '--output', required=True,
                        help='output zip file for the signatures')
-        p.add_argument('--param-string', default="k=31,scaled=1000", type=str,
-                       help='parameter string for sketching (default: k=31,scaled=1000)')
+        p.add_argument('-p', '--param-string', action='append', type=str, default=[],
+                          help='parameter string for sketching (default: k=31,scaled=1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
         print_version()
+        if not args.param_string:
+            args.param_string = ["k=31,scaled=1000"]
+        notify(f"params: {args.param_string}")
+
+        # convert to a single string for easier rust handling
+        args.param_string = "_".join(args.param_string)
         # lowercase the param string
         args.param_string = args.param_string.lower()
-        notify(f"param string: {args.param_string}")
 
         num_threads = set_thread_pool(args.cores)
 
