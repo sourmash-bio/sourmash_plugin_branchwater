@@ -257,7 +257,8 @@ class Branchwater_Multisearch(CommandLinePlugin):
         if status == 0:
             notify(f"...multisearch is done! results in '{args.output}'")
         return status
- 
+
+
 class Branchwater_Manysketch(CommandLinePlugin):
     command = 'manysketch'
     description = 'massively parallel sketching'
@@ -267,16 +268,16 @@ class Branchwater_Manysketch(CommandLinePlugin):
         p.add_argument('input_paths', help="a text file containing paths to files to sketch")
         p.add_argument('-o', '--output', required=True,
                        help='output zip file for the signatures')
-        p.add_argument('-k', '--ksize', default=31, type=int,
-                       help='k-mer size at which to build sketches')
-        p.add_argument('-s', '--scaled', default=1000, type=int,
-                       help='scaled factor at which build sketches')
+        p.add_argument('--param-string', default="k=31,scaled=1000", type=str,
+                       help='parameter string for sketching (default: k=31,scaled=1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
         print_version()
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled}")
+        # lowercase the param string
+        args.param_string = args.param_string.lower()
+        notify(f"param string: {args.param_string}")
 
         num_threads = set_thread_pool(args.cores)
 
@@ -284,8 +285,7 @@ class Branchwater_Manysketch(CommandLinePlugin):
 
         super().main(args)
         status = pyo3_branchwater.do_manysketch(args.input_paths,
-                                            args.ksize,
-                                            args.scaled,
+                                            args.param_string,
                                             args.output)
         if status == 0:
             notify(f"...manysketch is done! results in '{args.output}'")

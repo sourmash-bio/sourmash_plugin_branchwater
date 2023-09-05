@@ -962,7 +962,7 @@ impl ResultType for ManifestRow {
     }
 }
 
-fn make_manifest_row(sig: &Signature, filename: &Path) -> ManifestRow {
+fn make_manifest_row(sig: &Signature, filename: &Path, scaled: u64, num: u32, abund: bool) -> ManifestRow {
     let sketch = &sig.sketches()[0];
     ManifestRow {
         internal_location: format!("signatures/{}.sig.gz", sig.md5sum()),
@@ -970,13 +970,13 @@ fn make_manifest_row(sig: &Signature, filename: &Path) -> ManifestRow {
         md5short: sig.md5sum()[0..8].to_string(),
         ksize: sketch.ksize() as u32,
         moltype: "DNA".to_string(),
-        num: 0 as u32, // sketch.num(),
-        scaled: 1000 as u64, //sketch.scaled(),
-        n_hashes: sketch.size() as usize, //10 as usize, //sketch.size(),
-        with_abundance: false, //sketch.abunds().is_some(),
-        // name: "".to_string(), //sketch.name.to_string(),
+        num: num,
+        scaled: scaled,
+        n_hashes: sketch.size() as usize,
+        with_abundance: abund,
         name: sig.name().to_string(),
-        filename: filename.display().to_string(),
+        // filename: filename.display().to_string(),
+        filename: filename.to_str().unwrap().to_string(),
     }
 }
 
@@ -1002,7 +1002,7 @@ fn open_output_file<P: AsRef<Path>>(
 }
 
 enum ZipMessage {
-    SignatureData(Signature, ManifestRow),
+    SignatureData(Vec<Signature>, Vec<Params>, PathBuf),
     WriteManifest,
 }
 
@@ -1010,10 +1010,9 @@ enum ZipMessage {
 fn sigwriter<P: AsRef<Path> + Send + 'static>(
     recv: std::sync::mpsc::Receiver<ZipMessage>,
     output: String,
-) -> std::thread::JoinHandle<()>
-{
-    std::thread::spawn(move || {
-        let file_writer = open_output_file(&output); //open_output_file(&output);
+) -> std::thread::JoinHandle<Result<()>> {
+    std::thread::spawn(move || -> Result<()> {
+        let file_writer = open_output_file(&output);
 
         let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
         let mut zip = zip::ZipWriter::new(file_writer);
@@ -1021,9 +1020,14 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
 
         while let Ok(message) = recv.recv() {
             match message {
-                ZipMessage::SignatureData(sig, mf_row) => {
-                    write_signature(&sig, &mut zip, options);
-                    manifest_rows.push(mf_row);
+                ZipMessage::SignatureData(sigs, params, filename) => {
+                    if sigs.len() != params.len() {
+                        bail!("Mismatched lengths of signatures and parameters");
+                    } 
+                    for (sig, param) in sigs.iter().zip(params.iter()) {
+                        write_signature(&sig, &mut zip, options);
+                        manifest_rows.push(make_manifest_row(&sig, &filename, param.scaled, param.num, param.track_abundance));
+                    }
                 },
                 ZipMessage::WriteManifest => {
                     println!("Writing manifest");
@@ -1050,6 +1054,7 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                 }
             }
         }
+        Ok(())
     })
 }
 
@@ -1529,11 +1534,98 @@ fn multisearch<P: AsRef<Path>>(
     Ok(())
 }
 
+#[derive(Clone)]
+struct Params {
+    ksize: u32,
+    track_abundance: bool,
+    num: u32,
+    scaled: u64,
+    seed: u32,
+    is_protein: bool,
+    is_dna: bool,
+}
+
+fn parse_params_str(params_str: &str) -> Result<Vec<Params>, String> {
+    let items: Vec<&str> = params_str.split(',').collect();
+
+    let mut ksizes = Vec::new();
+    let mut track_abundance = false;
+    let mut num = 0;
+    let mut scaled = 1000;
+    let mut seed = 42;
+    let mut is_protein = false;
+    let mut is_dna = true;
+
+    for item in items.iter() {
+        match *item {
+            _ if item.starts_with("k=") => {
+                let k_value = item[2..].parse().map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
+                ksizes.push(k_value);
+            },
+            "abund" => track_abundance = true,
+            "noabund" => track_abundance = false,
+            _ if item.starts_with("num=") => {
+                num = item[4..].parse().map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
+            },
+            _ if item.starts_with("scaled=") => {
+                scaled = item[7..].parse().map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
+            },
+            _ if item.starts_with("seed=") => {
+                seed = item[5..].parse().map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
+            },
+            "protein" => {
+                is_protein = true;
+                is_dna = false;
+            },
+            "dna" => {
+                is_protein = false;
+                is_dna = true;
+            },
+            _ => return Err(format!("unknown component '{}' in params string", item)),
+        }
+    }
+
+    let results: Vec<Params> = ksizes.into_iter().map(|k| {
+        Params {
+            ksize: k,
+            track_abundance,
+            num,
+            scaled,
+            seed,
+            is_protein,
+            is_dna
+        }
+    }).collect();
+
+    Ok(results)
+}
+
+
+fn build_siginfo(params: &[Params]) -> (Vec<Signature>, Vec<Params>) {
+    let mut sigs = Vec::new();
+    let mut params_vec = Vec::new();
+    for param in params.iter().cloned() {
+        let cp = ComputeParameters::builder()
+            .ksizes(vec![param.ksize])
+            .scaled(param.scaled)
+            .protein(param.is_protein)
+            .dna(param.is_dna)
+            .num_hashes(param.num)
+            .track_abundance(param.track_abundance)
+            .build();
+
+        let sig = Signature::from_params(&cp);
+        sigs.push(sig);
+        // print param
+        println!("ksize: {}, scaled: {}, num: {}, seed: {}, is_protein: {}, is_dna: {}", param.ksize, param.scaled, param.num, param.seed, param.is_protein, param.is_dna);
+        params_vec.push(param);
+    }
+    (sigs, params_vec)
+}
 
 fn manysketch<P: AsRef<Path> + Sync>(
     filelist: P,
-    ksize: u8,
-    scaled: usize,
+    params_str: String,
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -1558,6 +1650,16 @@ fn manysketch<P: AsRef<Path> + Sync>(
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = sigwriter::<&str>(recv, output);
 
+    // parse param string into params_vec, print error if fail
+    let param_result = parse_params_str(&params_str);
+    let params_vec = match param_result {
+        Ok(params) => params,
+        Err(e) => {
+            error!("Error parsing params string: {}", e);
+            bail!("Failed to parse params string");
+        }
+    };
+
     // iterate over filelist_paths
     let processed_sigs = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
@@ -1570,17 +1672,9 @@ fn manysketch<P: AsRef<Path> + Sync>(
             println!("Processed {} fasta files", i);
         }
 
-        // build signature from params
-        let cp = ComputeParameters::builder()
-        .ksizes(vec![ksize as u32])
-        .scaled(scaled as u64)
-        .protein(false)
-        .dna(true)
-        .num_hashes(0)
-        .build();
-
-        let mut sig = Signature::from_params(&cp);
         let mut data: Vec<u8> = vec![];
+        // build sig templates from params
+        let (mut sigs, sig_params) = build_siginfo(&params_vec);
 
         // parse fasta file and add to signature
         match File::open(filename) {
@@ -1592,15 +1686,16 @@ fn manysketch<P: AsRef<Path> + Sync>(
                         while let Some(record_result) = parser.next() {
                             match record_result {
                                 Ok(record) => {
-                                    sig.add_sequence(&record.seq(), false).unwrap();
+                                    for mut sig in &mut sigs {
+                                        sig.add_sequence(&record.seq(), false).unwrap();
+                                    }
                                 },
                                 Err(error) => {
                                     error!("Error while processing record: {:?}", error);
                                 }
                             }
                         }
-                        let manifest_row = make_manifest_row(&sig, &filename);
-                        Some((sig, manifest_row))
+                        Some((sigs, sig_params, filename))
                     },
                     Err(err) => {
                         error!("Error creating parser for file {}: {:?}", filename.display(), err);
@@ -1616,8 +1711,8 @@ fn manysketch<P: AsRef<Path> + Sync>(
             }
         }
     })
-    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sig, manifest_row)| {
-        if let Err(e) = s.send(ZipMessage::SignatureData(sig, manifest_row)) {
+    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs, sig_params, filename)| {
+        if let Err(e) = s.send(ZipMessage::SignatureData(sigs, sig_params, filename.clone())) {
             Err(format!("Unable to send internal data: {:?}", e))
         } else {
             Ok(())
@@ -1633,8 +1728,8 @@ fn manysketch<P: AsRef<Path> + Sync>(
     }
 
     // join the writer thread
-    if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+    if let Err(e) = thrd.join().unwrap_or_else(|e| Err(anyhow!("Thread panicked: {:?}", e))) {
+        error!("Error in sigwriter thread: {:?}", e);
     }
 
     // done!
@@ -1805,11 +1900,10 @@ fn do_multisearch(querylist_path: String,
 
 #[pyfunction]
 fn do_manysketch(filelist: String,
-                 ksize: u8,
-                 scaled: usize,
+                 param_str: String,
                  output: String,
     ) -> anyhow::Result<u8>{
-    match manysketch(filelist, ksize, scaled, output) {
+    match manysketch(filelist, param_str, output) {
               Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
