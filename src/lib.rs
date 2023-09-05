@@ -919,6 +919,59 @@ impl ResultType for SearchResult {
     }
 }
 
+struct ManifestRow {
+    md5: String,
+    md5short: String,
+    ksize: u32,
+    moltype: String,
+    num: u32,
+    scaled: u64,
+    n_hashes: usize,
+    with_abundance: bool,
+    name: String,
+    filename: String,
+    internal_location: String,
+}
+
+impl ResultType for ManifestRow {
+    fn header_fields() -> Vec<&'static str> {
+        vec!["md5", "md5short", "ksize", "moltype", "num", "scaled", "n_hashes", "with_abundance", "name", "filename", "internal_location"]
+    }
+
+    fn format_fields(&self) -> Vec<String> {
+        vec![
+            self.md5.clone(),
+            self.md5short.clone(),
+            self.ksize.to_string(),
+            self.moltype.clone(),
+            self.num.to_string(),
+            self.scaled.to_string(),
+            self.n_hashes.to_string(),
+            self.with_abundance.to_string(),
+            self.name.clone(),
+            self.filename.clone(),
+            self.internal_location.clone(),
+        ]
+    }
+}
+
+fn make_manifest_row(sig: &Signature, filename: &Path) -> ManifestRow {
+    let sketch = &sig.sketches()[0];
+    ManifestRow {
+        md5: sig.md5sum(),
+        md5short: sig.md5sum()[0..8].to_string(),
+        ksize: sketch.ksize() as u32,
+        moltype: "".to_string(), // sketch.moltype().to_string(),
+        num: 0 as u32, //sketch.num(),
+        scaled: 1000 as u64, //sketch.scaled(),
+        n_hashes: 10 as usize, //sketch.size(),
+        with_abundance: false, //sketch.minhash().abunds().is_some(),
+        name: "".to_string(), //sketch.name.to_string(),
+        filename: filename.display().to_string(),
+        internal_location: "".to_string(), // what should this be?
+    }
+}
+
 fn open_stdout_or_file<P: AsRef<Path>>(
     output: Option<P>
 ) -> Box<dyn Write + Send + 'static> {
@@ -940,8 +993,14 @@ fn open_output_file<P: AsRef<Path>>(
     BufWriter::new(file)
 }
 
+enum ZipMessage {
+    SignatureData(Signature, ManifestRow),
+    WriteManifest,
+}
+
+
 fn sigwriter<P: AsRef<Path> + Send + 'static>(
-    recv: std::sync::mpsc::Receiver<Signature>,
+    recv: std::sync::mpsc::Receiver<ZipMessage>,
     output: String,
 ) -> std::thread::JoinHandle<()>
 {
@@ -950,9 +1009,40 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
 
         let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
         let mut zip = zip::ZipWriter::new(file_writer);
+        let mut manifest_rows: Vec<ManifestRow> = Vec::new();
 
-        for sig in recv {
-            write_signature(&sig, &mut zip, options);
+        while let Ok(message) = recv.recv() {
+            match message {
+                ZipMessage::SignatureData(sig, mf_row) => {
+                    write_signature(&sig, &mut zip, options);
+                    manifest_rows.push(mf_row);
+                },
+                ZipMessage::WriteManifest => {
+                    // Start the CSV file inside the zip
+                    zip.start_file("SOURMASH-MANIFEST.csv", options).unwrap();
+
+                    // write manifest version line
+                    writeln!(&mut zip, "# SOURMASH-MANIFEST-VERSION: 1.0").unwrap();
+                    println!("version: 1.0");
+                    // Write the header
+                    let header = ManifestRow::header_fields();
+                    println!("header: {:?}", header);
+                    if let Err(e) = writeln!(&mut zip, "{}", header.join(",")) {
+                        error!("Error writing header: {:?}", e);
+                    }
+
+                    // Write each manifest row
+                    for row in &manifest_rows {
+                        let formatted_fields = row.format_fields();  // Assuming you have a format_fields method on ManifestRow
+                        if let Err(e) = writeln!(&mut zip, "{}", formatted_fields.join(",")) {
+                            error!("Error writing item: {:?}", e);
+                        }
+                        println!("row: {:?}", formatted_fields);
+                    }
+                    // finalize the zip file writing.
+                    zip.finish().unwrap();
+                }
+            }
         }
     })
 }
@@ -1455,7 +1545,9 @@ fn manysketch<P: AsRef<Path> + Sync>(
     }
 
     // set up a multi-producer, single-consumer channel that receives Signature
-    let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
+    let (send, recv) = std::sync::mpsc::sync_channel::<ZipMessage>(rayon::current_num_threads());
+    // need to use Arc so we can write the manifest after all sigs have written
+    let send = std::sync::Arc::new(send);
 
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = sigwriter::<&str>(recv, output);
@@ -1501,7 +1593,8 @@ fn manysketch<P: AsRef<Path> + Sync>(
                                 }
                             }
                         }
-                        Some(sig)
+                        let manifest_row = make_manifest_row(&sig, &filename);
+                        Some((sig, manifest_row))
                     },
                     Err(err) => {
                         error!("Error creating parser for file {}: {:?}", filename.display(), err);
@@ -1517,8 +1610,16 @@ fn manysketch<P: AsRef<Path> + Sync>(
             }
         }
     })
-    .try_for_each_with(send, |s, sig| s.send(sig));
+    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sig, manifest_row)| {
+        if let Err(e) = s.send(ZipMessage::SignatureData(sig, manifest_row)) {
+            Err(format!("Unable to send internal data: {:?}", e))
+        } else {
+            Ok(())
+        }
+    });
 
+    // After the parallel work, send the WriteManifest message
+    std::sync::Arc::try_unwrap(send).unwrap().send(ZipMessage::WriteManifest).unwrap();
 
     // do some cleanup and error handling -
     if let Err(e) = send_result {
