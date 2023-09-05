@@ -962,14 +962,24 @@ impl ResultType for ManifestRow {
     }
 }
 
-fn make_manifest_row(sig: &Signature, filename: &Path, scaled: u64, num: u32, abund: bool) -> ManifestRow {
+fn make_manifest_row(sig: &Signature, filename: &Path, scaled: u64, num: u32, abund: bool, is_dna: bool, is_protein: bool) -> ManifestRow {
+    if is_dna && is_protein {
+        panic!("Both is_dna and is_protein cannot be true at the same time.");
+    } else if !is_dna && !is_protein {
+        panic!("Either is_dna or is_protein must be true.");
+    }
+    let moltype = if is_dna {
+        "DNA".to_string()
+    } else {
+        "protein".to_string()
+    };
     let sketch = &sig.sketches()[0];
     ManifestRow {
         internal_location: format!("signatures/{}.sig.gz", sig.md5sum()),
         md5: sig.md5sum(),
         md5short: sig.md5sum()[0..8].to_string(),
         ksize: sketch.ksize() as u32,
-        moltype: "DNA".to_string(),
+        moltype,
         num: num,
         scaled: scaled,
         n_hashes: sketch.size() as usize,
@@ -1026,7 +1036,7 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                     } 
                     for (sig, param) in sigs.iter().zip(params.iter()) {
                         write_signature(&sig, &mut zip, options);
-                        manifest_rows.push(make_manifest_row(&sig, &filename, param.scaled, param.num, param.track_abundance));
+                        manifest_rows.push(make_manifest_row(&sig, &filename, param.scaled, param.num, param.track_abundance, param.is_dna, param.is_protein));
                     }
                 },
                 ZipMessage::WriteManifest => {
