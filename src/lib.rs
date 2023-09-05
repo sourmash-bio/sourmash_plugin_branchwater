@@ -962,7 +962,7 @@ impl ResultType for ManifestRow {
     }
 }
 
-fn make_manifest_row(sig: &Signature, filename: &Path, scaled: u64, num: u32, abund: bool, is_dna: bool, is_protein: bool) -> ManifestRow {
+fn make_manifest_row(sig: &Signature, filename: &Path, internal_location: &str, scaled: u64, num: u32, abund: bool, is_dna: bool, is_protein: bool) -> ManifestRow {
     if is_dna && is_protein {
         panic!("Both is_dna and is_protein cannot be true at the same time.");
     } else if !is_dna && !is_protein {
@@ -975,7 +975,7 @@ fn make_manifest_row(sig: &Signature, filename: &Path, scaled: u64, num: u32, ab
     };
     let sketch = &sig.sketches()[0];
     ManifestRow {
-        internal_location: format!("signatures/{}.sig.gz", sig.md5sum()),
+        internal_location: internal_location.to_string(),
         md5: sig.md5sum(),
         md5short: sig.md5sum()[0..8].to_string(),
         ksize: sketch.ksize() as u32,
@@ -1027,6 +1027,8 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
         let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
         let mut zip = zip::ZipWriter::new(file_writer);
         let mut manifest_rows: Vec<ManifestRow> = Vec::new();
+        // keep track of md5sum occurrences to prevent overwriting duplicates
+        let mut md5sum_occurrences: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
         while let Ok(message) = recv.recv() {
             match message {
@@ -1035,8 +1037,16 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                         bail!("Mismatched lengths of signatures and parameters");
                     } 
                     for (sig, param) in sigs.iter().zip(params.iter()) {
-                        write_signature(&sig, &mut zip, options);
-                        manifest_rows.push(make_manifest_row(&sig, &filename, param.scaled, param.num, param.track_abundance, param.is_dna, param.is_protein));
+                        let md5sum_str = sig.md5sum();
+                        let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
+                        *count += 1;
+                        let sig_filename = if *count > 1 {
+                            format!("signatures/{}_{}.sig.gz", md5sum_str, count)
+                        } else {
+                            format!("signatures/{}.sig.gz", md5sum_str)
+                        };
+                        write_signature(&sig, &mut zip, options, &sig_filename);
+                        manifest_rows.push(make_manifest_row(&sig, &filename, &sig_filename, param.scaled, param.num, param.track_abundance, param.is_dna, param.is_protein));
                     }
                 },
                 ZipMessage::WriteManifest => {
@@ -1103,6 +1113,7 @@ fn write_signature(
     sig: &Signature,
     zip: &mut zip::ZipWriter<BufWriter<File>>,
     zip_options: zip::write::FileOptions,
+    sig_filename: &str,
 ) {
     let wrapped_sig = vec![sig];
     let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
@@ -1119,8 +1130,6 @@ fn write_signature(
         }
         buffer.into_inner()
     };
-
-    let sig_filename = format!("signatures/{}.sig.gz", sig.md5sum());
 
     zip.start_file(sig_filename, zip_options).unwrap();
     zip.write_all(&gzipped_buffer).unwrap();
