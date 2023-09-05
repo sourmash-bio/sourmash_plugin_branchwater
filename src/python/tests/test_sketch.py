@@ -193,8 +193,12 @@ def test_zip_manifest(runtmp, capfd):
     assert len(manifest) == 3
 
     md5_list = [ row['md5'] for row in manifest.rows ]
-    # assert '16869d2c8a1d29d1c8e56f5c561e585e' in md5_list
-    # assert '120d311cc785cc9d0df9dc0646b2b857' in md5_list
+    assert '9191284a3a23a913d8d410f3d53ce8f0' in md5_list
+    assert 'd663bb55b2a0f8782c53c8af89f20fff' in md5_list
+    assert 'bf752903d635b1eb83c53fe4aae951db' in md5_list
 
     for sig in siglist:
         assert sig in manifest
+        assert sig.minhash.ksize == 31
+        assert sig.minhash.moltype == 'DNA'
+        assert sig.minhash.scaled == 1
