@@ -45,7 +45,7 @@ def test_simple(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
 def test_simple_with_prefetch(runtmp):
@@ -71,12 +71,12 @@ def test_simple_with_prefetch(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
     df = pandas.read_csv(p_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'match_name', 'match_md5', 'intersect_bp'}
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
 
 def test_missing_query(runtmp, capfd):
@@ -326,7 +326,7 @@ def test_md5s(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
     md5s = list(df['match_md5'])
     print(md5s)
@@ -341,7 +341,7 @@ def test_md5s(runtmp):
     keys = set(df.keys())
 
     # prefetch output has no rank.
-    assert keys == {'query_filename', 'match_name', 'match_md5', 'intersect_bp'}
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
     md5s = list(df['match_md5'])
     print(md5s)
@@ -379,7 +379,7 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp):
 
     gather_df = pandas.read_csv(g_output)
     g_keys = set(gather_df.keys())
-    assert g_keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert g_keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
     g_keys.remove('rank')       # 'rank' is not in sourmash prefetch!
 
     sourmash_prefetch_df = pandas.read_csv(sp_output)

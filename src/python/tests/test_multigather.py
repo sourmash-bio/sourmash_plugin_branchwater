@@ -71,7 +71,7 @@ def test_simple(runtmp, indexed):
         df = pandas.read_csv(p_output)
         assert len(df) == 3
         keys = set(df.keys())
-        assert keys == {'query_filename', 'match_name', 'match_md5', 'intersect_bp'}
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
     # check gather output (mostly same for indexed vs non-indexed version)
     assert os.path.exists(g_output)
@@ -81,8 +81,8 @@ def test_simple(runtmp, indexed):
     if indexed:
         assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
     else:
-        assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
-
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'
+}
 
 @pytest.mark.parametrize('indexed', [False, True])
 def test_missing_querylist(runtmp, capfd, indexed):
@@ -327,7 +327,7 @@ def test_md5(runtmp, indexed):
         df = pandas.read_csv(p_output)
         assert len(df) == 3
         keys = set(df.keys())
-        assert keys == {'query_filename', 'match_name', 'match_md5', 'intersect_bp'}
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
         md5s = set(df['match_md5'])
         for against_file in (sig2, sig47, sig63):
@@ -342,7 +342,7 @@ def test_md5(runtmp, indexed):
     if indexed:
         assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
     else:
-        assert keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
     md5s = set(df['match_md5'])
     for against_file in (sig2, sig47, sig63):
@@ -394,7 +394,7 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, indexed):
     if indexed:
         assert g_keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
     else:
-        assert g_keys == {'query_filename', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        assert g_keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
         g_keys.remove('rank')       # 'rank' is not in sourmash prefetch!
 
     sourmash_prefetch_df = pandas.read_csv(sp_output)
