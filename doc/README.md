@@ -150,7 +150,7 @@ Each command does things slightly differently, with implications for CPU and dis
 
 (The below info is for fromfile lists. If you are using mastiff indexes, very different performance parameters apply. We will update here as we benchmark and improve!)
 
-`manysketch` loads one fasta file from disk per thread and sketches it into all signatures types simultaneously.
+`manysketch` loads one fasta file from disk per thread and sketches it using all signature params simultaneously.
 
 `manysearch` loads all the queries at the beginning, and then loads one database sketch from disk per thread. The compute-per-database-sketch is dominated by I/O. So your number of threads should be chosen with care for disk load. We typically limit it to `-c 32` for shared disks.
 
