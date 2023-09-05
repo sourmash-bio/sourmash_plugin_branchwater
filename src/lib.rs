@@ -935,11 +935,12 @@ struct ManifestRow {
 
 impl ResultType for ManifestRow {
     fn header_fields() -> Vec<&'static str> {
-        vec!["md5", "md5short", "ksize", "moltype", "num", "scaled", "n_hashes", "with_abundance", "name", "filename", "internal_location"]
+        vec!["internal_location", "md5", "md5short", "ksize", "moltype", "num", "scaled", "n_hashes", "with_abundance", "name", "filename"]
     }
 
     fn format_fields(&self) -> Vec<String> {
         vec![
+            self.internal_location.clone(),
             self.md5.clone(),
             self.md5short.clone(),
             self.ksize.to_string(),
@@ -948,9 +949,8 @@ impl ResultType for ManifestRow {
             self.scaled.to_string(),
             self.n_hashes.to_string(),
             self.with_abundance.to_string(),
-            self.name.clone(),
+            format!("\"{}\"", self.name),  // Wrap name with quotes
             self.filename.clone(),
-            self.internal_location.clone(),
         ]
     }
 }
@@ -958,17 +958,18 @@ impl ResultType for ManifestRow {
 fn make_manifest_row(sig: &Signature, filename: &Path) -> ManifestRow {
     let sketch = &sig.sketches()[0];
     ManifestRow {
+        internal_location: format!("signatures/{}.sig.gz", sig.md5sum()),
         md5: sig.md5sum(),
         md5short: sig.md5sum()[0..8].to_string(),
         ksize: sketch.ksize() as u32,
-        moltype: "".to_string(), // sketch.moltype().to_string(),
+        moltype: "DNA".to_string(),
         num: 0 as u32, //sketch.num(),
         scaled: 1000 as u64, //sketch.scaled(),
-        n_hashes: 10 as usize, //sketch.size(),
-        with_abundance: false, //sketch.minhash().abunds().is_some(),
-        name: "".to_string(), //sketch.name.to_string(),
+        n_hashes: sketch.size() as usize, //10 as usize, //sketch.size(),
+        with_abundance: false, //sketch.abunds().is_some(),
+        // name: "".to_string(), //sketch.name.to_string(),
+        name: sig.name().to_string(),
         filename: filename.display().to_string(),
-        internal_location: "".to_string(), // what should this be?
     }
 }
 
@@ -1023,10 +1024,10 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
 
                     // write manifest version line
                     writeln!(&mut zip, "# SOURMASH-MANIFEST-VERSION: 1.0").unwrap();
-                    println!("version: 1.0");
+                    println!("# SOURMASH-MANIFEST-VERSION: 1.0");
                     // Write the header
                     let header = ManifestRow::header_fields();
-                    println!("header: {:?}", header);
+                    println!("header: {:?}", header.join(","));
                     if let Err(e) = writeln!(&mut zip, "{}", header.join(",")) {
                         error!("Error writing header: {:?}", e);
                     }
@@ -1037,7 +1038,7 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                         if let Err(e) = writeln!(&mut zip, "{}", formatted_fields.join(",")) {
                             error!("Error writing item: {:?}", e);
                         }
-                        println!("row: {:?}", formatted_fields);
+                        println!("row: {:?}", formatted_fields.join(","));
                     }
                     // finalize the zip file writing.
                     zip.finish().unwrap();
@@ -1099,7 +1100,7 @@ fn write_signature(
         buffer.into_inner()
     };
 
-    let sig_filename = format!("{}.sig.gz", sig.md5sum());
+    let sig_filename = format!("signatures/{}.sig.gz", sig.md5sum());
 
     zip.start_file(sig_filename, zip_options).unwrap();
     zip.write_all(&gzipped_buffer).unwrap();
