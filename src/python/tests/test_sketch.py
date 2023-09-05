@@ -85,7 +85,9 @@ def test_manysketch_mult_k_2(runtmp):
     output = runtmp.output('db.zip')
 
     runtmp.sourmash('scripts', 'manysketch', falist, '-o', output,
-                    '--param-str', "dna,k=21,scaled=1", '--param-str', "dna,k=31,scaled=1")
+                    '--param-str', "dna,k=21,scaled=1",
+                    '--param-str', "dna,k=31,scaled=1",
+                    '--param-str', "dna,k=21,scaled=1")
 
     assert os.path.exists(output)
     assert not runtmp.last_result.out # stdout should be empty
