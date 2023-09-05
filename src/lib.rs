@@ -526,7 +526,7 @@ fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display 
 
 /// Run counter-gather with a query against a list of files.
 
-fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
+fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     query_filename: P,
     matchlist_filename: P,
     threshold_bp: usize,
@@ -612,7 +612,7 @@ fn countergather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
 /// Run counter-gather for multiple queries against a list of files.
 
-fn multigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
+fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     query_filenames: P,
     matchlist_filename: P,
     threshold_bp: usize,
@@ -1395,7 +1395,7 @@ fn do_manysearch(querylist_path: String,
 }
 
 #[pyfunction]
-fn do_countergather(query_filename: String,
+fn do_fastgather(query_filename: String,
                     siglist_path: String,
                     threshold_bp: usize,
                     ksize: u8,
@@ -1403,7 +1403,7 @@ fn do_countergather(query_filename: String,
                     output_path_prefetch: Option<String>,
                     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    match countergather(query_filename, siglist_path, threshold_bp,
+    match fastgather(query_filename, siglist_path, threshold_bp,
                         ksize, scaled,
                         output_path_prefetch,
                         output_path_gather) {
@@ -1416,7 +1416,7 @@ fn do_countergather(query_filename: String,
 }
 
 #[pyfunction]
-fn do_multigather(query_filenames: String,
+fn do_fastmultigather(query_filenames: String,
                      siglist_path: String,
                      threshold_bp: usize,
                      ksize: u8,
@@ -1434,7 +1434,7 @@ fn do_multigather(query_filenames: String,
             }
         }
     } else {
-        match multigather(query_filenames, siglist_path, threshold_bp, ksize, scaled) {
+        match fastmultigather(query_filenames, siglist_path, threshold_bp, ksize, scaled) {
             Ok(_) => Ok(0),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1510,8 +1510,8 @@ fn do_multisearch(querylist_path: String,
 #[pymodule]
 fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
-    m.add_function(wrap_pyfunction!(do_countergather, m)?)?;
-    m.add_function(wrap_pyfunction!(do_multigather, m)?)?;
+    m.add_function(wrap_pyfunction!(do_fastgather, m)?)?;
+    m.add_function(wrap_pyfunction!(do_fastmultigather, m)?)?;
     m.add_function(wrap_pyfunction!(do_index, m)?)?;
     m.add_function(wrap_pyfunction!(do_check, m)?)?;
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
