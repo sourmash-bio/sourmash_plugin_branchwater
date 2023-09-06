@@ -1,17 +1,16 @@
 # fastgather, fastmultigather, and manysearch - an introduction
 
-This repository implements four sourmash plugins, `fastgather`, `fastmultigather`, `multisearch`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `search` and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory. 
+This repository implements five sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory.
 
 The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. In particular, this means that input databases need to be prepared differently, and the output may be most useful as a prefilter in conjunction with regular sourmash commands.
 
 ## Preparing the database
 
-All four commands use
-_text files containing lists of signature files_, or "fromfiles", for the search database, and `multisearch`, `manysearch` and `fastmultigather` use "fromfiles" for queries, too.
+`manysketch` requires a `fromfile` csv with columns `name,genome_filename,protein_filename`. If you don't have protein_filenames, be sure to include the trailing comma so the csv reader can process the file correctly. All four search commands use _text files containing lists of signature files_, or "fromfiles" for the search database. `multisearch`, `manysearch` and `fastmultigather` also use "fromfiles" for queries, too.
 
 (Yes, this plugin will eventually be upgraded to support zip files; keep an eye on [sourmash#2230](https://github.com/sourmash-bio/sourmash/pull/2230).)
 
-To prepare a fromfile from a database, first you need to split the database into individual files:
+To prepare a **signature** fromfile from a database, first you need to split the database into individual files:
 ```
 mkdir gtdb-reps-rs214-k21/
 cd gtdb-reps-rs214-k21/
@@ -25,6 +24,28 @@ find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.tx
 ```
 
 ## Running the commands
+
+### Running `manysketch`
+
+The `manysketch` command sketches one or more fastas into a zipped sourmash signature collection (`zip`).
+
+To run `manysketch`, you need to build a text file list of fasta files, with one on each line (`fa.csv`, below). You can then run:
+
+```
+sourmash scripts manysketch fa.csv -o fa.zip
+```
+The output will be written to `fa.zip`
+
+You can check if all signatures were written properly with
+```
+sourmash sig summarize fa.zip
+```
+
+To modify sketching parameters, use `--param-str` or `-p` and provide valid param string(s)
+```
+sourmash scripts manysketch fa.csv -o fa.zip -p k=21,k=31,k=51,scaled=1000,abund -p protein,k=10,scaled=200
+```
+
 
 ### Running `multisearch`
 
@@ -126,6 +147,8 @@ The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and
 Each command does things slightly differently, with implications for CPU and disk load. You can measure threading efficiency with `/usr/bin/time -v` on Linux systems, and disk load by number of complaints received when running.
 
 (The below info is for fromfile lists. If you are using mastiff indexes, very different performance parameters apply. We will update here as we benchmark and improve!)
+
+`manysketch` loads one fasta file from disk per thread and sketches it using all signature params simultaneously.
 
 `manysearch` loads all the queries at the beginning, and then loads one database sketch from disk per thread. The compute-per-database-sketch is dominated by I/O. So your number of threads should be chosen with care for disk load. We typically limit it to `-c 32` for shared disks.
 
