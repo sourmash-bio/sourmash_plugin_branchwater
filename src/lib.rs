@@ -26,7 +26,6 @@ use needletail::parse_fastx_reader;
 #[macro_use]
 extern crate simple_error;
 
-use log::error;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
@@ -1753,8 +1752,9 @@ fn manysketch<P: AsRef<Path> + Sync>(
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e)
     };
 
-    // if filelist_paths is empty, exit with error
-    if fileinfo.is_empty() {
+    // if no files to process, exit with error
+    let n_fastas = fileinfo.len();
+    if n_fastas == 0 {
         bail!("No files to load, exiting.");
     }
 
@@ -1782,20 +1782,20 @@ fn manysketch<P: AsRef<Path> + Sync>(
     };
 
     // iterate over filelist_paths
-    let processed_sigs = AtomicUsize::new(0);
+    let processed_fastas = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
     let skipped_paths: AtomicUsize = AtomicUsize::new(0);
 
-    // get total length for % done
-    let n_fastas = fileinfo.len();
+    // set reporting threshold at every 5% or every 1 fasta, whichever is larger)
+    let reporting_threshold = std::cmp::max(n_fastas / 20, 1);
 
     let send_result = fileinfo
     .par_iter()
     .filter_map(|(name, filename, moltype)| {
-        let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-        let percent_processed = (i as f64 / n_fastas as f64) * 100.0;
-        // print progress output every 5 %
-        if percent_processed % 5.0 == 0.0 {
+        let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
+        // progress report at threshold
+        if i != 0 && i % reporting_threshold == 0 {
+            let percent_processed = (i as f64 / n_fastas as f64) * 100.0;
             eprintln!("Processed {} fasta files ({}% done)", i, percent_processed);
         }
 
@@ -1869,7 +1869,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     }
 
     // done!
-    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
+    let i: usize = processed_fastas.fetch_max(0, atomic::Ordering::SeqCst);
     eprintln!("DONE. Processed {} fasta files", i);
 
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
