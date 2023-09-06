@@ -477,6 +477,34 @@ fn load_sketches_above_threshold(
     Ok((matchlist, skipped_paths, failed_paths))
 }
 
+fn report_on_sketch_loading(sketchlist: &[Signature], skipped_paths: usize, failed_paths: usize, report_queries: bool, report_db: bool) -> Result<(), ErrorType> { 
+    if report_queries {
+        report_type = "query"
+    } else if report_db {
+        report_type = "against"
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} signature paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+
+    // Validate sketches
+    eprintln!("Loaded {} {} signatures", sketchlist.len(), report_type);
+    if sketchlist.is_empty() {
+        bail!("No {} signatures loaded, exiting.", report_type);
+    }
+
+    Ok(())
+}
+
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
 /// removing matches in 'matchlist' from 'query'.
 
@@ -803,15 +831,11 @@ fn read_sigpaths_from_zip<P: AsRef<Path>>(
             signature_paths.push(temp_dir.path().join(file_name));
         }
     }
-    println!("wrote {} signatures to temp dir", signature_paths.len());
+    println!("loaded {} signature paths via temp dir", signature_paths.len());
     Ok((signature_paths, temp_dir))
 }
 
-use std::path::{Path, PathBuf};
-use std::fs::File;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use zip::read::ZipArchive;
-use tempfile;
+
 
 fn load_sketches_from_zip<P: AsRef<Path>>(
     zip_path: P,
@@ -842,6 +866,7 @@ fn load_sketches_from_zip<P: AsRef<Path>>(
             failed_paths.fetch_add(1, Ordering::SeqCst);
         }
     }
+    println!("loaded {} signatures", sketchlist.len());
     Ok((sketchlist, skipped_paths.load(Ordering::SeqCst), failed_paths.load(Ordering::SeqCst)))
 }
 
@@ -1346,25 +1371,30 @@ fn multisearch<P: AsRef<Path>>(
     // Read in list of query paths.
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
 
+
     // Load all queries into memory at once.
-    let querylist_paths = load_sketchlist_filenames(&querylist)?;
+    let (queries, skipped_paths, failed_paths) = if querylist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+        load_sketches_from_zip(&querylist)?
+    } else {
+        let querylist_paths = load_sketchlist_filenames(&querylist)?
+        load_sketches(querylist_paths, &template)?;
+    };
+    report_on_sketch_loading(&queries, skipped_paths, failed_paths, report_queries=true, report_db=false)?;
+    // let querylist_paths = load_sketchlist_filenames(&querylist)?;
 
-    let result = load_sketches(querylist_paths, &template)?;
-    let (queries, skipped_paths, failed_paths) = result;
+    // eprintln!("Loaded {} query signatures", queries.len());
+    // if failed_paths > 0 {
+    //     eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+    //                 failed_paths);
+    // }
+    // if skipped_paths > 0 {
+    //     eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+    //                 skipped_paths);
+    // }
 
-    eprintln!("Loaded {} query signatures", queries.len());
-    if failed_paths > 0 {
-        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
-                    failed_paths);
-    }
-    if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-                    skipped_paths);
-    }
-
-    if queries.is_empty() {
-        bail!("No query signatures loaded, exiting.");
-    }
+    // if queries.is_empty() {
+    //     bail!("No query signatures loaded, exiting.");
+    // }
 
     // Read in list of against paths.
     eprintln!("Reading list of against paths from: '{}'", againstlist.as_ref().display());
