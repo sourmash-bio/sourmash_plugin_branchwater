@@ -274,11 +274,11 @@ fn manysearch<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send {
-        error!("Unable to send internal data: {:?}", e);
+        eprintln!("Unable to send internal data: {:?}", e);
     }
 
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }
 
     // done!
@@ -393,13 +393,8 @@ fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(
     for result in rdr.records() {
         let record = result?;
 
-        // Check if the record has the correct number of fields.
-        if record.len() < 3 {
-            let error_row = record.iter().collect::<Vec<_>>().join(",");
-            return Err(anyhow!("Row has less than 3 columns: {}", error_row));
-        }
-        let row_string = record.iter().collect::<Vec<_>>().join(",");
         // Skip duplicated rows
+        let row_string = record.iter().collect::<Vec<_>>().join(",");
         if processed_rows.contains(&row_string) {
             duplicate_count += 1;
             continue;
@@ -1054,7 +1049,7 @@ fn open_output_file<P: AsRef<Path>>(
     output: &P
 ) -> BufWriter<File> {
     let file = File::create(output).unwrap_or_else(|e| {
-        error!("Error creating output file: {:?}", e);
+        eprintln!("Error creating output file: {:?}", e);
         std::process::exit(1); 
     });
     BufWriter::new(file)
@@ -1108,14 +1103,14 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                     // Write the header
                     let header = ManifestRow::header_fields();
                     if let Err(e) = writeln!(&mut zip, "{}", header.join(",")) {
-                        error!("Error writing header: {:?}", e);
+                        eprintln!("Error writing header: {:?}", e);
                     }
 
                     // Write each manifest row
                     for row in &manifest_rows {
                         let formatted_fields = row.format_fields();  // Assuming you have a format_fields method on ManifestRow
                         if let Err(e) = writeln!(&mut zip, "{}", formatted_fields.join(",")) {
-                            error!("Error writing item: {:?}", e);
+                            eprintln!("Error writing item: {:?}", e);
                         }
                     }
                     // finalize the zip file writing.
@@ -1143,14 +1138,14 @@ where
 
         let header = T::header_fields();
         if let Err(e) = writeln!(&mut writer, "{}", header.join(",")) {
-            error!("Error writing header: {:?}", e);
+            eprintln!("Error writing header: {:?}", e);
         }
         writer.flush().unwrap();
 
         for item in recv.iter() {
             let formatted_fields = item.format_fields();
             if let Err(e) = writeln!(&mut writer, "{}", formatted_fields.join(",")) {
-                error!("Error writing item: {:?}", e);
+                eprintln!("Error writing item: {:?}", e);
             }
             writer.flush().unwrap();
         }
@@ -1287,12 +1282,12 @@ fn mastiff_manysearch<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send_result {
-        error!("Error during parallel processing: {}", e);
+        eprintln!("Error during parallel processing: {}", e);
     }
 
     // join the writer thread
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }  
 
     // done!
@@ -1426,11 +1421,11 @@ fn mastiff_manygather<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send {
-        error!("Unable to send internal data: {:?}", e);
+        eprintln!("Unable to send internal data: {:?}", e);
     }
 
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }
 
     // done!
@@ -1588,11 +1583,11 @@ fn multisearch<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send {
-        error!("Unable to send internal data: {:?}", e);
+        eprintln!("Unable to send internal data: {:?}", e);
     }
 
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }
 
     // done!
@@ -1771,7 +1766,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     let params_vec = match param_result {
         Ok(params) => params,
         Err(e) => {
-            error!("Error parsing params string: {}", e);
+            eprintln!("Error parsing params string: {}", e);
             bail!("Failed to parse params string");
         }
     };
@@ -1784,7 +1779,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     .par_iter()
     .filter_map(|(name, filename, moltype)| {
         let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-        if i % 1000 == 0 {
+        if i != 0 && i % 1000 == 0 {
             println!("Processed {} fasta files", i);
         }
 
@@ -1812,21 +1807,21 @@ fn manysketch<P: AsRef<Path> + Sync>(
                                     }
                                 },
                                 Err(error) => {
-                                    error!("Error while processing record: {:?}", error);
+                                    eprintln!("Error while processing record: {:?}", error);
                                 }
                             }
                         }
                         Some((sigs, sig_params, filename))
                     },
                     Err(err) => {
-                        error!("Error creating parser for file {}: {:?}", filename.display(), err);
+                        eprintln!("Error creating parser for file {}: {:?}", filename.display(), err);
                         let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         None
                     }
                 }
             },
             Err(err) => {
-                error!("Error opening file {}: {:?}", filename.display(), err);
+                eprintln!("Error opening file {}: {:?}", filename.display(), err);
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
@@ -1845,12 +1840,12 @@ fn manysketch<P: AsRef<Path> + Sync>(
 
     // do some cleanup and error handling -
     if let Err(e) = send_result {
-        error!("Error during parallel processing: {}", e);
+        eprintln!("Error during parallel processing: {}", e);
     }
 
     // join the writer thread
     if let Err(e) = thrd.join().unwrap_or_else(|e| Err(anyhow!("Thread panicked: {:?}", e))) {
-        error!("Error in sigwriter thread: {:?}", e);
+        eprintln!("Error in sigwriter thread: {:?}", e);
     }
 
     // done!

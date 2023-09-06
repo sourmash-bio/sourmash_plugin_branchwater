@@ -228,7 +228,7 @@ def test_manysketch_bad_fa_csv_3(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    # assert 'row has less than 3 columns' in captured.err
+    assert 'found record with 2 fields' in captured.err
     assert "Could not load fromfile csv" in captured.err
  
 
