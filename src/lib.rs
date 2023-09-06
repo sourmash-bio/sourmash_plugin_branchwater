@@ -1704,8 +1704,15 @@ fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &PathBu
             _ => (),
         }
 
+        // Adjust ksize value based on the is_protein flag
+        let adjusted_ksize = if param.is_protein {
+            param.ksize * 3
+        } else {
+            param.ksize
+        };
+
         let cp = ComputeParameters::builder()
-            .ksizes(vec![param.ksize])
+            .ksizes(vec![adjusted_ksize])
             .scaled(param.scaled)
             .protein(param.is_protein)
             .dna(param.is_dna)

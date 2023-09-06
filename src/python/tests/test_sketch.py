@@ -13,7 +13,7 @@ def get_test_data(filename):
 
 
 def make_file_csv(filename, genome_paths, protein_paths = []):
-    names = [x.split('.fa')[0] for x in genome_paths]
+    names = [os.path.basename(x).split('.fa')[0] for x in genome_paths]
     # Check if the number of protein paths is less than genome paths
     # and fill in the missing paths with "".
     if len(protein_paths) < len(genome_paths):
@@ -129,6 +129,22 @@ def test_manysketch_mult_moltype(runtmp):
     print(sigs)
 
     assert len(sigs) == 4
+    # check moltypes, etc!
+    for sig in sigs:
+        if sig.name == 'short':
+            if sig.minhash.is_dna:
+                assert sig.minhash.ksize == 21
+                assert sig.minhash.scaled == 1
+                assert sig.md5sum() == "1474578c5c46dd09da4c2df29cf86621"
+            else:
+                assert sig.minhash.ksize == 10
+                assert sig.minhash.scaled == 1
+                assert sig.md5sum() == "9511af4e56062a38f2c55dd0d3f30c22"
+        else:
+            assert sig.minhash.ksize == 21
+            assert sig.minhash.scaled == 1
+            assert sig.minhash.is_dna
+            assert sig.md5sum() in ["4efeebd26644278e36b9553e018a851a","f85747ac4f473c4a71c1740d009f512b"]
 
 
 def test_manysketch_missing_fa_csv(runtmp, capfd):
@@ -190,7 +206,7 @@ def test_manysketch_bad_fa_csv_3(runtmp, capfd):
     fa3 = get_test_data('short3.fa')
     protfa1 = get_test_data('short-protein.fa')
 
-    # make file csv but don't fill protein columns
+    # make file csv but don't fill empty protein rows with ,""
     make_file_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
     g_fa = [fa1, fa2, fa3]
     p_fa = [protfa1]
