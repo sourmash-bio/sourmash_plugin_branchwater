@@ -388,7 +388,7 @@ fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(
     headers.get(0).unwrap() != "name" ||
     headers.get(1).unwrap() != "genome_filename" ||
     headers.get(2).unwrap() != "protein_filename" {
-        return Err(anyhow!("Invalid header. Expected 'name,genome_filename,protein_filename', but got {:?}", headers));
+        return Err(anyhow!("Invalid header. Expected 'name,genome_filename,protein_filename', but got '{}'", headers.iter().collect::<Vec<_>>().join(",")));
     }
 
     let mut results = Vec::new();
