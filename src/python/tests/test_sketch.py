@@ -213,7 +213,7 @@ def test_manysketch_bad_fa_csv_3(runtmp, capfd):
     with open(fa_csv, 'wt') as fp:
         fp.write("name,genome_filename,protein_filename\n")
         for i, g in enumerate(g_fa):
-            name = g.split('.fa')[0]
+            name = os.path.basename(g).split('.fa')[0]
             if i < len(p_fa):
                 p = p_fa[i]
                 fp.write("{},{},{}\n".format(name, g, p))
