@@ -257,6 +257,7 @@ fn manysearch<P: AsRef<Path>>(
                 }
             } else {
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                // @CTB
                 eprintln!("WARNING: could not load sketches from path '{}'",
                           filename.display());
             }
@@ -388,23 +389,25 @@ fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
     let sketchlist : Vec<SmallSignature> = sketchlist_paths
         .par_iter()
         .filter_map(|m| {
-            let mut sm = None;
-
             let filename = m.display().to_string();
 
-            if let Ok(sigs) = Signature::from_path(m) {
-                sm = prepare_query(&sigs, template, &filename);
-                if sm.is_none() {
-                    // track number of paths that have no matching sigs
-                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            match Signature::from_path(m) {
+                Ok(sigs) => {
+                    let sm = prepare_query(&sigs, template, &filename);
+                    if sm.is_none() {
+                        // track number of paths that have no matching sigs
+                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    }
+                    sm
+                },
+                Err(err) => {
+                    // failed to load from this path - print error & track.
+                    eprintln!("Sketch loading error: {}", err);
+                    eprintln!("WARNING: could not load sketches from path '{}'", filename);
+                    let _i = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
                 }
-            } else {
-                // failed to load from this path - print error & track.
-                eprintln!("WARNING: could not load sketches from path '{}'",
-                          filename);
-                let _i = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
             }
-            sm
         })
         .collect();
 
@@ -702,6 +705,7 @@ fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                 } else {
+                    // @CTB
                     eprintln!("WARNING: could not load sketches from path '{}'",
                               q.display());
                     let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -743,9 +747,10 @@ fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
             } else {
                 println!("No matches to '{}'", location);
             }
-        } else {
-            println!("ERROR loading signature from '{}'", location);
-        }
+         } else {
+                // @CTB
+                println!("ERROR loading signature from '{}'", location);
+            }
         });
 
 
@@ -1035,6 +1040,7 @@ fn mastiff_manysearch<P: AsRef<Path>>(
                 }
             } else {
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                // @CTB
                 eprintln!("WARNING: could not load sketches from path '{}'",
                           filename.display());
             }
@@ -1179,6 +1185,7 @@ fn mastiff_manygather<P: AsRef<Path>>(
                 }
             } else {
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                // @CTB
                 eprintln!("WARNING: could not load sketches from path '{}'",
                           filename.display());
             }
