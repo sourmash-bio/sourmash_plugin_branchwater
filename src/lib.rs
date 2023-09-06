@@ -379,6 +379,22 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Ok(sketchlist_filenames)
 }
 
+fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, PathBuf)>> {
+    let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
+    let mut results = Vec::new();
+
+    for result in rdr.records() {
+        let record = result?;
+        let name = record.get(0).ok_or_else(|| anyhow!("Missing 'name' field"))?.to_string();
+        let genome_filename = PathBuf::from(record.get(1).ok_or_else(|| anyhow!("Missing 'genome_filename' field"))?);
+        let protein_filename = PathBuf::from(record.get(2).ok_or_else(|| anyhow!("Missing 'protein_filename' field"))?);
+
+        results.push((name, genome_filename, protein_filename));
+    }
+
+    Ok(results)
+}
+
 /// Load a collection of sketches from a file in parallel.
 
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
@@ -1672,10 +1688,14 @@ fn manysketch<P: AsRef<Path> + Sync>(
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
-    let filelist_paths = load_sketchlist_filenames(&filelist)?;
+    let fileinfo =
+    match load_sketch_fromfile(&filelist) {
+        Ok(result) => result,
+        Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e)
+    };
 
     // if filelist_paths is empty, exit with error
-    if filelist_paths.is_empty() {
+    if fileinfo.is_empty() {
         bail!("No files to load, exiting.");
     }
 
@@ -1706,9 +1726,9 @@ fn manysketch<P: AsRef<Path> + Sync>(
     let processed_sigs = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let send_result = filelist_paths
+    let send_result = fileinfo
     .par_iter()
-    .filter_map(|filename| {
+    .filter_map(|(name, genome_filename, protein_filename)| {
         let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
         if i % 1000 == 0 {
             println!("Processed {} fasta files", i);
@@ -1719,7 +1739,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
         let (mut sigs, sig_params) = build_siginfo(&params_vec);
 
         // parse fasta file and add to signature
-        match File::open(filename) {
+        match File::open(genome_filename) {
             Ok(mut f) => {
                 let _ = f.read_to_end(&mut data);
 
@@ -1737,24 +1757,24 @@ fn manysketch<P: AsRef<Path> + Sync>(
                                 }
                             }
                         }
-                        Some((sigs, sig_params, filename))
+                        Some((sigs, sig_params, genome_filename))
                     },
                     Err(err) => {
-                        error!("Error creating parser for file {}: {:?}", filename.display(), err);
+                        error!("Error creating parser for file {}: {:?}", genome_filename.display(), err);
                         let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         None
                     }
                 }
             },
             Err(err) => {
-                error!("Error opening file {}: {:?}", filename.display(), err);
+                error!("Error opening file {}: {:?}", genome_filename.display(), err);
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
         }
     })
-    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs, sig_params, filename)| {
-        if let Err(e) = s.send(ZipMessage::SignatureData(sigs, sig_params, filename.clone())) {
+    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs, sig_params, genome_filename)| {
+        if let Err(e) = s.send(ZipMessage::SignatureData(sigs, sig_params, genome_filename.clone())) {
             Err(format!("Unable to send internal data: {:?}", e))
         } else {
             Ok(())
@@ -1967,3 +1987,4 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     Ok(())
 }
+                                                                                                                                                                                                                      

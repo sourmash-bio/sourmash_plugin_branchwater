@@ -12,10 +12,15 @@ def get_test_data(filename):
     return os.path.join(thisdir, 'test-data', filename)
 
 
-def make_file_list(filename, paths):
+def make_file_csv(filename, genome_paths, protein_paths = []):
+    names = [x.split('.fa')[0] for x in genome_paths]
+    if not protein_paths:
+        protein_paths = ["" for x in genome_paths]
     with open(filename, 'wt') as fp:
-        fp.write("\n".join(paths))
-        fp.write("\n")
+        fp.write("name,genome_filename,protein_filename\n")
+        for name, genome_path, protein_path in zip(names, genome_paths, protein_paths):
+
+            fp.write("{},{},{}\n".format(name, genome_path, protein_path))
 
 
 def test_installed(runtmp):
@@ -32,7 +37,7 @@ def test_manysketch(runtmp):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_list(falist, [fa1, fa2, fa3])
+    make_file_csv(falist, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -56,7 +61,7 @@ def test_manysketch_mult_k(runtmp):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_list(falist, [fa1, fa2, fa3])
+    make_file_csv(falist, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -80,7 +85,7 @@ def test_manysketch_mult_k_2(runtmp):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_list(falist, [fa1, fa2, fa3])
+    make_file_csv(falist, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -111,7 +116,7 @@ def test_manysketch_missing_falist(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Error: No such file or directory' in captured.err
+    assert "Could not load fromfile csv" in captured.err
 
 
 def test_manysketch_bad_falist(runtmp, capfd):
@@ -122,7 +127,7 @@ def test_manysketch_bad_falist(runtmp, capfd):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    make_file_list(siglist, [sig2, sig47, sig63])
+    make_file_csv(siglist, [sig2, sig47, sig63])
 
     output = runtmp.output('db.zip')
 
@@ -146,14 +151,14 @@ def test_manysketch_bad_falist_2(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "Could not load fasta files: no signatures created." in captured.err
+    assert "Could not load fromfile csv" in captured.err
 
 
 def test_manysketch_empty_falist(runtmp, capfd):
     # test empty falist file
     falist = runtmp.output('fa.txt')
     output = runtmp.output('out.zip')
-    make_file_list(falist, []) # empty
+    make_file_csv(falist, []) # empty
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'manysketch', falist,
@@ -172,7 +177,7 @@ def test_zip_manifest(runtmp, capfd):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_list(falist, [fa1, fa2, fa3])
+    make_file_csv(falist, [fa1, fa2, fa3])
     output = runtmp.output('db.zip')
 
     runtmp.sourmash('scripts', 'manysketch', falist, '-o', output,

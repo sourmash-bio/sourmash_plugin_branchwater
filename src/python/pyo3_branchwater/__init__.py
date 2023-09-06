@@ -265,7 +265,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('input_paths', help="a text file containing paths to files to sketch")
+        p.add_argument('fromfile_csv', help="a csv file containing paths to fasta files. \
+                        Columns must be: 'name,genome_filename,protein_filename'")
         p.add_argument('-o', '--output', required=True,
                        help='output zip file for the signatures')
         p.add_argument('-p', '--param-string', action='append', type=str, default=[],
@@ -286,10 +287,10 @@ class Branchwater_Manysketch(CommandLinePlugin):
 
         num_threads = set_thread_pool(args.cores)
 
-        notify(f"sketching all files in '{args.input_paths}'")
+        notify(f"sketching all files in '{args.fromfile_csv}' using {num_threads} threads")
 
         super().main(args)
-        status = pyo3_branchwater.do_manysketch(args.input_paths,
+        status = pyo3_branchwater.do_manysketch(args.fromfile_csv,
                                             args.param_string,
                                             args.output)
         if status == 0:
