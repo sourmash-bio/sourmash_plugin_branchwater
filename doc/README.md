@@ -28,7 +28,7 @@ find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.tx
 
 ### Running `multisearch`
 
-The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading everything into memory.
+The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading all genomes into memory.
 
 `multisearch` takes two file lists as input, and outputs a CSV:
 ```
