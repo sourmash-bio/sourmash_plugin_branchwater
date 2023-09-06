@@ -383,26 +383,53 @@ fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
     let mut results = Vec::new();
 
+    let mut row_count = 0;
+    let mut genome_count = 0;
+    let mut protein_count = 0;
+    // Create a HashSet to keep track of processed rows.
+    let mut processed_rows = std::collections::HashSet::new();
+    let mut duplicate_count = 0;
+
     for result in rdr.records() {
         let record = result?;
+
+        // Check if the record has the correct number of fields.
+        if record.len() < 3 {
+            let error_row = record.iter().collect::<Vec<_>>().join(",");
+            return Err(anyhow!("Row has less than 3 columns: {}", error_row));
+        }
+        let row_string = record.iter().collect::<Vec<_>>().join(",");
+        // Skip duplicated rows
+        if processed_rows.contains(&row_string) {
+            duplicate_count += 1;
+            continue;
+        }
+        processed_rows.insert(row_string.clone());
+        row_count += 1;
         let name = record.get(0).ok_or_else(|| anyhow!("Missing 'name' field"))?.to_string();
 
         let genome_filename = record.get(1).ok_or_else(|| anyhow!("Missing 'genome_filename' field"))?;
         if !genome_filename.is_empty() {
             results.push((name.clone(), PathBuf::from(genome_filename), "dna".to_string()));
+            genome_count += 1;
         }
 
         let protein_filename = record.get(2).ok_or_else(|| anyhow!("Missing 'protein_filename' field"))?;
         if !protein_filename.is_empty() {
             results.push((name, PathBuf::from(protein_filename), "protein".to_string()));
+            protein_count += 1;
         }
     }
-
+    // Print warning if there were duplicated rows.
+    if duplicate_count > 0 {
+        println!("Warning: {} duplicated rows were skipped.", duplicate_count);
+    }
+    println!("Loaded {} rows in total ({} genome and {} protein files)", row_count, genome_count, protein_count);
     Ok(results)
 }
 
-/// Load a collection of sketches from a file in parallel.
 
+/// Load a collection of sketches from a file in parallel.
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
     Result<(Vec<SmallSignature>, usize, usize)>
 {
@@ -1749,8 +1776,6 @@ fn manysketch<P: AsRef<Path> + Sync>(
     let send_result = fileinfo
     .par_iter()
     .filter_map(|(name, filename, moltype)| {
-        println!("Processing file: {}", filename.display());
-        println!("Molecule type: {}", moltype);
         let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
         if i % 1000 == 0 {
             println!("Processed {} fasta files", i);
@@ -1760,7 +1785,6 @@ fn manysketch<P: AsRef<Path> + Sync>(
         // build sig templates from params
         let (mut sigs, sig_params) = build_siginfo(&params_vec, &moltype, &name, &filename);
         let n_sigs = sigs.len();
-        println!("Built {} sigs", n_sigs);
 
         // parse fasta file and add to signature
         match File::open(filename) {
