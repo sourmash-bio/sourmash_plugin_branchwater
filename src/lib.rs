@@ -1784,19 +1784,29 @@ fn manysketch<P: AsRef<Path> + Sync>(
     // iterate over filelist_paths
     let processed_sigs = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
+    let skipped_paths: AtomicUsize = AtomicUsize::new(0);
+
+    // get total length for % done
+    let n_fastas = fileinfo.len();
 
     let send_result = fileinfo
     .par_iter()
     .filter_map(|(name, filename, moltype)| {
         let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-        if i != 0 && i % 1000 == 0 {
-            println!("Processed {} fasta files", i);
+        let percent_processed = (i as f64 / n_fastas as f64) * 100.0;
+        // print progress output every 5 %
+        if percent_processed % 5.0 == 0.0 {
+            eprintln!("Processed {} fasta files ({}% done)", i, percent_processed);
         }
 
         let mut data: Vec<u8> = vec![];
         // build sig templates from params
         let (mut sigs, sig_params) = build_siginfo(&params_vec, &moltype, &name, &filename);
-        let n_sigs = sigs.len();
+        // if no sigs to build, skip
+        if sigs.len() == 0 {
+            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            return None;
+        }
 
         // parse fasta file and add to signature
         match File::open(filename) {
@@ -1870,6 +1880,12 @@ fn manysketch<P: AsRef<Path> + Sync>(
     if failed_paths > 0 {
         eprintln!("WARNING: {} fasta files failed to load. See error messages above.",
                   failed_paths);
+    }
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    if skipped_paths > 0 {
+        eprintln!("WARNING: {} fasta files skipped - no compatible signatures.",
+                  skipped_paths);
     }
 
     Ok(())

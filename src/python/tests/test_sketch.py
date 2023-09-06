@@ -147,6 +147,41 @@ def test_manysketch_mult_moltype(runtmp):
             assert sig.md5sum() in ["4efeebd26644278e36b9553e018a851a","f85747ac4f473c4a71c1740d009f512b"]
 
 
+def test_manysketch_skip_incompatible_fastas(runtmp, capfd):
+    # provide dna, protein fastas, but only sketch protein (skip protein fastas!)
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+    protfa1 = get_test_data('short-protein.fa')
+
+    make_file_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "protein,k=10,scaled=1")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert len(sigs) == 1
+    # check moltypes, etc!
+    for sig in sigs:
+        assert sig.minhash.ksize == 10
+        assert sig.minhash.scaled == 1
+        assert sig.md5sum() == "eb4467d11e0ecd2dbde4193bfc255310"
+    assert 'WARNING: 3 fasta files skipped - no compatible signatures.' in captured.err
+
+
 def test_manysketch_missing_fa_csv(runtmp, capfd):
     # test missing fa_csv file
     fa_csv = runtmp.output('fa_csv.txt')
