@@ -6,9 +6,7 @@ The main *drawback* to these plugin commands is that their inputs and outputs ar
 
 ## Preparing the database
 
-All five commands use _text files containing lists of files_, or "fromfiles":  
-- `manysketch` requires a list of **fasta** files.
--  the remaining commands require **signature** files for the search database. `multisearch`, `manysearch` and `fastmultigather` also use "fromfiles" for queries, too.
+`manysketch` requires a `fromfile` csv with columns `name,genome_filename,protein_filename`. If you don't have protein_filenames, be sure to include the trailing comma so the csv reader can process the file correctly. All four search commands use _text files containing lists of signature files_, or "fromfiles" for the search database. `multisearch`, `manysearch` and `fastmultigather` also use "fromfiles" for queries, too.
 
 (Yes, this plugin will eventually be upgraded to support zip files; keep an eye on [sourmash#2230](https://github.com/sourmash-bio/sourmash/pull/2230).)
 

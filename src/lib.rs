@@ -379,17 +379,23 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Ok(sketchlist_filenames)
 }
 
-fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, PathBuf)>> {
+fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, String)>> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
     let mut results = Vec::new();
 
     for result in rdr.records() {
         let record = result?;
         let name = record.get(0).ok_or_else(|| anyhow!("Missing 'name' field"))?.to_string();
-        let genome_filename = PathBuf::from(record.get(1).ok_or_else(|| anyhow!("Missing 'genome_filename' field"))?);
-        let protein_filename = PathBuf::from(record.get(2).ok_or_else(|| anyhow!("Missing 'protein_filename' field"))?);
 
-        results.push((name, genome_filename, protein_filename));
+        let genome_filename = record.get(1).ok_or_else(|| anyhow!("Missing 'genome_filename' field"))?;
+        if !genome_filename.is_empty() {
+            results.push((name.clone(), PathBuf::from(genome_filename), "dna".to_string()));
+        }
+
+        let protein_filename = record.get(2).ok_or_else(|| anyhow!("Missing 'protein_filename' field"))?;
+        if !protein_filename.is_empty() {
+            results.push((name, PathBuf::from(protein_filename), "protein".to_string()));
+        }
     }
 
     Ok(results)
@@ -1659,11 +1665,18 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
     Ok(unique_params.into_iter().collect())
 }
 
-
-fn build_siginfo(params: &[Params]) -> (Vec<Signature>, Vec<Params>) {
+fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &PathBuf) -> (Vec<Signature>, Vec<Params>) {
     let mut sigs = Vec::new();
     let mut params_vec = Vec::new();
+
     for param in params.iter().cloned() {
+        match moltype {
+            // if dna, only build dna sigs. if protein, only build protein sigs
+            "dna" if !param.is_dna => continue,
+            "protein" if !param.is_protein => continue,
+            _ => (),
+        }
+
         let cp = ComputeParameters::builder()
             .ksizes(vec![param.ksize])
             .scaled(param.scaled)
@@ -1673,14 +1686,22 @@ fn build_siginfo(params: &[Params]) -> (Vec<Signature>, Vec<Params>) {
             .track_abundance(param.track_abundance)
             .build();
 
-        let sig = Signature::from_params(&cp);
+        // let sig = Signature::from_params(&cp); // cant set name with this
+        let template = sourmash::cmd::build_template(&cp);
+        let sig = Signature::builder()
+                .hash_function("0.murmur64")
+                .name(Some(name.to_string()))
+                .filename(Some(filename.to_string_lossy().into_owned()))
+                .signatures(template)
+                .build();
         sigs.push(sig);
-        // print param
-        // println!("ksize: {}, scaled: {}, num: {}, seed: {}, is_protein: {}, is_dna: {}", param.ksize, param.scaled, param.num, param.seed, param.is_protein, param.is_dna);
+
         params_vec.push(param);
     }
+
     (sigs, params_vec)
 }
+
 
 fn manysketch<P: AsRef<Path> + Sync>(
     filelist: P,
@@ -1688,8 +1709,7 @@ fn manysketch<P: AsRef<Path> + Sync>(
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
-    let fileinfo =
-    match load_sketch_fromfile(&filelist) {
+    let fileinfo = match load_sketch_fromfile(&filelist) {
         Ok(result) => result,
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e)
     };
@@ -1728,7 +1748,9 @@ fn manysketch<P: AsRef<Path> + Sync>(
 
     let send_result = fileinfo
     .par_iter()
-    .filter_map(|(name, genome_filename, protein_filename)| {
+    .filter_map(|(name, filename, moltype)| {
+        println!("Processing file: {}", filename.display());
+        println!("Molecule type: {}", moltype);
         let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
         if i % 1000 == 0 {
             println!("Processed {} fasta files", i);
@@ -1736,10 +1758,12 @@ fn manysketch<P: AsRef<Path> + Sync>(
 
         let mut data: Vec<u8> = vec![];
         // build sig templates from params
-        let (mut sigs, sig_params) = build_siginfo(&params_vec);
+        let (mut sigs, sig_params) = build_siginfo(&params_vec, &moltype, &name, &filename);
+        let n_sigs = sigs.len();
+        println!("Built {} sigs", n_sigs);
 
         // parse fasta file and add to signature
-        match File::open(genome_filename) {
+        match File::open(filename) {
             Ok(mut f) => {
                 let _ = f.read_to_end(&mut data);
 
@@ -1757,24 +1781,24 @@ fn manysketch<P: AsRef<Path> + Sync>(
                                 }
                             }
                         }
-                        Some((sigs, sig_params, genome_filename))
+                        Some((sigs, sig_params, filename))
                     },
                     Err(err) => {
-                        error!("Error creating parser for file {}: {:?}", genome_filename.display(), err);
+                        error!("Error creating parser for file {}: {:?}", filename.display(), err);
                         let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         None
                     }
                 }
             },
             Err(err) => {
-                error!("Error opening file {}: {:?}", genome_filename.display(), err);
+                error!("Error opening file {}: {:?}", filename.display(), err);
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
         }
     })
-    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs, sig_params, genome_filename)| {
-        if let Err(e) = s.send(ZipMessage::SignatureData(sigs, sig_params, genome_filename.clone())) {
+    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs, sig_params, filename)| {
+        if let Err(e) = s.send(ZipMessage::SignatureData(sigs, sig_params, filename.clone())) {
             Err(format!("Unable to send internal data: {:?}", e))
         } else {
             Ok(())
@@ -1987,4 +2011,3 @@ fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     Ok(())
 }
-                                                                                                                                                                                                                      
