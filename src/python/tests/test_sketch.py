@@ -194,6 +194,7 @@ def test_manysketch_bad_fa_csv_2(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
+    assert "Invalid header" in captured.err
     assert "Could not load fromfile csv" in captured.err
 
 

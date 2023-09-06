@@ -381,6 +381,16 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
 
 fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, String)>> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
+
+    // Check for right header
+    let headers = rdr.headers()?;
+    if headers.len() != 3 ||
+    headers.get(0).unwrap() != "name" ||
+    headers.get(1).unwrap() != "genome_filename" ||
+    headers.get(2).unwrap() != "protein_filename" {
+        return Err(anyhow!("Invalid header. Expected 'name,genome_filename,protein_filename', but got {:?}", headers));
+    }
+
     let mut results = Vec::new();
 
     let mut row_count = 0;
