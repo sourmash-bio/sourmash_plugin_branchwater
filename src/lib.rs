@@ -1804,7 +1804,11 @@ fn manysketch<P: AsRef<Path> + Sync>(
                             match record_result {
                                 Ok(record) => {
                                     for mut sig in &mut sigs {
-                                        sig.add_sequence(&record.seq(), false).unwrap();
+                                        if moltype == "protein" {
+                                            sig.add_protein(&record.seq()).unwrap();
+                                        } else {
+                                            sig.add_sequence(&record.seq(), true).unwrap(); // if not force, panics with 'N' in dna sequence
+                                        }
                                     }
                                 },
                                 Err(error) => {

@@ -31,7 +31,7 @@ def test_installed(runtmp):
     assert 'usage:  manysketch' in runtmp.last_result.err
 
 
-def test_manysketch(runtmp):
+def test_manysketch_simple(runtmp):
     fa_csv = runtmp.output('db-fa.txt')
 
     fa1 = get_test_data('short.fa')
@@ -139,7 +139,7 @@ def test_manysketch_mult_moltype(runtmp):
             else:
                 assert sig.minhash.ksize == 10
                 assert sig.minhash.scaled == 1
-                assert sig.md5sum() == "9511af4e56062a38f2c55dd0d3f30c22"
+                assert sig.md5sum() == "eb4467d11e0ecd2dbde4193bfc255310"
         else:
             assert sig.minhash.ksize == 21
             assert sig.minhash.scaled == 1
@@ -274,6 +274,31 @@ def test_manysketch_duplicated_rows(runtmp, capfd):
     print(captured.err)
     assert len(sigs) == 2
     assert "DONE. Processed 2 fasta files" in captured.err
+
+
+def test_manysketch_N_in_dna(runtmp):
+    # make sure we can handle Ns in DNA sequences
+    fa_csv = runtmp.output('db-fa.txt')
+    fa1 = runtmp.output('bad.fa')
+    with open (fa1, 'wt') as fp:
+        fp.write(">bad\n")
+        fp.write("ACAGTN\n")
+
+    make_file_csv(fa_csv, [fa1])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dna,k=4,scaled=1")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 1
 
 
 def test_zip_manifest(runtmp, capfd):
