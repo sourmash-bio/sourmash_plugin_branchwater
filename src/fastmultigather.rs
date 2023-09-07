@@ -3,12 +3,10 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::signature::{Signature, SigsTrait};
+use sourmash::signature::Signature;
 use std::path::Path;
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
-use sourmash::prelude::MinHashOps;
-use sourmash::prelude::FracMinHashOps;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
