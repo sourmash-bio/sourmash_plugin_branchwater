@@ -12,8 +12,6 @@ use std::sync::atomic::AtomicUsize;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
-use sourmash::prelude::MinHashOps;
-use sourmash::prelude::FracMinHashOps;
 
 use crate::utils::{load_sketchlist_filenames, load_sketches};
 

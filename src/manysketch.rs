@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use std::io::Read;
 use std::path::Path;
 use crate::utils::{Params, load_sketch_fromfile, ZipMessage, sigwriter};
-use sourmash::signature::{Signature, SigsTrait};
+use sourmash::signature::Signature;
 use sourmash::cmd::ComputeParameters;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;

@@ -4,7 +4,6 @@ use rayon::prelude::*;
 use sourmash::signature::{Signature, SigsTrait};
 use std::path::Path;
 use sourmash::sketch::Sketch;
-use sourmash::prelude::MinHashOps;
 
 use sourmash::index::revindex::RevIndex;
 
