@@ -117,13 +117,13 @@ fn check_compatible_downsample(
 /// all others.
 
 
-fn prepare_query(search_sigs: &[Signature], template: &Sketch, location: &String) -> Option<SmallSignature> {
+fn prepare_query(search_sigs: &[Signature], template: &Sketch, location: &str) -> Option<SmallSignature> {
 
     for search_sig in search_sigs.iter() {
         // find exact match for template?
         if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
             return Some(SmallSignature {
-                location: location.clone(),
+                location: location.to_string().clone(),
                 name: search_sig.name(),
                 md5sum: mh.md5sum(),
                 minhash: mh.clone()
@@ -137,7 +137,7 @@ fn prepare_query(search_sigs: &[Signature], template: &Sketch, location: &String
                             let max_hash = max_hash_for_scaled(template_mh.scaled());
                             let mh = ref_mh.downsample_max_hash(max_hash).unwrap();
                             return Some(SmallSignature {
-                                location: location.clone(),
+                                location: location.to_string().clone(),
                                 name: search_sig.name(),
                                 md5sum: ref_mh.md5sum(), // original
                                 minhash: mh,             // downsampled
@@ -313,7 +313,7 @@ fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            let overlap = searchsig.count_common(&query_mh, false);
+            let overlap = searchsig.count_common(query_mh, false);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {
                     let result = PrefetchResult {
@@ -1036,9 +1036,9 @@ fn make_manifest_row(sig: &Signature, filename: &Path, internal_location: &str, 
         md5short: sig.md5sum()[0..8].to_string(),
         ksize: sketch.ksize() as u32,
         moltype,
-        num: num,
-        scaled: scaled,
-        n_hashes: sketch.size() as usize,
+        num,
+        scaled,
+        n_hashes: sketch.size(),
         with_abundance: abund,
         name: sig.name().to_string(),
         // filename: filename.display().to_string(),
@@ -1101,8 +1101,8 @@ fn sigwriter<P: AsRef<Path> + Send + 'static>(
                         } else {
                             format!("signatures/{}.sig.gz", md5sum_str)
                         };
-                        write_signature(&sig, &mut zip, options, &sig_filename);
-                        manifest_rows.push(make_manifest_row(&sig, &filename, &sig_filename, param.scaled, param.num, param.track_abundance, param.is_dna, param.is_protein));
+                        write_signature(sig, &mut zip, options, &sig_filename);
+                        manifest_rows.push(make_manifest_row(sig, &filename, &sig_filename, param.scaled, param.num, param.track_abundance, param.is_dna, param.is_protein));
                     }
                 },
                 ZipMessage::WriteManifest => {
@@ -1707,7 +1707,7 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
     Ok(unique_params.into_iter().collect())
 }
 
-fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &PathBuf) -> (Vec<Signature>, Vec<Params>) {
+fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &Path) -> (Vec<Signature>, Vec<Params>) {
     let mut sigs = Vec::new();
     let mut params_vec = Vec::new();
 
@@ -1812,9 +1812,9 @@ fn manysketch<P: AsRef<Path> + Sync>(
 
         let mut data: Vec<u8> = vec![];
         // build sig templates from params
-        let (mut sigs, sig_params) = build_siginfo(&params_vec, &moltype, &name, &filename);
+        let (mut sigs, sig_params) = build_siginfo(&params_vec, moltype, name, filename);
         // if no sigs to build, skip
-        if sigs.len() == 0 {
+        if sigs.is_empty() {
             let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
             return None;
         }
