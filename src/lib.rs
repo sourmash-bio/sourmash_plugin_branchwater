@@ -26,7 +26,6 @@ use needletail::parse_fastx_reader;
 #[macro_use]
 extern crate simple_error;
 
-use log::error;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
@@ -274,11 +273,11 @@ fn manysearch<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send {
-        error!("Unable to send internal data: {:?}", e);
+        eprintln!("Unable to send internal data: {:?}", e);
     }
 
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }
 
     // done!
@@ -379,8 +378,62 @@ fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Ok(sketchlist_filenames)
 }
 
-/// Load a collection of sketches from a file in parallel.
+fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, String)>> {
+    let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
+    // Check for right header
+    let headers = rdr.headers()?;
+    if headers.len() != 3 ||
+    headers.get(0).unwrap() != "name" ||
+    headers.get(1).unwrap() != "genome_filename" ||
+    headers.get(2).unwrap() != "protein_filename" {
+        return Err(anyhow!("Invalid header. Expected 'name,genome_filename,protein_filename', but got '{}'", headers.iter().collect::<Vec<_>>().join(",")));
+    }
+
+    let mut results = Vec::new();
+
+    let mut row_count = 0;
+    let mut genome_count = 0;
+    let mut protein_count = 0;
+    // Create a HashSet to keep track of processed rows.
+    let mut processed_rows = std::collections::HashSet::new();
+    let mut duplicate_count = 0;
+
+    for result in rdr.records() {
+        let record = result?;
+
+        // Skip duplicated rows
+        let row_string = record.iter().collect::<Vec<_>>().join(",");
+        if processed_rows.contains(&row_string) {
+            duplicate_count += 1;
+            continue;
+        }
+        processed_rows.insert(row_string.clone());
+        row_count += 1;
+        let name = record.get(0).ok_or_else(|| anyhow!("Missing 'name' field"))?.to_string();
+
+        let genome_filename = record.get(1).ok_or_else(|| anyhow!("Missing 'genome_filename' field"))?;
+        if !genome_filename.is_empty() {
+            results.push((name.clone(), PathBuf::from(genome_filename), "dna".to_string()));
+            genome_count += 1;
+        }
+
+        let protein_filename = record.get(2).ok_or_else(|| anyhow!("Missing 'protein_filename' field"))?;
+        if !protein_filename.is_empty() {
+            results.push((name, PathBuf::from(protein_filename), "protein".to_string()));
+            protein_count += 1;
+        }
+    }
+    // Print warning if there were duplicated rows.
+    if duplicate_count > 0 {
+        println!("Warning: {} duplicated rows were skipped.", duplicate_count);
+    }
+    println!("Loaded {} rows in total ({} genome and {} protein files)", row_count, genome_count, protein_count);
+    Ok(results)
+}
+
+
+/// Load a collection of sketches from a file in parallel.
 fn load_sketches(sketchlist_paths: Vec<PathBuf>, template: &Sketch) ->
     Result<(Vec<SmallSignature>, usize, usize)>
 {
@@ -919,6 +972,77 @@ impl ResultType for SearchResult {
     }
 }
 
+struct ManifestRow {
+    md5: String,
+    md5short: String,
+    ksize: u32,
+    moltype: String,
+    num: u32,
+    scaled: u64,
+    n_hashes: usize,
+    with_abundance: bool,
+    name: String,
+    filename: String,
+    internal_location: String,
+}
+
+fn bool_to_python_string(b: bool) -> String {
+    match b {
+        true => "True".to_string(),
+        false => "False".to_string(),
+    }
+}
+
+impl ResultType for ManifestRow {
+    fn header_fields() -> Vec<&'static str> {
+        vec!["internal_location", "md5", "md5short", "ksize", "moltype", "num", "scaled", "n_hashes", "with_abundance", "name", "filename"]
+    }
+
+    fn format_fields(&self) -> Vec<String> {
+        vec![
+            self.internal_location.clone(),
+            self.md5.clone(),
+            self.md5short.clone(),
+            self.ksize.to_string(),
+            self.moltype.clone(),
+            self.num.to_string(),
+            self.scaled.to_string(),
+            self.n_hashes.to_string(),
+            bool_to_python_string(self.with_abundance),
+            format!("\"{}\"", self.name),  // Wrap name with quotes
+            self.filename.clone(),
+        ]
+    }
+}
+
+fn make_manifest_row(sig: &Signature, filename: &Path, internal_location: &str, scaled: u64, num: u32, abund: bool, is_dna: bool, is_protein: bool) -> ManifestRow {
+    if is_dna && is_protein {
+        panic!("Both is_dna and is_protein cannot be true at the same time.");
+    } else if !is_dna && !is_protein {
+        panic!("Either is_dna or is_protein must be true.");
+    }
+    let moltype = if is_dna {
+        "DNA".to_string()
+    } else {
+        "protein".to_string()
+    };
+    let sketch = &sig.sketches()[0];
+    ManifestRow {
+        internal_location: internal_location.to_string(),
+        md5: sig.md5sum(),
+        md5short: sig.md5sum()[0..8].to_string(),
+        ksize: sketch.ksize() as u32,
+        moltype,
+        num: num,
+        scaled: scaled,
+        n_hashes: sketch.size() as usize,
+        with_abundance: abund,
+        name: sig.name().to_string(),
+        // filename: filename.display().to_string(),
+        filename: filename.to_str().unwrap().to_string(),
+    }
+}
+
 fn open_stdout_or_file<P: AsRef<Path>>(
     output: Option<P>
 ) -> Box<dyn Write + Send + 'static> {
@@ -934,26 +1058,76 @@ fn open_output_file<P: AsRef<Path>>(
     output: &P
 ) -> BufWriter<File> {
     let file = File::create(output).unwrap_or_else(|e| {
-        error!("Error creating output file: {:?}", e);
+        eprintln!("Error creating output file: {:?}", e);
         std::process::exit(1); 
     });
     BufWriter::new(file)
 }
 
+enum ZipMessage {
+    SignatureData(Vec<Signature>, Vec<Params>, PathBuf),
+    WriteManifest,
+}
+
+
 fn sigwriter<P: AsRef<Path> + Send + 'static>(
-    recv: std::sync::mpsc::Receiver<Signature>,
+    recv: std::sync::mpsc::Receiver<ZipMessage>,
     output: String,
-) -> std::thread::JoinHandle<()>
-{
-    std::thread::spawn(move || {
-        let file_writer = open_output_file(&output); //open_output_file(&output);
+) -> std::thread::JoinHandle<Result<()>> {
+    std::thread::spawn(move || -> Result<()> {
+        let file_writer = open_output_file(&output);
 
         let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
         let mut zip = zip::ZipWriter::new(file_writer);
+        let mut manifest_rows: Vec<ManifestRow> = Vec::new();
+        // keep track of md5sum occurrences to prevent overwriting duplicates
+        let mut md5sum_occurrences: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
-        for sig in recv {
-            write_signature(&sig, &mut zip, options);
+        while let Ok(message) = recv.recv() {
+            match message {
+                ZipMessage::SignatureData(sigs, params, filename) => {
+                    if sigs.len() != params.len() {
+                        bail!("Mismatched lengths of signatures and parameters");
+                    } 
+                    for (sig, param) in sigs.iter().zip(params.iter()) {
+                        let md5sum_str = sig.md5sum();
+                        let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
+                        *count += 1;
+                        let sig_filename = if *count > 1 {
+                            format!("signatures/{}_{}.sig.gz", md5sum_str, count)
+                        } else {
+                            format!("signatures/{}.sig.gz", md5sum_str)
+                        };
+                        write_signature(&sig, &mut zip, options, &sig_filename);
+                        manifest_rows.push(make_manifest_row(&sig, &filename, &sig_filename, param.scaled, param.num, param.track_abundance, param.is_dna, param.is_protein));
+                    }
+                },
+                ZipMessage::WriteManifest => {
+                    println!("Writing manifest");
+                    // Start the CSV file inside the zip
+                    zip.start_file("SOURMASH-MANIFEST.csv", options).unwrap();
+
+                    // write manifest version line
+                    writeln!(&mut zip, "# SOURMASH-MANIFEST-VERSION: 1.0").unwrap();
+                    // Write the header
+                    let header = ManifestRow::header_fields();
+                    if let Err(e) = writeln!(&mut zip, "{}", header.join(",")) {
+                        eprintln!("Error writing header: {:?}", e);
+                    }
+
+                    // Write each manifest row
+                    for row in &manifest_rows {
+                        let formatted_fields = row.format_fields();  // Assuming you have a format_fields method on ManifestRow
+                        if let Err(e) = writeln!(&mut zip, "{}", formatted_fields.join(",")) {
+                            eprintln!("Error writing item: {:?}", e);
+                        }
+                    }
+                    // finalize the zip file writing.
+                    zip.finish().unwrap();
+                }
+            }
         }
+        Ok(())
     })
 }
 
@@ -973,14 +1147,14 @@ where
 
         let header = T::header_fields();
         if let Err(e) = writeln!(&mut writer, "{}", header.join(",")) {
-            error!("Error writing header: {:?}", e);
+            eprintln!("Error writing header: {:?}", e);
         }
         writer.flush().unwrap();
 
         for item in recv.iter() {
             let formatted_fields = item.format_fields();
             if let Err(e) = writeln!(&mut writer, "{}", formatted_fields.join(",")) {
-                error!("Error writing item: {:?}", e);
+                eprintln!("Error writing item: {:?}", e);
             }
             writer.flush().unwrap();
         }
@@ -992,6 +1166,7 @@ fn write_signature(
     sig: &Signature,
     zip: &mut zip::ZipWriter<BufWriter<File>>,
     zip_options: zip::write::FileOptions,
+    sig_filename: &str,
 ) {
     let wrapped_sig = vec![sig];
     let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
@@ -1008,8 +1183,6 @@ fn write_signature(
         }
         buffer.into_inner()
     };
-
-    let sig_filename = format!("{}.sig.gz", sig.md5sum());
 
     zip.start_file(sig_filename, zip_options).unwrap();
     zip.write_all(&gzipped_buffer).unwrap();
@@ -1118,12 +1291,12 @@ fn mastiff_manysearch<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send_result {
-        error!("Error during parallel processing: {}", e);
+        eprintln!("Error during parallel processing: {}", e);
     }
 
     // join the writer thread
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }  
 
     // done!
@@ -1257,11 +1430,11 @@ fn mastiff_manygather<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send {
-        error!("Unable to send internal data: {:?}", e);
+        eprintln!("Unable to send internal data: {:?}", e);
     }
 
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }
 
     // done!
@@ -1419,11 +1592,11 @@ fn multisearch<P: AsRef<Path>>(
 
     // do some cleanup and error handling -
     if let Err(e) = send {
-        error!("Unable to send internal data: {:?}", e);
+        eprintln!("Unable to send internal data: {:?}", e);
     }
 
     if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+        eprintln!("Unable to join internal thread: {:?}", e);
     }
 
     // done!
@@ -1433,19 +1606,155 @@ fn multisearch<P: AsRef<Path>>(
     Ok(())
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Params {
+    ksize: u32,
+    track_abundance: bool,
+    num: u32,
+    scaled: u64,
+    seed: u32,
+    is_protein: bool,
+    is_dna: bool,
+}
+use std::hash::Hash;
+use std::hash::Hasher;
+
+impl Hash for Params {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ksize.hash(state);
+        self.track_abundance.hash(state);
+        self.num.hash(state);
+        self.scaled.hash(state);
+        self.seed.hash(state);
+        self.is_protein.hash(state);
+        self.is_dna.hash(state);
+    }
+}
+
+fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
+    let mut unique_params: std::collections::HashSet<Params> = std::collections::HashSet::new();
+
+    // split params_strs by _ and iterate over each param
+    for p_str in params_strs.split('_').collect::<Vec<&str>>().iter() {
+        let items: Vec<&str> = p_str.split(',').collect();
+
+        let mut ksizes = Vec::new();
+        let mut track_abundance = false;
+        let mut num = 0;
+        let mut scaled = 1000;
+        let mut seed = 42;
+        let mut is_protein = false;
+        let mut is_dna = true;
+
+        for item in items.iter() {
+            match *item {
+                _ if item.starts_with("k=") => {
+                    let k_value = item[2..].parse()
+                        .map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
+                    ksizes.push(k_value);
+                },
+                "abund" => track_abundance = true,
+                "noabund" => track_abundance = false,
+                _ if item.starts_with("num=") => {
+                    num = item[4..].parse()
+                        .map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
+                },
+                _ if item.starts_with("scaled=") => {
+                    scaled = item[7..].parse()
+                        .map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
+                },
+                _ if item.starts_with("seed=") => {
+                    seed = item[5..].parse()
+                        .map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
+                },
+                "protein" => {
+                    is_protein = true;
+                    is_dna = false;
+                },
+                "dna" => {
+                    is_protein = false;
+                    is_dna = true;
+                },
+                _ => return Err(format!("unknown component '{}' in params string", item)),
+            }
+        }
+
+        for &k in &ksizes {
+            let param = Params {
+                ksize: k,
+                track_abundance,
+                num,
+                scaled,
+                seed,
+                is_protein,
+                is_dna
+            };
+            unique_params.insert(param);
+        }
+    }
+
+    Ok(unique_params.into_iter().collect())
+}
+
+fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &PathBuf) -> (Vec<Signature>, Vec<Params>) {
+    let mut sigs = Vec::new();
+    let mut params_vec = Vec::new();
+
+    for param in params.iter().cloned() {
+        match moltype {
+            // if dna, only build dna sigs. if protein, only build protein sigs
+            "dna" if !param.is_dna => continue,
+            "protein" if !param.is_protein => continue,
+            _ => (),
+        }
+
+        // Adjust ksize value based on the is_protein flag
+        let adjusted_ksize = if param.is_protein {
+            param.ksize * 3
+        } else {
+            param.ksize
+        };
+
+        let cp = ComputeParameters::builder()
+            .ksizes(vec![adjusted_ksize])
+            .scaled(param.scaled)
+            .protein(param.is_protein)
+            .dna(param.is_dna)
+            .num_hashes(param.num)
+            .track_abundance(param.track_abundance)
+            .build();
+
+        // let sig = Signature::from_params(&cp); // cant set name with this
+        let template = sourmash::cmd::build_template(&cp);
+        let sig = Signature::builder()
+                .hash_function("0.murmur64")
+                .name(Some(name.to_string()))
+                .filename(Some(filename.to_string_lossy().into_owned()))
+                .signatures(template)
+                .build();
+        sigs.push(sig);
+
+        params_vec.push(param);
+    }
+
+    (sigs, params_vec)
+}
+
 
 fn manysketch<P: AsRef<Path> + Sync>(
     filelist: P,
-    ksize: u8,
-    scaled: usize,
+    param_str: String,
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
-    // load list of file paths (todo: modify for fasta files)
-    let filelist_paths = load_sketchlist_filenames(&filelist)?;
+    let fileinfo = match load_sketch_fromfile(&filelist) {
+        Ok(result) => result,
+        Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e)
+    };
 
-    // if filelist_paths is empty, exit with error
-    if filelist_paths.is_empty() {
+    // if no files to process, exit with error
+    let n_fastas = fileinfo.len();
+    if n_fastas == 0 {
         bail!("No files to load, exiting.");
     }
 
@@ -1455,34 +1764,49 @@ fn manysketch<P: AsRef<Path> + Sync>(
     }
 
     // set up a multi-producer, single-consumer channel that receives Signature
-    let (send, recv) = std::sync::mpsc::sync_channel::<Signature>(rayon::current_num_threads());
+    let (send, recv) = std::sync::mpsc::sync_channel::<ZipMessage>(rayon::current_num_threads());
+    // need to use Arc so we can write the manifest after all sigs have written
+    let send = std::sync::Arc::new(send);
 
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = sigwriter::<&str>(recv, output);
 
-    // iterate over filelist_paths
-    let processed_sigs = AtomicUsize::new(0);
-    let failed_paths = AtomicUsize::new(0);
+    // parse param string into params_vec, print error if fail
+    let param_result = parse_params_str(param_str);
+    let params_vec = match param_result {
+        Ok(params) => params,
+        Err(e) => {
+            eprintln!("Error parsing params string: {}", e);
+            bail!("Failed to parse params string");
+        }
+    };
 
-    let send_result = filelist_paths
+    // iterate over filelist_paths
+    let processed_fastas = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
+    let skipped_paths: AtomicUsize = AtomicUsize::new(0);
+
+    // set reporting threshold at every 5% or every 1 fasta, whichever is larger)
+    let reporting_threshold = std::cmp::max(n_fastas / 20, 1);
+
+    let send_result = fileinfo
     .par_iter()
-    .filter_map(|filename| {
-        let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-        if i % 1000 == 0 {
-            println!("Processed {} fasta files", i);
+    .filter_map(|(name, filename, moltype)| {
+        let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
+        // progress report at threshold
+        if i != 0 && i % reporting_threshold == 0 {
+            let percent_processed = ((i as f64 / n_fastas as f64) * 100.0).round();
+            eprintln!("Processed {} fasta files ({}% done)", i, percent_processed);
         }
 
-        // build signature from params
-        let cp = ComputeParameters::builder()
-        .ksizes(vec![ksize as u32])
-        .scaled(scaled as u64)
-        .protein(false)
-        .dna(true)
-        .num_hashes(0)
-        .build();
-
-        let mut sig = Signature::from_params(&cp);
         let mut data: Vec<u8> = vec![];
+        // build sig templates from params
+        let (mut sigs, sig_params) = build_siginfo(&params_vec, &moltype, &name, &filename);
+        // if no sigs to build, skip
+        if sigs.len() == 0 {
+            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            return None;
+        }
 
         // parse fasta file and add to signature
         match File::open(filename) {
@@ -1494,44 +1818,58 @@ fn manysketch<P: AsRef<Path> + Sync>(
                         while let Some(record_result) = parser.next() {
                             match record_result {
                                 Ok(record) => {
-                                    sig.add_sequence(&record.seq(), false).unwrap();
+                                    for mut sig in &mut sigs {
+                                        if moltype == "protein" {
+                                            sig.add_protein(&record.seq()).unwrap();
+                                        } else {
+                                            sig.add_sequence(&record.seq(), true).unwrap(); // if not force, panics with 'N' in dna sequence
+                                        }
+                                    }
                                 },
                                 Err(error) => {
-                                    error!("Error while processing record: {:?}", error);
+                                    eprintln!("Error while processing record: {:?}", error);
                                 }
                             }
                         }
-                        Some(sig)
+                        Some((sigs, sig_params, filename))
                     },
                     Err(err) => {
-                        error!("Error creating parser for file {}: {:?}", filename.display(), err);
+                        eprintln!("Error creating parser for file {}: {:?}", filename.display(), err);
                         let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         None
                     }
                 }
             },
             Err(err) => {
-                error!("Error opening file {}: {:?}", filename.display(), err);
+                eprintln!("Error opening file {}: {:?}", filename.display(), err);
                 let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
         }
     })
-    .try_for_each_with(send, |s, sig| s.send(sig));
+    .try_for_each_with(send.clone(), |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs, sig_params, filename)| {
+        if let Err(e) = s.send(ZipMessage::SignatureData(sigs, sig_params, filename.clone())) {
+            Err(format!("Unable to send internal data: {:?}", e))
+        } else {
+            Ok(())
+        }
+    });
 
+    // After the parallel work, send the WriteManifest message
+    std::sync::Arc::try_unwrap(send).unwrap().send(ZipMessage::WriteManifest).unwrap();
 
     // do some cleanup and error handling -
     if let Err(e) = send_result {
-        error!("Error during parallel processing: {}", e);
+        eprintln!("Error during parallel processing: {}", e);
     }
 
     // join the writer thread
-    if let Err(e) = thrd.join() {
-        error!("Unable to join internal thread: {:?}", e);
+    if let Err(e) = thrd.join().unwrap_or_else(|e| Err(anyhow!("Thread panicked: {:?}", e))) {
+        eprintln!("Error in sigwriter thread: {:?}", e);
     }
 
     // done!
-    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
+    let i: usize = processed_fastas.fetch_max(0, atomic::Ordering::SeqCst);
     eprintln!("DONE. Processed {} fasta files", i);
 
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
@@ -1542,6 +1880,12 @@ fn manysketch<P: AsRef<Path> + Sync>(
     if failed_paths > 0 {
         eprintln!("WARNING: {} fasta files failed to load. See error messages above.",
                   failed_paths);
+    }
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    if skipped_paths > 0 {
+        eprintln!("WARNING: {} fasta files skipped - no compatible signatures.",
+                  skipped_paths);
     }
 
     Ok(())
@@ -1698,11 +2042,10 @@ fn do_multisearch(querylist_path: String,
 
 #[pyfunction]
 fn do_manysketch(filelist: String,
-                 ksize: u8,
-                 scaled: usize,
+                 param_str: String,
                  output: String,
     ) -> anyhow::Result<u8>{
-    match manysketch(filelist, ksize, scaled, output) {
+    match manysketch(filelist, param_str, output) {
               Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
