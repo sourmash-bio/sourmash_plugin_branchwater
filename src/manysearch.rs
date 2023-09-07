@@ -1,7 +1,9 @@
-/// Search many queries against a list of signatures.
+/// multisearch: massively search of many queries against many large subjects.
+/// the OG MAGsearch, branchwater, etc.
 ///
 /// Note: this function loads all _queries_ into memory, and iterates over
 /// database once. 
+
 use anyhow::Result;
 use rayon::prelude::*;
 

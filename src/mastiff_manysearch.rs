@@ -1,3 +1,5 @@
+/// mastiff_manysearch: mastiff-indexed version of manysearch.
+
 use anyhow::Result;
 use rayon::prelude::*;
 

@@ -1,3 +1,5 @@
+/// multisearch: massively parallel in-memory sketch search.
+
 use rayon::prelude::*;
 use anyhow::Result;
 

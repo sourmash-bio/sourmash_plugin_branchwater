@@ -1,4 +1,4 @@
-/// Run counter-gather with a query against a list of files.
+/// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
 
 

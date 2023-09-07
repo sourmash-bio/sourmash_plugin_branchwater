@@ -1,3 +1,5 @@
+/// mastiff_manygather: mastiff-indexed version of fastmultigather.
+
 use anyhow::Result;
 use rayon::prelude::*;
 

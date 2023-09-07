@@ -1,4 +1,4 @@
-/// Run counter-gather for multiple queries against a list of files.
+/// fastmultigather: Run gather for multiple queries against a list of files.
 
 use anyhow::Result;
 use rayon::prelude::*;

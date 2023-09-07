@@ -1,3 +1,5 @@
+/// manysketch: massively parallel sketching of sequence files.
+
 use anyhow::{Result, anyhow};
 use rayon::prelude::*;
 

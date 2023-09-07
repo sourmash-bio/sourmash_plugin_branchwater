@@ -1,4 +1,4 @@
-/// Rust code for pyo3_branchwater.
+/// Python interface Rust code for pyo3_branchwater.
 
 use pyo3::prelude::*;
 
