@@ -403,7 +403,7 @@ pub fn load_sketches_above_threshold(
 }
 
 
-fn load_sketches_from_zip<P: AsRef<Path>>(
+pub fn load_sketches_from_zip<P: AsRef<Path>>(
     zip_path: P,
     template: &Sketch,
 ) -> Result<(Vec<SmallSignature>, usize, usize)> {
@@ -440,13 +440,14 @@ fn load_sketches_from_zip<P: AsRef<Path>>(
     Ok((sketchlist, skipped_paths.load(atomic::Ordering::SeqCst), failed_paths.load(atomic::Ordering::SeqCst)))
 }
 
-fn report_on_sketch_loading(
+pub fn report_on_sketch_loading(
     sketchlist: &[SmallSignature],
     skipped_paths: usize,
     failed_paths: usize,
     report_db: bool,
 ) -> Result<()> {
-    let report_type = if report_db { "db" } else { "query" };
+    let report_type = if report_db { "db (against)" } else { "query" };
+
 
     if failed_paths > 0 {
         eprintln!(

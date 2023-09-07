@@ -5,7 +5,7 @@ use rayon::prelude::*;
 
 use std::io::Read;
 use std::path::Path;
-use crate::utils::{Params, load_sketch_fromfile, ZipMessage, sigwriter};
+use crate::utils::{Params, load_fasta_fromfile, ZipMessage, sigwriter};
 use sourmash::signature::Signature;
 use sourmash::cmd::ComputeParameters;
 use std::sync::atomic;
@@ -130,7 +130,7 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
-    let fileinfo = match load_sketch_fromfile(&filelist) {
+    let fileinfo = match load_fasta_fromfile(&filelist) {
         Ok(result) => result,
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e)
     };

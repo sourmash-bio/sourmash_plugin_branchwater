@@ -43,24 +43,6 @@ let template = Sketch::MinHash(template_mh);
 eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
 
 // Load all queries into memory at once.
-// let querylist_paths = load_sketchlist_filenames(&querylist)?;
-
-// let result = load_sketches(querylist_paths, &template)?;
-// let (queries, skipped_paths, failed_paths) = result;
-
-// eprintln!("Loaded {} query signatures", queries.len());
-// if failed_paths > 0 {
-//     eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
-//                 failed_paths);
-// }
-// if skipped_paths > 0 {
-//     eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-//                 skipped_paths);
-// }
-
-// if queries.is_empty() {
-//     bail!("No query signatures loaded, exiting.");
-// }
 let result = if querylist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
     load_sketches_from_zip(&querylist, &template)?
 } else {
@@ -76,25 +58,6 @@ report_on_sketch_loading(&queries, skipped_paths, failed_paths, false)?;
 eprintln!("Reading list of against paths from: '{}'", againstlist.as_ref().display());
 
 // Load all against sketches into memory at once.
-// let againstlist_paths = load_sketchlist_filenames(&againstlist)?;
-
-// let result = load_sketches(againstlist_paths, &template)?;
-// let (against, skipped_paths, failed_paths) = result;
-
-// eprintln!("Loaded {} against signatures", against.len());
-// if failed_paths > 0 {
-//     eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
-//                 failed_paths);
-// }
-// if skipped_paths > 0 {
-//     eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-//                 skipped_paths);
-// }
-
-// if against.is_empty() {
-//     bail!("No query signatures loaded, exiting.");
-// }
-
 let result = if againstlist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
     load_sketches_from_zip(&querylist, &template)?
 } else {
@@ -103,7 +66,7 @@ let result = if againstlist.as_ref().extension().map(|ext| ext == "zip").unwrap_
 };
 
 let (against, skipped_paths, failed_paths) = result;
-report_on_sketch_loading(&against, skipped_paths, failed_paths, false)?;
+report_on_sketch_loading(&against, skipped_paths, failed_paths, true)?;
  // set up a multi-producer, single-consumer channel.
 let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
 
