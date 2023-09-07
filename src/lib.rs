@@ -223,50 +223,50 @@ fn manysearch<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load search signature from path:
-            if let Ok(search_sigs) = Signature::from_path(filename) {
-                let location = filename.display().to_string();
-                if let Some(search_sm) = prepare_query(&search_sigs, &template, &location) {
-                    // search for matches & save containment.
-                    for q in queries.iter() {
-                        let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
-                        let query_size = q.minhash.size() as f64;
-                        let target_size = search_sm.minhash.size() as f64;
+            match  Signature::from_path(filename) {
+                Ok(search_sigs) => {
+                    let location = filename.display().to_string();
+                    if let Some(search_sm) = prepare_query(&search_sigs, &template, &location) {
+                        // search for matches & save containment.
+                        for q in queries.iter() {
+                            let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
+                            let query_size = q.minhash.size() as f64;
+                            let target_size = search_sm.minhash.size() as f64;
 
-                        let containment_query_in_target = overlap / query_size;
-                        let containment_in_target = overlap / target_size;
-                        let max_containment = containment_query_in_target.max(containment_in_target);
-                        let jaccard = overlap / (target_size + query_size - overlap);
+                            let containment_query_in_target = overlap / query_size;
+                            let containment_in_target = overlap / target_size;
+                            let max_containment = containment_query_in_target.max(containment_in_target);
+                            let jaccard = overlap / (target_size + query_size - overlap);
 
-                        if containment_query_in_target > threshold {
-                            results.push(SearchResult {
-                                query_name: q.name.clone(),
-                                query_md5: q.md5sum.clone(),
-                                match_name: search_sm.name.clone(),
-                                containment: containment_query_in_target,
-                                intersect_hashes: overlap as usize,
-                                match_md5: Some(search_sm.md5sum.clone()),
-                                jaccard: Some(jaccard),
-                                max_containment: Some(max_containment),
-                            });
+                            if containment_query_in_target > threshold {
+                                results.push(SearchResult {
+                                    query_name: q.name.clone(),
+                                    query_md5: q.md5sum.clone(),
+                                    match_name: search_sm.name.clone(),
+                                    containment: containment_query_in_target,
+                                    intersect_hashes: overlap as usize,
+                                    match_md5: Some(search_sm.md5sum.clone()),
+                                    jaccard: Some(jaccard),
+                                    max_containment: Some(max_containment),
+                                });
+                            }
                         }
+                    } else {
+                        eprintln!("WARNING: no compatible sketches in path '{}'",
+                                  filename.display());
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-                } else {
-                    eprintln!("WARNING: no compatible sketches in path '{}'",
+                    Some(results)
+                },
+                Err(err) => {
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    eprintln!("Sketch loading error: {}", err);
+                    eprintln!("WARNING: could not load sketches from path '{}'",
                               filename.display());
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
                 }
-            } else {
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                // @CTB
-                eprintln!("WARNING: could not load sketches from path '{}'",
-                          filename.display());
             }
 
-            if results.is_empty() {
-                None
-            } else {
-                Some(results)
-            }
         })
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));
@@ -693,63 +693,61 @@ fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
             let location = q.clone().into_os_string().into_string().unwrap();
             let location = location.split('/').last().unwrap().to_string();
 
-            if let Some(query) = {
-                // load query from q
-                let mut mm = None;
-                if let Ok(sigs) = Signature::from_path(dbg!(q)) {
-                    mm = prepare_query(&sigs, &template, &location);
+            let query = match Signature::from_path(dbg!(q)) {
+                Ok(sigs) => {
+                    let mm = prepare_query(&sigs, &template, &location);
 
                     if mm.is_none() {
                         eprintln!("WARNING: no compatible sketches in path '{}'",
-                                  q.display());
+                                q.display());
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-                } else {
-                    // @CTB
-                    eprintln!("WARNING: could not load sketches from path '{}'",
-                              q.display());
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                }
-                mm
-            } {
-
-            // filter first set of matches out of sketchlist
-            let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                .par_iter()
-                .filter_map(|sm| {
-                    let mut mm = None;
-
-                    if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: sm.name.clone(),
-                                md5sum: sm.md5sum.clone(),
-                                minhash: sm.minhash.clone(),
-                                overlap,
-                            };
-                            mm = Some(result);
-                        }
-                    }
                     mm
+                },
+                Err(err) => {
+                    eprintln!("Sketch loading error: {}", err);
+                    eprintln!("WARNING: could not load sketches from path '{}'",
+                                q.display());
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
+                }
+            };
+
+            if let Some(query) = query {
+                // filter first set of matches out of sketchlist
+                let matchlist: BinaryHeap<PrefetchResult> = sketchlist
+                    .par_iter()
+                    .filter_map(|sm| {
+                        let mut mm = None;
+
+                        if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
+                            if overlap >= threshold_hashes {
+                                let result = PrefetchResult {
+                                    name: sm.name.clone(),
+                                    md5sum: sm.md5sum.clone(),
+                                    minhash: sm.minhash.clone(),
+                                    overlap,
+                                };
+                                mm = Some(result);
+                            }
+                        }
+                        mm
                 })
                 .collect();
 
-            if !matchlist.is_empty() {
-                let prefetch_output = format!("{location}.prefetch.csv");
-                let gather_output = format!("{location}.gather.csv");
+                if !matchlist.is_empty() {
+                    let prefetch_output = format!("{location}.prefetch.csv");
+                    let gather_output = format!("{location}.gather.csv");
 
-                // save initial list of matches to prefetch output
-                write_prefetch(&query, Some(prefetch_output), &matchlist).ok();
+                    // save initial list of matches to prefetch output
+                    write_prefetch(&query, Some(prefetch_output), &matchlist).ok();
 
-                // now, do the gather!
-                consume_query_by_gather(query, matchlist, threshold_hashes,
-                                        Some(gather_output)).ok();
-            } else {
-                println!("No matches to '{}'", location);
-            }
-         } else {
-                // @CTB
-                println!("ERROR loading signature from '{}'", location);
+                    // now, do the gather!
+                    consume_query_by_gather(query, matchlist, threshold_hashes,
+                                            Some(gather_output)).ok();
+                } else {
+                    println!("No matches to '{}'", location);
+                }
             }
         });
 
@@ -1009,46 +1007,50 @@ fn mastiff_manysearch<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            if let Ok(query_sig) = Signature::from_path(filename) {
-                let location = filename.display().to_string();
-                if let Some(query) = prepare_query(&query_sig, &template, &location) {
-                    let query_size = query.minhash.size() as f64;
-                    // search mastiff db
-                    let counter = db.counter_for_query(&query.minhash);
-                    let matches = db.matches_from_counter(counter, minimum_containment as usize);
+            match Signature::from_path(filename) {
+                Ok(query_sig) => {
+                    let location = filename.display().to_string();
+                    if let Some(query) = prepare_query(&query_sig, &template, &location) {
+                        let query_size = query.minhash.size() as f64;
+                        // search mastiff db
+                        let counter = db.counter_for_query(&query.minhash);
+                        let matches = db.matches_from_counter(counter, minimum_containment as usize);
 
-                    // filter the matches for containment
-                    for (path, overlap) in matches {
-                        let containment = overlap as f64 / query_size;
-                        if containment >= minimum_containment {
-                            results.push( SearchResult {
-                                query_name: query.name.clone(),
-                                query_md5: query.md5sum.clone(),
-                                match_name: path.clone(),
-                                containment,
-                                intersect_hashes: overlap,
-                                match_md5: None,
-                                jaccard: None,
-                                max_containment: None,
-                            });
+                        // filter the matches for containment
+                        for (path, overlap) in matches {
+                            let containment = overlap as f64 / query_size;
+                            if containment >= minimum_containment {
+                                results.push( SearchResult {
+                                    query_name: query.name.clone(),
+                                    query_md5: query.md5sum.clone(),
+                                    match_name: path.clone(),
+                                    containment,
+                                    intersect_hashes: overlap,
+                                    match_md5: None,
+                                    jaccard: None,
+                                    max_containment: None,
+                                });
+                            }
                         }
+                    } else {
+                        eprintln!("WARNING: no compatible sketches in path '{}'",
+                                filename.display());
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-                } else {
-                    eprintln!("WARNING: no compatible sketches in path '{}'",
+                    if results.is_empty() {
+                        None
+                    } else {
+                        Some(results)
+                    }
+                },
+                Err(err) => {
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    eprintln!("Sketch loading error: {}", err);
+                    eprintln!("WARNING: could not load sketches from path '{}'",
                               filename.display());
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
                 }
-            } else {
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                // @CTB
-                eprintln!("WARNING: could not load sketches from path '{}'",
-                          filename.display());
             }
-            if results.is_empty() {
-                None
-            } else {
-                Some(results)
-            }    
           })
           .flatten()
           .try_for_each_with(send, |s, results| {
@@ -1144,56 +1146,58 @@ fn mastiff_manygather<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            if let Ok(query_sig) = Signature::from_path(filename) {
-                let location = filename.display().to_string();
-                if let Some(query) = prepare_query(&query_sig, &template, &location) {
-                    // let query_size = query.minhash.size() as f64;
-                    let threshold = threshold_bp / query.minhash.scaled() as usize;
- 
-                    // mastiff gather code
-                    info!("Building counter");
-                    let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query.minhash);
-                    info!("Counter built");
+            match Signature::from_path(filename) {
+                Ok(query_sig) => {
+                    let location = filename.display().to_string();
+                    if let Some(query) = prepare_query(&query_sig, &template, &location) {
+                        // let query_size = query.minhash.size() as f64;
+                        let threshold = threshold_bp / query.minhash.scaled() as usize;
 
-                    let matches = db.gather(
-                        counter,
-                        query_colors,
-                        hash_to_color,
-                        threshold,
-                        &query.minhash,
-                        &template,
-                    );
+                        // mastiff gather code
+                        info!("Building counter");
+                        let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query.minhash);
+                        info!("Counter built");
 
-                    // extract matches from Result
-                    if let Ok(matches) = matches {
-                        for match_ in &matches {
-                            results.push((query.name.clone(),
-                                      query.md5sum.clone(),
-                                      match_.name().clone(),
-                                      match_.md5().clone(),
-                                      match_.f_match(), // f_match_query
-                                      match_.intersect_bp())); // intersect_bp
+                        let matches = db.gather(
+                            counter,
+                            query_colors,
+                            hash_to_color,
+                            threshold,
+                            &query.minhash,
+                            &template,
+                        );
+
+                        // extract matches from Result
+                        if let Ok(matches) = matches {
+                            for match_ in &matches {
+                                results.push((query.name.clone(),
+                                        query.md5sum.clone(),
+                                        match_.name().clone(),
+                                        match_.md5().clone(),
+                                        match_.f_match(), // f_match_query
+                                        match_.intersect_bp())); // intersect_bp
+                            }
+                        } else {
+                            eprintln!("Error gathering matches: {:?}", matches.err());
                         }
                     } else {
-                        eprintln!("Error gathering matches: {:?}", matches.err());
+                        eprintln!("WARNING: no compatible sketches in path '{}'",
+                                filename.display());
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-
-                } else {
-                    eprintln!("WARNING: no compatible sketches in path '{}'",
-                              filename.display());
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    if results.is_empty() {
+                        None
+                    } else {
+                        Some(results)
+                    }
+                },
+                Err(err) => {
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    eprintln!("Sketch loading error: {}", err);
+                    eprintln!("WARNING: could not load sketches from path '{}'",
+                            filename.display());
+                    None
                 }
-            } else {
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                // @CTB
-                eprintln!("WARNING: could not load sketches from path '{}'",
-                          filename.display());
-            }
-
-            if results.is_empty() {
-                None
-            } else {
-                Some(results)
             }
         })
         .flatten()
