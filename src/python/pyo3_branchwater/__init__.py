@@ -38,7 +38,7 @@ def set_thread_pool(user_cores):
 
 class Branchwater_Manysearch(CommandLinePlugin):
     command = 'manysearch'
-    description = 'massively parallel sketch search'
+    description = 'search many metagenomes for contained genomes'
 
     def __init__(self, p):
         super().__init__(p)
@@ -220,7 +220,7 @@ class Branchwater_Check(CommandLinePlugin):
 
 class Branchwater_Multisearch(CommandLinePlugin):
     command = 'multisearch'
-    description = 'massively parallel sketch search'
+    description = 'massively parallel in-memory sketch search'
 
     def __init__(self, p):
         super().__init__(p)
