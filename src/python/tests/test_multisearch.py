@@ -170,7 +170,7 @@ def test_bad_query_2(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 query signature paths failed to load. See error messages above." in captured.err
 
 
 def test_missing_against(runtmp, capfd):
@@ -288,7 +288,7 @@ def test_nomatch_query(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
+    assert 'WARNING: skipped 1 query paths - no compatible signatures' in captured.err
 
 
 def test_load_only_one_bug(runtmp, capfd):
