@@ -49,7 +49,7 @@ sourmash scripts manysketch fa.csv -o fa.zip -p k=21,k=31,k=51,scaled=1000,abund
 
 ### Running `multisearch`
 
-The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading everything into memory.
+The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading all genomes into memory.
 
 `multisearch` takes two file lists as input, and outputs a CSV:
 ```
