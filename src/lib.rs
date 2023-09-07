@@ -778,7 +778,7 @@ fn build_template(ksize: u8, scaled: usize) -> Sketch {
     Sketch::MinHash(template_mh)
 }
 
-fn read_signatures_from_zip<P: AsRef<Path>>(
+fn load_sigpaths_from_zip<P: AsRef<Path>>(
     zip_path: P,
 ) -> Result<(Vec<PathBuf>, tempfile::TempDir), Box<dyn std::error::Error>> {
     let mut signature_paths = Vec::new();
@@ -803,6 +803,75 @@ fn read_signatures_from_zip<P: AsRef<Path>>(
     Ok((signature_paths, temp_dir))
 }
 
+fn report_on_sketch_loading(
+    sketchlist: &[SmallSignature],
+    skipped_paths: usize,
+    failed_paths: usize,
+    report_db: bool,
+) -> Result<()> { 
+    let report_type = if report_db { "db" } else { "query" };
+
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} {} signature paths failed to load. See error messages above.",
+            failed_paths,
+            report_type
+        );
+    }
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} {} paths - no compatible signatures.",
+            skipped_paths,
+            report_type
+        );
+    }
+
+    // Validate sketches
+    eprintln!("Loaded {} {} signatures", sketchlist.len(), report_type);
+    if sketchlist.is_empty() {
+        bail!("No {} signatures loaded, exiting.", report_type);
+    }
+    Ok(())
+}
+
+fn load_sketches_from_zip<P: AsRef<Path>>(
+    zip_path: P,
+    template: &Sketch,
+) -> Result<(Vec<SmallSignature>, usize, usize)> {
+    let mut sketchlist = Vec::new();
+    let zip_file = File::open(&zip_path)?;
+    let mut zip_archive = ZipArchive::new(zip_file)?;
+
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
+
+    // loop through, loading signatures
+    for i in 0..zip_archive.len() {
+        let mut file = zip_archive.by_index(i)?;
+        let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap().to_owned();
+
+        // if let Ok(sigs) = Signature::from_path(&file) {
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
+        let cursor = std::io::Cursor::new(buffer);
+        if let Ok(sigs) = Signature::from_reader(cursor) {
+            if let Some(sm) = prepare_query(&sigs, template, &zip_path.as_ref().display().to_string()) {
+                sketchlist.push(sm);
+            } else {
+                // track number of paths that have no matching sigs
+                skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            }
+        } else {
+            // failed to load from this path - print error & track.
+            eprintln!("WARNING: could not load sketches from path '{}'", file_name);
+            failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+        }
+    }
+    println!("loaded {} signatures", sketchlist.len());
+    Ok((sketchlist, skipped_paths.load(atomic::Ordering::SeqCst), failed_paths.load(atomic::Ordering::SeqCst)))
+}
+
+
 fn index<P: AsRef<Path>>(
     siglist: P,
     template: Sketch,
@@ -816,7 +885,7 @@ fn index<P: AsRef<Path>>(
     let index_sigs: Vec<PathBuf>;
 
     if siglist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
-        let (paths, tempdir) = read_signatures_from_zip(&siglist)?;
+        let (paths, tempdir) = load_sigpaths_from_zip(&siglist)?;
         temp_dir = Some(tempdir);
         index_sigs = paths;
     } else {
@@ -1245,34 +1314,52 @@ fn multisearch<P: AsRef<Path>>(
     // Read in list of query paths.
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
 
-    // Load all queries into memory at once.
-    let querylist_paths = load_sketchlist_filenames(&querylist)?;
+    let result = if querylist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+        load_sketches_from_zip(&querylist, &template)?
+    } else {
+        let querylist_paths = load_sketchlist_filenames(&querylist)?;
+        load_sketches(querylist_paths, &template)?
+    };
 
-    let result = load_sketches(querylist_paths, &template)?;
     let (queries, skipped_paths, failed_paths) = result;
+    report_on_sketch_loading(&queries, skipped_paths, failed_paths, false)?;
 
-    eprintln!("Loaded {} query signatures", queries.len());
-    if failed_paths > 0 {
-        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
-                    failed_paths);
-    }
-    if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-                    skipped_paths);
-    }
+    // // Load all queries into memory at once.
+    // let querylist_paths = load_sketchlist_filenames(&querylist)?;
+    // let result = load_sketches(querylist_paths, &template)?;
+    // let (queries, skipped_paths, failed_paths) = result;
+    // eprintln!("Loaded {} query signatures", queries.len());
+    // if failed_paths > 0 {
+    //     eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+    //                 failed_paths);
+    // }
+    // if skipped_paths > 0 {
+    //     eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+    //                 skipped_paths);
+    // }
 
-    if queries.is_empty() {
-        bail!("No query signatures loaded, exiting.");
-    }
+    // // if queries.is_empty() {
+    //     bail!("No query signatures loaded, exiting.");
+    // }
 
     // Read in list of against paths.
     eprintln!("Reading list of against paths from: '{}'", againstlist.as_ref().display());
+    
+    let result = if againstlist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+        load_sketches_from_zip(&querylist, &template)?
+    } else {
+        let querylist_paths = load_sketchlist_filenames(&againstlist)?;
+        load_sketches(querylist_paths, &template)?
+    };
+
+    let (against, skipped_paths, failed_paths) = result;
+    report_on_sketch_loading(&against, skipped_paths, failed_paths, false)?;
 
     // Load all against sketches into memory at once.
-    let againstlist_paths = load_sketchlist_filenames(&againstlist)?;
+    // let againstlist_paths = load_sketchlist_filenames(&againstlist)?;
 
-    let result = load_sketches(againstlist_paths, &template)?;
-    let (against, skipped_paths, failed_paths) = result;
+    // let result = load_sketches(againstlist_paths, &template)?;
+    // let (against, skipped_paths, failed_paths) = result;
 
     eprintln!("Loaded {} against signatures", against.len());
     if failed_paths > 0 {
