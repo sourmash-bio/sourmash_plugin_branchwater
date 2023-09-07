@@ -38,7 +38,7 @@ def set_thread_pool(user_cores):
 
 class Branchwater_Manysearch(CommandLinePlugin):
     command = 'manysearch'
-    description = 'massively parallel sketch search'
+    description = 'search many metagenomes for contained genomes'
 
     def __init__(self, p):
         super().__init__(p)
@@ -220,7 +220,7 @@ class Branchwater_Check(CommandLinePlugin):
 
 class Branchwater_Multisearch(CommandLinePlugin):
     command = 'multisearch'
-    description = 'massively parallel sketch search'
+    description = 'massively parallel in-memory sketch search'
 
     def __init__(self, p):
         super().__init__(p)
@@ -256,4 +256,43 @@ class Branchwater_Multisearch(CommandLinePlugin):
                                                  args.output)
         if status == 0:
             notify(f"...multisearch is done! results in '{args.output}'")
+        return status
+
+
+class Branchwater_Manysketch(CommandLinePlugin):
+    command = 'manysketch'
+    description = 'massively parallel sketching'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('fromfile_csv', help="a csv file containing paths to fasta files. \
+                        Columns must be: 'name,genome_filename,protein_filename'")
+        p.add_argument('-o', '--output', required=True,
+                       help='output zip file for the signatures')
+        p.add_argument('-p', '--param-string', action='append', type=str, default=[],
+                          help='parameter string for sketching (default: k=31,scaled=1000)')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
+
+    def main(self, args):
+        print_version()
+        if not args.param_string:
+            args.param_string = ["k=31,scaled=1000"]
+        notify(f"params: {args.param_string}")
+
+        # convert to a single string for easier rust handling
+        args.param_string = "_".join(args.param_string)
+        # lowercase the param string
+        args.param_string = args.param_string.lower()
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"sketching all files in '{args.fromfile_csv}' using {num_threads} threads")
+
+        super().main(args)
+        status = pyo3_branchwater.do_manysketch(args.fromfile_csv,
+                                            args.param_string,
+                                            args.output)
+        if status == 0:
+            notify(f"...manysketch is done! results in '{args.output}'")
         return status
