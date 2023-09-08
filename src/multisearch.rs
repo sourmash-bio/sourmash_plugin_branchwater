@@ -15,7 +15,7 @@ use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 
-use crate::utils::{load_sketchlist_filenames, load_sketches, load_sketches_from_zip, report_on_sketch_loading};
+use crate::utils::{report_on_sketch_loading, load_sketches_from_zip_or_pathlist};
 
 /// Search many queries against a list of signatures.
 ///
@@ -39,34 +39,12 @@ let template_mh = KmerMinHash::builder()
     .build();
 let template = Sketch::MinHash(template_mh);
 
-// Read in list of query paths.
-eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
-
 // Load all queries into memory at once.
-let result = if querylist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
-    load_sketches_from_zip(&querylist, &template)?
-} else {
-    let querylist_paths = load_sketchlist_filenames(&querylist)?;
-    load_sketches(querylist_paths, &template)?
-};
-
-let (queries, skipped_paths, failed_paths) = result;
-report_on_sketch_loading(&queries, skipped_paths, failed_paths, false)?;
-
-
-// Read in list of against paths.
-eprintln!("Reading list of against from: '{}'", againstlist.as_ref().display());
+let queries = load_sketches_from_zip_or_pathlist(&querylist, &template,  true)?;
 
 // Load all against sketches into memory at once.
-let result = if againstlist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
-    load_sketches_from_zip(&againstlist, &template)?
-} else {
-    let sketchlist_paths = load_sketchlist_filenames(&againstlist)?;
-    load_sketches(sketchlist_paths, &template)?
-};
+let against = load_sketches_from_zip_or_pathlist(&againstlist, &template, false)?;
 
-let (against, skipped_paths, failed_paths) = result;
-report_on_sketch_loading(&against, skipped_paths, failed_paths, true)?;
  // set up a multi-producer, single-consumer channel.
 let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
 

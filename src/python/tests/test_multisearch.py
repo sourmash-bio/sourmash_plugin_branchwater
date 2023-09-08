@@ -46,11 +46,9 @@ def test_simple(runtmp, zipped):
     output = runtmp.output('out.csv')
 
     if zipped:
-        # against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
-        runtmp.sourmash('scripts', 'multisearch', zipf, against_list,
-                    '-o', output)
-    else:
-        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
+
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
 
@@ -95,7 +93,8 @@ def test_simple(runtmp, zipped):
                 assert intersect_hashes == 2529
 
 
-def test_simple_threshold(runtmp):
+@pytest.mark.parametrize("zipped", [False, True])
+def test_simple_threshold(runtmp, zipped):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -108,6 +107,9 @@ def test_simple_threshold(runtmp):
     make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
+
+    if zipped:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
 
     runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output, '-t', '0.5')
@@ -254,7 +256,7 @@ def test_bad_against_2(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 db (against) signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 against signature paths failed to load. See error messages above." in captured.err
 
 
 def test_empty_query(runtmp):

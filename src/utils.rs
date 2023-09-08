@@ -171,7 +171,6 @@ pub fn prefetch(
 }
 
 /// Write list of prefetch matches.
-
 pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     query: &SmallSignature,
     prefetch_output: Option<P>,
@@ -195,7 +194,6 @@ pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clo
 }
 
 /// Load a list of filenames from a file. Exits on bad lines.
-
 pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Result<Vec<PathBuf>>
 {
@@ -421,7 +419,6 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
         if !file_name.ends_with(".sig") && !file_name.ends_with(".sig.gz") {
             continue;
         }
-        println!("Loading signature from {}", file_name);
         if let Ok(sigs) = Signature::from_reader(&mut file) {
             if let Some(sm) = prepare_query(&sigs, template, &zip_path.as_ref().display().to_string()) {
                 sketchlist.push(sm);
@@ -441,14 +438,36 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
 }
 
 
+pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
+    sketchlist_path: P,
+    template: &Sketch,
+    is_query: bool
+) -> Result<Vec<SmallSignature>> {
+    let report_type = if is_query { "queries" } else { "against" };
+    eprintln!("Reading list of {} from: '{}'", report_type, sketchlist_path.as_ref().display());
+
+    let (sketchlist, skipped_paths, failed_paths) =
+        if sketchlist_path.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+            load_sketches_from_zip(sketchlist_path, template)?
+        } else {
+            let sketch_paths = load_sketchlist_filenames(&sketchlist_path)?;
+            load_sketches(sketch_paths, template)?
+        };
+
+    report_on_sketch_loading(&sketchlist, skipped_paths, failed_paths, is_query)?;
+
+    Ok(sketchlist)
+}
+
+
+
 pub fn report_on_sketch_loading(
     sketchlist: &[SmallSignature],
     skipped_paths: usize,
     failed_paths: usize,
-    report_db: bool,
+    is_query: bool,
 ) -> Result<()> {
-    let report_type = if report_db { "db (against)" } else { "query" };
-
+    let report_type = if is_query { "query" } else { "against" };
 
     if failed_paths > 0 {
         eprintln!(
