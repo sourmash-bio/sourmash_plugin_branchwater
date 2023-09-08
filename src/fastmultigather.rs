@@ -14,7 +14,7 @@ use std::sync::atomic::AtomicUsize;
 use std::collections::BinaryHeap;
 
 use crate::utils::{prepare_query, write_prefetch, PrefetchResult,
-    load_sketchlist_filenames, load_sketches, consume_query_by_gather};
+    consume_query_by_gather, load_sigpaths_from_zip_or_pathlist, load_sketches_from_zip_or_pathlist, ReportType};
 
 pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     query_filenames: P,
@@ -32,13 +32,8 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     let template = Sketch::MinHash(template_mh);
 
     // load the list of query paths
-    let querylist_paths = load_sketchlist_filenames(&query_filenames)?;
+    let (querylist_paths, temp_dir) = load_sigpaths_from_zip_or_pathlist(&query_filenames)?;
     println!("Loaded {} sig paths in querylist", querylist_paths.len());
-
-    // build the list of paths to match against.
-    println!("Loading matchlist");
-    let matchlist_paths = load_sketchlist_filenames(&matchlist_filename)?;
-    println!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
     let threshold_hashes : u64 = {
         let x = threshold_bp / scaled;
@@ -52,22 +47,7 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // Load all the against sketches
-    let result = load_sketches(matchlist_paths, &template)?;
-    let (sketchlist, skipped_paths, failed_paths) = result;
-
-    eprintln!("Loaded {} sketches to search against.", sketchlist.len());
-    if failed_paths > 0 {
-        eprintln!("WARNING: {} search paths failed to load. See error messages above.",
-                  failed_paths);
-    }
-    if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} search paths - no compatible signatures.",
-                  skipped_paths);
-    }
-
-    if sketchlist.is_empty() {
-        bail!("No sketches loaded to search against!?")
-    }
+    let sketchlist = load_sketches_from_zip_or_pathlist(&matchlist_filename, &template, ReportType::Against)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
