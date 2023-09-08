@@ -17,7 +17,7 @@ use std::fs::File;
 
 
 use crate::utils::{prepare_query, is_revindex_database,
-    load_sigpaths_from_zip_or_pathlist};
+    load_sketchlist_filenames};
 
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
@@ -35,7 +35,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     println!("Loaded DB");
 
     // Load query paths
-    let (query_paths, temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
+    let query_paths = load_sketchlist_filenames(&queries_file)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
