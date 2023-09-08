@@ -15,7 +15,7 @@ use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 
-use crate::utils::{load_sketchlist_filenames, load_sketches};
+use crate::utils::{load_sketches_from_zip_or_pathlist, ReportType};
 
 /// Search many queries against a list of signatures.
 ///
@@ -29,7 +29,7 @@ pub fn multisearch<P: AsRef<Path>>(
     ksize: u8,
     scaled: usize,
     output: Option<P>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
 // construct a MinHash template for loading.
 let max_hash = max_hash_for_scaled(scaled as u64);
 let template_mh = KmerMinHash::builder()
@@ -39,51 +39,11 @@ let template_mh = KmerMinHash::builder()
     .build();
 let template = Sketch::MinHash(template_mh);
 
-// Read in list of query paths.
-eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
-
 // Load all queries into memory at once.
-let querylist_paths = load_sketchlist_filenames(&querylist)?;
-
-let result = load_sketches(querylist_paths, &template)?;
-let (queries, skipped_paths, failed_paths) = result;
-
-eprintln!("Loaded {} query signatures", queries.len());
-if failed_paths > 0 {
-    eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
-                failed_paths);
-}
-if skipped_paths > 0 {
-    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-                skipped_paths);
-}
-
-if queries.is_empty() {
-    bail!("No query signatures loaded, exiting.");
-}
-
-// Read in list of against paths.
-eprintln!("Reading list of against paths from: '{}'", againstlist.as_ref().display());
+let queries = load_sketches_from_zip_or_pathlist(&querylist, &template, ReportType::Query)?;
 
 // Load all against sketches into memory at once.
-let againstlist_paths = load_sketchlist_filenames(&againstlist)?;
-
-let result = load_sketches(againstlist_paths, &template)?;
-let (against, skipped_paths, failed_paths) = result;
-
-eprintln!("Loaded {} against signatures", against.len());
-if failed_paths > 0 {
-    eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
-                failed_paths);
-}
-if skipped_paths > 0 {
-    eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-                skipped_paths);
-}
-
-if against.is_empty() {
-    bail!("No query signatures loaded, exiting.");
-}
+let against = load_sketches_from_zip_or_pathlist(&againstlist, &template, ReportType::Against)?;
 
  // set up a multi-producer, single-consumer channel.
 let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
