@@ -193,7 +193,7 @@ def test_bad_query_2(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 query signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 query paths failed to load. See error messages above." in captured.err
 
 
 def test_bad_query_3(runtmp, capfd):
@@ -297,7 +297,7 @@ def test_bad_against_2(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 against signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
 def test_empty_query(runtmp):

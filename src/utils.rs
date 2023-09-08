@@ -439,7 +439,7 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
 }
 
 
-pub fn load_paths_from_zip_or_pathlist<P: AsRef<Path>>(
+pub fn load_sigpaths_from_zip_or_pathlist<P: AsRef<Path>>(
     sketchlist_path: P,
 ) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
     eprintln!("Reading list of filepaths from: '{}'", sketchlist_path.as_ref().display());
@@ -462,19 +462,13 @@ pub enum ReportType {
     Against,
 }
 
-impl ReportType {
-    fn as_str(&self, plural: bool) -> &'static str {
-        match (self, plural) {
-            (ReportType::Query, true) => "queries",
-            (ReportType::Query, false) => "query",
-            (ReportType::Against, _) => "against",
-        }
-    }
-}
-
 impl std::fmt::Display for ReportType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.as_str(false)) // assume not plural?
+        let description = match self {
+            ReportType::Query => "query",
+            ReportType::Against => "search",
+        };
+        write!(f, "{}", description)
     }
 }
 
@@ -483,7 +477,7 @@ pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
     template: &Sketch,
     report_type: ReportType,
 ) -> Result<Vec<SmallSignature>> {
-    eprintln!("Reading list of {} from: '{}'", report_type.as_str(true), sketchlist_path.as_ref().display());
+    eprintln!("Reading list of {} paths from: '{}'", report_type, sketchlist_path.as_ref().display());
 
     let (sketchlist, skipped_paths, failed_paths) =
         if sketchlist_path.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
@@ -507,7 +501,7 @@ pub fn report_on_sketch_loading(
 
     if failed_paths > 0 {
         eprintln!(
-            "WARNING: {} {} signature paths failed to load. See error messages above.",
+            "WARNING: {} {} paths failed to load. See error messages above.",
             failed_paths,
             report_type
         );
@@ -521,7 +515,7 @@ pub fn report_on_sketch_loading(
     }
 
     // Validate sketches
-    eprintln!("Loaded {} {} signatures", sketchlist.len(), report_type.as_str(false));
+    eprintln!("Loaded {} {} signature(s)", sketchlist.len(), report_type);
     if sketchlist.is_empty() {
         bail!("No {} signatures loaded, exiting.", report_type);
     }

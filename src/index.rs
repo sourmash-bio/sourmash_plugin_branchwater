@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use sourmash::sketch::Sketch;
 use sourmash::index::revindex::RevIndex;
 
-use crate::utils::load_paths_from_zip_or_pathlist;
+use crate::utils::load_sigpaths_from_zip_or_pathlist;
 
 pub fn index<P: AsRef<Path>>(
     siglist: P,
@@ -13,7 +13,7 @@ pub fn index<P: AsRef<Path>>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
-    let (index_sigs, temp_dir) = load_paths_from_zip_or_pathlist(&siglist)?;
+    let (index_sigs, temp_dir) = load_sigpaths_from_zip_or_pathlist(&siglist)?;
 
     // if index_sigs pathlist is empty, bail
     if index_sigs.is_empty() {
