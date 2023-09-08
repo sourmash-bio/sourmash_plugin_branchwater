@@ -263,8 +263,8 @@ def test_empty_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Loaded 0 search signature(s)" in captured.err
-    assert "Error: No search signatures loaded, exiting." in captured.err
+    assert "Loaded 0 sketches to search against." in captured.err
+    assert "Error: No sketches loaded to search against!?" in captured.err
 
 
 def test_nomatch_in_against(runtmp, capfd):
