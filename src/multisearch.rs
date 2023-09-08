@@ -55,14 +55,14 @@ report_on_sketch_loading(&queries, skipped_paths, failed_paths, false)?;
 
 
 // Read in list of against paths.
-eprintln!("Reading list of against paths from: '{}'", againstlist.as_ref().display());
+eprintln!("Reading list of against from: '{}'", againstlist.as_ref().display());
 
 // Load all against sketches into memory at once.
 let result = if againstlist.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
-    load_sketches_from_zip(&querylist, &template)?
+    load_sketches_from_zip(&againstlist, &template)?
 } else {
-    let querylist_paths = load_sketchlist_filenames(&againstlist)?;
-    load_sketches(querylist_paths, &template)?
+    let sketchlist_paths = load_sketchlist_filenames(&againstlist)?;
+    load_sketches(sketchlist_paths, &template)?
 };
 
 let (against, skipped_paths, failed_paths) = result;
