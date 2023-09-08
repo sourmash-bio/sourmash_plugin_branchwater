@@ -13,7 +13,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{prepare_query, is_revindex_database,
-    load_sketchlist_filenames, SearchResult, csvwriter_thread};
+    load_sigpaths_from_zip_or_pathlist, SearchResult, csvwriter_thread};
 
 
 pub fn mastiff_manysearch<P: AsRef<Path>>(
@@ -32,7 +32,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     println!("Loaded DB");
 
     // Load query paths
-    let query_paths = load_sketchlist_filenames(&queries_file)?;
+    let (query_paths, temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
 
     // if query_paths is empty, exit with error
     if query_paths.is_empty() {
@@ -138,11 +138,11 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+        eprintln!("WARNING: skipped {} query paths - no compatible signatures.",
                   skipped_paths);
     }
     if failed_paths > 0 {
-        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+        eprintln!("WARNING: {} query paths failed to load. See error messages above.",
                   failed_paths);
     }
 
