@@ -15,7 +15,7 @@ use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 
-use crate::utils::{report_on_sketch_loading, load_sketches_from_zip_or_pathlist};
+use crate::utils::{load_sketches_from_zip_or_pathlist, ReportType};
 
 /// Search many queries against a list of signatures.
 ///
@@ -40,10 +40,10 @@ let template_mh = KmerMinHash::builder()
 let template = Sketch::MinHash(template_mh);
 
 // Load all queries into memory at once.
-let queries = load_sketches_from_zip_or_pathlist(&querylist, &template,  true)?;
+let queries = load_sketches_from_zip_or_pathlist(&querylist, &template, ReportType::Query)?;
 
 // Load all against sketches into memory at once.
-let against = load_sketches_from_zip_or_pathlist(&againstlist, &template, false)?;
+let against = load_sketches_from_zip_or_pathlist(&againstlist, &template, ReportType::Against)?;
 
  // set up a multi-producer, single-consumer channel.
 let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());

@@ -124,7 +124,7 @@ def test_simple_threshold(runtmp, zip_query, zip_db):
 
 
 @pytest.mark.parametrize("zip_query", [False, True])
-def test_missing_query(runtmp, capfd, zip_query, zip_db):
+def test_missing_query(runtmp, capfd, zip_query):
     # test with a missing query list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')

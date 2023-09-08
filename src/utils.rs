@@ -25,6 +25,7 @@ use sourmash::sketch::Sketch;
 use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 
+// use tempfile::tempdir;
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -222,7 +223,7 @@ pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
 
 pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
     zip_path: P,
-) -> Result<(Vec<PathBuf>, tempfile::TempDir), Box<dyn std::error::Error>> {
+) -> Result<(Vec<PathBuf>, tempfile::TempDir)> {
     let mut signature_paths = Vec::new();
     let temp_dir = tempdir()?;
     let zip_file = File::open(&zip_path)?;
@@ -238,7 +239,7 @@ pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
             let mut new_file = File::create(temp_dir.path().join(file_name))?;
             new_file.write_all(&sig)?;
 
-            // Push the created path directly to the vector
+            // add path to signature_paths
             signature_paths.push(temp_dir.path().join(file_name));
         }
     }
@@ -438,13 +439,51 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
 }
 
 
+pub fn load_paths_from_zip_or_pathlist<P: AsRef<Path>>(
+    sketchlist_path: P,
+) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
+    eprintln!("Reading list of filepaths from: '{}'", sketchlist_path.as_ref().display());
+
+    let result = if sketchlist_path.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+        let (paths, tempdir) = load_sigpaths_from_zip(&sketchlist_path)?;
+        (paths, Some(tempdir))
+    } else {
+        let paths = load_sketchlist_filenames(&sketchlist_path)?;
+        (paths, None)
+    };
+
+    eprintln!("Found {} filepaths", result.0.len());
+    // should we bail here if empty?
+    Ok(result)
+}
+
+pub enum ReportType {
+    Query,
+    Against,
+}
+
+impl ReportType {
+    fn as_str(&self, plural: bool) -> &'static str {
+        match (self, plural) {
+            (ReportType::Query, true) => "queries",
+            (ReportType::Query, false) => "query",
+            (ReportType::Against, _) => "against",
+        }
+    }
+}
+
+impl std::fmt::Display for ReportType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.as_str(false)) // assume not plural?
+    }
+}
+
 pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
     sketchlist_path: P,
     template: &Sketch,
-    is_query: bool
+    report_type: ReportType,
 ) -> Result<Vec<SmallSignature>> {
-    let report_type = if is_query { "queries" } else { "against" };
-    eprintln!("Reading list of {} from: '{}'", report_type, sketchlist_path.as_ref().display());
+    eprintln!("Reading list of {} from: '{}'", report_type.as_str(true), sketchlist_path.as_ref().display());
 
     let (sketchlist, skipped_paths, failed_paths) =
         if sketchlist_path.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
@@ -454,20 +493,17 @@ pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
             load_sketches(sketch_paths, template)?
         };
 
-    report_on_sketch_loading(&sketchlist, skipped_paths, failed_paths, is_query)?;
+    report_on_sketch_loading(&sketchlist, skipped_paths, failed_paths, report_type)?;
 
     Ok(sketchlist)
 }
-
-
 
 pub fn report_on_sketch_loading(
     sketchlist: &[SmallSignature],
     skipped_paths: usize,
     failed_paths: usize,
-    is_query: bool,
+    report_type: ReportType,
 ) -> Result<()> {
-    let report_type = if is_query { "query" } else { "against" };
 
     if failed_paths > 0 {
         eprintln!(
@@ -485,7 +521,7 @@ pub fn report_on_sketch_loading(
     }
 
     // Validate sketches
-    eprintln!("Loaded {} {} signatures", sketchlist.len(), report_type);
+    eprintln!("Loaded {} {} signatures", sketchlist.len(), report_type.as_str(false));
     if sketchlist.is_empty() {
         bail!("No {} signatures loaded, exiting.", report_type);
     }
