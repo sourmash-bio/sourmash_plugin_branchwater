@@ -410,7 +410,6 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
     let mut sketchlist = Vec::new();
     let zip_file = File::open(&zip_path)?;
     let mut zip_archive = ZipArchive::new(zip_file)?;
-
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
@@ -419,11 +418,11 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
         let mut file = zip_archive.by_index(i)?;
         let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap().to_owned();
 
-        // if let Ok(sigs) = Signature::from_path(&file) {
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)?;
-        let cursor = std::io::Cursor::new(buffer);
-        if let Ok(sigs) = Signature::from_reader(cursor) {
+        if !file_name.ends_with(".sig") && !file_name.ends_with(".sig.gz") {
+            continue;
+        }
+        println!("Loading signature from {}", file_name);
+        if let Ok(sigs) = Signature::from_reader(&mut file) {
             if let Some(sm) = prepare_query(&sigs, template, &zip_path.as_ref().display().to_string()) {
                 sketchlist.push(sm);
             } else {
@@ -436,9 +435,11 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
             failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
         }
     }
+    drop(zip_archive);
     println!("loaded {} signatures", sketchlist.len());
     Ok((sketchlist, skipped_paths.load(atomic::Ordering::SeqCst), failed_paths.load(atomic::Ordering::SeqCst)))
 }
+
 
 pub fn report_on_sketch_loading(
     sketchlist: &[SmallSignature],

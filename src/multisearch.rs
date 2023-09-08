@@ -29,7 +29,7 @@ pub fn multisearch<P: AsRef<Path>>(
     ksize: u8,
     scaled: usize,
     output: Option<P>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
 // construct a MinHash template for loading.
 let max_hash = max_hash_for_scaled(scaled as u64);
 let template_mh = KmerMinHash::builder()

@@ -23,7 +23,14 @@ def test_installed(runtmp):
 
     assert 'usage:  multisearch' in runtmp.last_result.err
 
-def test_simple(runtmp):
+def zip_siglist(runtmp, siglist, db):
+    # build index
+    runtmp.sourmash('sig', 'cat', siglist,
+                    '-o', db)
+    return db
+
+@pytest.mark.parametrize("zipped", [False, True])
+def test_simple(runtmp, zipped):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -31,13 +38,19 @@ def test_simple(runtmp):
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
+    zipf = get_test_data('2-47-63.zip')
 
     make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+    if zipped:
+        # against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
+        runtmp.sourmash('scripts', 'multisearch', zipf, against_list,
+                    '-o', output)
+    else:
+        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
 
