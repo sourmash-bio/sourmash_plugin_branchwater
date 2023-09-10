@@ -409,8 +409,8 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
     let mut sketchlist = Vec::new();
     let zip_file = File::open(&zip_path)?;
     let mut zip_archive = ZipArchive::new(zip_file)?;
-    let skipped_paths = AtomicUsize::new(0);
-    let failed_paths = AtomicUsize::new(0);
+    let mut skipped_paths = 0;
+    let mut failed_paths = 0;
 
     // loop through, loading signatures
     for i in 0..zip_archive.len() {
@@ -425,17 +425,17 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
                 sketchlist.push(sm);
             } else {
                 // track number of paths that have no matching sigs
-                skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                skipped_paths += 1;
             }
         } else {
             // failed to load from this path - print error & track.
             eprintln!("WARNING: could not load sketches from path '{}'", file_name);
-            failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            failed_paths += 1;
         }
     }
     drop(zip_archive);
     println!("loaded {} signatures", sketchlist.len());
-    Ok((sketchlist, skipped_paths.load(atomic::Ordering::SeqCst), failed_paths.load(atomic::Ordering::SeqCst)))
+    Ok((sketchlist, skipped_paths, failed_paths))
 }
 
 
