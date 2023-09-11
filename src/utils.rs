@@ -221,6 +221,31 @@ pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
 }
 
 
+/// Loads signature file paths from a ZIP archive.
+///
+/// This function extracts the contents of a ZIP archive containing
+/// signature files (with extensions ".sig" or ".sig.gz") to a temporary directory.
+/// It returns the paths of these extracted signature files.
+///
+/// # Arguments
+///
+/// * `zip_path` - The path to the ZIP archive.
+///
+/// # Returns
+///
+/// Returns a tuple containing:
+/// * A vector of `PathBuf` representing the paths to the extracted signature files.
+/// * The `TempDir` representing the temporary directory where the files were extracted.
+///   Since tempfile::TempDir creates a temporary directory that is automatically
+///   deleted once the TempDir value goes out of scope, we return it here to move it
+///   to the main function scope.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * Unable to create a temporary directory.
+/// * Unable to open or read the ZIP archive.
+/// * Any other IO or file related error.
 pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
     zip_path: P,
 ) -> Result<(Vec<PathBuf>, tempfile::TempDir)> {
@@ -246,6 +271,7 @@ pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
     println!("loaded paths for {} signature files from zipfile {}", signature_paths.len(), zip_path.as_ref().display());
     Ok((signature_paths, temp_dir))
 }
+
 
 pub fn load_fasta_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, String)>> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
@@ -402,6 +428,26 @@ pub fn load_sketches_above_threshold(
 }
 
 
+/// Loads all compatible sketches from a ZIP archive at the given path into memory.
+/// Currently not parallelized; use a different zip crate to enable parallelization.
+///
+/// # Arguments
+///
+/// * `zip_path` - Path to the ZIP archive.
+/// * `template` - Reference to the Sketch template.
+///
+/// # Returns
+///
+/// Returns a tuple containing:
+/// * A vector of `SmallSignature`s.
+/// * Number of paths that were skipped because they did not match the sketch parameters.
+/// * Number of paths that failed to load.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * Unable to open the ZIP file.
+/// * ZIP archive is malformed.
 pub fn load_sketches_from_zip<P: AsRef<Path>>(
     zip_path: P,
     template: &Sketch,
@@ -439,6 +485,22 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
 }
 
 
+/// Control function to read signature FILE PATHS from an input file.
+/// If a ZIP archive is provided (detected via extension),
+/// use `load_sigpaths_from_zip`. Otherwise, assume the
+/// user provided a `fromfile` sketchlist and use
+/// `load_sketchlist_filenames`.
+///
+/// # Arguments
+///
+/// * `sketchlist_path` - Path to either a ZIP archive or a list of signature file paths.
+///
+/// # Returns
+///
+/// Returns a tuple containing:
+/// * A vector of `PathBuf` representing the signature file paths.
+/// * If extracting from a zipfile, signature files will be extracted to a
+///  `TempDir` temporary directory where they can be used individually.
 pub fn load_sigpaths_from_zip_or_pathlist<P: AsRef<Path>>(
     sketchlist_path: P,
 ) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
@@ -472,6 +534,21 @@ impl std::fmt::Display for ReportType {
     }
 }
 
+/// Control function to load compatible signatures from an input file.
+/// If a ZIP archive is provided (detected via extension),
+/// calls `load_sketches_from_zip`. Otherwise, assumes the
+/// user provided a `fromfile` sketchlist and calls
+/// `load_sketchlist_filenames`.
+///
+/// # Arguments
+///
+/// * `sketchlist_path` - Path to either a ZIP archive or a list of signature file paths.
+/// * `template` - Reference to the Sketch template (used to load only compatible signatures).
+/// * `report_type` - ReportType Enum. Are these 'query' or 'search' signatures?
+///
+/// # Returns
+///
+/// Returns a vector of `SmallSignature`s.
 pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
     sketchlist_path: P,
     template: &Sketch,
@@ -492,6 +569,28 @@ pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
     Ok(sketchlist)
 }
 
+/// Uses the output of sketch loading functions to report the
+/// total number of sketches loaded, as well as the number of files,
+/// if any, that failed to load or contained no compatible sketches.
+/// If no sketches were loaded, bail.
+///
+/// # Arguments
+///
+/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
+/// * `skipped_paths` - # paths that contained no compatible sketches.
+/// * `failed_paths` - # paths that failed to load.
+/// * `report_type` - ReportType Enum (Query or Against). Used to specify
+///                   which sketch input this information pertains to.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if at least one signature was successfully loaded.
+/// Returns an error if no signatures were loaded.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * No signatures were successfully loaded.
 pub fn report_on_sketch_loading(
     sketchlist: &[SmallSignature],
     skipped_paths: usize,
