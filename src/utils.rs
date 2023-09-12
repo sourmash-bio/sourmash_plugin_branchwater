@@ -25,6 +25,7 @@ use sourmash::sketch::Sketch;
 use sourmash::prelude::MinHashOps;
 use sourmash::prelude::FracMinHashOps;
 
+// use tempfile::tempdir;
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -171,7 +172,6 @@ pub fn prefetch(
 }
 
 /// Write list of prefetch matches.
-
 pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     query: &SmallSignature,
     prefetch_output: Option<P>,
@@ -195,7 +195,6 @@ pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clo
 }
 
 /// Load a list of filenames from a file. Exits on bad lines.
-
 pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Result<Vec<PathBuf>>
 {
@@ -221,7 +220,60 @@ pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) ->
     Ok(sketchlist_filenames)
 }
 
-pub fn load_sketch_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, String)>> {
+
+/// Loads signature file paths from a ZIP archive.
+///
+/// This function extracts the contents of a ZIP archive containing
+/// signature files (with extensions ".sig" or ".sig.gz") to a temporary directory.
+/// It returns the paths of these extracted signature files.
+///
+/// # Arguments
+///
+/// * `zip_path` - The path to the ZIP archive.
+///
+/// # Returns
+///
+/// Returns a tuple containing:
+/// * A vector of `PathBuf` representing the paths to the extracted signature files.
+/// * The `TempDir` representing the temporary directory where the files were extracted.
+///   Since tempfile::TempDir creates a temporary directory that is automatically
+///   deleted once the TempDir value goes out of scope, we return it here to move it
+///   to the main function scope.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * Unable to create a temporary directory.
+/// * Unable to open or read the ZIP archive.
+/// * Any other IO or file related error.
+pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
+    zip_path: P,
+) -> Result<(Vec<PathBuf>, tempfile::TempDir)> {
+    let mut signature_paths = Vec::new();
+    let temp_dir = tempdir()?;
+    let zip_file = File::open(&zip_path)?;
+    let mut zip_archive = ZipArchive::new(zip_file)?;
+
+    for i in 0..zip_archive.len() {
+        let mut file = zip_archive.by_index(i)?;
+        let mut sig = Vec::new();
+        file.read_to_end(&mut sig)?;
+
+        let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap();
+        if file_name.ends_with(".sig") || file_name.ends_with(".sig.gz") {
+            let mut new_file = File::create(temp_dir.path().join(file_name))?;
+            new_file.write_all(&sig)?;
+
+            // add path to signature_paths
+            signature_paths.push(temp_dir.path().join(file_name));
+        }
+    }
+    println!("loaded paths for {} signature files from zipfile {}", signature_paths.len(), zip_path.as_ref().display());
+    Ok((signature_paths, temp_dir))
+}
+
+
+pub fn load_fasta_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, String)>> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
     // Check for right header
@@ -375,6 +427,200 @@ pub fn load_sketches_above_threshold(
     Ok((matchlist, skipped_paths, failed_paths))
 }
 
+
+/// Loads all compatible sketches from a ZIP archive at the given path into memory.
+/// Currently not parallelized; use a different zip crate to enable parallelization.
+///
+/// # Arguments
+///
+/// * `zip_path` - Path to the ZIP archive.
+/// * `template` - Reference to the Sketch template.
+///
+/// # Returns
+///
+/// Returns a tuple containing:
+/// * A vector of `SmallSignature`s.
+/// * Number of paths that were skipped because they did not match the sketch parameters.
+/// * Number of paths that failed to load.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * Unable to open the ZIP file.
+/// * ZIP archive is malformed.
+pub fn load_sketches_from_zip<P: AsRef<Path>>(
+    zip_path: P,
+    template: &Sketch,
+) -> Result<(Vec<SmallSignature>, usize, usize)> {
+    let mut sketchlist = Vec::new();
+    let zip_file = File::open(&zip_path)?;
+    let mut zip_archive = ZipArchive::new(zip_file)?;
+    let mut skipped_paths = 0;
+    let mut failed_paths = 0;
+
+    // loop through, loading signatures
+    for i in 0..zip_archive.len() {
+        let mut file = zip_archive.by_index(i)?;
+        let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap().to_owned();
+
+        if !file_name.ends_with(".sig") && !file_name.ends_with(".sig.gz") {
+            continue;
+        }
+        if let Ok(sigs) = Signature::from_reader(&mut file) {
+            if let Some(sm) = prepare_query(&sigs, template, &zip_path.as_ref().display().to_string()) {
+                sketchlist.push(sm);
+            } else {
+                // track number of paths that have no matching sigs
+                skipped_paths += 1;
+            }
+        } else {
+            // failed to load from this path - print error & track.
+            eprintln!("WARNING: could not load sketches from path '{}'", file_name);
+            failed_paths += 1;
+        }
+    }
+    drop(zip_archive);
+    println!("loaded {} signatures", sketchlist.len());
+    Ok((sketchlist, skipped_paths, failed_paths))
+}
+
+
+/// Control function to read signature FILE PATHS from an input file.
+/// If a ZIP archive is provided (detected via extension),
+/// use `load_sigpaths_from_zip`. Otherwise, assume the
+/// user provided a `fromfile` sketchlist and use
+/// `load_sketchlist_filenames`.
+///
+/// # Arguments
+///
+/// * `sketchlist_path` - Path to either a ZIP archive or a list of signature file paths.
+///
+/// # Returns
+///
+/// Returns a tuple containing:
+/// * A vector of `PathBuf` representing the signature file paths.
+/// * If extracting from a zipfile, signature files will be extracted to a
+///  `TempDir` temporary directory where they can be used individually.
+pub fn load_sigpaths_from_zip_or_pathlist<P: AsRef<Path>>(
+    sketchlist_path: P,
+) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
+    eprintln!("Reading list of filepaths from: '{}'", sketchlist_path.as_ref().display());
+
+    let result = if sketchlist_path.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+        let (paths, tempdir) = load_sigpaths_from_zip(&sketchlist_path)?;
+        (paths, Some(tempdir))
+    } else {
+        let paths = load_sketchlist_filenames(&sketchlist_path)?;
+        (paths, None)
+    };
+
+    eprintln!("Found {} filepaths", result.0.len());
+    // should we bail here if empty?
+    Ok(result)
+}
+
+pub enum ReportType {
+    Query,
+    Against,
+}
+
+impl std::fmt::Display for ReportType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let description = match self {
+            ReportType::Query => "query",
+            ReportType::Against => "search",
+        };
+        write!(f, "{}", description)
+    }
+}
+
+/// Control function to load compatible signatures from an input file.
+/// If a ZIP archive is provided (detected via extension),
+/// calls `load_sketches_from_zip`. Otherwise, assumes the
+/// user provided a `fromfile` sketchlist and calls
+/// `load_sketchlist_filenames`.
+///
+/// # Arguments
+///
+/// * `sketchlist_path` - Path to either a ZIP archive or a list of signature file paths.
+/// * `template` - Reference to the Sketch template (used to load only compatible signatures).
+/// * `report_type` - ReportType Enum. Are these 'query' or 'search' signatures?
+///
+/// # Returns
+///
+/// Returns a vector of `SmallSignature`s.
+pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
+    sketchlist_path: P,
+    template: &Sketch,
+    report_type: ReportType,
+) -> Result<Vec<SmallSignature>> {
+    eprintln!("Reading list of {} paths from: '{}'", report_type, sketchlist_path.as_ref().display());
+
+    let (sketchlist, skipped_paths, failed_paths) =
+        if sketchlist_path.as_ref().extension().map(|ext| ext == "zip").unwrap_or(false) {
+            load_sketches_from_zip(sketchlist_path, template)?
+        } else {
+            let sketch_paths = load_sketchlist_filenames(&sketchlist_path)?;
+            load_sketches(sketch_paths, template)?
+        };
+
+    report_on_sketch_loading(&sketchlist, skipped_paths, failed_paths, report_type)?;
+
+    Ok(sketchlist)
+}
+
+/// Uses the output of sketch loading functions to report the
+/// total number of sketches loaded, as well as the number of files,
+/// if any, that failed to load or contained no compatible sketches.
+/// If no sketches were loaded, bail.
+///
+/// # Arguments
+///
+/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
+/// * `skipped_paths` - # paths that contained no compatible sketches.
+/// * `failed_paths` - # paths that failed to load.
+/// * `report_type` - ReportType Enum (Query or Against). Used to specify
+///                   which sketch input this information pertains to.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if at least one signature was successfully loaded.
+/// Returns an error if no signatures were loaded.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * No signatures were successfully loaded.
+pub fn report_on_sketch_loading(
+    sketchlist: &[SmallSignature],
+    skipped_paths: usize,
+    failed_paths: usize,
+    report_type: ReportType,
+) -> Result<()> {
+
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} {} paths failed to load. See error messages above.",
+            failed_paths,
+            report_type
+        );
+    }
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} {} paths - no compatible signatures.",
+            skipped_paths,
+            report_type
+        );
+    }
+
+    // Validate sketches
+    eprintln!("Loaded {} {} signature(s)", sketchlist.len(), report_type);
+    if sketchlist.is_empty() {
+        bail!("No {} signatures loaded, exiting.", report_type);
+    }
+    Ok(())
+}
+
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
 /// removing matches in 'matchlist' from 'query'.
 
@@ -434,8 +680,6 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
 }
   
 
-  // mastiff rocksdb functions
-
 pub fn build_template(ksize: u8, scaled: usize) -> Sketch {
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
@@ -446,32 +690,6 @@ pub fn build_template(ksize: u8, scaled: usize) -> Sketch {
     Sketch::MinHash(template_mh)
 }
 
-pub fn read_signatures_from_zip<P: AsRef<Path>>(
-    zip_path: P,
-) -> Result<(Vec<PathBuf>, tempfile::TempDir), Box<dyn std::error::Error>> {
-    let mut signature_paths = Vec::new();
-    let temp_dir = tempdir()?;
-    let zip_file = File::open(&zip_path)?;
-    let mut zip_archive = ZipArchive::new(zip_file)?;
-
-    for i in 0..zip_archive.len() {
-        let mut file = zip_archive.by_index(i)?;
-        let mut sig = Vec::new();
-        file.read_to_end(&mut sig)?;
-
-        let file_name = Path::new(file.name()).file_name().unwrap().to_str().unwrap();
-        if file_name.ends_with(".sig") || file_name.ends_with(".sig.gz") {
-            println!("Found signature file: {}", file_name);
-            let mut new_file = File::create(temp_dir.path().join(file_name))?;
-            new_file.write_all(&sig)?;
-
-            // Push the created path directly to the vector
-            signature_paths.push(temp_dir.path().join(file_name));
-        }
-    }
-    println!("wrote {} signatures to temp dir", signature_paths.len());
-    Ok((signature_paths, temp_dir))
-}
 
 pub fn is_revindex_database(path: &Path) -> bool {
     // quick file check for Revindex database:

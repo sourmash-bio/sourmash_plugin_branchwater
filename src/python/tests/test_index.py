@@ -151,7 +151,7 @@ def test_index_zipfile(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Loaded 3 sig paths in siglist' in captured.err
+    assert 'Found 3 filepaths' in captured.err
 
 
 def test_index_check(runtmp):
