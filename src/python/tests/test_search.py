@@ -35,7 +35,8 @@ def index_siglist(runtmp, siglist, db):
     return db
 
 @pytest.mark.parametrize("zip_query", [False, True])
-def test_simple(runtmp, zip_query):
+@pytest.mark.parametrize("zip_against", [False, True])
+def test_simple(runtmp, zip_query, zip_against):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -51,6 +52,8 @@ def test_simple(runtmp, zip_query):
 
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+    if zip_against:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
@@ -455,8 +458,9 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
     assert 'WARNING: skipped 1 query paths - no compatible signatures.' in captured.err
 
 
+@pytest.mark.parametrize("zip_against", [False, True])
 @pytest.mark.parametrize("indexed", [False, True])
-def test_load_only_one_bug(runtmp, capfd, indexed):
+def test_load_only_one_bug(runtmp, capfd, indexed, zip_against):
     # check that we behave properly when presented with multiple against
     # sketches
     query_list = runtmp.output('query.txt')
@@ -473,7 +477,9 @@ def test_load_only_one_bug(runtmp, capfd, indexed):
 
     output = runtmp.output('out.csv')
 
-    if indexed:
+    if zip_against:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
+    elif indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
@@ -521,11 +527,7 @@ def test_load_only_one_bug_as_query(runtmp, capfd, indexed, zip_query):
     print(runtmp.last_result.out)
 
     assert not 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
-    # NTP:
-    # This fails with zip input, I think bc each sig becomes an individual file when zipped
-    # todo - do we want to fix this for less verbose reporting when passing a zip file?
-    if not zip_query:
-        assert not 'WARNING: no compatible sketches in path ' in captured.err
+    assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
 @pytest.mark.parametrize("zip_query", [False, True])

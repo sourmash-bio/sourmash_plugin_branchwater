@@ -17,7 +17,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::utils::{prepare_query,
     load_sigpaths_from_zip_or_pathlist, SearchResult,
     csvwriter_thread, load_sketches_from_zip_or_pathlist,
-    ReportType, report_on_sketch_loading};
+    ReportType};
 
 pub fn manysearch<P: AsRef<Path>>(
     querylist: P,
@@ -34,8 +34,8 @@ pub fn manysearch<P: AsRef<Path>>(
     let queries = load_sketches_from_zip_or_pathlist(querylist, &template, ReportType::Query)?;
 
     // Load all _paths_, not signatures, into memory.
+    let siglist_name = siglist.as_ref().to_string_lossy().to_string();
     let (search_sigs_paths, _temp_dir)  = load_sigpaths_from_zip_or_pathlist(siglist)?;
-    // eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
 
     if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
@@ -99,8 +99,12 @@ pub fn manysearch<P: AsRef<Path>>(
                             }
                         }
                     } else {
-                        eprintln!("WARNING: no compatible sketches in path '{}'",
-                                  filename.display());
+                        // for reading zips, this is likely not a useful warning and
+                        // would show up too often (every sig is stored as individual file).
+                        if !siglist_name.ends_with(".zip") {
+                            eprintln!("WARNING: no compatible sketches in path '{}'",
+                                      filename.display());
+                         }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     Some(results)

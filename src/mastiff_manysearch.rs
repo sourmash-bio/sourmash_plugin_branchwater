@@ -32,6 +32,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     println!("Loaded DB");
 
     // Load query paths
+    let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
     let (query_paths, temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
 
     // if query_paths is empty, exit with error
@@ -92,8 +93,12 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
                             }
                         }
                     } else {
-                        eprintln!("WARNING: no compatible sketches in path '{}'",
+                        // for reading zips, this is likely not a useful warning and
+                        // would show up too often (every sig is stored as individual file).
+                        if !queryfile_name.ends_with(".zip") {
+                            eprintln!("WARNING: no compatible sketches in path '{}'",
                                 filename.display());
+                        }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     if results.is_empty() {
