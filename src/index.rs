@@ -13,7 +13,7 @@ pub fn index<P: AsRef<Path>>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
-    let (index_sigs, temp_dir) = load_sigpaths_from_zip_or_pathlist(&siglist)?;
+    let (index_sigs, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&siglist)?;
 
     // if index_sigs pathlist is empty, bail
     if index_sigs.is_empty() {
