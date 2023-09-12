@@ -34,10 +34,9 @@ pub fn manysearch<P: AsRef<Path>>(
     let queries = load_sketches_from_zip_or_pathlist(querylist, &template, ReportType::Query)?;
 
     // Load all _paths_, not signatures, into memory.
-    let (search_sigs_paths, temp_dir)  = load_sigpaths_from_zip_or_pathlist(siglist)?;
+    let (search_sigs_paths, _temp_dir)  = load_sigpaths_from_zip_or_pathlist(siglist)?;
     // eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
 
-    // let search_sigs_paths = load_sketchlist_filenames(&siglist)?;
     if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
     }
