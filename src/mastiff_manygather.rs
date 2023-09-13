@@ -35,6 +35,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     println!("Loaded DB");
 
     // Load query paths
+    let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
     let (query_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
 
     // set up a multi-producer, single-consumer channel.
@@ -110,8 +111,10 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                             eprintln!("Error gathering matches: {:?}", matches.err());
                         }
                     } else {
-                        eprintln!("WARNING: no compatible sketches in path '{}'",
-                                filename.display());
+                        if !queryfile_name.ends_with(".zip") {
+                            eprintln!("WARNING: no compatible sketches in path '{}'",
+                                    filename.display());
+                        }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     if results.is_empty() {

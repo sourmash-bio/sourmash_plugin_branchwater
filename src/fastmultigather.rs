@@ -70,7 +70,7 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     let mm = prepare_query(&sigs, &template, &location);
 
                     if mm.is_none() {
-                        if queryfile_name.ends_with(".zip") {
+                        if !queryfile_name.ends_with(".zip") {
                             eprintln!("WARNING: no compatible sketches in path '{}'",
                                     q.display());
                         }
