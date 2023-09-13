@@ -8,7 +8,8 @@ use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 
 use crate::utils::{prepare_query, write_prefetch,
-    load_sketchlist_filenames, load_sketches_above_threshold, consume_query_by_gather};
+    load_sketches_above_threshold, consume_query_by_gather,
+    load_sigpaths_from_zip_or_pathlist};
 
 pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     query_filename: P,
@@ -44,7 +45,8 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     // build the list of paths to match against.
     eprintln!("Loading matchlist from '{}'", matchlist_filename.as_ref().display());
 
-    let matchlist_paths = load_sketchlist_filenames(&matchlist_filename)?;
+    let matchlist_filename = matchlist_filename.as_ref().to_string_lossy().to_string();
+    let (matchlist_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&matchlist_filename)?;
 
     eprintln!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
@@ -71,16 +73,16 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     let failed_paths = result.2;
 
     if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+        eprintln!("WARNING: skipped {} search paths - no compatible signatures.",
                   skipped_paths);
     }
     if failed_paths > 0 {
-        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+        eprintln!("WARNING: {} search paths failed to load. See error messages above.",
                   failed_paths);
     }
 
     if matchlist.is_empty() {
-        eprintln!("No matchlist signatures loaded, exiting.");
+        eprintln!("No search signatures loaded, exiting.");
         return Ok(());
     }
 

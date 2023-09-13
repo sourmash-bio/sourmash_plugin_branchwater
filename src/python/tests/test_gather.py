@@ -197,7 +197,7 @@ def test_bad_against_2(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
 def test_bad_against_3(runtmp, capfd):
@@ -225,7 +225,7 @@ def test_bad_against_3(runtmp, capfd):
     assert "Sketch loading error: File is too short, less than five bytes" in captured.err
     assert "WARNING: could not load sketches from path" in captured.err
 
-    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
 def test_against_multisigfile(runtmp):
@@ -298,7 +298,7 @@ def test_against_nomatch(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
+    assert 'WARNING: skipped 1 search paths - no compatible signatures.' in captured.err
 
 
 def test_md5s(runtmp):
