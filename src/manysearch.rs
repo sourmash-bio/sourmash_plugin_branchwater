@@ -15,7 +15,9 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{prepare_query,
-    load_sketchlist_filenames, load_sketches, SearchResult, csvwriter_thread};
+    load_sigpaths_from_zip_or_pathlist, SearchResult,
+    csvwriter_thread, load_sketches_from_zip_or_pathlist,
+    ReportType};
 
 pub fn manysearch<P: AsRef<Path>>(
     querylist: P,
@@ -29,29 +31,12 @@ pub fn manysearch<P: AsRef<Path>>(
     eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
 
     // Load all queries into memory at once.
-    let querylist_paths = load_sketchlist_filenames(&querylist)?;
-
-    let result = load_sketches(querylist_paths, &template)?;
-    let (queries, skipped_paths, failed_paths) = result;
-
-    eprintln!("Loaded {} query signatures", queries.len());
-    if failed_paths > 0 {
-        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
-                  failed_paths);
-    }
-    if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
-                  skipped_paths);
-    }
-
-    if queries.is_empty() {
-        bail!("No query signatures loaded, exiting.");
-    }
+    let queries = load_sketches_from_zip_or_pathlist(querylist, &template, ReportType::Query)?;
 
     // Load all _paths_, not signatures, into memory.
-    eprintln!("Reading search file paths from: '{}'", siglist.as_ref().display());
+    let siglist_name = siglist.as_ref().to_string_lossy().to_string();
+    let (search_sigs_paths, _temp_dir)  = load_sigpaths_from_zip_or_pathlist(siglist)?;
 
-    let search_sigs_paths = load_sketchlist_filenames(&siglist)?;
     if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
     }
@@ -114,8 +99,12 @@ pub fn manysearch<P: AsRef<Path>>(
                             }
                         }
                     } else {
-                        eprintln!("WARNING: no compatible sketches in path '{}'",
-                                  filename.display());
+                        // for reading zips, this is likely not a useful warning and
+                        // would show up too often (every sig is stored as individual file).
+                        if !siglist_name.ends_with(".zip") {
+                            eprintln!("WARNING: no compatible sketches in path '{}'",
+                                      filename.display());
+                         }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     Some(results)
@@ -150,11 +139,11 @@ pub fn manysearch<P: AsRef<Path>>(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} paths - no compatible signatures.",
+        eprintln!("WARNING: skipped {} search paths - no compatible signatures.",
                   skipped_paths);
     }
     if failed_paths > 0 {
-        eprintln!("WARNING: {} signature paths failed to load. See error messages above.",
+        eprintln!("WARNING: {} search paths failed to load. See error messages above.",
                   failed_paths);
     }
 
