@@ -1251,7 +1251,7 @@ dependencies = [
 
 [[package]]
 name = "pyo3-branchwater"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
