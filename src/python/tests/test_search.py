@@ -23,13 +23,20 @@ def test_installed(runtmp):
 
     assert 'usage:  manysearch' in runtmp.last_result.err
 
+def zip_siglist(runtmp, siglist, db):
+    runtmp.sourmash('sig', 'cat', siglist,
+                    '-o', db)
+    return db
+
 def index_siglist(runtmp, siglist, db):
     # build index
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', db)
     return db
 
-def test_simple(runtmp):
+@pytest.mark.parametrize("zip_query", [False, True])
+@pytest.mark.parametrize("zip_against", [False, True])
+def test_simple(runtmp, zip_query, zip_against):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -42,6 +49,11 @@ def test_simple(runtmp):
     make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+    if zip_against:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
@@ -88,7 +100,8 @@ def test_simple(runtmp):
                 assert intersect_hashes == 2529
 
 
-def test_simple_indexed(runtmp):
+@pytest.mark.parametrize("zip_query", [False, True])
+def test_simple_indexed(runtmp, zip_query):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -103,6 +116,9 @@ def test_simple_indexed(runtmp):
     output = runtmp.output('out.csv')
 
     against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
@@ -138,7 +154,8 @@ def test_simple_indexed(runtmp):
 
 
 @pytest.mark.parametrize("indexed", [False, True])
-def test_simple_with_cores(runtmp, capfd, indexed):
+@pytest.mark.parametrize("zip_query", [False, True])
+def test_simple_with_cores(runtmp, capfd, indexed, zip_query):
     # test basic execution with -c argument (that it runs, at least!)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -152,6 +169,9 @@ def test_simple_with_cores(runtmp, capfd, indexed):
 
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     output = runtmp.output('out.csv')
 
@@ -168,7 +188,8 @@ def test_simple_with_cores(runtmp, capfd, indexed):
 
 
 @pytest.mark.parametrize("indexed", [False, True])
-def test_simple_threshold(runtmp, indexed):
+@pytest.mark.parametrize("zip_query", [False, True])
+def test_simple_threshold(runtmp, indexed, zip_query):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -183,6 +204,9 @@ def test_simple_threshold(runtmp, indexed):
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
     output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
@@ -194,7 +218,8 @@ def test_simple_threshold(runtmp, indexed):
 
 
 @pytest.mark.parametrize("indexed", [False, True])
-def test_missing_query(runtmp, capfd, indexed):
+@pytest.mark.parametrize("zip_query", [False, True])
+def test_missing_query(runtmp, capfd, indexed, zip_query):
     # test with a missing query list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -208,6 +233,9 @@ def test_missing_query(runtmp, capfd, indexed):
 
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+
+    if zip_query:
+        query_list = runtmp.output('query.zip')
 
     output = runtmp.output('out.csv')
 
@@ -270,7 +298,35 @@ def test_bad_query_2(runtmp, capfd, indexed):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 query paths failed to load. See error messages above." in captured.err
+
+
+def test_bad_query_3(runtmp, capfd):
+    # test with a bad query (a .sig.gz file renamed as zip file)
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_zip = runtmp.output('query.zip')
+    # cp sig2 into query_zip
+    with open(query_zip, 'wb') as fp:
+        with open(sig2, 'rb') as fp2:
+            fp.write(fp2.read())
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'multisearch', query_zip, against_list,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
@@ -342,7 +398,7 @@ def test_bad_against_2(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
@@ -371,7 +427,8 @@ def test_empty_query(runtmp, indexed):
 
 
 @pytest.mark.parametrize("indexed", [False, True])
-def test_nomatch_query(runtmp, capfd, indexed):
+@pytest.mark.parametrize("zip_query", [False, True])
+def test_nomatch_query(runtmp, capfd, indexed, zip_query):
     # test a non-matching (diff ksize) in query; do we get warning message?
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -385,6 +442,8 @@ def test_nomatch_query(runtmp, capfd, indexed):
     make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
@@ -396,11 +455,12 @@ def test_nomatch_query(runtmp, capfd, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
+    assert 'WARNING: skipped 1 query paths - no compatible signatures.' in captured.err
 
 
+@pytest.mark.parametrize("zip_against", [False, True])
 @pytest.mark.parametrize("indexed", [False, True])
-def test_load_only_one_bug(runtmp, capfd, indexed):
+def test_load_only_one_bug(runtmp, capfd, indexed, zip_against):
     # check that we behave properly when presented with multiple against
     # sketches
     query_list = runtmp.output('query.txt')
@@ -417,7 +477,9 @@ def test_load_only_one_bug(runtmp, capfd, indexed):
 
     output = runtmp.output('out.csv')
 
-    if indexed:
+    if zip_against:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
+    elif indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
@@ -431,8 +493,9 @@ def test_load_only_one_bug(runtmp, capfd, indexed):
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
+@pytest.mark.parametrize("zip_query", [False, True])
 @pytest.mark.parametrize("indexed", [False, True])
-def test_load_only_one_bug_as_query(runtmp, capfd, indexed):
+def test_load_only_one_bug_as_query(runtmp, capfd, indexed, zip_query):
     # check that we behave properly when presented with multiple query
     # sketches in one file, with only one matching.
     query_list = runtmp.output('query.txt')
@@ -447,23 +510,29 @@ def test_load_only_one_bug_as_query(runtmp, capfd, indexed):
     make_file_list(query_list, [sig1_all])
     make_file_list(against_list, [sig1_k31])
 
+    output = runtmp.output('out.csv')
+
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
-    output = runtmp.output('out.csv')
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
+
     assert os.path.exists(output)
 
     captured = capfd.readouterr()
     print(captured.err)
+    print(runtmp.last_result.out)
 
     assert not 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
+@pytest.mark.parametrize("zip_query", [False, True])
 @pytest.mark.parametrize("indexed", [False, True])
-def test_md5(runtmp, indexed):
+def test_md5(runtmp, indexed, zip_query):
     # test that md5s match what was in the original files, not downsampled etc.
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -475,9 +544,13 @@ def test_md5(runtmp, indexed):
     make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    output = runtmp.output('out.csv')
+    
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
-    output = runtmp.output('out.csv')
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output)
