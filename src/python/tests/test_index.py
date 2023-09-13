@@ -154,6 +154,28 @@ def test_index_zipfile(runtmp, capfd):
     assert 'Found 3 filepaths' in captured.err
 
 
+def test_index_zipfile_bad(runtmp, capfd):
+    # test with a bad input zipfile (a .sig.gz file renamed as zip file)
+    sig2 = get_test_data('2.fa.sig.gz')
+
+    query_zip = runtmp.output('query.zip')
+    # cp sig2 into query_zip
+    with open(query_zip, 'wb') as fp:
+        with open(sig2, 'rb') as fp2:
+            fp.write(fp2.read())
+
+    output = runtmp.output('out.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'index', query_zip,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+
+
 def test_index_check(runtmp):
     # test check index
     siglist = runtmp.output('db-sigs.txt')
