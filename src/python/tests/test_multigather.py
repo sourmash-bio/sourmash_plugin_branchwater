@@ -32,8 +32,13 @@ def index_siglist(runtmp, siglist, db):
                     '-o', db)
     return db
 
-@pytest.mark.parametrize('indexed', [False, True])
-def test_simple(runtmp, indexed):
+def zip_siglist(runtmp, siglist, db):
+    runtmp.sourmash('sig', 'cat', siglist,
+                    '-o', db)
+    return db
+
+@pytest.mark.parametrize('zip_against', [False, True])
+def test_simple(runtmp, zip_against):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     sig2 = get_test_data('2.fa.sig.gz')
@@ -46,43 +51,65 @@ def test_simple(runtmp, indexed):
     make_file_list(query_list, [query])
     make_file_list(against_list, [sig2, sig47, sig63])
 
-    if indexed:
-        g_output = runtmp.output('out.csv')
-        against_db = index_siglist(runtmp, against_list, runtmp.output('db'))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list,
-                        against_db, '-s', '100000', '-t', '0',
-                        '-o', g_output)
-    else:
-        cwd = os.getcwd()
-        try:
-            os.chdir(runtmp.output(''))
-            runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                            '-s', '100000', '-t', '0')
-        finally:
-            os.chdir(cwd)
+    if zip_against:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
-        print(os.listdir(runtmp.output('')))
+    cwd = os.getcwd()
+    try:
+        os.chdir(runtmp.output(''))
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000', '-t', '0')
+    finally:
+        os.chdir(cwd)
 
-        g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
-        p_output = runtmp.output('SRR606249.sig.gz.prefetch.csv')
-        assert os.path.exists(p_output)
+    print(os.listdir(runtmp.output('')))
 
-        # check prefetch output (only non-indexed gather)
-        df = pandas.read_csv(p_output)
-        assert len(df) == 3
-        keys = set(df.keys())
-        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+    g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
+    p_output = runtmp.output('SRR606249.sig.gz.prefetch.csv')
+    assert os.path.exists(p_output)
 
-    # check gather output (mostly same for indexed vs non-indexed version)
+    # check prefetch output (only non-indexed gather)
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
     assert os.path.exists(g_output)
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    if indexed:
-        assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
-    else:
-        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'
-}
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+
+
+@pytest.mark.parametrize('zip_query', [False, True])
+def test_simple_indexed(runtmp, zip_query):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    g_output = runtmp.output('out.csv')
+    against_db = index_siglist(runtmp, against_list, runtmp.output('db'))
+    runtmp.sourmash('scripts', 'fastmultigather', query_list,
+                        against_db, '-s', '100000', '-t', '0',
+                        '-o', g_output)
+
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+
 
 @pytest.mark.parametrize('indexed', [False, True])
 def test_missing_querylist(runtmp, capfd, indexed):

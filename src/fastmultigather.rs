@@ -32,7 +32,8 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     let template = Sketch::MinHash(template_mh);
 
     // load the list of query paths
-    let (querylist_paths, temp_dir) = load_sigpaths_from_zip_or_pathlist(&query_filenames)?;
+    let queryfile_name = query_filenames.as_ref().to_string_lossy().to_string();
+    let (querylist_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&query_filenames)?;
     println!("Loaded {} sig paths in querylist", querylist_paths.len());
 
     let threshold_hashes : u64 = {
@@ -69,8 +70,10 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                     let mm = prepare_query(&sigs, &template, &location);
 
                     if mm.is_none() {
-                        eprintln!("WARNING: no compatible sketches in path '{}'",
-                                q.display());
+                        if queryfile_name.ends_with(".zip") {
+                            eprintln!("WARNING: no compatible sketches in path '{}'",
+                                    q.display());
+                        }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     mm
