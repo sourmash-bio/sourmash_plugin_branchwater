@@ -122,7 +122,7 @@ A complete example Snakefile implementing the above workflow is available [in th
 
 ### Running `fastmultigather`
 
-`fastmultigather` takes a collection of query metagenomes collection of sketches as a database, and outputs many CSVs:
+`fastmultigather` takes a collection of query metagenomes and a collection of sketches as a database, and outputs many CSVs:
 ```
 sourmash scripts fastmultigather query-list.txt podar-ref-lists.txt --cores 4
 ```
