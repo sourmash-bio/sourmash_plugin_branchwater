@@ -20,17 +20,19 @@ def make_file_list(filename, paths):
         fp.write("\n")
 
 
+def index_siglist(runtmp, siglist, db):
+    # build index
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', db)
+    return db
+
+
 def test_installed(runtmp):
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'fastmultigather')
 
     assert 'usage:  fastmultigather' in runtmp.last_result.err
 
-def index_siglist(runtmp, siglist, db):
-    # build index
-    runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', db)
-    return db
 
 @pytest.mark.parametrize('indexed', [False, True])
 def test_simple(runtmp, indexed):
