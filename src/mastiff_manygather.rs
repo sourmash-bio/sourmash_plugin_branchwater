@@ -17,7 +17,7 @@ use std::fs::File;
 
 
 use crate::utils::{prepare_query, is_revindex_database,
-    load_sketchlist_filenames};
+    load_sigpaths_from_zip_or_pathlist};
 
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
@@ -35,7 +35,8 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     println!("Loaded DB");
 
     // Load query paths
-    let query_paths = load_sketchlist_filenames(&queries_file)?;
+    let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
+    let (query_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -110,8 +111,10 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                             eprintln!("Error gathering matches: {:?}", matches.err());
                         }
                     } else {
-                        eprintln!("WARNING: no compatible sketches in path '{}'",
-                                filename.display());
+                        if !queryfile_name.ends_with(".zip") {
+                            eprintln!("WARNING: no compatible sketches in path '{}'",
+                                    filename.display());
+                        }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     if results.is_empty() {

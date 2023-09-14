@@ -272,7 +272,6 @@ pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
     Ok((signature_paths, temp_dir))
 }
 
-
 pub fn load_fasta_fromfile<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<(String, PathBuf, String)>> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
