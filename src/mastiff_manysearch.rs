@@ -1,20 +1,20 @@
 /// mastiff_manysearch: mastiff-indexed version of manysearch.
-
 use anyhow::Result;
 use rayon::prelude::*;
 
 use sourmash::signature::{Signature, SigsTrait};
-use std::path::Path;
 use sourmash::sketch::Sketch;
+use std::path::Path;
 
 use sourmash::index::revindex::RevIndex;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{prepare_query, is_revindex_database,
-    load_sigpaths_from_zip_or_pathlist, SearchResult, csvwriter_thread};
-
+use crate::utils::{
+    csvwriter_thread, is_revindex_database, load_sigpaths_from_zip_or_pathlist, prepare_query,
+    SearchResult,
+};
 
 pub fn mastiff_manysearch<P: AsRef<Path>>(
     queries_file: P,
@@ -22,10 +22,12 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     template: Sketch,
     minimum_containment: f64,
     output: Option<P>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-
+) -> Result<(), Box<dyn std::error::Error>> {
     if !is_revindex_database(index.as_ref()) {
-        bail!("'{}' is not a valid RevIndex database", index.as_ref().display());
+        bail!(
+            "'{}' is not a valid RevIndex database",
+            index.as_ref().display()
+        );
     }
     // Open database once
     let db = RevIndex::open(index.as_ref(), true);
@@ -74,13 +76,14 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
                         let query_size = query.minhash.size() as f64;
                         // search mastiff db
                         let counter = db.counter_for_query(&query.minhash);
-                        let matches = db.matches_from_counter(counter, minimum_containment as usize);
+                        let matches =
+                            db.matches_from_counter(counter, minimum_containment as usize);
 
                         // filter the matches for containment
                         for (path, overlap) in matches {
                             let containment = overlap as f64 / query_size;
                             if containment >= minimum_containment {
-                                results.push( SearchResult {
+                                results.push(SearchResult {
                                     query_name: query.name.clone(),
                                     query_md5: query.md5sum.clone(),
                                     match_name: path.clone(),
@@ -96,8 +99,10 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
                         // for reading zips, this is likely not a useful warning and
                         // would show up too often (every sig is stored as individual file).
                         if !queryfile_name.ends_with(".zip") {
-                            eprintln!("WARNING: no compatible sketches in path '{}'",
-                                filename.display());
+                            eprintln!(
+                                "WARNING: no compatible sketches in path '{}'",
+                                filename.display()
+                            );
                         }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
@@ -106,18 +111,20 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
                     } else {
                         Some(results)
                     }
-                },
+                }
                 Err(err) => {
                     let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     eprintln!("Sketch loading error: {}", err);
-                    eprintln!("WARNING: could not load sketches from path '{}'",
-                              filename.display());
+                    eprintln!(
+                        "WARNING: could not load sketches from path '{}'",
+                        filename.display()
+                    );
                     None
                 }
             }
-          })
-          .flatten()
-          .try_for_each_with(send, |s, results| {
+        })
+        .flatten()
+        .try_for_each_with(send, |s, results| {
             if let Err(e) = s.send(results) {
                 Err(format!("Unable to send internal data: {:?}", e))
             } else {
@@ -133,7 +140,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     // join the writer thread
     if let Err(e) = thrd.join() {
         eprintln!("Unable to join internal thread: {:?}", e);
-    }  
+    }
 
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
@@ -143,12 +150,16 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} query paths - no compatible signatures.",
-                  skipped_paths);
+        eprintln!(
+            "WARNING: skipped {} query paths - no compatible signatures.",
+            skipped_paths
+        );
     }
     if failed_paths > 0 {
-        eprintln!("WARNING: {} query paths failed to load. See error messages above.",
-                  failed_paths);
+        eprintln!(
+            "WARNING: {} query paths failed to load. See error messages above.",
+            failed_paths
+        );
     }
 
     Ok(())
