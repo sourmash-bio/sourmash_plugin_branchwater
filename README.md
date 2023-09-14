@@ -46,42 +46,31 @@ pip install -e .
 
 ### 3. Download sketches.
 
-The following commands will download sourmash sketches for the podar genomes and
-unpack them into the directory `podar-ref/`:
+The following commands will download sourmash sketches for the podar genomes into the file `podar-ref.zip`:
 
 ```
-mkdir -p podar-ref
-curl -JLO https://osf.io/4t6cq/download
-unzip -u podar-reference-genomes-updated-sigs-2017.06.10.zip
-```
-
-### 4. Create lists of query and subject files.
-
-`multisearch` takes in lists of signatures to search, so we need to
-create those files:
-
-```
-ls -1 podar-ref/{2,47,63}.* > query-list.txt
-ls -1 podar-ref/* > podar-ref-list.txt
+curl -L https://osf.io/4t6cq/download -o podar-ref.zip
 ```
 
 ### 5. Execute!
 
-Now run `multisearch`:
+Now run `multisearch` to search all the sketches against each other:
 ```
-sourmash scripts multisearch query-list.txt podar-ref-list.txt -o results.csv --cores 4
+sourmash scripts multisearch podar-ref.zip podar-ref.zip -o results.csv --cores 4
 ```
 
 You will (hopefully ;)) see a set of results in `results.csv`. These are comparisons of each query against all matching genomes.
 
 ## Debugging help
 
-If your file lists are not working properly, try running:
+If your collections aren't loading properly, try running `sourmash sig summarize` on them,
+like so:
+
 ```
-sourmash sig summarize query-list.txt
-sourmash sig summarize podar-ref-list.txt
+sourmash sig summarize podar-ref.zip
 ```
-to make sure everything can be loaded.
+
+This will make sure everything can be loaded properly.
 
 ## Future thoughts
 
