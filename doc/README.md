@@ -17,10 +17,11 @@ Zip files are used in two ways, depending on how the command works.
 If the command loads a collection of sketches into memory at the start, then the sketches from the zip file are simply loaded into memory! So,
 * `multisearch` loads both query and database into memory;
 * `manysearch` loads the queries into memory;
-* `fastgather` and `fastmultigather` both load the database into memory;
+* `fastmultigather` loads the search database into memory;
 
 If the command loads a collection of sketches throughout execution, then the zip file is _unpacked_ to a temporary directory and the sketches are loaded from there. (This can consume a lot of extra disk space!) So,
 * `manysearch` loads the sketches being searched this way;
+* `fastgather` loads the database sketches this way;
 * `fastmultigather` loads the query sketches this way;
 
 Note that the temp directory is created under the path specified in the `TMPDIR` environment variable if it is set, otherwise it returns `/tmp`.
