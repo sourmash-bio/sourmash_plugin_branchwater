@@ -1,6 +1,6 @@
-use std::path::Path;
-use sourmash::sketch::Sketch;
 use sourmash::index::revindex::RevIndex;
+use sourmash::sketch::Sketch;
+use std::path::Path;
 
 use crate::utils::load_sigpaths_from_zip_or_pathlist;
 

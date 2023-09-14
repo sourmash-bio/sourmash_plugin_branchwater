@@ -2,22 +2,21 @@
 /// the OG MAGsearch, branchwater, etc.
 ///
 /// Note: this function loads all _queries_ into memory, and iterates over
-/// database once. 
-
+/// database once.
 use anyhow::Result;
 use rayon::prelude::*;
 
 use sourmash::signature::{Signature, SigsTrait};
-use std::path::Path;
 use sourmash::sketch::Sketch;
+use std::path::Path;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{prepare_query,
-    load_sigpaths_from_zip_or_pathlist, SearchResult,
-    csvwriter_thread, load_sketches_from_zip_or_pathlist,
-    ReportType};
+use crate::utils::{
+    csvwriter_thread, load_sigpaths_from_zip_or_pathlist, load_sketches_from_zip_or_pathlist,
+    prepare_query, ReportType, SearchResult,
+};
 
 pub fn manysearch<P: AsRef<Path>>(
     querylist: P,
@@ -26,16 +25,18 @@ pub fn manysearch<P: AsRef<Path>>(
     threshold: f64,
     output: Option<P>,
 ) -> Result<()> {
-
     // Read in list of query paths.
-    eprintln!("Reading list of queries from: '{}'", querylist.as_ref().display());
+    eprintln!(
+        "Reading list of queries from: '{}'",
+        querylist.as_ref().display()
+    );
 
     // Load all queries into memory at once.
     let queries = load_sketches_from_zip_or_pathlist(querylist, &template, ReportType::Query)?;
 
     // Load all _paths_, not signatures, into memory.
     let siglist_name = siglist.as_ref().to_string_lossy().to_string();
-    let (search_sigs_paths, _temp_dir)  = load_sigpaths_from_zip_or_pathlist(siglist)?;
+    let (search_sigs_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(siglist)?;
 
     if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");
@@ -70,19 +71,21 @@ pub fn manysearch<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load search signature from path:
-            match  Signature::from_path(filename) {
+            match Signature::from_path(filename) {
                 Ok(search_sigs) => {
                     let location = filename.display().to_string();
                     if let Some(search_sm) = prepare_query(&search_sigs, &template, &location) {
                         // search for matches & save containment.
                         for q in queries.iter() {
-                            let overlap = q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
+                            let overlap =
+                                q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
                             let query_size = q.minhash.size() as f64;
                             let target_size = search_sm.minhash.size() as f64;
 
                             let containment_query_in_target = overlap / query_size;
                             let containment_in_target = overlap / target_size;
-                            let max_containment = containment_query_in_target.max(containment_in_target);
+                            let max_containment =
+                                containment_query_in_target.max(containment_in_target);
                             let jaccard = overlap / (target_size + query_size - overlap);
 
                             if containment_query_in_target > threshold {
@@ -102,22 +105,25 @@ pub fn manysearch<P: AsRef<Path>>(
                         // for reading zips, this is likely not a useful warning and
                         // would show up too often (every sig is stored as individual file).
                         if !siglist_name.ends_with(".zip") {
-                            eprintln!("WARNING: no compatible sketches in path '{}'",
-                                      filename.display());
-                         }
+                            eprintln!(
+                                "WARNING: no compatible sketches in path '{}'",
+                                filename.display()
+                            );
+                        }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     Some(results)
-                },
+                }
                 Err(err) => {
                     let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     eprintln!("Sketch loading error: {}", err);
-                    eprintln!("WARNING: could not load sketches from path '{}'",
-                              filename.display());
+                    eprintln!(
+                        "WARNING: could not load sketches from path '{}'",
+                        filename.display()
+                    );
                     None
                 }
             }
-
         })
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));
@@ -139,12 +145,16 @@ pub fn manysearch<P: AsRef<Path>>(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     if skipped_paths > 0 {
-        eprintln!("WARNING: skipped {} search paths - no compatible signatures.",
-                  skipped_paths);
+        eprintln!(
+            "WARNING: skipped {} search paths - no compatible signatures.",
+            skipped_paths
+        );
     }
     if failed_paths > 0 {
-        eprintln!("WARNING: {} search paths failed to load. See error messages above.",
-                  failed_paths);
+        eprintln!(
+            "WARNING: {} search paths failed to load. See error messages above.",
+            failed_paths
+        );
     }
 
     Ok(())
