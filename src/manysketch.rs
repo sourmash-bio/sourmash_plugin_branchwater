@@ -3,11 +3,9 @@ use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 use crate::utils::{load_fasta_fromfile, sigwriter, Params, ZipMessage};
-use needletail::parse_fastx_reader;
+use needletail::{parse_fastx_file, Sequence, FastxReader};
 use sourmash::cmd::ComputeParameters;
 use sourmash::signature::Signature;
-use std::fs::File;
-use std::io::Read;
 use std::path::Path;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -199,49 +197,35 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
                 return None;
             }
 
-            // parse fasta file and add to signature
-            match File::open(filename) {
-                Ok(mut f) => {
-                    let _ = f.read_to_end(&mut data);
-
-                    match parse_fastx_reader(&data[..]) {
-                        Ok(mut parser) => {
-                            while let Some(record_result) = parser.next() {
-                                match record_result {
-                                    Ok(record) => {
-                                        for sig in &mut sigs {
-                                            if moltype == "protein" {
-                                                sig.add_protein(&record.seq()).unwrap();
-                                            } else {
-                                                sig.add_sequence(&record.seq(), true).unwrap();
-                                                // if not force, panics with 'N' in dna sequence
-                                            }
-                                        }
-                                    }
-                                    Err(error) => {
-                                        eprintln!("Error while processing record: {:?}", error);
-                                    }
-                                }
-                            }
-                            Some((sigs, sig_params, filename))
-                        }
-                        Err(err) => {
-                            eprintln!(
-                                "Error creating parser for file {}: {:?}",
-                                filename.display(),
-                                err
-                            );
-                            let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                            None
-                        }
-                    }
-                }
+            // Use parse_fastx_file for more efficient reading
+            let mut reader = match parse_fastx_file(&filename) {
+                Ok(r) => r,
                 Err(err) => {
                     eprintln!("Error opening file {}: {:?}", filename.display(), err);
                     let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    None
+                    return None;
+                }
+            };
+            // parse fasta file and add to signature
+            while let Some(record_result) = reader.next() {
+                match record_result {
+                    Ok(record) => {
+                        let norm_seq = record.normalize(false); // use if needed
+                        for sig in &mut sigs {
+                            if moltype == "protein" {
+                                sig.add_protein(&record.seq()).unwrap();
+                            } else {
+                                sig.add_sequence(&record.seq(), true).unwrap();
+                                // if not force, panics with 'N' in dna sequence
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        eprintln!("Error while processing record: {:?}", error);
+                    }
                 }
             }
+            Some((sigs, sig_params, filename))
         })
         .try_for_each_with(
             send.clone(),
@@ -256,7 +240,7 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
                 } else {
                     Ok(())
                 }
-            },
+            }
         );
 
     // After the parallel work, send the WriteManifest message
