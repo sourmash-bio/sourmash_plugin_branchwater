@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 use crate::utils::{load_fasta_fromfile, sigwriter, Params, ZipMessage};
-use needletail::{parse_fastx_file, Sequence, FastxReader};
+use needletail::{parse_fastx_file, FastxReader, Sequence};
 use sourmash::cmd::ComputeParameters;
 use sourmash::signature::Signature;
 use std::path::Path;
@@ -240,7 +240,7 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
                 } else {
                     Ok(())
                 }
-            }
+            },
         );
 
     // After the parallel work, send the WriteManifest message
