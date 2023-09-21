@@ -35,7 +35,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
 
     // Load query paths
     let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
-    let (query_paths, temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
+    let (query_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
 
     // if query_paths is empty, exit with error
     if query_paths.is_empty() {
@@ -161,6 +161,8 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
             failed_paths
         );
     }
+
+    // _temp_dir goes out of scope => is deleted.
 
     Ok(())
 }

@@ -49,7 +49,7 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     );
 
     let matchlist_filename = matchlist_filename.as_ref().to_string_lossy().to_string();
-    let (matchlist_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&matchlist_filename)?;
+    let (matchlist_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(matchlist_filename)?;
 
     eprintln!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 
