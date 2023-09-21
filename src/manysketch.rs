@@ -189,7 +189,6 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
                 eprintln!("Starting file {}/{} ({}%)", i, n_fastas, percent_processed);
             }
 
-            let mut data: Vec<u8> = vec![];
             // build sig templates from params
             let (mut sigs, sig_params) = build_siginfo(&params_vec, moltype, name, filename);
             // if no sigs to build, skip
@@ -211,9 +210,8 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
             while let Some(record_result) = reader.next() {
                 match record_result {
                     Ok(record) => {
-                        // normalize to make sure all the bases are consistently capitalized and
-                        // that we remove the newlines since this is FASTA
-                        let norm_seq = record.normalize(false);
+                        // do we need to normalize to make sure all the bases are consistently capitalized?
+                        // let norm_seq = record.normalize(false);
                         for sig in &mut sigs {
                             if moltype == "protein" {
                                 sig.add_protein(&record.seq()).unwrap();
