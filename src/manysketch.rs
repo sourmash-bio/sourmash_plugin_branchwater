@@ -198,7 +198,7 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
             }
 
             // Open fasta file reader
-            let mut reader = match parse_fastx_file(&filename) {
+            let mut reader = match parse_fastx_file(filename) {
                 Ok(r) => r,
                 Err(err) => {
                     eprintln!("Error opening file {}: {:?}", filename.display(), err);
