@@ -147,6 +147,32 @@ def test_manysketch_mult_moltype(runtmp):
             assert sig.md5sum() in ["4efeebd26644278e36b9553e018a851a","f85747ac4f473c4a71c1740d009f512b"]
 
 
+def test_manysketch_only_incompatible_fastas(runtmp, capfd):
+    # provide dna, protein fastas, but only sketch protein (skip protein fastas!)
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+
+    make_file_csv(fa_csv, [fa1, fa2, fa3])
+
+    output = runtmp.output('db.zip')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                        '--param-str', "protein,k=10,scaled=1")
+
+    assert os.path.exists(output) # output will still exist - is this desired?
+    assert not runtmp.last_result.out # stdout should be empty
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'DONE. Processed 3 fasta files' in captured.err
+    assert 'Error: No fasta files compatible with provided sketch parameters: no signatures created.' in captured.err
+
+
 def test_manysketch_skip_incompatible_fastas(runtmp, capfd):
     # provide dna, protein fastas, but only sketch protein (skip protein fastas!)
     fa_csv = runtmp.output('db-fa.csv')

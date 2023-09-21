@@ -269,7 +269,7 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
     }
 
     // done!
-    let i: usize = processed_fastas.fetch_max(0, atomic::Ordering::SeqCst);
+    let i: usize = processed_fastas.load(atomic::Ordering::SeqCst);
     eprintln!("DONE. Processed {} fasta files", i);
 
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
@@ -285,6 +285,9 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
     }
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    if skipped_paths == i {
+        bail!("No fasta files compatible with provided sketch parameters: no signatures created.");
+    }
     if skipped_paths > 0 {
         eprintln!(
             "WARNING: {} fasta files skipped - no compatible signatures.",
