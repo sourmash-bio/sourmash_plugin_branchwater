@@ -182,11 +182,11 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
         .par_iter()
         .filter_map(|(name, filename, moltype)| {
             // increment processed_fastas counter; make 1-based for % reporting
-            let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst) + 1;
+            let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
             // progress report at threshold
             if i != 0 && i % reporting_threshold == 0 {
-                let percent_processed = ((i as f64 / n_fastas as f64) * 100.0).round();
-                eprintln!("Starting file {}/{} ({}%)", i, n_fastas, percent_processed);
+                let percent_processed = (((i+1) as f64 / n_fastas as f64) * 100.0).round();
+                eprintln!("Starting file {}/{} ({}%)", (i+1), n_fastas, percent_processed);
             }
 
             // build sig templates from params

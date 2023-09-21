@@ -179,6 +179,10 @@ def test_manysketch_skip_incompatible_fastas(runtmp, capfd):
         assert sig.minhash.ksize == 10
         assert sig.minhash.scaled == 1
         assert sig.md5sum() == "eb4467d11e0ecd2dbde4193bfc255310"
+    assert 'Starting file 2/4 (50%)' in captured.err
+    assert 'Starting file 3/4 (75%)' in captured.err
+    assert 'Starting file 4/4 (100%)' in captured.err
+    assert 'DONE. Processed 4 fasta files' in captured.err
     assert 'WARNING: 3 fasta files skipped - no compatible signatures.' in captured.err
 
 
