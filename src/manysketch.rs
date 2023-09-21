@@ -185,7 +185,12 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
             // progress report at threshold
             if i != 0 && i % reporting_threshold == 0 {
                 let percent_processed = ((i as f64 / n_fastas as f64) * 100.0).round();
-                eprintln!("Starting file {}/{} ({}%)", i, n_fastas, percent_processed);
+                eprintln!(
+                    "Starting file {}/{} ({}%)",
+                    i + 1,
+                    n_fastas,
+                    percent_processed
+                );
             }
 
             let mut data: Vec<u8> = vec![];
