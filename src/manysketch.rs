@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 use crate::utils::{load_fasta_fromfile, sigwriter, Params, ZipMessage};
-use needletail::{parse_fastx_file, FastxReader, Sequence};
+use needletail::{parse_fastx_file, Sequence};
 use sourmash::cmd::ComputeParameters;
 use sourmash::signature::Signature;
 use std::path::Path;
@@ -197,7 +197,7 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
                 return None;
             }
 
-            // Use parse_fastx_file for more efficient reading
+            // Open fasta file reader
             let mut reader = match parse_fastx_file(&filename) {
                 Ok(r) => r,
                 Err(err) => {
@@ -206,11 +206,13 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
                     return None;
                 }
             };
-            // parse fasta file and add to signature
+            // parse fasta and add to signature
             while let Some(record_result) = reader.next() {
                 match record_result {
                     Ok(record) => {
-                        let norm_seq = record.normalize(false); // use if needed
+                        // normalize to make sure all the bases are consistently capitalized and
+                        // that we remove the newlines since this is FASTA
+                        let norm_seq = record.normalize(false);
                         for sig in &mut sigs {
                             if moltype == "protein" {
                                 sig.add_protein(&record.seq()).unwrap();
@@ -220,8 +222,8 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
                             }
                         }
                     }
-                    Err(error) => {
-                        eprintln!("Error while processing record: {:?}", error);
+                    Err(err) => {
+                        eprintln!("Error while processing record: {:?}", err);
                     }
                 }
             }
