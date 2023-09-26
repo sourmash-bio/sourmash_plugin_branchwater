@@ -543,3 +543,84 @@ def test_fastgather_prefetchout_as_picklist(runtmp, zip_against):
     full_df = pandas.read_csv(full_gather_output)
 
     assert picklist_df.equals(full_df)
+
+
+def test_simple_protein(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('protein.zip')
+
+    query = runtmp.output('query.sig')
+    against = runtmp.output('against.zip')
+    # extract query from zip file
+    runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
+    # extract against from zip file
+    runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593925', '-o', against)
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against,
+                    '-o', g_output, '-s', '100', '--moltype', 'protein', '-k', '19',
+                    '--threshold', '0')
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    print(df)
+    assert df['match_md5'][0] == "16869d2c8a1d29d1c8e56f5c561e585e"
+
+
+def test_simple_dayhoff(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('dayhoff.zip')
+
+    query = runtmp.output('query.sig')
+    against = runtmp.output('against.zip')
+    # extract query from zip file
+    runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
+    # extract against from zip file
+    runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593925', '-o', against)
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against,
+                    '-o', g_output, '-s', '100', '--moltype', 'dayhoff', '-k', '19',
+                    '--threshold', '0')
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    print(df)
+    assert df['match_md5'][0] == "fbca5e5211e4d58427997fd5c8343e9a"
+
+
+def test_simple_hp(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('hp.zip')
+
+    query = runtmp.output('query.sig')
+    against = runtmp.output('against.zip')
+    # extract query from zip file
+    runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
+    # extract against from zip file
+    runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593925', '-o', against)
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against,
+                    '-o', g_output, '-s', '100', '--moltype', 'hp', '-k', '19',
+                    '--threshold', '0')
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    print(df)
+    assert df['match_md5'][0] == "ea2a1ad233c2908529d124a330bcb672"
