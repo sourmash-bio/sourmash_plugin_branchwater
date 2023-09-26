@@ -8,7 +8,7 @@ use std::path::Path;
 
 use crate::utils::{
     consume_query_by_gather, load_sigpaths_from_zip_or_pathlist, load_sketches_above_threshold,
-    prepare_query, write_prefetch,
+    prepare_query, write_prefetch, ReportType,
 };
 
 pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
@@ -49,7 +49,8 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     );
 
     let matchlist_filename = matchlist_filename.as_ref().to_string_lossy().to_string();
-    let (matchlist_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(matchlist_filename)?;
+    let (matchlist_paths, _temp_dir) =
+        load_sigpaths_from_zip_or_pathlist(matchlist_filename, &template, ReportType::Against)?;
 
     eprintln!("Loaded {} sig paths in matchlist", matchlist_paths.len());
 

@@ -251,31 +251,67 @@ pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) -> Res
 /// * Any other IO or file related error.
 pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
     zip_path: P,
+    template: &Sketch,
+    report_type: ReportType,
 ) -> Result<(Vec<PathBuf>, tempfile::TempDir)> {
     let mut signature_paths = Vec::new();
     let temp_dir = tempdir()?;
     let zip_file = File::open(&zip_path)?;
     let mut zip_archive = ZipArchive::new(zip_file)?;
 
+    let mut skipped_paths = 0;
     for i in 0..zip_archive.len() {
         let mut file = zip_archive.by_index(i)?;
-        let mut sig = Vec::new();
-        file.read_to_end(&mut sig)?;
-
-        let file_name = Path::new(file.name())
+        // make string copy to avoid file borrowing issues
+        let file_name_str = file.name().to_string();
+        let file_name = Path::new(&file_name_str)
             .file_name()
             .unwrap()
             .to_str()
             .unwrap();
         if file_name.ends_with(".sig") || file_name.ends_with(".sig.gz") {
-            let mut new_file = File::create(temp_dir.path().join(file_name))?;
-            new_file.write_all(&sig)?;
+            // read file
+            let mut contents = Vec::new();
+            file.read_to_end(&mut contents)?;
+            // get sig from file
+            let sigs = Signature::from_reader(&contents[..])?;
+            if sigs.len() > 1 {
+                return Err(anyhow::anyhow!(
+                    "File '{}' has more than one signature.",
+                    file_name
+                ));
+            }
+            let sig = &sigs[0]; // Directly take the first (only) signature
+                                // check for compatible sketch
+            let is_compatible = if let Some(Sketch::MinHash(_)) = sig.select_sketch(template) {
+                true
+            } else if let Sketch::MinHash(template_mh) = template {
+                sig.sketches().iter().any(|sketch| {
+                    matches!(sketch, Sketch::MinHash(ref_mh) if check_compatible_downsample(&ref_mh, template_mh).is_ok())
+                })
+            } else {
+                false
+            };
 
-            // add path to signature_paths
-            signature_paths.push(temp_dir.path().join(file_name));
+            if is_compatible {
+                let path = temp_dir.path().join(file_name);
+                // write contents to new file
+                let mut new_file = File::create(&path)?;
+                new_file.write_all(&contents)?;
+                // add filepath to signature paths
+                signature_paths.push(path);
+            } else {
+                skipped_paths += 1;
+            }
         }
     }
-    println!(
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} {} paths - no compatible signatures.",
+            skipped_paths, report_type
+        );
+    }
+    eprintln!(
         "loaded paths for {} signature files from zipfile {}",
         signature_paths.len(),
         zip_path.as_ref().display()
@@ -536,6 +572,8 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
 ///  `TempDir` temporary directory where they can be used individually.
 pub fn load_sigpaths_from_zip_or_pathlist<P: AsRef<Path>>(
     sketchlist_path: P,
+    template: &Sketch,
+    report_type: ReportType,
 ) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
     eprintln!(
         "Reading list of filepaths from: '{}'",
@@ -548,7 +586,7 @@ pub fn load_sigpaths_from_zip_or_pathlist<P: AsRef<Path>>(
         .map(|ext| ext == "zip")
         .unwrap_or(false)
     {
-        let (paths, tempdir) = load_sigpaths_from_zip(&sketchlist_path)?;
+        let (paths, tempdir) = load_sigpaths_from_zip(&sketchlist_path, template, report_type)?;
         (paths, Some(tempdir))
     } else {
         let paths = load_sketchlist_filenames(&sketchlist_path)?;
@@ -563,6 +601,7 @@ pub fn load_sigpaths_from_zip_or_pathlist<P: AsRef<Path>>(
 pub enum ReportType {
     Query,
     Against,
+    Index,
 }
 
 impl std::fmt::Display for ReportType {
@@ -570,6 +609,7 @@ impl std::fmt::Display for ReportType {
         let description = match self {
             ReportType::Query => "query",
             ReportType::Against => "search",
+            ReportType::Index => "index",
         };
         write!(f, "{}", description)
     }

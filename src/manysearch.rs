@@ -36,7 +36,8 @@ pub fn manysearch<P: AsRef<Path>>(
 
     // Load all _paths_, not signatures, into memory.
     let siglist_name = siglist.as_ref().to_string_lossy().to_string();
-    let (search_sigs_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(siglist)?;
+    let (search_sigs_paths, _temp_dir) =
+        load_sigpaths_from_zip_or_pathlist(siglist, &template, ReportType::Against)?;
 
     if search_sigs_paths.is_empty() {
         bail!("No signatures to search loaded, exiting.");

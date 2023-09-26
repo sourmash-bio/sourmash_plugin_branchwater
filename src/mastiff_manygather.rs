@@ -14,7 +14,9 @@ use std::sync::atomic::AtomicUsize;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
-use crate::utils::{is_revindex_database, load_sigpaths_from_zip_or_pathlist, prepare_query};
+use crate::utils::{
+    is_revindex_database, load_sigpaths_from_zip_or_pathlist, prepare_query, ReportType,
+};
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
     queries_file: P,
@@ -35,7 +37,8 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
 
     // Load query paths
     let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
-    let (query_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&queries_file)?;
+    let (query_paths, _temp_dir) =
+        load_sigpaths_from_zip_or_pathlist(&queries_file, &template, ReportType::Query)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());

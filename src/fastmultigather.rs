@@ -34,7 +34,8 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
     // load the list of query paths
     let queryfile_name = query_filenames.as_ref().to_string_lossy().to_string();
-    let (querylist_paths, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&query_filenames)?;
+    let (querylist_paths, _temp_dir) =
+        load_sigpaths_from_zip_or_pathlist(&query_filenames, &template, ReportType::Query)?;
     println!("Loaded {} sig paths in querylist", querylist_paths.len());
 
     let threshold_hashes: u64 = {
