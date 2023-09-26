@@ -154,6 +154,36 @@ def test_index_zipfile(runtmp, capfd):
     assert 'Found 3 filepaths' in captured.err
 
 
+def test_index_zipfile_multik(runtmp, capfd):
+    # test basic index from sourmash zipfile
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    sig1 = get_test_data('1.combined.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63, sig1])
+    # make_file_list(siglist, [sig1])
+
+    zipf = runtmp.output('sigs.zip')
+
+    runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
+
+    output = runtmp.output('db.rdb')
+
+    runtmp.sourmash('scripts', 'index', zipf,
+                    '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert 'index is done' in runtmp.last_result.err
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert 'Found 4 filepaths' in captured.err
+    assert 'WARNING: skipped 2 index paths - no compatible signatures.' in captured.err
+
+
 def test_index_zipfile_bad(runtmp, capfd):
     # test with a bad input zipfile (a .sig.gz file renamed as zip file)
     sig2 = get_test_data('2.fa.sig.gz')
