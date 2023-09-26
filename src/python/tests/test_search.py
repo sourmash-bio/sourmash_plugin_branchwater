@@ -626,3 +626,48 @@ def test_simple_protein(runtmp):
                 assert cont == 0.0712
                 assert maxcont == 0.1003
                 assert intersect_hashes == 342
+
+
+def test_simple_protein_indexed(runtmp):
+    # test basic execution with proteins
+    protsigs = get_test_data('protein.zip')
+    output = runtmp.output('out.csv')
+
+    protsigs_db = index_siglist(runtmp, protsigs, runtmp.output('db'),
+                             ksize=19, moltype='protein', scaled=100)
+
+    runtmp.sourmash('scripts', 'manysearch', protsigs, protsigs_db,
+                        '-k', '19', '-s', '100', '--moltype', 'protein',
+                        '-o', output)
+
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 4
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        print(row)
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert float(row['containment'] == 1.0)
+            # assert float(row['max_containment'] == 1.0)
+        else:
+        # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+
+            cont = round(cont, 4)
+            print(q, m, f"{cont:.04}", intersect_hashes)
+
+            if q == 'GCA_001593925' and m == 'GCA_001593935':
+                assert cont == 0.1003
+                assert intersect_hashes == 342
+
+            if q == 'GCA_001593935' and m == 'GCA_001593925':
+                assert cont == 0.0712
+                assert intersect_hashes == 342
