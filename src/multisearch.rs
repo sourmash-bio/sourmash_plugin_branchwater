@@ -10,7 +10,6 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use sourmash::signature::SigsTrait;
-use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 
 use crate::utils::{load_sketches_from_zip_or_pathlist, ReportType};
@@ -24,19 +23,9 @@ pub fn multisearch<P: AsRef<Path>>(
     querylist: P,
     againstlist: P,
     threshold: f64,
-    ksize: u8,
-    scaled: usize,
+    template: Sketch,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // construct a MinHash template for loading.
-    let max_hash = max_hash_for_scaled(scaled as u64);
-    let template_mh = KmerMinHash::builder()
-        .num(0u32)
-        .ksize(ksize as u32)
-        .max_hash(max_hash)
-        .build();
-    let template = Sketch::MinHash(template_mh);
-
     // Load all queries into memory at once.
     let queries = load_sketches_from_zip_or_pathlist(&querylist, &template, ReportType::Query)?;
 

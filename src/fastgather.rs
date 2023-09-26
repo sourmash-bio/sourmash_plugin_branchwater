@@ -1,7 +1,7 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
 
-use sourmash::signature::Signature;
+use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 use std::path::Path;
@@ -17,17 +17,10 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
+    template: Sketch,
     gather_output: Option<P>,
     prefetch_output: Option<P>,
 ) -> Result<()> {
-    let max_hash = max_hash_for_scaled(scaled as u64);
-    let template_mh = KmerMinHash::builder()
-        .num(0u32)
-        .ksize(ksize as u32)
-        .max_hash(max_hash)
-        .build();
-    let template = Sketch::MinHash(template_mh);
-
     let location = query_filename.to_string();
     eprintln!("Loading query from '{}'", location);
     let query = {
@@ -35,7 +28,6 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 
         prepare_query(&sigs, &template, &location)
     };
-
     // did we find anything matching the desired template?
     let query = match query {
         Some(query) => query,

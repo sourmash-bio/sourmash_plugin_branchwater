@@ -1,5 +1,6 @@
 /// Utility functions for pyo3_branchwater.
 use rayon::prelude::*;
+use sourmash::encodings::HashFunctions;
 
 use std::fs::File;
 use std::io::Read;
@@ -748,12 +749,18 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
     Ok(())
 }
 
-pub fn build_template(ksize: u8, scaled: usize) -> Sketch {
+pub fn build_template(ksize: u8, scaled: usize, moltype: &str) -> Sketch {
+    let hash_function = match moltype {
+        "dna" => HashFunctions::murmur64_DNA,
+        "protein" => HashFunctions::murmur64_protein,
+        _ => panic!("Unknown molecule type: {}", moltype), //should not happen
+    };
     let max_hash = max_hash_for_scaled(scaled as u64);
     let template_mh = KmerMinHash::builder()
         .num(0u32)
         .ksize(ksize as u32)
         .max_hash(max_hash)
+        .hash_function(hash_function)
         .build();
     Sketch::MinHash(template_mh)
 }
