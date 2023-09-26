@@ -1,7 +1,7 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
 
-use sourmash::signature::{Signature, SigsTrait};
+use sourmash::signature::Signature;
 use sourmash::sketch::Sketch;
 use std::path::Path;
 
