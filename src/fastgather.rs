@@ -2,7 +2,6 @@
 use anyhow::Result;
 
 use sourmash::signature::{Signature, SigsTrait};
-use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 use std::path::Path;
 

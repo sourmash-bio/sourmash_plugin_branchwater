@@ -54,8 +54,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
-        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein"],
-                       help = 'molecule type (DNA or protein; default DNA)')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
@@ -99,8 +99,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
                        help='k-mer size at which to do comparisons (default: 31)')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
-        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein"],
-                       help = 'molecule type (DNA or protein; default DNA)')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
 
@@ -145,8 +145,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                        help='k-mer size at which to do comparisons (default: 31)')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
-        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein"],
-                       help = 'molecule type (DNA or protein; default DNA)')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
         p.add_argument('-o', '--output', help='CSV output file for matches')
@@ -187,8 +187,8 @@ class Branchwater_Index(CommandLinePlugin):
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
-        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein"],
-                       help = 'molecule type (DNA or protein; default DNA)')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('--save-paths', action='store_true',
                        help='save paths to signatures into index. Default: save full sig into index')
         p.add_argument('-c', '--cores', default=0, type=int,
@@ -251,8 +251,8 @@ class Branchwater_Multisearch(CommandLinePlugin):
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
-        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein"],
-                       help = 'molecule type (DNA or protein; default DNA)')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 

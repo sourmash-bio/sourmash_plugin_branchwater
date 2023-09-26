@@ -44,6 +44,39 @@ def test_index(runtmp):
     assert 'index is done' in runtmp.last_result.err
 
 
+def test_index_protein(runtmp):
+    sigs = get_test_data('protein.zip')
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
+                    '--moltype', 'protein', '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
+def test_index_dayhoff(runtmp):
+    sigs = get_test_data('dayhoff.zip')
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
+                    '--moltype', 'dayhoff', '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
+def test_index_protein(runtmp):
+    sigs = get_test_data('hp.zip')
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
+                    '--moltype', 'hp', '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
 def test_index_missing_siglist(runtmp, capfd):
     # test missing siglist file
     siglist = runtmp.output('db-sigs.txt')
