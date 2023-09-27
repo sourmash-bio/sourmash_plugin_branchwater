@@ -19,8 +19,8 @@ use anyhow::{anyhow, Result};
 
 use std::cmp::{Ordering, PartialOrd};
 
-use sourmash::prelude::FracMinHashOps;
-use sourmash::prelude::MinHashOps;
+// use sourmash::prelude::FracMinHashOps;
+// use sourmash::prelude::HashOps;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
@@ -791,10 +791,10 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
 
 pub fn build_template(ksize: u8, scaled: usize, moltype: &str) -> Sketch {
     let hash_function = match moltype {
-        "dna" => HashFunctions::murmur64_DNA,
-        "protein" => HashFunctions::murmur64_protein,
-        "dayhoff" => HashFunctions::murmur64_dayhoff,
-        "hp" => HashFunctions::murmur64_hp,
+        "dna" => HashFunctions::Murmur64Dna,
+        "protein" => HashFunctions::Murmur64Protein,
+        "dayhoff" => HashFunctions::Murmur64Dayhoff,
+        "hp" => HashFunctions::Murmur64Hp,
         _ => panic!("Unknown molecule type: {}", moltype),
     };
     //adjust ksize if not dna
