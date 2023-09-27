@@ -101,8 +101,8 @@ fn do_fastmultigather(
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
+    let template = build_template(ksize, scaled, &moltype);
     if is_revindex_database(siglist_path.as_ref()) {
-        let template = build_template(ksize, scaled, &moltype);
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
             siglist_path,
@@ -121,8 +121,8 @@ fn do_fastmultigather(
             query_filenames,
             siglist_path,
             threshold_bp,
-            ksize,
             scaled,
+            template,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {

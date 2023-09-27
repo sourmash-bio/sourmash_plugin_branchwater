@@ -20,10 +20,11 @@ def make_file_list(filename, paths):
         fp.write("\n")
 
 
-def index_siglist(runtmp, siglist, db):
+def index_siglist(runtmp, siglist, db, ksize=31, scaled=1000, moltype='DNA'):
     # build index
     runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', db)
+                    '-o', db, '-k', str(ksize), '--scaled', str(scaled),
+                    '--moltype', moltype)
     return db
 
 
@@ -620,3 +621,147 @@ def test_csv_columns_vs_sourmash_prefetch_indexed(runtmp, zip_query):
     sp_keys = set(sourmash_prefetch_df.keys())
     print(g_keys - sp_keys)
     assert not g_keys - sp_keys, g_keys - sp_keys
+
+
+def test_simple_protein(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('protein.zip')
+
+    sig_names = ["GCA_001593935.1_ASM159393v1_protein.faa.gz", "GCA_001593925.1_ASM159392v1_protein.faa.gz"]
+
+    runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs,
+                    '-s', '100', '--moltype', 'protein', '-k', '19')
+
+    for qsig in sig_names:
+        g_output = runtmp.output(os.path.join(qsig + '.sig.gather.csv'))
+        p_output = runtmp.output(os.path.join(qsig + '.sig.prefetch.csv'))
+        print(g_output)
+        assert os.path.exists(g_output)
+        assert os.path.exists(p_output)
+
+        df = pandas.read_csv(g_output)
+        assert len(df) == 1
+        keys = set(df.keys())
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        print(df)
+        # since we're just matching to identical sigs, the md5s should be the same
+        assert df['query_md5'][0] == df['match_md5'][0]
+
+
+def test_simple_dayhoff(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('dayhoff.zip')
+
+    sig_names = ["GCA_001593935.1_ASM159393v1_protein.faa.gz", "GCA_001593925.1_ASM159392v1_protein.faa.gz"]
+
+    runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs,
+                    '-s', '100', '--moltype', 'dayhoff', '-k', '19')
+
+    for qsig in sig_names:
+        g_output = runtmp.output(os.path.join(qsig + '.sig.gather.csv'))
+        p_output = runtmp.output(os.path.join(qsig + '.sig.prefetch.csv'))
+        print(g_output)
+        assert os.path.exists(g_output)
+        assert os.path.exists(p_output)
+
+        df = pandas.read_csv(g_output)
+        assert len(df) == 1
+        keys = set(df.keys())
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        print(df)
+        # since we're just matching to identical sigs, the md5s should be the same
+        assert df['query_md5'][0] == df['match_md5'][0]
+
+
+def test_simple_hp(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('hp.zip')
+
+    sig_names = ["GCA_001593935.1_ASM159393v1_protein.faa.gz", "GCA_001593925.1_ASM159392v1_protein.faa.gz"]
+
+    runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs,
+                    '-s', '100', '--moltype', 'hp', '-k', '19')
+
+    for qsig in sig_names:
+        g_output = runtmp.output(os.path.join(qsig + '.sig.gather.csv'))
+        p_output = runtmp.output(os.path.join(qsig + '.sig.prefetch.csv'))
+        print(g_output)
+        assert os.path.exists(g_output)
+        assert os.path.exists(p_output)
+
+        df = pandas.read_csv(g_output)
+        assert len(df) == 1
+        keys = set(df.keys())
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        print(df)
+        # since we're just matching to identical sigs, the md5s should be the same
+        assert df['query_md5'][0] == df['match_md5'][0]
+
+
+def test_simple_protein_indexed(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('protein.zip')
+
+    sigs_db = index_siglist(runtmp, sigs, runtmp.output('db'), ksize=19, moltype='protein', scaled=100)
+
+    out_csv = runtmp.output('out.csv')
+    runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs_db,
+                    '-s', '100', '--moltype', 'protein', '-k', '19',
+                    '-o', out_csv)
+
+    assert os.path.exists(out_csv)
+
+    df = pandas.read_csv(out_csv)
+    assert len(df) == 2
+    keys = set(df.keys())
+    assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+    print(df)
+    # since we're just matching to identical sigs, the md5s should be the same
+    assert df['query_md5'][0] == df['match_md5'][0]
+    assert df['query_md5'][1] == df['match_md5'][1]
+
+
+def test_simple_dayhoff_indexed(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('dayhoff.zip')
+
+    sigs_db = index_siglist(runtmp, sigs, runtmp.output('db'), ksize=19, moltype='dayhoff', scaled=100)
+
+    out_csv = runtmp.output('out.csv')
+    runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs_db,
+                    '-s', '100', '--moltype', 'dayhoff', '-k', '19',
+                    '-o', out_csv)
+
+    assert os.path.exists(out_csv)
+
+    df = pandas.read_csv(out_csv)
+    assert len(df) == 2
+    keys = set(df.keys())
+    assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+    print(df)
+    # since we're just matching to identical sigs, the md5s should be the same
+    assert df['query_md5'][0] == df['match_md5'][0]
+    assert df['query_md5'][1] == df['match_md5'][1]
+
+
+def test_simple_hp_indexed(runtmp):
+    # test basic protein execution
+    sigs = get_test_data('hp.zip')
+
+    sigs_db = index_siglist(runtmp, sigs, runtmp.output('db'), ksize=19, moltype='hp', scaled=100)
+
+    out_csv = runtmp.output('out.csv')
+    runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs_db,
+                    '-s', '100', '--moltype', 'hp', '-k', '19',
+                    '-o', out_csv)
+
+    assert os.path.exists(out_csv)
+
+    df = pandas.read_csv(out_csv)
+    assert len(df) == 2
+    keys = set(df.keys())
+    assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+    print(df)
+    # since we're just matching to identical sigs, the md5s should be the same
+    assert df['query_md5'][0] == df['match_md5'][0]
+    assert df['query_md5'][1] == df['match_md5'][1]
