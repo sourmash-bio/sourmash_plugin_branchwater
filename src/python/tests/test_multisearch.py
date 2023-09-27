@@ -456,3 +456,159 @@ def test_md5(runtmp, zip_query, zip_db):
     for against_file in (sig2, sig47, sig63):
         for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
             assert ss.md5sum() in md5s
+
+
+def test_simple_prot(runtmp):
+    # test basic execution with protein sigs
+    sigs = get_test_data('protein.zip')
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
+                    '-o', output, '--moltype', 'protein',
+                    '-k', '19', '--scaled', '100')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 4
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            maxcont = round(maxcont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes)
+
+            if q == 'GCA_001593925' and m == 'GCA_001593935':
+                assert jaccard == 0.0434
+                assert cont == 0.1003
+                assert maxcont == 0.1003
+                assert intersect_hashes == 342
+
+            if q == 'GCA_001593935' and m == 'GCA_001593925':
+                assert jaccard == 0.0434
+                assert cont == 0.0712
+                assert maxcont == 0.1003
+                assert intersect_hashes == 342
+
+
+def test_simple_dayhoff(runtmp):
+    # test basic execution with dayhoff sigs
+    sigs = get_test_data('dayhoff.zip')
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
+                    '-o', output, '--moltype', 'dayhoff',
+                    '-k', '19', '--scaled', '100')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 4
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            maxcont = round(maxcont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes)
+
+            if q == 'GCA_001593925' and m == 'GCA_001593935':
+                assert jaccard == 0.1326
+                assert cont == 0.2815
+                assert maxcont == 0.2815
+                assert intersect_hashes == 930
+
+            if q == 'GCA_001593935' and m == 'GCA_001593925':
+                assert jaccard == 0.1326
+                assert cont == 0.2004
+                assert maxcont == 0.2815
+                assert intersect_hashes == 930
+
+
+def test_simple_hp(runtmp):
+    # test basic execution with hp sigs
+    sigs = get_test_data('hp.zip')
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
+                    '-o', output, '--moltype', 'hp',
+                    '-k', '19', '--scaled', '100')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 4
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            maxcont = round(maxcont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes)
+
+            if q == 'GCA_001593925' and m == 'GCA_001593935':
+                assert jaccard == 0.4983
+                assert cont == 0.747
+                assert maxcont == 0.747
+                assert intersect_hashes == 1724
+
+            if q == 'GCA_001593935' and m == 'GCA_001593925':
+                assert jaccard == 0.4983
+                assert cont == 0.5994
+                assert maxcont == 0.747
+                assert intersect_hashes == 1724

@@ -24,10 +24,11 @@ fn do_manysearch(
     threshold: f64,
     ksize: u8,
     scaled: usize,
+    moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
-    let template = build_template(ksize, scaled);
+    let template = build_template(ksize, scaled, &moltype);
     if is_revindex_database(siglist_path.as_ref()) {
         match mastiff_manysearch::mastiff_manysearch(
             querylist_path,
@@ -66,15 +67,18 @@ fn do_fastgather(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
+    moltype: String,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
+    let template = build_template(ksize, scaled, &moltype);
     match fastgather::fastgather(
         query_filename,
         siglist_path,
         threshold_bp,
         ksize,
         scaled,
+        template,
         output_path_prefetch,
         output_path_gather,
     ) {
@@ -93,11 +97,12 @@ fn do_fastmultigather(
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
+    moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
+    let template = build_template(ksize, scaled, &moltype);
     if is_revindex_database(siglist_path.as_ref()) {
-        let template = build_template(ksize, scaled);
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
             siglist_path,
@@ -116,8 +121,8 @@ fn do_fastmultigather(
             query_filenames,
             siglist_path,
             threshold_bp,
-            ksize,
             scaled,
+            template,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -150,12 +155,13 @@ fn do_index(
     siglist: String,
     ksize: u8,
     scaled: usize,
+    moltype: String,
     output: String,
     save_paths: bool,
     colors: bool,
 ) -> anyhow::Result<u8> {
     // build template from ksize, scaled
-    let template = build_template(ksize, scaled);
+    let template = build_template(ksize, scaled, &moltype);
     match index::index(siglist, template, output, save_paths, colors) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -183,14 +189,15 @@ fn do_multisearch(
     threshold: f64,
     ksize: u8,
     scaled: usize,
+    moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    let template = build_template(ksize, scaled, &moltype);
     match multisearch::multisearch(
         querylist_path,
         siglist_path,
         threshold,
-        ksize,
-        scaled,
+        template,
         output_path,
     ) {
         Ok(_) => Ok(0),

@@ -54,13 +54,15 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
         print_version()
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
-
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
+        args.moltype = args.moltype.lower()
         num_threads = set_thread_pool(args.cores)
 
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
@@ -71,6 +73,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                 args.threshold,
                                                 args.ksize,
                                                 args.scaled,
+                                                args.moltype,
                                                 args.output)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
@@ -96,13 +99,16 @@ class Branchwater_Fastgather(CommandLinePlugin):
                        help='k-mer size at which to do comparisons (default: 31)')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
 
 
     def main(self, args):
         print_version()
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}")
+        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -114,6 +120,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
                                                 int(args.threshold_bp),
                                                 args.ksize,
                                                 args.scaled,
+                                                args.moltype,
                                                 args.output_gather,
                                                 args.output_prefetch)
         if status == 0:
@@ -138,6 +145,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                        help='k-mer size at which to do comparisons (default: 31)')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons (default: 1000)')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
         p.add_argument('-o', '--output', help='CSV output file for matches')
@@ -145,7 +154,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
 
     def main(self, args):
         print_version()
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold bp: {args.threshold_bp}")
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}")
+        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -156,6 +166,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                                                      int(args.threshold_bp),
                                                      args.ksize,
                                                      args.scaled,
+                                                     args.moltype,
                                                      args.output)
         if status == 0:
             notify(f"...fastmultigather is done!")
@@ -176,13 +187,16 @@ class Branchwater_Index(CommandLinePlugin):
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('--save-paths', action='store_true',
                        help='save paths to signatures into index. Default: save full sig into index')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled}")
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} ")
+        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -192,6 +206,7 @@ class Branchwater_Index(CommandLinePlugin):
         status = pyo3_branchwater.do_index(args.siglist,
                                                 args.ksize,
                                                 args.scaled,
+                                                args.moltype,
                                                 args.output,
                                                 args.save_paths,
                                                 False) # colors - currently must be false?
@@ -236,12 +251,15 @@ class Branchwater_Multisearch(CommandLinePlugin):
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
                        help='scaled factor at which to do comparisons')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
     def main(self, args):
         print_version()
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / threshold: {args.threshold}")
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
+        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -253,6 +271,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
                                                  args.threshold,
                                                  args.ksize,
                                                  args.scaled,
+                                                 args.moltype,
                                                  args.output)
         if status == 0:
             notify(f"...multisearch is done! results in '{args.output}'")

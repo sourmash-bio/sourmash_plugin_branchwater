@@ -44,6 +44,39 @@ def test_index(runtmp):
     assert 'index is done' in runtmp.last_result.err
 
 
+def test_index_protein(runtmp):
+    sigs = get_test_data('protein.zip')
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
+                    '--moltype', 'protein', '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
+def test_index_dayhoff(runtmp):
+    sigs = get_test_data('dayhoff.zip')
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
+                    '--moltype', 'dayhoff', '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
+def test_index_protein(runtmp):
+    sigs = get_test_data('hp.zip')
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
+                    '--moltype', 'hp', '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
 def test_index_missing_siglist(runtmp, capfd):
     # test missing siglist file
     siglist = runtmp.output('db-sigs.txt')
@@ -155,7 +188,7 @@ def test_index_zipfile(runtmp, capfd):
 
 
 def test_index_zipfile_multiparam(runtmp, capfd):
-    # test index from sourmash zipfile with multiple ksizes / scaled
+    # test index from sourmash zipfile with multiple ksizes / scaled /moltype
     siglist = runtmp.output('db-sigs.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -163,8 +196,9 @@ def test_index_zipfile_multiparam(runtmp, capfd):
     sig63 = get_test_data('63.fa.sig.gz')
     sig1 = get_test_data('1.combined.sig.gz')
     srr = get_test_data('SRR606249.sig.gz')
+    prot = get_test_data('protein.zip')
 
-    make_file_list(siglist, [sig2, sig47, sig63, sig1, srr])
+    make_file_list(siglist, [sig2, sig47, sig63, sig1, srr, prot])
 
     zipf = runtmp.output('sigs.zip')
 
@@ -180,7 +214,7 @@ def test_index_zipfile_multiparam(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'WARNING: skipped 3 index paths - no compatible signatures.' in captured.err
+    assert 'WARNING: skipped 5 index paths - no compatible signatures.' in captured.err
     assert 'Found 4 filepaths' in captured.err
 
 

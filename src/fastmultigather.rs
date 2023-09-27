@@ -3,7 +3,6 @@ use anyhow::Result;
 use rayon::prelude::*;
 
 use sourmash::signature::Signature;
-use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 use std::path::Path;
 
@@ -21,17 +20,9 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
     query_filenames: P,
     matchlist_filename: P,
     threshold_bp: usize,
-    ksize: u8,
     scaled: usize,
+    template: Sketch,
 ) -> Result<()> {
-    let max_hash = max_hash_for_scaled(scaled as u64);
-    let template_mh = KmerMinHash::builder()
-        .num(0u32)
-        .ksize(ksize as u32)
-        .max_hash(max_hash)
-        .build();
-    let template = Sketch::MinHash(template_mh);
-
     // load the list of query paths
     let queryfile_name = query_filenames.as_ref().to_string_lossy().to_string();
     let (querylist_paths, _temp_dir) =
