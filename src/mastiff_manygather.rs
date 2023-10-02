@@ -119,8 +119,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                             hash_to_color,
                             threshold,
                             &query.minhash,
-                            // Some(selection.clone()),
-                            None, 
+                            Some(selection.clone()),
                         );
 
                         // extract matches from Result

@@ -13,6 +13,7 @@ pyo3 = { version = "0.19.2", features = ["extension-module", "anyhow"] }
 rayon = "1.8.0"
 serde = { version = "1.0.136", features = ["derive"] }
 #sourmash = { git = "https://github.com/sourmash-bio/sourmash", "rev" = "ff1092f8f366339caa59d7203f623813228f4356" }
+#sourmash = { git = "https://github.com/sourmash-bio/sourmash", branch = "lirber/mastiff", features = ["branchwater"] }
 sourmash = { path = "../sourmash/src/core", features = ["branchwater"] } 
 serde_json = "1.0.107"
 niffler = "2.4.0"
