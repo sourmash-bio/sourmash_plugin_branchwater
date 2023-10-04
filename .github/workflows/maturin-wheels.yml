@@ -4,7 +4,6 @@
 #    maturin generate-ci github
 #
 name: maturin-wheels
-
 on:
   push:
     branches:
@@ -25,6 +24,10 @@ jobs:
         target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
     steps:
       - uses: actions/checkout@v3
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+        version: "10.0"
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
