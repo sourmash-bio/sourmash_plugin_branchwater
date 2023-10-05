@@ -270,7 +270,8 @@ pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
             .unwrap()
             .to_str()
             .unwrap();
-        if file_name.contains(".sig") || file_name.contains(".sig.gz") { // account for sig.gz_0 bug in sourmash
+        // use contains to account for sig.gz_0 bug in sourmash
+        if file_name.contains(".sig") || file_name.contains(".sig.gz") {
             // read file
             let mut contents = Vec::new();
             file.read_to_end(&mut contents)?;
