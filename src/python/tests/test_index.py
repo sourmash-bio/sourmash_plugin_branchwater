@@ -187,6 +187,35 @@ def test_index_zipfile(runtmp, capfd):
     assert 'Found 3 filepaths' in captured.err
 
 
+def test_index_zipfile_repeated_md5sums(runtmp, capfd):
+    # test that we're reading all files, including repeated md5sums
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig2a = runtmp.output('sig2a.sig.gz')
+    sig2b = runtmp.output('sig2b.sig.gz')
+    runtmp.sourmash('sig', 'rename', sig2, 'name2', '-o', sig2a)
+    runtmp.sourmash('sig', 'rename', sig2, 'name3', '-o', sig2b)
+
+    make_file_list(siglist, [sig2, sig2a, sig2b])
+
+    zipf = runtmp.output('sigs.zip')
+    runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
+
+    output = runtmp.output('db.rdb')
+
+    runtmp.sourmash('scripts', 'index', zipf,
+                    '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'Found 3 filepaths' in captured.err
+    assert 'index is done' in runtmp.last_result.err
+
+
 def test_index_zipfile_multiparam(runtmp, capfd):
     # test index from sourmash zipfile with multiple ksizes / scaled /moltype
     siglist = runtmp.output('db-sigs.txt')
