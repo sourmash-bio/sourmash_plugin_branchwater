@@ -270,7 +270,6 @@ pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
             .unwrap()
             .to_str()
             .unwrap();
-        // if file_name.ends_with(".sig") || file_name.ends_with(".sig.gz") {
         if file_name.contains(".sig") || file_name.contains(".sig.gz") { // account for sig.gz_0 bug in sourmash
             // read file
             let mut contents = Vec::new();
@@ -533,7 +532,6 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
             .unwrap()
             .to_owned();
 
-        // if !file_name.ends_with(".sig") && !file_name.ends_with(".sig.gz") {
         if !file_name.contains(".sig") && !file_name.contains(".sig.gz") {
             continue;
         }
