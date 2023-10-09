@@ -6,7 +6,16 @@ use sourmash::signature::Signature;
 use sourmash::sketch::Sketch;
 use std::path::Path;
 
-use sourmash::index::revindex::RevIndex;
+// use sourmash::collection::Collection;
+// use sourmash::selection::Selection;A
+use sourmash::prelude::*;
+// use sourmash::index::revindex::{prepare_query, RevIndex, RevIndexOps};
+// use sourmash::manifest::Manifest;
+// use sourmash::prelude::*;
+// use sourmash::signature::{Signature, SigsTrait};
+// use sourmash::storage::{FSStorage, InnerStorage, ZipStorage};
+
+use sourmash::index::revindex::{RevIndex, RevIndexOps};
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -22,6 +31,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     queries_file: P,
     index: P,
     template: Sketch,
+    selection: Selection,
     threshold_bp: usize,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -32,7 +42,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
         );
     }
     // Open database once
-    let db = RevIndex::open(index.as_ref(), true);
+    let db = RevIndex::open(index.as_ref(), true)?;
     println!("Loaded DB");
 
     // Load query paths
@@ -89,6 +99,10 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
             match Signature::from_path(filename) {
                 Ok(query_sig) => {
                     let location = filename.display().to_string();
+                    // if let Some(q) = prepare_query(&query_sig, &selection) {
+                        // query = Some(q);
+                    // }
+                    // let query = query.expect("Couldn't find a compatible MinHash");
                     if let Some(query) = prepare_query(&query_sig, &template, &location) {
                         // let query_size = query.minhash.size() as f64;
                         let threshold = threshold_bp / query.minhash.scaled() as usize;
@@ -105,7 +119,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                             hash_to_color,
                             threshold,
                             &query.minhash,
-                            &template,
+                            Some(selection.clone()),
                         );
 
                         // extract matches from Result
