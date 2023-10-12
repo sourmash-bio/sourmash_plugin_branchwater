@@ -1,4 +1,4 @@
-# fastgather, fastmultigather, and manysearch - an introduction
+# manysketch, fastgather, fastmultigather, multisearch, and manysearch - an introduction
 
 This repository implements five sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory.
 
@@ -47,7 +47,16 @@ find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.tx
 
 The `manysketch` command sketches one or more FASTA files into a zipped sourmash signature collection (`zip`).
 
-To run `manysketch`, you need to build a text file list of fasta files, with one on each line (`fa.csv`, below). You can then run:
+To run `manysketch`, you need to build a text file list of fasta files, with one on each line (`fa.csv`, below).  A simple way to do this for a directory is this command snippet:
+```
+for i in *.fa.gz
+do
+echo $i,$i,
+done > fa.csv
+```
+
+
+You can then run:
 
 ```
 sourmash scripts manysketch fa.csv -o fa.zip
@@ -175,3 +184,11 @@ Each command does things slightly differently, with implications for CPU and dis
 Like `multisearch`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine!
 
 `fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
+
+## Appendix 1 - `index` to create a low-memory index
+
+The command `sourmash scripts index` makes an on-disk inverted index
+for low memory fast search. Indexing takes a while, but then search
+takes fewer resources.
+
+Currently only fastmultigather and manysearch can use this kind of index.
