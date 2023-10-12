@@ -47,19 +47,20 @@ find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.tx
 
 The `manysketch` command sketches one or more FASTA files into a zipped sourmash signature collection (`zip`).
 
-To run `manysketch`, you need to build a text file list of fasta files, with one on each line (`fa.csv`, below).  A simple way to do this for a directory is this command snippet:
+To run `manysketch`, you need to build a text file list of fasta files, with one on each line (`manysketch.csv`, below).  A simple way to do this for a directory is this command snippet:
 ```
+echo name,genome_filename,protein_filename > manysketch.csv
 for i in *.fa.gz
 do
 echo $i,$i,
-done > fa.csv
+done >> manysketch.csv
 ```
 
 
 You can then run:
 
 ```
-sourmash scripts manysketch fa.csv -o fa.zip
+sourmash scripts manysketch manysketch.csv -o fa.zip
 ```
 The output will be written to `fa.zip`
 
