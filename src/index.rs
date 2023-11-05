@@ -7,14 +7,14 @@ use sourmash::prelude::*;
 // use sourmash::signature::{Signature, SigsTrait};
 use sourmash::storage::{FSStorage, InnerStorage, ZipStorage};
 // use sourmash::sketch::Sketch;
-use std::path::Path;
 use camino::Utf8PathBuf as PathBuf;
+use std::path::Path;
 
 use crate::utils::{load_sigpaths_from_zip_or_pathlist, ReportType};
 
 pub fn index<P: AsRef<Path>>(
     siglist: PathBuf,
-    // template: Sketch, 
+    // template: Sketch,
     manifest: Option<P>,
     selection: Selection,
     output: P,

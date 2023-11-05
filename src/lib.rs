@@ -16,8 +16,8 @@ mod manysketch;
 mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
-use sourmash::selection::Selection;
 use sourmash::encodings::HashFunctions;
+use sourmash::selection::Selection;
 
 #[pyfunction]
 fn do_manysearch(
@@ -114,10 +114,10 @@ fn do_fastmultigather(
             _ => panic!("Unknown molecule type: {}", moltype),
         };
         let selection = Selection::builder()
-                    .ksize(ksize.into())
-                    .scaled(scaled as u32)
-                    .moltype(hash_function)
-                    .build();
+            .ksize(ksize.into())
+            .scaled(scaled as u32)
+            .moltype(hash_function)
+            .build();
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
             siglist_path,
@@ -184,12 +184,12 @@ fn do_index(
         _ => panic!("Unknown molecule type: {}", moltype),
     };
     let selection = Selection::builder()
-                .ksize(ksize.into())
-                .scaled(scaled as u32)
-                .moltype(hash_function)
-                .build();
+        .ksize(ksize.into())
+        .scaled(scaled as u32)
+        .moltype(hash_function)
+        .build();
     // match index::index(siglist, template, output, save_paths, colors) {
-        // convert siglist to PathBuf
+    // convert siglist to PathBuf
     // build template from ksize, scaled
     let template = build_template(ksize, scaled, &moltype);
     let location = camino::Utf8PathBuf::from(siglist);

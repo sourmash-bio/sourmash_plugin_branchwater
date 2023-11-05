@@ -100,7 +100,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                 Ok(query_sig) => {
                     let location = filename.display().to_string();
                     // if let Some(q) = prepare_query(&query_sig, &selection) {
-                        // query = Some(q);
+                    // query = Some(q);
                     // }
                     // let query = query.expect("Couldn't find a compatible MinHash");
                     if let Some(query) = prepare_query(&query_sig, &template, &location) {
