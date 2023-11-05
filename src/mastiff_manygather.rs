@@ -108,10 +108,8 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                         let threshold = threshold_bp / query.minhash.scaled() as usize;
 
                         // mastiff gather code
-                        println!("Building counter");
                         let (counter, query_colors, hash_to_color) =
                             db.prepare_gather_counters(&query.minhash);
-                        println!("Counter built");
 
                         let matches = db.gather(
                             counter,
