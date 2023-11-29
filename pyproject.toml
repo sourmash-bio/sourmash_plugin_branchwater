@@ -30,6 +30,13 @@ index = "sourmash_plugin_branchwater:Branchwater_Index"
 check = "sourmash_plugin_branchwater:Branchwater_Check"
 manysketch = "sourmash_plugin_branchwater:Branchwater_Manysketch"
 
+[project.optional-dependencies]
+test = [
+  "pytest>=6.2.4,<7.5.0",
+  "pytest-cov>=2.12,<5.0",
+  "pytest-xdist",
+  "pandas",
+]
 
 [tool.maturin]
 python-source = "src/python"

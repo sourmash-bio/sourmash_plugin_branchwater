@@ -5,7 +5,7 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "pyo3_branchwater" # CTB: should we change this, too?
+name = "sourmash_plugin_branchwater"
 crate-type = ["cdylib"]
 
 [dependencies]

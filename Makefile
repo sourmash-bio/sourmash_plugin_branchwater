@@ -16,8 +16,8 @@ wheel:
 	$(PYTHON) -m maturin build -r
 
 sdist:
-	rm -f target/wheels/pyo3_branchwater-*.tar.gz
+	rm -f target/wheels/sourmash_plugin_branchwater-*.tar.gz
 	$(PYTHON) -m maturin sdist
 
 upload_sdist: sdist
-	twine upload target/wheels/pyo3_branchwater-*.tar.gz
+	twine upload target/wheels/sourmash_plugin_branchwater-*.tar.gz

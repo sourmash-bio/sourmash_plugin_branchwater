@@ -37,7 +37,7 @@ This quickstart demonstrates `multisearch` using
 
 You'll need rust, Python, and maturin to build, and sourmash to run. See [environment.yml](environment.yml) for a list of conda packages, and developer docs below for example command lines.
 
-### 2. Install pyo3_branchwater.
+### 2. Install sourmash_plugin_branchwater.
 
 Install this repo in developer mode:
 ```
