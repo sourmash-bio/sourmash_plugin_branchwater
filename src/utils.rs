@@ -1016,7 +1016,7 @@ pub fn sigwriter<P: AsRef<Path> + Send + 'static>(
         let file_writer = open_output_file(&output);
 
         let options =
-            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored).large_file(true);
         let mut zip = zip::ZipWriter::new(file_writer);
         let mut manifest_rows: Vec<ManifestRow> = Vec::new();
         // keep track of md5sum occurrences to prevent overwriting duplicates
