@@ -1,11 +1,11 @@
 [package]
-name = "pyo3-branchwater"
+name = "sourmash_plugin_branchwater"
 version = "0.8.3"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "pyo3_branchwater"
+name = "pyo3_branchwater" # CTB: should we change this, too?
 crate-type = ["cdylib"]
 
 [dependencies]
