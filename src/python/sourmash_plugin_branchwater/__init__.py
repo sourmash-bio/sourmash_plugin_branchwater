@@ -6,7 +6,7 @@ from sourmash.logging import notify
 import os
 import importlib.metadata
 
-from . import pyo3_branchwater
+from . import sourmash_plugin_branchwater
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")
 
