@@ -1,4 +1,4 @@
-/// Utility functions for pyo3_branchwater.
+/// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
 

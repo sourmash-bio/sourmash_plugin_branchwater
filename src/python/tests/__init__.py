@@ -1,2 +1,2 @@
-from pyo3_branchwater import pyo3_branchwater
-pyo3_branchwater.set_global_thread_pool(4)
+from sourmash_plugin_branchwater import sourmash_plugin_branchwater
+sourmash_plugin_branchwater.set_global_thread_pool(4)

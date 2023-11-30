@@ -1,4 +1,4 @@
-/// Python interface Rust code for pyo3_branchwater.
+/// Python interface Rust code for sourmash_plugin_branchwater.
 use pyo3::prelude::*;
 
 #[macro_use]
@@ -220,7 +220,7 @@ fn do_manysketch(filelist: String, param_str: String, output: String) -> anyhow:
 }
 
 #[pymodule]
-fn pyo3_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
+fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastgather, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastmultigather, m)?)?;
