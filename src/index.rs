@@ -10,7 +10,7 @@ use sourmash::storage::{FSStorage, InnerStorage, ZipStorage};
 use camino::Utf8PathBuf as PathBuf;
 use std::path::Path;
 
-use crate::utils::{load_sigpaths_from_zip_or_pathlist, ReportType};
+use crate::utils::load_sketchlist_filenames;
 
 pub fn index<P: AsRef<Path>>(
     siglist: PathBuf,
@@ -51,7 +51,14 @@ pub fn index<P: AsRef<Path>>(
             Collection::from_zipfile(siglist)?
         }
     } else {
-        let manifest = manifest.ok_or_else(|| "Need a manifest")?;
+        let manifest = manifest.unwrap_or_else(|| {
+            let sig_paths: Vec<_> = load_sketchlist_filenames(&siglist)
+                .unwrap_or_else(|_| panic!("Error loading siglist"))
+                .into_iter()
+                .map(|v| PathBuf::from_path_buf(v).unwrap())
+                .collect();
+            sig_paths.as_slice().into()
+        });
         let storage = FSStorage::builder()
             .fullpath("".into())
             .subdir("".into())
