@@ -7,7 +7,7 @@ use sourmash::sketch::Sketch;
 use std::path::Path;
 
 // use sourmash::collection::Collection;
-// use sourmash::selection::Selection;A
+// use sourmash::selection::Selection;
 use sourmash::prelude::*;
 // use sourmash::index::revindex::{prepare_query, RevIndex, RevIndexOps};
 // use sourmash::manifest::Manifest;
@@ -15,7 +15,7 @@ use sourmash::prelude::*;
 // use sourmash::signature::{Signature, SigsTrait};
 // use sourmash::storage::{FSStorage, InnerStorage, ZipStorage};
 
-use sourmash::index::revindex::{RevIndex, RevIndexOps};
+use sourmash::index::revindex::{prepare_query, RevIndex, RevIndexOps};
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -24,8 +24,8 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 
 use crate::utils::{
-    is_revindex_database, load_sigpaths_from_zip_or_pathlist, prepare_query, ReportType,
-};
+    is_revindex_database, load_sigpaths_from_zip_or_pathlist, ReportType,
+}; // prepare_query
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
     queries_file: P,
@@ -96,27 +96,33 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            match Signature::from_path(filename) {
+            // todo: add reason text to expect instead of using match arms?
+            // note: can't keep track of failed paths if we do that?
+            match Signature::from_path(filename).expect("REASON").swap_remove(0).select(&selection) {
                 Ok(query_sig) => {
-                    let location = filename.display().to_string();
-                    // if let Some(q) = prepare_query(&query_sig, &selection) {
-                    // query = Some(q);
+                    eprintln!("query_sig selection scaled: {}", selection.scaled()?.to_string());
+                    let mut query = None;
+                    // if let Some(q) = prepare_query(query_sig, &selection) {
+                    //     query = Some(q);
                     // }
                     // let query = query.expect("Couldn't find a compatible MinHash");
-                    if let Some(query) = prepare_query(&query_sig, &template, &location) {
+                    if let Some(q) = prepare_query(query_sig.clone(), &selection) {
+                        query = Some(q);
+                        let query = query.expect("Couldn't find a compatible MinHash");
+                    //if let Some(query) = prepare_query(&query_sig, &template, &location) {
                         // let query_size = query.minhash.size() as f64;
-                        let threshold = threshold_bp / query.minhash.scaled() as usize;
+                        let threshold = threshold_bp / query.scaled() as usize;
 
                         // mastiff gather code
                         let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(&query.minhash);
+                            db.prepare_gather_counters(&query);
 
                         let matches = db.gather(
                             counter,
                             query_colors,
                             hash_to_color,
                             threshold,
-                            &query.minhash,
+                            &query,
                             Some(selection.clone()),
                         );
 
@@ -124,8 +130,8 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                         if let Ok(matches) = matches {
                             for match_ in &matches {
                                 results.push((
-                                    query.name.clone(),
-                                    query.md5sum.clone(),
+                                    query_sig.name().clone(),
+                                    query.md5sum().clone(),
                                     match_.name().clone(),
                                     match_.md5().clone(),
                                     match_.f_match(), // f_match_query
