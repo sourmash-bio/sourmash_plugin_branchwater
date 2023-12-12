@@ -39,7 +39,7 @@ For details, see the Rust code in `src/` and Python wrapper in `src/python/`.
 
 There is a quickstart below, as well as
 [more user documentation here](doc/README.md). Nascent
-[developer docs](doc/developer.md) is also available!
+[developer docs](doc/developer.md) are also available!
 
 ## Quickstart for `manysearch`.
 
