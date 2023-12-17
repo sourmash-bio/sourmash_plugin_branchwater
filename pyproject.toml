@@ -8,7 +8,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     ]
-dependencies = ["sourmash>=4.8.3,<5"]
+dependencies = ["sourmash>=4.8.5,<5"]
 
 authors = [
   { name="N. Tessa Pierce-Ward", orcid="0000-0002-2942-5331" },
@@ -18,7 +18,7 @@ authors = [
 ]
 
 [build-system]
-requires = ["maturin>=1.1.0,<2"]
+requires = ["maturin>=1.4.0,<2"]
 build-backend = "maturin"
 
 [project.entry-points."sourmash.cli_script"]
