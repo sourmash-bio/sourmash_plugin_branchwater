@@ -40,7 +40,7 @@ jobs:
       uses: conda-incubator/setup-miniconda@11b562958363ec5770fef326fe8ef0366f8cbf8a
       with:
         auto-update-conda: true
-        python-version: 3.9
+        python-version: 3.11
         channels: conda-forge,bioconda
         miniforge-variant: Mambaforge
         miniforge-version: latest
