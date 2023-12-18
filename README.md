@@ -48,14 +48,13 @@ This quickstart demonstrates `multisearch` using
 
 ### 1. Install the branchwater plugin
 
-On Linux, you can install the branchwater plugin from conda-forge:
+On Linux and Mac OS X, you can install the latest release of the
+branchwater plugin from conda-forge:
 ```
 conda install sourmash_plugin_branchwater
 ```
-
-On other platforms (such as Mac OS X) you'll need to install the
-branchwater plugin in a development environment; please
-[see the developer docs](doc/developer.md) for information.
+Please [see the developer docs](doc/developer.md) for information on
+installing the latest development version.
 
 ### 2. Download sketches.
 
