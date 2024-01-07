@@ -96,6 +96,13 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     }
 
     // run the gather!
-    consume_query_by_gather(query, matchlist, threshold_hashes, gather_output, details_output).ok();
+    consume_query_by_gather(
+        query,
+        matchlist,
+        threshold_hashes,
+        gather_output,
+        details_output,
+    )
+    .ok();
     Ok(())
 }
