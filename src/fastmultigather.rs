@@ -112,7 +112,7 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
                 write_prefetch(&query, Some(prefetch_output), &matchlist).ok();
 
                 // now, do the gather!
-                consume_query_by_gather(query, matchlist, threshold_hashes, Some(gather_output))
+                consume_query_by_gather(query, matchlist, threshold_hashes, Some(gather_output), None)
                     .ok();
             } else {
                 println!("No matches to '{}'", location);

@@ -70,6 +70,7 @@ fn do_fastgather(
     moltype: String,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
+    output_path_details: Option<String>,
 ) -> anyhow::Result<u8> {
     let template = build_template(ksize, scaled, &moltype);
     match fastgather::fastgather(
@@ -81,6 +82,7 @@ fn do_fastgather(
         template,
         output_path_prefetch,
         output_path_gather,
+        output_path_details,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {

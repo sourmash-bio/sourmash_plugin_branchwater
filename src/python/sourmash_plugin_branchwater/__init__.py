@@ -103,6 +103,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
+        p.add_argument('--output-details')
 
 
     def main(self, args):
@@ -122,7 +123,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
                                                            args.scaled,
                                                            args.moltype,
                                                            args.output_gather,
-                                                           args.output_prefetch)
+                                                           args.output_prefetch,
+                                                           args.output_details)
         if status == 0:
             notify(f"...fastgather is done! gather results in '{args.output_gather}'")
             if args.output_prefetch:

@@ -19,6 +19,7 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     template: Sketch,
     gather_output: Option<P>,
     prefetch_output: Option<P>,
+    details_output: Option<P>,
 ) -> Result<()> {
     let location = query_filename.to_string();
     eprintln!("Loading query from '{}'", location);
@@ -95,6 +96,6 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     }
 
     // run the gather!
-    consume_query_by_gather(query, matchlist, threshold_hashes, gather_output).ok();
+    consume_query_by_gather(query, matchlist, threshold_hashes, gather_output, details_output).ok();
     Ok(())
 }
