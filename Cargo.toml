@@ -9,7 +9,7 @@ name = "sourmash_plugin_branchwater"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.20.1", features = ["extension-module", "anyhow"] }
+pyo3 = { version = "0.20.2", features = ["extension-module", "anyhow"] }
 rayon = "1.8.0"
 serde = { version = "1.0.193", features = ["derive"] }
 sourmash = { git = "https://github.com/sourmash-bio/sourmash", "rev" = "ff1092f8f366339caa59d7203f623813228f4356" }
