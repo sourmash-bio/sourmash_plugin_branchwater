@@ -78,7 +78,8 @@ pub fn pairwise<P: AsRef<Path>>(
                     max_containment,
                     jaccard,
                     overlap,
-                )).unwrap();
+                ))
+                .unwrap();
             }
 
             let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);

@@ -219,12 +219,7 @@ fn do_pairwise(
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let template = build_template(ksize, scaled, &moltype);
-    match pairwise::pairwise(
-        siglist_path,
-        threshold,
-        template,
-        output_path,
-    ) {
+    match pairwise::pairwise(siglist_path, threshold, template, output_path) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
