@@ -276,6 +276,47 @@ class Branchwater_Multisearch(CommandLinePlugin):
         if status == 0:
             notify(f"...multisearch is done! results in '{args.output}'")
         return status
+    
+class Branchwater_Pairwise(CommandLinePlugin):
+    command = 'pairwise'
+    description = 'massively parallel in-memory pairwise comparisons'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('sig_paths',
+                       help="a text file containing paths to .sig/.sig.gz files")
+        p.add_argument('-o', '--output', required=True,
+                       help='CSV output file for matches')
+        p.add_argument('-t', '--threshold', default=0.01, type=float,
+                       help='containment threshold for reporting matches')
+        p.add_argument('-k', '--ksize', default=31, type=int,
+                       help='k-mer size at which to select sketches')
+        p.add_argument('-s', '--scaled', default=1000, type=int,
+                       help='scaled factor at which to do comparisons')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
+
+    def main(self, args):
+        print_version()
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
+        args.moltype = args.moltype.lower()
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"pairwise-comparing all sketches in '{args.sig_paths}' using {num_threads} threads")
+
+        super().main(args)
+        status = sourmash_plugin_branchwater.do_pairwise(args.sig_paths,
+                                                            args.threshold,
+                                                            args.ksize,
+                                                            args.scaled,
+                                                            args.moltype,
+                                                            args.output)
+        if status == 0:
+            notify(f"...pairwise is done! results in '{args.output}'")
+        return status
 
 
 class Branchwater_Manysketch(CommandLinePlugin):

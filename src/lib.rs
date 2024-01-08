@@ -16,6 +16,7 @@ mod manysketch;
 mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
+mod pairwise;
 
 #[pyfunction]
 fn do_manysearch(
@@ -209,6 +210,30 @@ fn do_multisearch(
 }
 
 #[pyfunction]
+fn do_pairwise(
+    siglist_path: String,
+    threshold: f64,
+    ksize: u8,
+    scaled: usize,
+    moltype: String,
+    output_path: Option<String>,
+) -> anyhow::Result<u8> {
+    let template = build_template(ksize, scaled, &moltype);
+    match pairwise::pairwise(
+        siglist_path,
+        threshold,
+        template,
+        output_path,
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
+#[pyfunction]
 fn do_manysketch(filelist: String, param_str: String, output: String) -> anyhow::Result<u8> {
     match manysketch::manysketch(filelist, param_str, output) {
         Ok(_) => Ok(0),
@@ -229,5 +254,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysketch, m)?)?;
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
+    m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     Ok(())
 }
