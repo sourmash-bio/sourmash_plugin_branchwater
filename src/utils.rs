@@ -738,7 +738,7 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
     let mut details_writer = BufWriter::new(details_out);
     writeln!(
         &mut details_writer,
-        "rank,query_size,remaining_hashes,sub_hashes,remaining_sketches,sub_matches"
+        "rank,remaining_hashes,sub_hashes,remaining_sketches,sub_matches"
     )
     .ok();
 
