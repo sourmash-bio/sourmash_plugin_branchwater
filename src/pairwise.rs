@@ -1,5 +1,5 @@
 use anyhow::Result;
-/// pairwise: massively parallel in-memory sketch search.
+/// pairwise: massively parallel in-memory pairwise comparisons.
 use rayon::prelude::*;
 
 use std::fs::File;
@@ -14,10 +14,9 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{load_sketches_from_zip_or_pathlist, ReportType};
 
-/// Search many queries against a list of signatures.
+/// Perform pairwise comparisons of all signatures in a list.
 ///
-/// Note: this function loads all _queries_ into memory, and iterates over
-/// database once.
+/// Note: this function loads all _signatures_ into memory.
 
 pub fn pairwise<P: AsRef<Path>>(
     siglist: P,
@@ -25,8 +24,8 @@ pub fn pairwise<P: AsRef<Path>>(
     template: Sketch,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Load all queries into memory at once.
-    let queries = load_sketches_from_zip_or_pathlist(&siglist, &template, ReportType::Query)?;
+    // Load all sigs into memory at once.
+    let sigs = load_sketches_from_zip_or_pathlist(&siglist, &template, ReportType::Query)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -50,15 +49,13 @@ pub fn pairwise<P: AsRef<Path>>(
     });
 
     //
-    // Main loop: iterate (in parallel) over all pairs of search signature paths,
-    // loading them individually and comparing them. Stuff results into
-    // the writer thread above.
-    //
+    // Main loop: iterate (in parallel) over all signature,
+    // Results written to the writer thread above.
 
     let processed_cmp = AtomicUsize::new(0);
 
-    queries.par_iter().enumerate().for_each(|(i, q1)| {
-        for q2 in &queries[(i + 1)..] {
+    sigs.par_iter().enumerate().for_each(|(i, q1)| {
+        for q2 in &sigs[(i + 1)..] {
             let overlap = q1.minhash.count_common(&q2.minhash, false).unwrap() as f64;
             let query1_size = q1.minhash.size() as f64;
             let query2_size = q2.minhash.size() as f64;
