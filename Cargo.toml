@@ -16,7 +16,7 @@ sourmash = { git = "https://github.com/sourmash-bio/sourmash", "rev" = "ff1092f8
 serde_json = "1.0.111"
 niffler = "2.4.0"
 log = "0.4.14"
-env_logger = "0.10.1"
+env_logger = "0.10.2"
 simple-error = "0.3.0"
 anyhow = "1.0.79"
 zip = "0.6"
