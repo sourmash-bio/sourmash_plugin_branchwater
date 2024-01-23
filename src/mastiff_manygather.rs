@@ -2,6 +2,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
+use sourmash::ffi::signature;
 use sourmash::signature::Signature;
 use sourmash::sketch::Sketch;
 use std::path::Path;
@@ -94,71 +95,74 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
             let mut results = vec![];
 
             // load query signature from path:
-            // todo: add reason text to expect instead of using match arms?
-            // note: can't keep track of failed paths if we do that?
-            match Signature::from_path(filename)
-                .expect("REASON")
-                .swap_remove(0)
-                .select(&selection)
-            {
-                Ok(query_sig) => {
-                    eprintln!(
-                        "query_sig selection scaled: {}",
-                        selection.scaled()?.to_string()
-                    );
-                    let mut query = None;
-                    // if let Some(q) = prepare_query(query_sig, &selection) {
-                    //     query = Some(q);
-                    // }
-                    // let query = query.expect("Couldn't find a compatible MinHash");
-                    if let Some(q) = prepare_query(query_sig.clone(), &selection) {
-                        query = Some(q);
-                        let query = query.expect("Couldn't find a compatible MinHash");
-                        //if let Some(query) = prepare_query(&query_sig, &template, &location) {
-                        // let query_size = query.minhash.size() as f64;
-                        let threshold = threshold_bp / query.scaled() as usize;
-
-                        // mastiff gather code
-                        let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(&query);
-
-                        let matches = db.gather(
-                            counter,
-                            query_colors,
-                            hash_to_color,
-                            threshold,
-                            &query,
-                            Some(selection.clone()),
-                        );
-
-                        // extract matches from Result
-                        if let Ok(matches) = matches {
-                            for match_ in &matches {
-                                results.push((
-                                    query_sig.name().clone(),
-                                    query.md5sum().clone(),
-                                    match_.name().clone(),
-                                    match_.md5().clone(),
-                                    match_.f_match(), // f_match_query
-                                    match_.intersect_bp(),
-                                )); // intersect_bp
-                            }
-                        } else {
-                            eprintln!("Error gathering matches: {:?}", matches.err());
-                        }
-                    } else {
-                        if !queryfile_name.ends_with(".zip") {
+            match Signature::from_path(filename) {
+                Ok(mut signature) => {
+                    match signature.swap_remove(0).select(&selection) {
+                        Ok(query_sig) => {
                             eprintln!(
-                                "WARNING: no compatible sketches in path '{}'",
+                                "query_sig selection scaled: {}",
+                                selection.scaled()?.to_string()
+                            );
+                            let mut query = None;
+
+                            if let Some(q) = prepare_query(query_sig.clone(), &selection) {
+                                query = Some(q);
+                                let query = query.expect("Couldn't find a compatible MinHash");
+
+                                let threshold = threshold_bp / query.scaled() as usize;
+
+                                // mastiff gather code
+                                let (counter, query_colors, hash_to_color) =
+                                    db.prepare_gather_counters(&query);
+
+                                let matches = db.gather(
+                                    counter,
+                                    query_colors,
+                                    hash_to_color,
+                                    threshold,
+                                    &query,
+                                    Some(selection.clone()),
+                                );
+
+                                // extract matches from Result
+                                if let Ok(matches) = matches {
+                                    for match_ in &matches {
+                                        results.push((
+                                            query_sig.name().clone(),
+                                            query.md5sum().clone(),
+                                            match_.name().clone(),
+                                            match_.md5().clone(),
+                                            match_.f_match(), // f_match_query
+                                            match_.intersect_bp(),
+                                        )); // intersect_bp
+                                    }
+                                } else {
+                                    eprintln!("Error gathering matches: {:?}", matches.err());
+                                }
+                            } else {
+                                if !queryfile_name.ends_with(".zip") {
+                                    eprintln!(
+                                        "WARNING: no compatible sketches in path '{}'",
+                                        filename.display()
+                                    );
+                                }
+                                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                            }
+                            if results.is_empty() {
+                                None
+                            } else {
+                                Some(results)
+                            }
+                        }
+                        Err(err) => {
+                            let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                            eprintln!("Error in processing: {}", err);
+                            eprintln!(
+                                "WARNING: could not process item from path '{}'",
                                 filename.display()
                             );
+                            None
                         }
-                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    }
-                    if results.is_empty() {
-                        None
-                    } else {
-                        Some(results)
                     }
                 }
                 Err(err) => {
