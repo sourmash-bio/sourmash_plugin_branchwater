@@ -1,6 +1,6 @@
 [package]
 name = "sourmash_plugin_branchwater"
-version = "0.8.6-dev"
+version = "0.8.6"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,13 +10,13 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.20.2", features = ["extension-module", "anyhow"] }
-rayon = "1.8.0"
+rayon = "1.8.1"
 serde = { version = "1.0.195", features = ["derive"] }
 sourmash = { git = "https://github.com/sourmash-bio/sourmash", "rev" = "ff1092f8f366339caa59d7203f623813228f4356" }
 serde_json = "1.0.111"
 niffler = "2.4.0"
 log = "0.4.14"
-env_logger = "0.10.1"
+env_logger = "0.10.2"
 simple-error = "0.3.0"
 anyhow = "1.0.79"
 zip = "0.6"
@@ -30,7 +30,7 @@ roots = "0.0.8"
 [dev-dependencies]
 assert_cmd = "2.0.13"
 assert_matches = "1.5.0"
-predicates = "3.0.4"
+predicates = "3.1.0"
 tempfile = "3.9.0"
 
 [profile.release]
