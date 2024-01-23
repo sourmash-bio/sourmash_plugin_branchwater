@@ -23,9 +23,7 @@ use std::sync::atomic::AtomicUsize;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
-use crate::utils::{
-    is_revindex_database, load_sigpaths_from_zip_or_pathlist, ReportType,
-}; // prepare_query
+use crate::utils::{is_revindex_database, load_sigpaths_from_zip_or_pathlist, ReportType}; // prepare_query
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
     queries_file: P,
@@ -98,9 +96,16 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
             // load query signature from path:
             // todo: add reason text to expect instead of using match arms?
             // note: can't keep track of failed paths if we do that?
-            match Signature::from_path(filename).expect("REASON").swap_remove(0).select(&selection) {
+            match Signature::from_path(filename)
+                .expect("REASON")
+                .swap_remove(0)
+                .select(&selection)
+            {
                 Ok(query_sig) => {
-                    eprintln!("query_sig selection scaled: {}", selection.scaled()?.to_string());
+                    eprintln!(
+                        "query_sig selection scaled: {}",
+                        selection.scaled()?.to_string()
+                    );
                     let mut query = None;
                     // if let Some(q) = prepare_query(query_sig, &selection) {
                     //     query = Some(q);
@@ -109,7 +114,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                     if let Some(q) = prepare_query(query_sig.clone(), &selection) {
                         query = Some(q);
                         let query = query.expect("Couldn't find a compatible MinHash");
-                    //if let Some(query) = prepare_query(&query_sig, &template, &location) {
+                        //if let Some(query) = prepare_query(&query_sig, &template, &location) {
                         // let query_size = query.minhash.size() as f64;
                         let threshold = threshold_bp / query.scaled() as usize;
 
