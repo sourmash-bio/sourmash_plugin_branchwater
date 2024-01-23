@@ -12,6 +12,8 @@ use std::sync::atomic::AtomicUsize;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::Sketch;
 
+use crate::c_ani::containment_to_distance;
+
 use crate::utils::{load_sketches_from_zip_or_pathlist, ReportType};
 
 /// Perform pairwise comparisons of all signatures in a list.
@@ -37,12 +39,13 @@ pub fn pairwise<P: AsRef<Path>>(
     };
     let thrd = std::thread::spawn(move || {
         let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
+        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes,ani").unwrap();
+        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap, ani) in recv.into_iter()
+        {
             writeln!(
                 &mut writer,
-                "\"{}\",{},\"{}\",{},{},{},{},{}",
-                query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap
+                "\"{}\",{},\"{}\",{},{},{},{},{},{}",
+                query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap, ani
             )
             .ok();
         }
@@ -60,10 +63,47 @@ pub fn pairwise<P: AsRef<Path>>(
             let query1_size = q1.minhash.size() as f64;
             let query2_size = q2.minhash.size() as f64;
 
+            let k_size = q1.minhash.ksize() as u32;
+            let scaled = q1.minhash.scaled() as u64;
+
             let containment_q1_in_q2 = overlap / query1_size;
             let containment_q2_in_q1 = overlap / query2_size;
             let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
             let jaccard = overlap / (query1_size + query2_size - overlap);
+
+            // TODO: this is equivalent to query1_size and query2_size but un u64
+            let sig_1_size = q1.minhash.size() as u64;
+            let sig_2_size = q2.minhash.size() as u64;
+
+            let ani_1_in_2 = 1.00
+                - containment_to_distance(
+                    containment_q1_in_q2,
+                    k_size,
+                    scaled,
+                    Some(sig_2_size),
+                    Some(sig_2_size * scaled),
+                    Some(0.95),
+                    Some(true),
+                    Some(1e-3),
+                )
+                .unwrap()
+                .point_estimate as f64;
+
+            let ani_2_in_1 = 1.00
+                - containment_to_distance(
+                    containment_q2_in_q1,
+                    k_size,
+                    scaled,
+                    Some(sig_1_size),
+                    Some(sig_1_size * scaled),
+                    Some(0.95),
+                    Some(true),
+                    Some(1e-3),
+                )
+                .unwrap()
+                .point_estimate as f64;
+
+            let ani = (ani_1_in_2 + ani_2_in_1) / 2.0;
 
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
                 send.send((
@@ -75,6 +115,7 @@ pub fn pairwise<P: AsRef<Path>>(
                     max_containment,
                     jaccard,
                     overlap,
+                    ani,
                 ))
                 .unwrap();
             }

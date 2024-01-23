@@ -7,6 +7,7 @@ extern crate simple_error;
 mod utils;
 use crate::utils::build_template;
 use crate::utils::is_revindex_database;
+mod c_ani;
 mod check;
 mod fastgather;
 mod fastmultigather;

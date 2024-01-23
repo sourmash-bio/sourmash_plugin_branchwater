@@ -4,8 +4,8 @@ use std::error::Error;
 
 #[derive(Debug)]
 #[allow(dead_code)]
-struct CiAniResult {
-    point_estimate: f64,
+pub struct CiAniResult {
+    pub point_estimate: f64,
     prob_nothing_in_common: f64,
     dist_low: Option<f64>,
     dist_high: Option<f64>,
@@ -64,12 +64,8 @@ fn get_exp_probability_nothing_common(
         0.0
     } else {
         // Calculate the expected log probability.
-        let expected_log_probability = get_expected_log_probability(
-            n_unique_kmers, 
-            kmer_size, 
-            mutation_rate, 
-            inverse_scaled
-        );
+        let expected_log_probability =
+            get_expected_log_probability(n_unique_kmers, kmer_size, mutation_rate, inverse_scaled);
         // Return the exponential of the expected log probability.
         expected_log_probability.exp()
     }
@@ -136,7 +132,7 @@ impl CiAniResult {
     }
 }
 
-fn containment_to_distance(
+pub fn containment_to_distance(
     containment: f64,
     ksize: u32,
     scaled: u64,
