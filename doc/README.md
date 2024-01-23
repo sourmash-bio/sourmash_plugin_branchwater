@@ -1,14 +1,14 @@
 # manysketch, fastgather, fastmultigather, multisearch, and manysearch - an introduction
 
-This repository implements five sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory.
+This repository implements five sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory, than sourmash.
 
-The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. In particular, this means that input databases need to be prepared differently, and the output may be most useful as a prefilter in conjunction with regular sourmash commands.
+The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. In particular, this means that input databases need to be prepared differently. Moreover, the output may be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
 
-## Preparing the search and query databases.
-
-`manysketch` requires a `fromfile` csv with columns `name,genome_filename,protein_filename`. If you don't have `protein_filename` entries, be sure to include the trailing comma so the csv reader can process the file correctly.
+## Input file formats
 
 All four search/gather commands use either zip files or _text files containing lists of signature files_ ("fromfiles") for the search database. `multisearch`, `manysearch` and `fastmultigather` also use either zips or "fromfiles" for queries, too.
+
+`manysketch` takes as input a CSV file with columns `name,genome_filename,protein_filename`. If you don't have `protein_filename` entries, be sure to include the trailing comma so the CSV reader can process the file correctly.
 
 ### Using zip files
 
@@ -45,7 +45,7 @@ find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.tx
 
 ### Running `manysketch`
 
-The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped sourmash signature collection (`zip`).
+The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped sourmash signature collection (`zip`). `manysketch` uses one thread per input file, so it can (very) efficiently sketch many files at once; and, because sequence file parsing is entirely implemented in Rust, it is much faster than `sourmash sketch` for large FASTQ files.
 
 To run `manysketch`, you need to build a text file list of FASTA/FASTQ files, with one on each line (`manysketch.csv`, below).  A simple way to do this for a directory is this command snippet:
 ```

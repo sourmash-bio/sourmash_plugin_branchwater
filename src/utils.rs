@@ -1,4 +1,4 @@
-/// Utility functions for pyo3_branchwater.
+/// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
 
@@ -1015,8 +1015,9 @@ pub fn sigwriter<P: AsRef<Path> + Send + 'static>(
     std::thread::spawn(move || -> Result<()> {
         let file_writer = open_output_file(&output);
 
-        let options =
-            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let options = zip::write::FileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored)
+            .large_file(true);
         let mut zip = zip::ZipWriter::new(file_writer);
         let mut manifest_rows: Vec<ManifestRow> = Vec::new();
         // keep track of md5sum occurrences to prevent overwriting duplicates
