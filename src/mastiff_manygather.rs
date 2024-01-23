@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use sourmash::ffi::signature;
 use sourmash::signature::Signature;
 use sourmash::sketch::Sketch;
+use sourmash::sketch::minhash::KmerMinHash;
 use std::path::Path;
 
 // use sourmash::collection::Collection;
@@ -84,36 +85,25 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
+
     let send = query_paths
-        .par_iter()
-        .filter_map(|filename| {
-            let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-            if i % 1000 == 0 {
-                eprintln!("Processed {} search sigs", i);
-            }
+    .par_iter()
+    .filter_map(|filename| {
+        // ... existing setup code ...
+    let threshold = threshold_bp / selection.scaled()? as usize;
 
-            let mut results = vec![];
-
-            // load query signature from path:
-            match Signature::from_path(filename) {
-                Ok(mut signature) => {
-                    match signature.swap_remove(0).select(&selection) {
-                        Ok(query_sig) => {
-                            eprintln!(
-                                "query_sig selection scaled: {}",
-                                selection.scaled()?.to_string()
-                            );
-                            let mut query = None;
-
-                            if let Some(q) = prepare_query(query_sig.clone(), &selection) {
-                                query = Some(q);
-                                let query = query.expect("Couldn't find a compatible MinHash");
-
-                                let threshold = threshold_bp / query.scaled() as usize;
-
-                                // mastiff gather code
-                                let (counter, query_colors, hash_to_color) =
-                                    db.prepare_gather_counters(&query);
+        match Signature::from_path(filename) {
+            Ok(mut signatures) if !signatures.is_empty() => {
+                match signatures.swap_remove(0).select(&selection) {
+                    Ok(query_sig) => {
+                        let mut results = vec![];
+                        let mut found_compatible_sketch = false;
+                        for sketch in query_sig.iter() {
+                            if let Sketch::MinHash(query) = sketch {
+                                found_compatible_sketch = true;
+                                // eprintln!("query-size: {}", sketch.size());
+                                // Gather!
+                                let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query);
 
                                 let matches = db.gather(
                                     counter,
@@ -123,8 +113,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                                     &query,
                                     Some(selection.clone()),
                                 );
-
-                                // extract matches from Result
+                                // extract results
                                 if let Ok(matches) = matches {
                                     for match_ in &matches {
                                         results.push((
@@ -139,45 +128,45 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                                 } else {
                                     eprintln!("Error gathering matches: {:?}", matches.err());
                                 }
-                            } else {
-                                if !queryfile_name.ends_with(".zip") {
-                                    eprintln!(
-                                        "WARNING: no compatible sketches in path '{}'",
-                                        filename.display()
-                                    );
-                                }
-                                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                            }
-                            if results.is_empty() {
-                                None
-                            } else {
-                                Some(results)
                             }
                         }
-                        Err(err) => {
-                            let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                            eprintln!("Error in processing: {}", err);
-                            eprintln!(
-                                "WARNING: could not process item from path '{}'",
-                                filename.display()
-                            );
+                        if !found_compatible_sketch {
+                            if !queryfile_name.ends_with(".zip") {
+                                eprintln!(
+                                    "WARNING: no compatible sketches in path '{}'",
+                                    filename.display()
+                                );
+                            }
+                            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        }
+
+                        if results.is_empty() {
                             None
+                        } else {
+                            Some(results)
                         }
                     }
-                }
-                Err(err) => {
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    eprintln!("Sketch loading error: {}", err);
-                    eprintln!(
-                        "WARNING: could not load sketches from path '{}'",
-                        filename.display()
-                    );
-                    None
+                    Err(err) => {
+                        eprintln!("Error selecting sketches: {}", err);
+                        let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        None
+                    }
                 }
             }
-        })
-        .flatten()
-        .try_for_each_with(send, |s, m| s.send(m));
+            Ok(_) => {
+                eprintln!("No signatures found in '{}'", filename.display());
+                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                None
+            }
+            Err(err) => {
+                eprintln!("WARNING: could not load sketches from path '{}': {}", filename.display(), err);
+                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                None
+            }
+        }
+    })
+    .flatten()
+    .try_for_each_with(send, |s, m| s.send(m));
 
     // do some cleanup and error handling -
     if let Err(e) = send {
@@ -203,7 +192,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     }
     if failed_paths > 0 {
         eprintln!(
-            "WARNING: {} signature paths failed to load. See error messages above.",
+            "WARNING: {} query paths failed to load. See error messages above.",
             failed_paths
         );
     }
