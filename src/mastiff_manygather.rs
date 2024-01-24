@@ -2,22 +2,13 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::ffi::signature;
 use sourmash::signature::Signature;
-use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 use std::path::Path;
 
-// use sourmash::collection::Collection;
-// use sourmash::selection::Selection;
 use sourmash::prelude::*;
-// use sourmash::index::revindex::{prepare_query, RevIndex, RevIndexOps};
-// use sourmash::manifest::Manifest;
-// use sourmash::prelude::*;
-// use sourmash::signature::{Signature, SigsTrait};
-// use sourmash::storage::{FSStorage, InnerStorage, ZipStorage};
 
-use sourmash::index::revindex::{prepare_query, RevIndex, RevIndexOps};
+use sourmash::index::revindex::{RevIndex, RevIndexOps};
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -25,7 +16,7 @@ use std::sync::atomic::AtomicUsize;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
-use crate::utils::{is_revindex_database, load_sigpaths_from_zip_or_pathlist, ReportType}; // prepare_query
+use crate::utils::{is_revindex_database, load_sigpaths_from_zip_or_pathlist, ReportType};
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
     queries_file: P,
@@ -88,7 +79,6 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     let send = query_paths
         .par_iter()
         .filter_map(|filename| {
-            // ... existing setup code ...
             let threshold = threshold_bp / selection.scaled()? as usize;
 
             match Signature::from_path(filename) {
@@ -100,7 +90,6 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                             for sketch in query_sig.iter() {
                                 if let Sketch::MinHash(query) = sketch {
                                     found_compatible_sketch = true;
-                                    // eprintln!("query-size: {}", sketch.size());
                                     // Gather!
                                     let (counter, query_colors, hash_to_color) =
                                         db.prepare_gather_counters(&query);

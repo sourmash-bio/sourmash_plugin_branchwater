@@ -1,20 +1,10 @@
 /// mastiff_manysearch: mastiff-indexed version of manysearch.
 use anyhow::Result;
 use rayon::prelude::*;
-
+use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::Sketch;
 use std::path::Path;
-
-// use sourmash::collection::Collection;
-// use sourmash::index::revindex::{prepare_query, RevIndex, RevIndexOps};
-// use sourmash::manifest::Manifest;
-// use sourmash::prelude::*;
-// use sourmash::storage::{FSStorage, InnerStorage, ZipStorage};
-
-// use sourmash::index::revindex::RevIndex;
-use sourmash::index::revindex::{RevIndex, RevIndexOps};
-
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 

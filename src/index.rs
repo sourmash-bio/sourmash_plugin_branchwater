@@ -1,20 +1,15 @@
-//use sourmash::index::revindex::RevIndex;
+use camino::Utf8PathBuf as PathBuf;
 use sourmash::collection::Collection;
 use sourmash::index::revindex::RevIndex;
-// use sourmash::index::revindex::{prepare_query, RevIndex, RevIndexOps};
 use sourmash::manifest::Manifest;
 use sourmash::prelude::*;
-// use sourmash::signature::{Signature, SigsTrait};
 use sourmash::storage::{FSStorage, InnerStorage, ZipStorage};
-// use sourmash::sketch::Sketch;
-use camino::Utf8PathBuf as PathBuf;
 use std::path::Path;
 
 use crate::utils::load_sketchlist_filenames;
 
 pub fn index<P: AsRef<Path>>(
     siglist: PathBuf,
-    // template: Sketch,
     manifest: Option<P>,
     selection: Selection,
     output: P,
@@ -22,19 +17,6 @@ pub fn index<P: AsRef<Path>>(
     colors: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
-
-    // let (index_sigs, _temp_dir) = load_sigpaths_from_zip_or_pathlist(&siglist)?;
-
-    // // if index_sigs pathlist is empty, bail
-    // if index_sigs.is_empty() {
-    //     bail!("No signatures to index loaded, exiting.");
-    // }
-
-    // // Create or open the RevIndex database with the provided output path and colors flag
-    // let db = RevIndex::create(output.as_ref(), colors);
-
-    // // Index the signatures using the loaded template, threshold, and save_paths option
-    // db.index(index_sigs, &template, 0.0, save_paths);
 
     let manifest = if let Some(m) = manifest {
         let rdr = std::fs::OpenOptions::new().read(true).open(m.as_ref())?;
