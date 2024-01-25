@@ -122,7 +122,6 @@ fn do_fastmultigather(
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
             siglist_path,
-            template,
             selection,
             threshold_bp,
             output_path,
@@ -192,7 +191,6 @@ fn do_index(
     // match index::index(siglist, template, output, save_paths, colors) {
     // convert siglist to PathBuf
     // build template from ksize, scaled
-    let template = build_template(ksize, scaled, &moltype);
     let location = camino::Utf8PathBuf::from(siglist);
     let manifest = None;
     match index::index(location, manifest, selection, output, save_paths, colors) {

@@ -1,6 +1,8 @@
 /// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
+use sourmash::manifest::Manifest;
+use sourmash::selection::Select;
 
 use std::fs::File;
 use std::io::Read;
@@ -19,13 +21,13 @@ use anyhow::{anyhow, Result};
 
 use std::cmp::{Ordering, PartialOrd};
 
-// use sourmash::prelude::FracMinHashOps;
-// use sourmash::prelude::HashOps;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
+use sourmash::collection::Collection;
+use sourmash::selection::Selection;
 
-// use tempfile::tempdir;
+
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -224,6 +226,31 @@ pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) -> Res
     }
     Ok(sketchlist_filenames)
 }
+
+pub fn load_sketchlist_filenames_camino<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<camino::Utf8PathBuf>> {
+    let sketchlist_file = BufReader::new(File::open(sketchlist_filename)?);
+
+    let mut sketchlist_filenames: Vec<camino::Utf8PathBuf> = Vec::new();
+    for line in sketchlist_file.lines() {
+        let line = match line {
+            Ok(v) => v,
+            Err(_) => {
+                return {
+                    let filename = sketchlist_filename.as_ref().display();
+                    let msg = format!("invalid line in fromfile '{}'", filename);
+                    Err(anyhow!(msg))
+                }
+            }
+        };
+
+        if !line.is_empty() {
+            let path = camino::Utf8PathBuf::from(line);
+            sketchlist_filenames.push(path);
+        }
+    }
+    Ok(sketchlist_filenames)
+}
+
 
 /// Loads signature file paths from a ZIP archive.
 ///
@@ -649,6 +676,7 @@ pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
         .map(|ext| ext == "zip")
         .unwrap_or(false)
     {
+
         load_sketches_from_zip(sketchlist_path, template)?
     } else {
         let sketch_paths = load_sketchlist_filenames(&sketchlist_path)?;
@@ -658,6 +686,23 @@ pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
     report_on_sketch_loading(&sketchlist, skipped_paths, failed_paths, report_type)?;
 
     Ok(sketchlist)
+}
+
+pub fn load_collection(
+    sigpath: camino::Utf8PathBuf,
+    selection: &Selection,
+) -> Result<Collection> {
+    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+        Collection::from_zipfile(&sigpath)?
+    } else {
+        let sig_paths: Vec<_> = load_sketchlist_filenames_camino(&sigpath)
+            .unwrap_or_else(|_| panic!("Error loading siglist"))
+            .into_iter()
+            .collect();
+        Collection::from_paths(&sig_paths)?
+    };
+    // return collection records that match selection
+    Ok(collection.select(&selection)?)
 }
 
 /// Uses the output of sketch loading functions to report the
