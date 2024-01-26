@@ -2,16 +2,15 @@
 use anyhow::Result;
 use rayon::prelude::*;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
-use sourmash::signature::{Signature, SigsTrait};
-use sourmash::sketch::Sketch;
 use sourmash::selection::Selection;
+use sourmash::signature::SigsTrait;
+use sourmash::sketch::Sketch;
 use std::path::Path;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, prepare_query,
-    ReportType, SearchResult,
+    csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
 };
 
 pub fn mastiff_manysearch<P: AsRef<Path>>(
@@ -22,10 +21,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !is_revindex_database(&index) {
-        bail!(
-            "'{}' is not a valid RevIndex database",
-            index
-        );
+        bail!("'{}' is not a valid RevIndex database", index);
     }
     // Open database once
     let db = RevIndex::open(index, true)?;
@@ -33,10 +29,6 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
 
     // Load query paths
     let query_collection = load_collection(&queries_path, selection, ReportType::Query)?;
-
-    // let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
-    // let (query_paths, _temp_dir) =
-    //     load_sigpaths_from_zip_or_pathlist(&queries_file, &template, ReportType::Query)?;
 
     // if query_paths is empty, exit with error. this should already happen via load_collection, i think?
     if query_collection.len() == 0 {
@@ -75,9 +67,10 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
                             // let location = query_sig.filename();
                             let query_size = query_mh.size();
                             let counter = db.counter_for_query(&query_mh);
-                            let matches = db.matches_from_counter(counter, minimum_containment as usize);
+                            let matches =
+                                db.matches_from_counter(counter, minimum_containment as usize);
 
-                        // filter the matches for containment
+                            // filter the matches for containment
                             for (path, overlap) in matches {
                                 let containment = overlap as f64 / query_size as f64;
                                 if containment >= minimum_containment {
@@ -93,14 +86,12 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
                                     });
                                 }
                             }
-                        
                         } else {
-                        // for reading zips, this is likely not a useful warning and
-                        // would show up too often (every sig is stored as individual file).
                             eprintln!(
-                                "WARNING: no compatible sketches in path '{}'", query_sig.filename()
+                                "WARNING: no compatible sketches in path '{}'",
+                                query_sig.filename()
                             );
-                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         }
                     }
                     if results.is_empty() {
@@ -158,8 +149,6 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
             failed_paths
         );
     }
-
-    // _temp_dir goes out of scope => is deleted.
 
     Ok(())
 }
