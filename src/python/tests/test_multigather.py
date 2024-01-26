@@ -183,7 +183,8 @@ def test_missing_querylist(runtmp, capfd, indexed, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+        # assert 'Error: failed to load query' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
 @pytest.mark.parametrize('indexed', [False, True])
@@ -239,7 +240,10 @@ def test_bad_query_2(runtmp, capfd, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    if not indexed:
+        assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    else:
+        assert "InvalidArchive" in captured.err
 
 
 @pytest.mark.parametrize('indexed', [False, True])

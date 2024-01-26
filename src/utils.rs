@@ -17,8 +17,7 @@ use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
-use anyhow::{anyhow, Result};
-
+use anyhow::{anyhow, Result, Context};
 use std::cmp::{Ordering, PartialOrd};
 
 use sourmash::signature::{Signature, SigsTrait};
@@ -26,6 +25,8 @@ use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
 use sourmash::collection::Collection;
 use sourmash::selection::Selection;
+use sourmash::errors::SourmashError;
+use sourmash::storage::SigStore;
 
 
 /// Track a name/minhash.
@@ -172,9 +173,10 @@ pub fn prefetch(
 }
 
 /// Write list of prefetch matches.
-pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
-    query: &SmallSignature,
-    prefetch_output: Option<P>,
+// pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
+pub fn write_prefetch(
+    query: &SigStore,
+    prefetch_output: Option<String>,
     matchlist: &BinaryHeap<PrefetchResult>,
 ) -> Result<()> {
     // Set up a writer for prefetch output
@@ -193,7 +195,7 @@ pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clo
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
-            query.location, query.name, query.md5sum, m.name, m.md5sum, m.overlap
+            query.filename(), query.name(), query.md5sum(), m.name, m.md5sum, m.overlap
         )
         .ok();
     }
@@ -464,55 +466,49 @@ pub fn load_sketches(
 /// those with a minimum overlap.
 
 pub fn load_sketches_above_threshold(
-    sketchlist_paths: Vec<PathBuf>,
-    template: &Sketch,
+    against_collection: Collection,
+    selection: &Selection,
     query: &KmerMinHash,
     threshold_hashes: u64,
 ) -> Result<(BinaryHeap<PrefetchResult>, usize, usize)> {
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let matchlist: BinaryHeap<PrefetchResult> = sketchlist_paths
-        .par_iter()
-        .filter_map(|m| {
-            let sigs = Signature::from_path(m);
-            let location = m.display().to_string();
-
-            match sigs {
-                Ok(sigs) => {
-                    let mut mm = None;
-
-                    if let Some(sm) = prepare_query(&sigs, template, &location) {
-                        let mh = sm.minhash;
-                        if let Ok(overlap) = mh.count_common(query, false) {
-                            if overlap >= threshold_hashes {
-                                let result = PrefetchResult {
-                                    name: sm.name,
-                                    md5sum: sm.md5sum,
-                                    minhash: mh,
-                                    overlap,
-                                };
-                                mm = Some(result);
-                            }
+    let matchlist: BinaryHeap<PrefetchResult> = against_collection
+    .par_iter()
+    .filter_map(|(idx, against_record)| {
+        let mut mm = None;
+        // Load against into memory
+        if let Ok(against_sig) = against_collection.sig_for_dataset(idx) {
+            if let Some(sketch) = against_sig.sketches().get(0) {
+                if let Sketch::MinHash(against_mh) = sketch {
+                    if let Ok(overlap) = against_mh.count_common(query, false) {
+                        if overlap >= threshold_hashes {
+                            let result = PrefetchResult {
+                                name: against_sig.name().to_string(),
+                                md5sum: against_mh.md5sum().to_string(),
+                                minhash: against_mh.clone(),
+                                overlap,
+                            };
+                            mm = Some(result);
                         }
-                    } else {
-                        eprintln!("WARNING: no compatible sketches in path '{}'", m.display());
-                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-                    mm
+                } else {
+                    eprintln!("WARNING: no compatible sketches in path '{}'", against_sig.filename());
+                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
-                Err(err) => {
-                    eprintln!("Sketch loading error: {}", err);
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    eprintln!(
-                        "WARNING: could not load sketches from path '{}'",
-                        m.display()
-                    );
-                    None
-                }
+            } else {
+                eprintln!("WARNING: no compatible sketches in path '{}'", against_sig.filename());
+                let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
             }
-        })
-        .collect();
+        } else {
+            // this shouldn't happen here anymore -- likely would happen at load_collection
+            eprintln!("WARNING: could not load sketches for record '{}'", against_record.internal_location());
+            let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+        }
+        mm
+    })
+    .collect();
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
@@ -689,21 +685,99 @@ pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
 }
 
 pub fn load_collection(
-    sigpath: camino::Utf8PathBuf,
+    sigpath: &camino::Utf8PathBuf,
     selection: &Selection,
+    report_type: ReportType,
 ) -> Result<Collection> {
+    if !sigpath.exists() {
+        bail!("No such file or directory: '{}'", sigpath);
+    }
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
-        Collection::from_zipfile(&sigpath)?
+        match Collection::from_zipfile(&sigpath) {
+            Ok(collection) => collection,
+            Err(_) => {
+                bail!("failed to load {} zipfile: '{}'", report_type, sigpath);
+            }
+        }
     } else {
-        let sig_paths: Vec<_> = load_sketchlist_filenames_camino(&sigpath)
-            .unwrap_or_else(|_| panic!("Error loading siglist"))
-            .into_iter()
-            .collect();
-        Collection::from_paths(&sig_paths)?
+        let sig_paths = load_sketchlist_filenames_camino(&sigpath)?;
+        match Collection::from_paths(&sig_paths) {
+            Ok(collection) => collection,
+            Err(_) => {
+                bail!("failed to load {} signature paths: '{}'", report_type, sigpath);
+            }
+        }
     };
-    // return collection records that match selection
-    Ok(collection.select(&selection)?)
+
+    let n_total = collection.len();
+    let selected = collection.select(&selection)?;
+    let n_skipped = n_total - selected.len();
+    let n_failed = 0; // TODO: can we get list / number of failed paths from core???
+    report_on_collection_loading(&selected, n_skipped, n_failed, report_type)?;
+    Ok(selected)
 }
+
+pub fn report_on_collection_loading(
+    collection: &Collection,
+    skipped_paths: usize,
+    failed_paths: usize,
+    report_type: ReportType,
+) -> Result<()> {
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} {} paths failed to load. See error messages above.",
+            failed_paths, report_type
+        );
+    }
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} {} paths - no compatible signatures.",
+            skipped_paths, report_type
+        );
+    }
+
+    // Validate sketches
+    if collection.is_empty() {
+        bail!("No {} signatures loaded, exiting.", report_type);
+    }
+    eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);
+    Ok(())
+}
+
+pub fn load_single_sig_from_collection(
+    query_collection: &Collection, // Replace with the actual type
+    selection: &Selection,
+) -> Result<SigStore> {
+    let scaled = selection.scaled().unwrap();
+    let ksize = selection.ksize().unwrap();
+
+    match query_collection.sig_for_dataset(0) {
+        Ok(sig) => Ok(sig),
+        Err(_) => Err(anyhow::anyhow!("No sketch found with scaled={}, k={}", scaled, ksize)),
+    }
+}
+
+// pub fn load_single_sketch_from_sig<'a>(sig: &'a SigStore, selection: &'a Selection) -> Result<&'a KmerMinHash> {
+//     let sketch = sig.sketches().get(0).ok_or_else(|| {
+//         anyhow::anyhow!("No sketch found with scaled={}, k={}", selection.scaled().unwrap_or_default(), selection.ksize().unwrap_or_default())
+//     })?;
+
+//     if let Sketch::MinHash(mh) = sketch {
+//         Ok(mh)
+//     } else {
+//         Err(anyhow::anyhow!("No sketch found with scaled={}, k={}", selection.scaled().unwrap_or_default(), selection.ksize().unwrap_or_default()))
+//     }
+// }
+
+// pub fn load_single_sig_and_sketch<'a>(
+//     query_collection: &'a Collection,
+//     selection: &'a Selection,
+// ) -> Result<(SigStore, &'a KmerMinHash)> {
+//     let sig = load_single_sig_from_collection(query_collection, selection)?;
+//     let sketch = load_single_sketch_from_sig(&sig, selection)?;
+//     Ok((sig, sketch))
+// }
+
 
 /// Uses the output of sketch loading functions to report the
 /// total number of sketches loaded, as well as the number of files,
@@ -758,7 +832,7 @@ pub fn report_on_sketch_loading(
 /// removing matches in 'matchlist' from 'query'.
 
 pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
-    query: SmallSignature,
+    query: SigStore,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
     gather_output: Option<P>,
@@ -778,17 +852,25 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
-    let mut last_hashes = query.minhash.size();
+    let mut last_hashes = query.size();
     let mut last_matches = matching_sketches.len();
 
-    let location = query.location;
-    let mut query_mh = query.minhash;
+    // let location = query.location;
+    let location = query.filename();
+    // let mut query_mh = query.minhash;
+
+    let sketches = query.sketches();
+    let orig_query_mh = match sketches.get(0) {
+        Some(Sketch::MinHash(mh)) => Ok(mh),
+        _ => Err(anyhow::anyhow!("No MinHash found")),
+    }?;
+    let mut query_mh = orig_query_mh.clone();
 
     eprintln!(
         "{} iter {}: start: query hashes={} matches={}",
         location,
         rank,
-        query_mh.size(),
+        query.size(),
         matching_sketches.len()
     );
 
@@ -803,8 +885,8 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
             "{},{},\"{}\",{},\"{}\",{},{}",
             location,
             rank,
-            query.name,
-            query.md5sum,
+            query.name(),
+            query.md5sum(),
             best_element.name,
             best_element.md5sum,
             best_element.overlap
@@ -855,7 +937,23 @@ pub fn build_template(ksize: u8, scaled: usize, moltype: &str) -> Sketch {
     Sketch::MinHash(template_mh)
 }
 
-pub fn is_revindex_database(path: &Path) -> bool {
+pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
+    let hash_function = match moltype {
+        "dna" => HashFunctions::Murmur64Dna,
+        "protein" => HashFunctions::Murmur64Protein,
+        "dayhoff" => HashFunctions::Murmur64Dayhoff,
+        "hp" => HashFunctions::Murmur64Hp,
+        _ => panic!("Unknown molecule type: {}", moltype),
+    };
+    
+    Selection::builder()
+        .ksize(ksize.into())
+        .scaled(scaled as u32)
+        .moltype(hash_function)
+        .build()
+}
+
+pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
     // quick file check for Revindex database:
     // is path a directory that contains a file named 'CURRENT'?
     if path.is_dir() {

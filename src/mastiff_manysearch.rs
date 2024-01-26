@@ -4,39 +4,42 @@ use rayon::prelude::*;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::Sketch;
+use sourmash::selection::Selection;
 use std::path::Path;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_sigpaths_from_zip_or_pathlist, prepare_query,
+    csvwriter_thread, is_revindex_database, load_collection, prepare_query,
     ReportType, SearchResult,
 };
 
 pub fn mastiff_manysearch<P: AsRef<Path>>(
-    queries_file: P,
-    index: P,
-    template: Sketch,
+    queries_path: camino::Utf8PathBuf,
+    index: camino::Utf8PathBuf,
+    selection: &Selection,
     minimum_containment: f64,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !is_revindex_database(index.as_ref()) {
+    if !is_revindex_database(&index) {
         bail!(
             "'{}' is not a valid RevIndex database",
-            index.as_ref().display()
+            index
         );
     }
     // Open database once
-    let db = RevIndex::open(index.as_ref(), true)?;
+    let db = RevIndex::open(index, true)?;
     println!("Loaded DB");
 
     // Load query paths
-    let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
-    let (query_paths, _temp_dir) =
-        load_sigpaths_from_zip_or_pathlist(&queries_file, &template, ReportType::Query)?;
+    let query_collection = load_collection(&queries_path, selection, ReportType::Query)?;
 
-    // if query_paths is empty, exit with error
-    if query_paths.is_empty() {
+    // let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
+    // let (query_paths, _temp_dir) =
+    //     load_sigpaths_from_zip_or_pathlist(&queries_file, &template, ReportType::Query)?;
+
+    // if query_paths is empty, exit with error. this should already happen via load_collection, i think?
+    if query_collection.len() == 0 {
         bail!("No query signatures loaded, exiting.");
     }
 
@@ -56,53 +59,49 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let send_result = query_paths
+    let send_result = query_collection
         .par_iter()
-        .filter_map(|filename| {
+        .filter_map(|(idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
                 eprintln!("Processed {} search sigs", i);
             }
 
             let mut results = vec![];
-
-            // load query signature from path:
-            match Signature::from_path(filename) {
+            match query_collection.sig_for_dataset(idx) {
                 Ok(query_sig) => {
-                    let location = filename.display().to_string();
-                    if let Some(query) = prepare_query(&query_sig, &template, &location) {
-                        let query_size = query.minhash.size() as f64;
-                        // search mastiff db
-                        let counter = db.counter_for_query(&query.minhash);
-                        let matches =
-                            db.matches_from_counter(counter, minimum_containment as usize);
+                    for sketch in query_sig.iter() {
+                        if let Sketch::MinHash(query_mh) = sketch {
+                            // let location = query_sig.filename();
+                            let query_size = query_mh.size();
+                            let counter = db.counter_for_query(&query_mh);
+                            let matches = db.matches_from_counter(counter, minimum_containment as usize);
 
                         // filter the matches for containment
-                        for (path, overlap) in matches {
-                            let containment = overlap as f64 / query_size;
-                            if containment >= minimum_containment {
-                                results.push(SearchResult {
-                                    query_name: query.name.clone(),
-                                    query_md5: query.md5sum.clone(),
-                                    match_name: path.clone(),
-                                    containment,
-                                    intersect_hashes: overlap,
-                                    match_md5: None,
-                                    jaccard: None,
-                                    max_containment: None,
-                                });
+                            for (path, overlap) in matches {
+                                let containment = overlap as f64 / query_size as f64;
+                                if containment >= minimum_containment {
+                                    results.push(SearchResult {
+                                        query_name: query_sig.name(),
+                                        query_md5: query_sig.md5sum(),
+                                        match_name: path.clone(),
+                                        containment,
+                                        intersect_hashes: overlap,
+                                        match_md5: None,
+                                        jaccard: None,
+                                        max_containment: None,
+                                    });
+                                }
                             }
-                        }
-                    } else {
+                        
+                        } else {
                         // for reading zips, this is likely not a useful warning and
                         // would show up too often (every sig is stored as individual file).
-                        if !queryfile_name.ends_with(".zip") {
                             eprintln!(
-                                "WARNING: no compatible sketches in path '{}'",
-                                filename.display()
+                                "WARNING: no compatible sketches in path '{}'", query_sig.filename()
                             );
-                        }
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        }
                     }
                     if results.is_empty() {
                         None
@@ -115,7 +114,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
                     eprintln!("Sketch loading error: {}", err);
                     eprintln!(
                         "WARNING: could not load sketches from path '{}'",
-                        filename.display()
+                        record.internal_location()
                     );
                     None
                 }

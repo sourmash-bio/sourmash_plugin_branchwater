@@ -19,26 +19,27 @@ use std::sync::atomic::AtomicUsize;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
-use crate::utils::{is_revindex_database, load_collection}; //, ReportType};
+use crate::utils::{is_revindex_database, load_collection, ReportType};
+
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
-    queries_file: String,
-    index: P,
-    selection: Selection,
+    queries_file: camino::Utf8PathBuf,
+    index: camino::Utf8PathBuf,
+    selection: &Selection,
     threshold_bp: usize,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !is_revindex_database(index.as_ref()) {
+    if !is_revindex_database(&index) {
         bail!(
             "'{}' is not a valid RevIndex database",
-            index.as_ref().display()
+            index
         );
     }
     // Open database once
-    let db = RevIndex::open(index.as_ref(), true)?;
+    let db = RevIndex::open(index, true)?;
     println!("Loaded DB");
 
-    let query_collection = load_collection(camino::Utf8PathBuf::from(queries_file), &selection)?;
+    let query_collection = load_collection(&queries_file, selection, ReportType::Query)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -81,6 +82,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
         let threshold = threshold_bp / selection.scaled()? as usize;
 
         match query_collection.sig_for_dataset(idx) {
+        // match query_collection.sig_from_record(record) { // to be added in core
             Ok(query_sig) => {
                 let mut results = vec![];
                 let mut found_compatible_sketch = false;
@@ -117,12 +119,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
                     }
                 }
                 if !found_compatible_sketch {
-                    // if !queryfile_name.ends_with(".zip") {
-                    //     eprintln!(
-                    //         "WARNING: no compatible sketches in path '{}'",
-                    //         filename.display()
-                    //     );
-                    // }
+                    eprintln!("WARNING: no compatible sketches in path '{}'", query_sig.filename());
                     let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
 
