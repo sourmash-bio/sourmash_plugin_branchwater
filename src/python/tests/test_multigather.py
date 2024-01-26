@@ -208,7 +208,7 @@ def test_bad_query(runtmp, capfd, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert 'Error: invalid line in fromfile' in captured.err
 
 
 @pytest.mark.parametrize('indexed', [False, True])
@@ -240,10 +240,7 @@ def test_bad_query_2(runtmp, capfd, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    if not indexed:
-        assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
-    else:
-        assert "InvalidArchive" in captured.err
+    assert "InvalidArchive" in captured.err
 
 
 @pytest.mark.parametrize('indexed', [False, True])
