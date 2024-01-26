@@ -7,6 +7,7 @@ use sourmash::selection::Select;
 use std::fs::File;
 use std::io::Read;
 use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::panic;
 use std::path::{Path, PathBuf};
 
 use tempfile::tempdir;
@@ -17,17 +18,17 @@ use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 use std::cmp::{Ordering, PartialOrd};
 
+use sourmash::collection::{self, Collection};
+use sourmash::errors::SourmashError;
+use sourmash::manifest::Record;
+use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
 use sourmash::sketch::Sketch;
-use sourmash::collection::Collection;
-use sourmash::selection::Selection;
-use sourmash::errors::SourmashError;
-use sourmash::storage::SigStore;
-
+use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 
 /// Track a name/minhash.
 
@@ -195,7 +196,12 @@ pub fn write_prefetch(
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
-            query.filename(), query.name(), query.md5sum(), m.name, m.md5sum, m.overlap
+            query.filename(),
+            query.name(),
+            query.md5sum(),
+            m.name,
+            m.md5sum,
+            m.overlap
         )
         .ok();
     }
@@ -228,31 +234,6 @@ pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) -> Res
     }
     Ok(sketchlist_filenames)
 }
-
-pub fn load_sketchlist_filenames_camino<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<camino::Utf8PathBuf>> {
-    let sketchlist_file = BufReader::new(File::open(sketchlist_filename)?);
-
-    let mut sketchlist_filenames: Vec<camino::Utf8PathBuf> = Vec::new();
-    for line in sketchlist_file.lines() {
-        let line = match line {
-            Ok(v) => v,
-            Err(_) => {
-                return {
-                    let filename = sketchlist_filename.as_ref().display();
-                    let msg = format!("invalid line in fromfile '{}'", filename);
-                    Err(anyhow!(msg))
-                }
-            }
-        };
-
-        if !line.is_empty() {
-            let path = camino::Utf8PathBuf::from(line);
-            sketchlist_filenames.push(path);
-        }
-    }
-    Ok(sketchlist_filenames)
-}
-
 
 /// Loads signature file paths from a ZIP archive.
 ///
@@ -475,40 +456,49 @@ pub fn load_sketches_above_threshold(
     let failed_paths = AtomicUsize::new(0);
 
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
-    .par_iter()
-    .filter_map(|(idx, against_record)| {
-        let mut mm = None;
-        // Load against into memory
-        if let Ok(against_sig) = against_collection.sig_for_dataset(idx) {
-            if let Some(sketch) = against_sig.sketches().get(0) {
-                if let Sketch::MinHash(against_mh) = sketch {
-                    if let Ok(overlap) = against_mh.count_common(query, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: against_sig.name().to_string(),
-                                md5sum: against_mh.md5sum().to_string(),
-                                minhash: against_mh.clone(),
-                                overlap,
-                            };
-                            mm = Some(result);
+        .par_iter()
+        .filter_map(|(idx, against_record)| {
+            let mut mm = None;
+            // Load against into memory
+            if let Ok(against_sig) = against_collection.sig_for_dataset(idx) {
+                if let Some(sketch) = against_sig.sketches().get(0) {
+                    if let Sketch::MinHash(against_mh) = sketch {
+                        if let Ok(overlap) = against_mh.count_common(query, false) {
+                            if overlap >= threshold_hashes {
+                                let result = PrefetchResult {
+                                    name: against_sig.name().to_string(),
+                                    md5sum: against_mh.md5sum().to_string(),
+                                    minhash: against_mh.clone(),
+                                    overlap,
+                                };
+                                mm = Some(result);
+                            }
                         }
+                    } else {
+                        eprintln!(
+                            "WARNING: no compatible sketches in path '{}'",
+                            against_sig.filename()
+                        );
+                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                 } else {
-                    eprintln!("WARNING: no compatible sketches in path '{}'", against_sig.filename());
+                    eprintln!(
+                        "WARNING: no compatible sketches in path '{}'",
+                        against_sig.filename()
+                    );
                     let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
-                eprintln!("WARNING: no compatible sketches in path '{}'", against_sig.filename());
+                // this shouldn't happen here anymore -- likely would happen at load_collection
+                eprintln!(
+                    "WARNING: could not load sketches for record '{}'",
+                    against_record.internal_location()
+                );
                 let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
             }
-        } else {
-            // this shouldn't happen here anymore -- likely would happen at load_collection
-            eprintln!("WARNING: could not load sketches for record '{}'", against_record.internal_location());
-            let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-        }
-        mm
-    })
-    .collect();
+            mm
+        })
+        .collect();
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
@@ -672,7 +662,6 @@ pub fn load_sketches_from_zip_or_pathlist<P: AsRef<Path>>(
         .map(|ext| ext == "zip")
         .unwrap_or(false)
     {
-
         load_sketches_from_zip(sketchlist_path, template)?
     } else {
         let sketch_paths = load_sketchlist_filenames(&sketchlist_path)?;
@@ -692,6 +681,8 @@ pub fn load_collection(
     if !sigpath.exists() {
         bail!("No such file or directory: '{}'", sigpath);
     }
+
+    let mut n_failed = 0;
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
         match Collection::from_zipfile(&sigpath) {
             Ok(collection) => collection,
@@ -700,19 +691,54 @@ pub fn load_collection(
             }
         }
     } else {
-        let sig_paths = load_sketchlist_filenames_camino(&sigpath)?;
-        match Collection::from_paths(&sig_paths) {
-            Ok(collection) => collection,
-            Err(_) => {
-                bail!("failed to load {} signature paths: '{}'", report_type, sigpath);
-            }
-        }
+        let sketchlist_file = BufReader::new(File::open(sigpath)?);
+
+        let records: Vec<Record> = sketchlist_file
+            .lines()
+            .filter_map(|line| {
+                let path = match line {
+                    Ok(path) => path,
+                    Err(err) => {
+                        eprintln!("Error: invalid line in fromfile");
+                        return None; // Skip
+                    }
+                };
+
+                match Signature::from_path(&path) {
+                    Ok(signatures) => {
+                        let recs: Vec<Record> = signatures
+                            .into_iter()
+                            .flat_map(|v| Record::from_sig(&v, path.as_str()))
+                            .collect();
+                        Some(recs)
+                    }
+                    Err(err) => {
+                        eprintln!("Sketch loading error: {}", err);
+                        eprintln!("WARNING: could not load sketches from path '{}'", path);
+                        n_failed += 1;
+                        None
+                    }
+                }
+            })
+            .flatten()
+            .collect();
+
+        let manifest: Manifest = records.into();
+
+        Collection::new(
+            manifest,
+            InnerStorage::new(
+                FSStorage::builder()
+                    .fullpath("".into())
+                    .subdir("".into())
+                    .build(),
+            ),
+        )
     };
 
     let n_total = collection.len();
     let selected = collection.select(&selection)?;
     let n_skipped = n_total - selected.len();
-    let n_failed = 0; // TODO: can we get list / number of failed paths from core???
     report_on_collection_loading(&selected, n_skipped, n_failed, report_type)?;
     Ok(selected)
 }
@@ -753,7 +779,11 @@ pub fn load_single_sig_from_collection(
 
     match query_collection.sig_for_dataset(0) {
         Ok(sig) => Ok(sig),
-        Err(_) => Err(anyhow::anyhow!("No sketch found with scaled={}, k={}", scaled, ksize)),
+        Err(_) => Err(anyhow::anyhow!(
+            "No sketch found with scaled={}, k={}",
+            scaled,
+            ksize
+        )),
     }
 }
 
@@ -777,7 +807,6 @@ pub fn load_single_sig_from_collection(
 //     let sketch = load_single_sketch_from_sig(&sig, selection)?;
 //     Ok((sig, sketch))
 // }
-
 
 /// Uses the output of sketch loading functions to report the
 /// total number of sketches loaded, as well as the number of files,
@@ -945,7 +974,7 @@ pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
         "hp" => HashFunctions::Murmur64Hp,
         _ => panic!("Unknown molecule type: {}", moltype),
     };
-    
+
     Selection::builder()
         .ksize(ksize.into())
         .scaled(scaled as u32)

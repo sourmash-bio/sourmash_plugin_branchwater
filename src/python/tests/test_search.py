@@ -247,7 +247,7 @@ def test_missing_query(runtmp, capfd, indexed, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
@@ -273,7 +273,7 @@ def test_bad_query(runtmp, capfd, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert 'Error: invalid line in fromfile' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
