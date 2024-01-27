@@ -68,7 +68,7 @@ class EfficientSimilarityMatrix:
         return sparse_matrix, md5_mapping
 
     @staticmethod
-    def write_sparse_matrix_to_tsv(sparse_matrix, md5_mapping, tsv_file_path):
+    def write_sparse_matrix_to_tsv(sparse_matrix, md5_mapping, tsv_file_path, batch_size=10000):
         print(f"Writing data to TSV file: {tsv_file_path}")
         start_time = time.time()
 
@@ -76,10 +76,13 @@ class EfficientSimilarityMatrix:
             header = '\t'.join(md5_mapping.astype(str)) + '\n'
             f.write(header)
 
-            for i in range(sparse_matrix.shape[0]):
-                row = sparse_matrix.getrow(i).toarray().ravel()
-                row_str = '\t'.join(map(str, row)) + '\n'
-                f.write(row_str)
+            num_rows = sparse_matrix.shape[0]
+            for i in range(0, num_rows, batch_size):
+                end = min(i + batch_size, num_rows)
+                rows = sparse_matrix[i:end].toarray()
+                for row in rows:
+                    row_str = '\t'.join(map(str, row)) + '\n'
+                    f.write(row_str)
 
         elapsed_time = time.time() - start_time
         print(f"TSV file written in {elapsed_time:.2f} seconds.")
