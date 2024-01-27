@@ -4,7 +4,7 @@ use sourmash::encodings::HashFunctions;
 use sourmash::manifest::Manifest;
 use sourmash::selection::Select;
 
-use std::fs::File;
+use std::fs::{create_dir_all, File};
 use std::io::Read;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
@@ -161,7 +161,8 @@ pub fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            let overlap = searchsig.count_common(query_mh, false);
+            // TODO: fix Select so we can go back to downsample: false here
+            let overlap = searchsig.count_common(query_mh, true);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {
                     let result = PrefetchResult { overlap, ..result };
@@ -174,18 +175,27 @@ pub fn prefetch(
 }
 
 /// Write list of prefetch matches.
-// pub fn write_prefetch<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
 pub fn write_prefetch(
     query: &SigStore,
     prefetch_output: Option<String>,
     matchlist: &BinaryHeap<PrefetchResult>,
-) -> Result<()> {
-    // Set up a writer for prefetch output
-    let prefetch_out: Box<dyn Write> = match prefetch_output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let mut writer = BufWriter::new(prefetch_out);
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Define the writer to stdout by default
+    let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
+
+    if let Some(output_path) = &prefetch_output {
+        // Account for potential missing dir in output path
+        let directory_path = Path::new(output_path).parent();
+
+        // If a directory path exists in the filename, create it if it doesn't already exist
+        if let Some(dir) = directory_path {
+            create_dir_all(dir)?;
+        }
+
+        let file = File::create(output_path)?;
+        writer = Box::new(BufWriter::new(file));
+    }
+
     writeln!(
         &mut writer,
         "query_filename,query_name,query_md5,match_name,match_md5,intersect_bp"
@@ -860,18 +870,27 @@ pub fn report_on_sketch_loading(
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
 /// removing matches in 'matchlist' from 'query'.
 
-pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
+pub fn consume_query_by_gather(
     query: SigStore,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
-    gather_output: Option<P>,
+    gather_output: Option<String>,
 ) -> Result<()> {
-    // Set up a writer for gather output
-    let gather_out: Box<dyn Write> = match gather_output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let mut writer = BufWriter::new(gather_out);
+    // Define the writer to stdout by default
+    let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
+
+    if let Some(output_path) = &gather_output {
+        // Account for potential missing dir in output path
+        let directory_path = Path::new(output_path).parent();
+
+        // If a directory path exists in the filename, create it if it doesn't already exist
+        if let Some(dir) = directory_path {
+            create_dir_all(dir)?;
+        }
+
+        let file = File::create(output_path)?;
+        writer = Box::new(BufWriter::new(file));
+    }
     writeln!(
         &mut writer,
         "query_filename,rank,query_name,query_md5,match_name,match_md5,intersect_bp"
@@ -881,12 +900,10 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
-    let mut last_hashes = query.size();
     let mut last_matches = matching_sketches.len();
 
     // let location = query.location;
-    let location = query.filename();
-    // let mut query_mh = query.minhash;
+    let location = query.filename(); // this is different (original fasta filename) than query.location was (sig name)!!
 
     let sketches = query.sketches();
     let orig_query_mh = match sketches.get(0) {
@@ -894,12 +911,13 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
         _ => Err(anyhow::anyhow!("No MinHash found")),
     }?;
     let mut query_mh = orig_query_mh.clone();
+    let mut last_hashes = orig_query_mh.size();
 
     eprintln!(
         "{} iter {}: start: query hashes={} matches={}",
         location,
         rank,
-        query.size(),
+        orig_query_mh.size(),
         matching_sketches.len()
     );
 

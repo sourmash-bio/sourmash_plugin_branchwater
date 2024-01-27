@@ -2,20 +2,22 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
+use serde::Serialize;
+use sourmash::selection::Selection;
+use sourmash::sketch::Sketch;
 use sourmash::storage::SigStore;
 use sourmash::{selection, signature::Signature};
-use sourmash::sketch::Sketch;
-use sourmash::selection::Selection;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_sigpaths_from_zip_or_pathlist, load_sketches_from_zip_or_pathlist, prepare_query, write_prefetch, PrefetchResult, ReportType
+    consume_query_by_gather, load_collection, load_sigpaths_from_zip_or_pathlist,
+    load_sketches_from_zip_or_pathlist, prepare_query, write_prefetch, PrefetchResult, ReportType,
 };
 
 pub fn fastmultigather(
@@ -23,7 +25,6 @@ pub fn fastmultigather(
     against_filepath: camino::Utf8PathBuf,
     threshold_bp: usize,
     scaled: usize,
-    // template: Sketch,
     selection: &Selection,
 ) -> Result<()> {
     // load the list of query paths
@@ -63,58 +64,76 @@ pub fn fastmultigather(
 
     query_collection.par_iter().for_each(|(idx, record)| {
         // increment counter of # of queries. q: could we instead use the index from par_iter()?
-        let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst); 
+        let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
         // Load query sig
-    match query_collection.sig_for_dataset(idx) {
-        Ok(query_sig) => {
-            let location = query_sig.filename();
-            for sketch in query_sig.iter() {
-                // Access query MinHash
-                if let Sketch::MinHash(query) = sketch {
-                    let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                        .par_iter()
-                        .filter_map(|sm| {
-                            let mut mm = None;
-                            // Access against MinHash
-                            if let Some(sketch) = sm.sketches().get(0) {
-                                if let Sketch::MinHash(against_sketch) = sketch {
-                                    if let Ok(overlap) = against_sketch.count_common(&query, false) {
-                                        if overlap >= threshold_hashes {
-                                            let result = PrefetchResult {
-                                                name: sm.name(),
-                                                md5sum: sm.md5sum().clone(),
-                                                minhash: against_sketch.clone(),
-                                                overlap,
-                                            };
-                                            mm = Some(result);
+        match query_collection.sig_for_dataset(idx) {
+            Ok(query_sig) => {
+                let prefix = query_sig.name();
+                let location = Utf8Path::new(&prefix).file_name().unwrap();
+                for sketch in query_sig.iter() {
+                    // Access query MinHash
+                    if let Sketch::MinHash(query) = sketch {
+                        let matchlist: BinaryHeap<PrefetchResult> = sketchlist
+                            .par_iter()
+                            .filter_map(|sm| {
+                                let mut mm = None;
+                                // Access against MinHash
+                                if let Some(sketch) = sm.sketches().get(0) {
+                                    if let Sketch::MinHash(against_sketch) = sketch {
+                                        if let Ok(overlap) =
+                                            against_sketch.count_common(&query, true)
+                                        {
+                                            if overlap >= threshold_hashes {
+                                                let result = PrefetchResult {
+                                                    name: sm.name(),
+                                                    md5sum: sm.md5sum().clone(),
+                                                    minhash: against_sketch.clone(),
+                                                    overlap,
+                                                };
+                                                mm = Some(result);
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            mm
-                        })
-                        .collect();
-                    if !matchlist.is_empty() {
-                        let prefetch_output = format!("{}.prefetch.csv", location);
-                        let gather_output = format!("{}.gather.csv", location);
+                                mm
+                            })
+                            .collect();
+                        if !matchlist.is_empty() {
+                            let prefetch_output = format!("{}.prefetch.csv", location);
+                            let gather_output = format!("{}.gather.csv", location);
 
-                        // Save initial list of matches to prefetch output
-                        write_prefetch(&query_sig, Some(prefetch_output), &matchlist).ok();
+                            // Save initial list of matches to prefetch output
+                            write_prefetch(&query_sig, Some(prefetch_output), &matchlist).ok();
 
-                        // Now, do the gather!
-                        consume_query_by_gather(query_sig.clone(), matchlist, threshold_hashes, Some(gather_output)).ok();
+                            // Now, do the gather!
+                            consume_query_by_gather(
+                                query_sig.clone(),
+                                matchlist,
+                                threshold_hashes,
+                                Some(gather_output),
+                            )
+                            .ok();
+                        } else {
+                            println!("No matches to '{}'", location);
+                        }
                     } else {
-                        println!("No matches to '{}'", location);
+                        eprintln!(
+                            "WARNING: no compatible sketches in path '{}'",
+                            record.internal_location()
+                        );
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                 }
             }
+            Err(_) => {
+                eprintln!(
+                    "WARNING: no compatible sketches in path '{}'",
+                    record.internal_location()
+                );
+                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            }
         }
-        Err(_) => {
-            eprintln!("WARNING: no compatible sketches in path '{}'", record.internal_location());
-            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-        }
-    }
-});
+    });
 
     println!(
         "Processed {} queries total.",
