@@ -7,7 +7,7 @@ import dask.dataframe as dd
 from dask.diagnostics import ProgressBar
 import time
 import os
-
+from scipy.sparse import csr_matrix
 
 class EfficientSimilarityMatrix:
     @staticmethod
@@ -68,18 +68,20 @@ class EfficientSimilarityMatrix:
         return sparse_matrix, md5_mapping
 
     @staticmethod
-    def write_sparse_matrix_to_tsv(sparse_matrix, md5_mapping, tsv_file_path, batch_size=10000):
+    def write_sparse_matrix_to_tsv(sparse_matrix, md5_mapping, tsv_file_path, batch_size=1000):
         print(f"Writing data to TSV file: {tsv_file_path}")
         start_time = time.time()
+
+        sparse_matrix_csr = csr_matrix(sparse_matrix)
 
         with open(tsv_file_path, 'w') as f:
             header = '\t'.join(md5_mapping.astype(str)) + '\n'
             f.write(header)
 
-            num_rows = sparse_matrix.shape[0]
+            num_rows = sparse_matrix_csr.shape[0]
             for i in range(0, num_rows, batch_size):
                 end = min(i + batch_size, num_rows)
-                rows = sparse_matrix[i:end].toarray()
+                rows = sparse_matrix_csr[i:end].toarray()
                 for row in rows:
                     row_str = '\t'.join(map(str, row)) + '\n'
                     f.write(row_str)
