@@ -6,8 +6,8 @@ use sourmash::selection;
 extern crate simple_error;
 
 mod utils;
-use crate::utils::{build_template, build_selection};
 use crate::utils::is_revindex_database;
+use crate::utils::{build_selection, build_template};
 mod check;
 mod fastgather;
 mod fastmultigather;
@@ -33,15 +33,14 @@ fn do_manysearch(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-
     let queryfile_path: camino::Utf8PathBuf = querylist_path.clone().into();
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
+    eprintln!("selection scaled: {:?}", selection.scaled());
 
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
-    let template = build_template(ksize, scaled, &moltype);
     if is_revindex_database(&againstfile_path) {
-    // if is_revindex_database(siglist_path.as_ref()) {
+        // if is_revindex_database(siglist_path.as_ref()) {
         match mastiff_manysearch::mastiff_manysearch(
             queryfile_path,
             againstfile_path,
@@ -57,9 +56,9 @@ fn do_manysearch(
         }
     } else {
         match manysearch::manysearch(
-            querylist_path,
-            siglist_path,
-            template,
+            &queryfile_path,
+            &againstfile_path,
+            &selection,
             threshold,
             output_path,
         ) {
@@ -85,11 +84,12 @@ fn do_fastgather(
 ) -> anyhow::Result<u8> {
     let queryfile_path: camino::Utf8PathBuf = query_filename.into();
     let againstfile_path: camino::Utf8PathBuf = siglist_path.into();
+
     let selection = build_selection(ksize, scaled, &moltype);
-    
+
     match fastgather::fastgather(
-        queryfile_path,
-        againstfile_path,
+        &queryfile_path,
+        &againstfile_path,
         threshold_bp,
         ksize,
         scaled,
@@ -115,11 +115,10 @@ fn do_fastmultigather(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    
     let queryfile_path: camino::Utf8PathBuf = query_filenames.into();
     let againstfile_path: camino::Utf8PathBuf = siglist_path.into();
     let selection = build_selection(ksize, scaled, &moltype);
-    
+
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
     if is_revindex_database(&againstfile_path) {
         match mastiff_manygather::mastiff_manygather(

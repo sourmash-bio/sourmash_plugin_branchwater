@@ -4,10 +4,7 @@ use sourmash::index::revindex::{RevIndex, RevIndexOps};
 
 pub fn check(index: camino::Utf8PathBuf, quick: bool) -> Result<(), Box<dyn std::error::Error>> {
     if !is_revindex_database(&index) {
-        bail!(
-            "'{}' is not a valid RevIndex database",
-            index
-        );
+        bail!("'{}' is not a valid RevIndex database", index);
     }
 
     println!("Opening DB");

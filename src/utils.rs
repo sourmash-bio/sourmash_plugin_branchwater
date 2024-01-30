@@ -693,62 +693,81 @@ pub fn load_collection(
     }
 
     let mut n_failed = 0;
-    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+    let mut collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
         match Collection::from_zipfile(&sigpath) {
             Ok(collection) => collection,
-            Err(_) => {
-                bail!("failed to load {} zipfile: '{}'", report_type, sigpath);
-            }
+            Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
         }
     } else {
-        let sketchlist_file = BufReader::new(File::open(sigpath)?);
-
-        let records: Vec<Record> = sketchlist_file
-            .lines()
-            .filter_map(|line| {
-                let path = match line {
-                    Ok(path) => path,
-                    Err(err) => {
-                        eprintln!("Error: invalid line in fromfile");
-                        return None; // Skip
-                    }
-                };
-
-                match Signature::from_path(&path) {
-                    Ok(signatures) => {
-                        let recs: Vec<Record> = signatures
-                            .into_iter()
-                            .flat_map(|v| Record::from_sig(&v, path.as_str()))
-                            .collect();
-                        Some(recs)
-                    }
-                    Err(err) => {
-                        eprintln!("Sketch loading error: {}", err);
-                        eprintln!("WARNING: could not load sketches from path '{}'", path);
-                        n_failed += 1;
-                        None
-                    }
+        // if pathlist is just a signature path, load it into a collection
+        match Signature::from_path(sigpath) {
+            Ok(signatures) => {
+                // Load the collection from the signature
+                match Collection::from_sigs(signatures) {
+                    Ok(collection) => collection,
+                    Err(_) => bail!(
+                        "loaded {} signatures but failed to load as collection: '{}'",
+                        report_type,
+                        sigpath
+                    ),
                 }
-            })
-            .flatten()
-            .collect();
+            }
+            // if not, try to load file as list of sig paths
+            Err(_) => {
+                //             // using core fn doesn't allow us to ignore failed paths; I reimplement loading here to allow
+                let sketchlist_file = BufReader::new(File::open(sigpath)?);
+                let records: Vec<Record> = sketchlist_file
+                    .lines()
+                    .filter_map(|line| {
+                        let path = line.ok()?;
+                        match Signature::from_path(&path) {
+                            Ok(signatures) => {
+                                let recs: Vec<Record> = signatures
+                                    .into_iter()
+                                    .flat_map(|v| Record::from_sig(&v, &path))
+                                    .collect();
+                                Some(recs)
+                            }
+                            Err(err) => {
+                                eprintln!("Sketch loading error: {}", err);
+                                eprintln!("WARNING: could not load sketches from path '{}'", path);
+                                n_failed += 1;
+                                None
+                            }
+                        }
+                    })
+                    .flatten()
+                    .collect();
 
-        let manifest: Manifest = records.into();
-
-        Collection::new(
-            manifest,
-            InnerStorage::new(
-                FSStorage::builder()
-                    .fullpath("".into())
-                    .subdir("".into())
-                    .build(),
-            ),
-        )
+                let manifest: Manifest = records.into();
+                Collection::new(
+                    manifest,
+                    InnerStorage::new(
+                        FSStorage::builder()
+                            .fullpath("".into())
+                            .subdir("".into())
+                            .build(),
+                    ),
+                )
+            }
+        }
     };
 
     let n_total = collection.len();
-    let selected = collection.select(&selection)?;
+    eprintln!("n_total: {}", n_total);
+    // collection = collection.select(selection)?;
+    let selected = collection.select(selection)?;
+
+    if selected.len() == 1 {
+        let sig = selected.sig_for_dataset(0).unwrap();
+        eprintln!("sig name: {:?}", sig.name());
+        let mh = sig.minhash().unwrap();
+        eprintln!("scaled= {:?}", mh.scaled())
+    }
+
+    eprintln!("selection_len: {}", selected.len());
     let n_skipped = n_total - selected.len();
+    // let n_skipped = n_total - collection.len();
     report_on_collection_loading(&selected, n_skipped, n_failed, report_type)?;
     Ok(selected)
 }
@@ -778,23 +797,6 @@ pub fn report_on_collection_loading(
     }
     eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);
     Ok(())
-}
-
-pub fn load_single_sig_from_collection(
-    query_collection: &Collection, // Replace with the actual type
-    selection: &Selection,
-) -> Result<SigStore> {
-    let scaled = selection.scaled().unwrap();
-    let ksize = selection.ksize().unwrap();
-
-    match query_collection.sig_for_dataset(0) {
-        Ok(sig) => Ok(sig),
-        Err(_) => Err(anyhow::anyhow!(
-            "No sketch found with scaled={}, k={}",
-            scaled,
-            ksize
-        )),
-    }
 }
 
 // pub fn load_single_sketch_from_sig<'a>(sig: &'a SigStore, selection: &'a Selection) -> Result<&'a KmerMinHash> {

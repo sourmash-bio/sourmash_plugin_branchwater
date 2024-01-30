@@ -1,20 +1,24 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
 
-use sourmash::sketch::Sketch;
-use sourmash::signature::Signature;
+use serde::Serialize;
 use sourmash::selection::Selection;
-use camino;
-use std::collections::BinaryHeap;
+use sourmash::signature::Signature;
+use sourmash::sketch::Sketch;
+// use camino;
 use crate::utils::PrefetchResult;
+use std::collections::BinaryHeap;
+
+use sourmash::prelude::Select;
 
 use crate::utils::{
-    consume_query_by_gather, load_sketches_above_threshold, write_prefetch, ReportType, load_collection
+    consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
+    ReportType,
 };
 
 pub fn fastgather(
-    query_filepath: camino::Utf8PathBuf,
-    against_filepath: camino::Utf8PathBuf,
+    query_filepath: &camino::Utf8PathBuf,
+    against_filepath: &camino::Utf8PathBuf,
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
@@ -22,42 +26,45 @@ pub fn fastgather(
     gather_output: Option<String>,
     prefetch_output: Option<String>,
 ) -> Result<()> {
-
-    let query_collection = load_collection(&query_filepath, selection, ReportType::Query)?;
-
-    if query_collection.len() > 1 {
-        bail!("Found more than one compatible sketch from '{}'. Fastgather requires a single query sketch.", &query_filepath)
-    }
-    // load query sig into memory
-    let mut query_mh = None;
+    let query_collection = load_collection(query_filepath, selection, ReportType::Query)?;
     let mut query_sig = None;
-    for (idx, _record) in query_collection.iter() {
-        // Load query sig
-        match query_collection.sig_for_dataset(idx) {
-            Ok(query_sig) => {
-                for sketch in query_sig.iter() {
-                    // Access query MinHash
-                    if let Sketch::MinHash(query) = sketch {
-                        query_mh = Some(query.clone());
-                        break;
-                    }
+    let mut query_mh = None;
+
+    for (idx, record) in query_collection.iter() {
+        if let Ok(sig) = query_collection
+            .sig_for_dataset(idx)
+            .unwrap()
+            .select(&selection)
+        {
+            query_sig = Some(sig.clone());
+
+            for sketch in sig.iter() {
+                // Access query MinHash
+                if let Sketch::MinHash(mh) = sketch {
+                    query_mh = Some(mh.clone());
+                    // eprintln!("mh mins: {:?}", mh.mins());
                 }
             }
-            Err(_) => {
-                bail!("No query sketch matching selection parameters.") // should not get here bc we already check this during collection loading?
-            }
+        } else {
+            eprintln!("Failed to load 'query sig: {}", record.name());
         }
+    }
+    if query_mh.is_none() {
+        bail!("No query sketch matching selection parameters.");
+    }
 
-        if query_mh.is_some() {
-            break; // Exit the loop if we found a MinHash sketch
-        }
+    if query_collection.len() != 1 {
+        bail!(
+            "Fastgather requires a single query sketch. Check input: '{:?}'",
+            &query_filepath
+        )
     }
 
     // build the list of paths to match against.
     eprintln!("Loading matchlist from '{}'", against_filepath);
-    let against_collection = load_collection(&against_filepath, selection, ReportType::Against)?; 
+    let against_collection = load_collection(against_filepath, selection, ReportType::Against)?;
     eprintln!("Loaded {} sig paths in matchlist", against_collection.len());
-    
+
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
@@ -74,8 +81,8 @@ pub fn fastgather(
         threshold_hashes, threshold_bp
     );
 
-     // load a set of sketches, filtering for those with overlaps > threshold
-     let result = load_sketches_above_threshold(
+    // load a set of sketches, filtering for those with overlaps > threshold
+    let result = load_sketches_above_threshold(
         against_collection,
         &selection,
         &query_mh.unwrap(),
@@ -107,6 +114,12 @@ pub fn fastgather(
     }
 
     // run the gather!
-    consume_query_by_gather(query_sig.clone().unwrap(), matchlist, threshold_hashes, gather_output).ok();
+    consume_query_by_gather(
+        query_sig.clone().unwrap(),
+        matchlist,
+        threshold_hashes,
+        gather_output,
+    )
+    .ok();
     Ok(())
 }

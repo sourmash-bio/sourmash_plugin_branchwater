@@ -6,44 +6,47 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::signature::{Signature, SigsTrait};
+use sourmash::prelude::Select;
+use sourmash::selection::Selection;
+use sourmash::signature::SigsTrait;
 use sourmash::sketch::Sketch;
+use sourmash::storage::SigStore;
 use std::path::Path;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{
-    csvwriter_thread, load_sigpaths_from_zip_or_pathlist, load_sketches_from_zip_or_pathlist,
-    prepare_query, ReportType, SearchResult,
-};
+use crate::utils::{csvwriter_thread, load_collection, ReportType, SearchResult};
 
 pub fn manysearch<P: AsRef<Path>>(
-    querylist: P,
-    siglist: P,
-    template: Sketch,
+    query_filepath: &camino::Utf8PathBuf,
+    against_filepath: &camino::Utf8PathBuf,
+    selection: &Selection,
     threshold: f64,
     output: Option<P>,
 ) -> Result<()> {
     // Read in list of query paths.
-    eprintln!(
-        "Reading list of queries from: '{}'",
-        querylist.as_ref().display()
-    );
+    eprintln!("Reading queries from: '{}'", query_filepath);
 
-    // Load all queries into memory at once.
-    let queries = load_sketches_from_zip_or_pathlist(querylist, &template, ReportType::Query)?;
+    // Load all query sigs into memory at once.
+    let query_collection = load_collection(query_filepath, selection, ReportType::Query)?;
+    // load actual signatures
+    let mut query_sketchlist: Vec<SigStore> = vec![];
 
-    // Load all _paths_, not signatures, into memory.
-    let siglist_name = siglist.as_ref().to_string_lossy().to_string();
-    let (search_sigs_paths, _temp_dir) =
-        load_sigpaths_from_zip_or_pathlist(siglist, &template, ReportType::Against)?;
-
-    if search_sigs_paths.is_empty() {
-        bail!("No signatures to search loaded, exiting.");
+    for (idx, record) in query_collection.iter() {
+        if let Ok(sig) = query_collection
+            .sig_for_dataset(idx)
+            .unwrap()
+            .select(&selection)
+        {
+            query_sketchlist.push(sig);
+        } else {
+            eprintln!("Failed to load 'query' sig: {}", record.name());
+        }
     }
 
-    eprintln!("Loaded {} sig paths to search.", search_sigs_paths.len());
+    // Load all _paths_, not signatures, into memory.
+    let against_collection = load_collection(against_filepath, selection, ReportType::Against)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
@@ -61,9 +64,9 @@ pub fn manysearch<P: AsRef<Path>>(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let send = search_sigs_paths
+    let send = against_collection
         .par_iter()
-        .filter_map(|filename| {
+        .filter_map(|(idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
                 eprintln!("Processed {} search sigs", i);
@@ -71,60 +74,65 @@ pub fn manysearch<P: AsRef<Path>>(
 
             let mut results = vec![];
 
-            // load search signature from path:
-            match Signature::from_path(filename) {
-                Ok(search_sigs) => {
-                    let location = filename.display().to_string();
-                    if let Some(search_sm) = prepare_query(&search_sigs, &template, &location) {
-                        // search for matches & save containment.
-                        for q in queries.iter() {
-                            let overlap =
-                                q.minhash.count_common(&search_sm.minhash, false).unwrap() as f64;
-                            let query_size = q.minhash.size() as f64;
-                            let target_size = search_sm.minhash.size() as f64;
+            match against_collection.sig_for_dataset(idx) {
+                Ok(against_sig) => match against_sig.select(selection) {
+                    Ok(against_sig) => {
+                        for sketch in against_sig.iter() {
+                            if let Sketch::MinHash(against_mh) = sketch {
+                                for query_sig in query_sketchlist.iter() {
+                                    for sketch in query_sig.iter() {
+                                        if let Sketch::MinHash(query_mh) = sketch {
+                                            let overlap =
+                                                query_mh.count_common(&against_mh, false).unwrap()
+                                                    as f64;
+                                            let query_size = query_mh.size() as f64;
+                                            let target_size = against_mh.size() as f64;
 
-                            let containment_query_in_target = overlap / query_size;
-                            let containment_in_target = overlap / target_size;
-                            let max_containment =
-                                containment_query_in_target.max(containment_in_target);
-                            let jaccard = overlap / (target_size + query_size - overlap);
+                                            let containment_query_in_target = overlap / query_size;
+                                            let containment_in_target = overlap / target_size;
+                                            let max_containment = containment_query_in_target
+                                                .max(containment_in_target);
+                                            let jaccard =
+                                                overlap / (target_size + query_size - overlap);
 
-                            if containment_query_in_target > threshold {
-                                results.push(SearchResult {
-                                    query_name: q.name.clone(),
-                                    query_md5: q.md5sum.clone(),
-                                    match_name: search_sm.name.clone(),
-                                    containment: containment_query_in_target,
-                                    intersect_hashes: overlap as usize,
-                                    match_md5: Some(search_sm.md5sum.clone()),
-                                    jaccard: Some(jaccard),
-                                    max_containment: Some(max_containment),
-                                });
+                                            if containment_query_in_target > threshold {
+                                                results.push(SearchResult {
+                                                    query_name: query_sig.name(),
+                                                    query_md5: query_mh.md5sum(),
+                                                    match_name: against_sig.name(),
+                                                    containment: containment_query_in_target,
+                                                    intersect_hashes: overlap as usize,
+                                                    match_md5: Some(against_mh.md5sum()),
+                                                    jaccard: Some(jaccard),
+                                                    max_containment: Some(max_containment),
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-                    } else {
-                        // for reading zips, this is likely not a useful warning and
-                        // would show up too often (every sig is stored as individual file).
-                        if !siglist_name.ends_with(".zip") {
-                            eprintln!(
-                                "WARNING: no compatible sketches in path '{}'",
-                                filename.display()
-                            );
-                        }
+                    }
+                    Err(err) => {
+                        eprintln!("Sketch selection error: {}", err);
+                        eprintln!(
+                            "WARNING: no compatible sketches in path '{}'",
+                            record.internal_location()
+                        );
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-                    Some(results)
-                }
+                },
                 Err(err) => {
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     eprintln!("Sketch loading error: {}", err);
                     eprintln!(
-                        "WARNING: could not load sketches from path '{}'",
-                        filename.display()
+                        "WARNING: no compatible sketches in path '{}'",
+                        record.internal_location()
                     );
-                    None
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             }
+
+            Some(results)
         })
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));

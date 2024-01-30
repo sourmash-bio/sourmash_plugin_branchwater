@@ -188,8 +188,10 @@ def test_missing_querylist(runtmp, capfd, indexed, zip_query):
 
 
 @pytest.mark.parametrize('indexed', [False, True])
-def test_bad_query(runtmp, capfd, indexed):
-    # test bad querylist (a sig file)
+def test_sig_query(runtmp, capfd, indexed):
+    # sig file is now fine as a query
+    query = get_test_data('SRR606249.sig.gz')
+
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -200,19 +202,37 @@ def test_bad_query(runtmp, capfd, indexed):
 
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+        g_output = runtmp.output('out.csv')
+    else:
+        g_output = runtmp.output('SRR606249.gather.csv')
+        p_output = runtmp.output('SRR606249.prefetch.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastmultigather', sig2, against_list,
-                        '-s', '100000')
+    runtmp.sourmash('scripts', 'fastmultigather', query, against_list,
+                        '-s', '100000', '-o', g_output)
 
     captured = capfd.readouterr()
     print(captured.err)
+    if not indexed:
+        # check prefetch output (only non-indexed gather)
+        assert os.path.exists(p_output)
+        df = pandas.read_csv(p_output)
+        assert len(df) == 3
+        keys = set(df.keys())
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
-    assert 'Error: invalid line in fromfile' in captured.err
+    # check gather output (both)
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    if indexed:
+        assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+    else:
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
 @pytest.mark.parametrize('indexed', [False, True])
-def test_bad_query_2(runtmp, capfd, indexed):
+def test_bad_query(runtmp, capfd, indexed):
     # test with a bad query (a .sig.gz file renamed as zip file)
     against_list = runtmp.output('against.txt')
 
@@ -324,24 +344,37 @@ def test_missing_against(runtmp, capfd, zip_against):
     assert 'Error: No such file or directory' in captured.err
 
 
-def test_bad_against(runtmp, capfd):
-    # test bad 'against' file - in this case, use a .sig.gz file.
+def test_sig_against(runtmp, capfd):
+    # against file can be a sig now
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastmultigather', query, sig2,
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
+    runtmp.sourmash('scripts', 'fastmultigather', query, sig2,
                         '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile' in captured.err
+    # check prefetch output (only non-indexed gather)
+    assert os.path.exists(p_output)
+    df = pandas.read_csv(p_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
+    # check gather output
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
-def test_bad_against_2(runtmp, capfd):
+def test_bad_against(runtmp, capfd):
     # test bad 'against' file - in this case, one containing a nonexistent file
     query = get_test_data('SRR606249.sig.gz')
     query_list = runtmp.output('query.txt')
@@ -363,8 +396,8 @@ def test_bad_against_2(runtmp, capfd):
 
 
 @pytest.mark.parametrize('zip_query', [False, True])
-def test_bad_against_3(runtmp, capfd, zip_query):
-    # test with a bad query (a .sig.gz file renamed as zip file)
+def test_bad_against_2(runtmp, capfd, zip_query):
+    # test with a bad against (a .sig.gz file renamed as zip file)
     query = get_test_data('SRR606249.sig.gz')
     query_list = runtmp.output('query.txt')
     make_file_list(query_list, [query])
@@ -382,7 +415,7 @@ def test_bad_against_3(runtmp, capfd, zip_query):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'fastmultigather', query_list, against_zip,
-                        '-o', output)
+                        '-s', '100000', '-o', output)
 
     captured = capfd.readouterr()
     print(captured.err)

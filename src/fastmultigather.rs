@@ -3,6 +3,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 
 use serde::Serialize;
+use sourmash::prelude::Select;
 use sourmash::selection::Selection;
 use sourmash::sketch::Sketch;
 use sourmash::storage::SigStore;
@@ -16,8 +17,7 @@ use std::collections::BinaryHeap;
 use camino::{Utf8Path, Utf8PathBuf};
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_sigpaths_from_zip_or_pathlist,
-    load_sketches_from_zip_or_pathlist, prepare_query, write_prefetch, PrefetchResult, ReportType,
+    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
 };
 
 pub fn fastmultigather(
@@ -50,7 +50,11 @@ pub fn fastmultigather(
     let mut sketchlist: Vec<SigStore> = vec![];
 
     for (idx, record) in against_collection.iter() {
-        if let Ok(sig) = against_collection.sig_for_dataset(idx) {
+        if let Ok(sig) = against_collection.sig_for_dataset(idx)
+        // .unwrap()
+        // .select(&selection) // if we select here, we downsample and the md5sum changes!
+        // ...which means we would lose the original md5sum that is used in the standard gather results.
+        {
             sketchlist.push(sig);
         } else {
             eprintln!("Failed to load 'against' record: {}", record.name());
@@ -74,13 +78,14 @@ pub fn fastmultigather(
                     // Access query MinHash
                     if let Sketch::MinHash(query) = sketch {
                         let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                            .par_iter()
+                            .iter()
                             .filter_map(|sm| {
                                 let mut mm = None;
                                 // Access against MinHash
                                 if let Some(sketch) = sm.sketches().get(0) {
                                     if let Sketch::MinHash(against_sketch) = sketch {
                                         if let Ok(overlap) =
+                                            // downsample here to just get downsampled mh and avoid changing md5sum
                                             against_sketch.count_common(&query, true)
                                         {
                                             if overlap >= threshold_hashes {

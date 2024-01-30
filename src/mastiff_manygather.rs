@@ -21,7 +21,6 @@ use std::io::{BufWriter, Write};
 
 use crate::utils::{is_revindex_database, load_collection, ReportType};
 
-
 pub fn mastiff_manygather<P: AsRef<Path>>(
     queries_file: camino::Utf8PathBuf,
     index: camino::Utf8PathBuf,
@@ -30,10 +29,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !is_revindex_database(&index) {
-        bail!(
-            "'{}' is not a valid RevIndex database",
-            index
-        );
+        bail!("'{}' is not a valid RevIndex database", index);
     }
     // Open database once
     let db = RevIndex::open(index, true)?;
@@ -77,67 +73,70 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     let failed_paths = AtomicUsize::new(0);
 
     let send = query_collection
-    .par_iter()
-    .filter_map(|(idx, record)| {
-        let threshold = threshold_bp / selection.scaled()? as usize;
+        .par_iter()
+        .filter_map(|(idx, record)| {
+            let threshold = threshold_bp / selection.scaled()? as usize;
 
-        match query_collection.sig_for_dataset(idx) {
-        // match query_collection.sig_from_record(record) { // to be added in core
-            Ok(query_sig) => {
-                let mut results = vec![];
-                let mut found_compatible_sketch = false;
-                for sketch in query_sig.iter() {
-                    if let Sketch::MinHash(query) = sketch {
-                        found_compatible_sketch = true;
-                        // Gather!
-                        let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(&query);
+            match query_collection.sig_for_dataset(idx) {
+                // match query_collection.sig_from_record(record) { // to be added in core
+                Ok(query_sig) => {
+                    let mut results = vec![];
+                    let mut found_compatible_sketch = false;
+                    for sketch in query_sig.iter() {
+                        if let Sketch::MinHash(query) = sketch {
+                            found_compatible_sketch = true;
+                            // Gather!
+                            let (counter, query_colors, hash_to_color) =
+                                db.prepare_gather_counters(&query);
 
-                        let matches = db.gather(
-                            counter,
-                            query_colors,
-                            hash_to_color,
-                            threshold,
-                            &query,
-                            Some(selection.clone()),
-                        );
-                        // extract results
-                        if let Ok(matches) = matches {
-                            for match_ in &matches {
-                                results.push((
-                                    query_sig.name().clone(),
-                                    query.md5sum().clone(),
-                                    match_.name().clone(),
-                                    match_.md5().clone(),
-                                    match_.f_match(), // f_match_query
-                                    match_.intersect_bp(),
-                                )); // intersect_bp
+                            let matches = db.gather(
+                                counter,
+                                query_colors,
+                                hash_to_color,
+                                threshold,
+                                &query,
+                                Some(selection.clone()),
+                            );
+                            // extract results
+                            if let Ok(matches) = matches {
+                                for match_ in &matches {
+                                    results.push((
+                                        query_sig.name().clone(),
+                                        query.md5sum().clone(),
+                                        match_.name().clone(),
+                                        match_.md5().clone(),
+                                        match_.f_match(), // f_match_query
+                                        match_.intersect_bp(),
+                                    )); // intersect_bp
+                                }
+                            } else {
+                                eprintln!("Error gathering matches: {:?}", matches.err());
                             }
-                        } else {
-                            eprintln!("Error gathering matches: {:?}", matches.err());
                         }
                     }
-                }
-                if !found_compatible_sketch {
-                    eprintln!("WARNING: no compatible sketches in path '{}'", query_sig.filename());
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                }
+                    if !found_compatible_sketch {
+                        eprintln!(
+                            "WARNING: no compatible sketches in path '{}'",
+                            query_sig.filename()
+                        );
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    }
 
-                if results.is_empty() {
+                    if results.is_empty() {
+                        None
+                    } else {
+                        Some(results)
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error loading sketch: {}", err);
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     None
-                } else {
-                    Some(results)
                 }
             }
-            Err(err) => {
-                eprintln!("Error loading sketch: {}", err);
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                None
-            }
-        }
-    })
-    .flatten()
-    .try_for_each_with(send, |s, m| s.send(m));
+        })
+        .flatten()
+        .try_for_each_with(send, |s, m| s.send(m));
 
     // do some cleanup and error handling -
     if let Err(e) = send {

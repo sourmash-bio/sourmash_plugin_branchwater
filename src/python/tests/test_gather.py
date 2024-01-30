@@ -120,7 +120,8 @@ def test_missing_query(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
+
 
 @pytest.mark.parametrize('zip_against', [False, True])
 def test_bad_query(runtmp, capfd, zip_against):
@@ -132,9 +133,9 @@ def test_bad_query(runtmp, capfd, zip_against):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    # since 'query' needs to be a sig, this breaks it.
-    make_file_list(query, [sig2])
-
+    # query doesn't need to be a sig anymore - sig, zip, or pathlist welcome
+    # as long as there's only one sketch that matches params
+    make_file_list(query, [sig2,sig47]) # [sig2]
     make_file_list(against_list, [sig2, sig47, sig63])
 
     if zip_against:
@@ -151,7 +152,7 @@ def test_bad_query(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: expected value at line 1' in captured.err
+    assert 'Error: Fastgather requires a single query sketch. Check input:' in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
@@ -179,7 +180,7 @@ def test_missing_against(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
 def test_bad_against(runtmp, capfd):
@@ -199,7 +200,7 @@ def test_bad_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert 'Error: invalid line in fromfile' in captured.err
 
 
 def test_bad_against_2(runtmp, capfd):
