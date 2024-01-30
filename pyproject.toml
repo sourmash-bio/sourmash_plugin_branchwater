@@ -33,7 +33,7 @@ pairwise = "sourmash_plugin_branchwater:Branchwater_Pairwise"
 
 [project.optional-dependencies]
 test = [
-  "pytest>=6.2.4,<7.5.0",
+  "pytest>=6.2.4,<8.1.0",
   "pytest-cov>=2.12,<5.0",
   "pytest-xdist",
   "pandas",
