@@ -150,8 +150,6 @@ def test_bad_query(runtmp, capfd):
     assert "WARNING: 1 query paths failed to load. See error messages above." in captured.err
 
 
-
-
 def test_bad_query_2(runtmp, capfd):
     # test with a bad query (a .sig.gz file renamed as zip file)
 

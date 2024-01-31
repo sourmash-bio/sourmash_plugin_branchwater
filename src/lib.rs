@@ -5,8 +5,8 @@ use pyo3::prelude::*;
 extern crate simple_error;
 
 mod utils;
+use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
-use crate::utils::{build_selection, build_template};
 mod check;
 mod fastgather;
 mod fastmultigather;
@@ -212,8 +212,6 @@ fn do_multisearch(
     let queryfile_path: camino::Utf8PathBuf = querylist_path.into();
     let againstfile_path: camino::Utf8PathBuf = siglist_path.into();
     let selection = build_selection(ksize, scaled, &moltype);
-    // let selection = build_selection(ksize, scaled, &moltype);
-    let template = build_template(ksize, scaled, &moltype);
     match multisearch::multisearch(
         &queryfile_path,
         &againstfile_path,
