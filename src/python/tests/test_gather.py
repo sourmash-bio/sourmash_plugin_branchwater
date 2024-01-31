@@ -310,13 +310,15 @@ def test_against_multisigfile(runtmp, zip_against):
     df = pandas.read_csv(g_output)
     if zip_against:
         assert len(df) == 3
+        print(df)
     else:
+        print(df)
         assert len(df) == 1
     # @CTB this is a bug :(. It should load multiple sketches properly!
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
-def test_query_multisigfile(runtmp, zip_against):
+def test_query_multisigfile(runtmp, capfd, zip_against):
     # test with a sigfile that contains multiple sketches
     against_list = runtmp.output('against.txt')
 
@@ -335,12 +337,14 @@ def test_query_multisigfile(runtmp, zip_against):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
-    runtmp.sourmash('scripts', 'fastgather', combined, against_list,
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', combined, against_list,
                     '-o', g_output, '--output-prefetch', p_output,
                     '-s', '100000')
-    # @CTB this should fail, not succeed :(.
-    df = pandas.read_csv(g_output)
-    assert len(df) == 1
+    # this fails now :)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Error: Fastgather requires a single query sketch. Check input:" in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
@@ -555,7 +559,7 @@ def test_simple_protein(runtmp):
     # test basic protein execution
     sigs = get_test_data('protein.zip')
 
-    query = runtmp.output('query.sig')
+    query = runtmp.output('query.zip')
     against = runtmp.output('against.zip')
     # extract query from zip file
     runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
@@ -582,7 +586,7 @@ def test_simple_dayhoff(runtmp):
     # test basic protein execution
     sigs = get_test_data('dayhoff.zip')
 
-    query = runtmp.output('query.sig')
+    query = runtmp.output('query.zip')
     against = runtmp.output('against.zip')
     # extract query from zip file
     runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
@@ -609,7 +613,7 @@ def test_simple_hp(runtmp):
     # test basic protein execution
     sigs = get_test_data('hp.zip')
 
-    query = runtmp.output('query.sig')
+    query = runtmp.output('query.zip')
     against = runtmp.output('against.zip')
     # extract query from zip file
     runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)

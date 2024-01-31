@@ -327,7 +327,7 @@ def test_bad_query_3(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert 'InvalidArchive' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])

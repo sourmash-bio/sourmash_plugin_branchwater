@@ -245,102 +245,6 @@ pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) -> Res
     Ok(sketchlist_filenames)
 }
 
-/// Loads signature file paths from a ZIP archive.
-///
-/// This function extracts the contents of a ZIP archive containing
-/// signature files (with extensions ".sig" or ".sig.gz") to a temporary directory.
-/// It returns the paths of these extracted signature files.
-///
-/// # Arguments
-///
-/// * `zip_path` - The path to the ZIP archive.
-///
-/// # Returns
-///
-/// Returns a tuple containing:
-/// * A vector of `PathBuf` representing the paths to the extracted signature files.
-/// * The `TempDir` representing the temporary directory where the files were extracted.
-///   Since tempfile::TempDir creates a temporary directory that is automatically
-///   deleted once the TempDir value goes out of scope, we return it here to move it
-///   to the main function scope.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// * Unable to create a temporary directory.
-/// * Unable to open or read the ZIP archive.
-/// * Any other IO or file related error.
-pub fn load_sigpaths_from_zip<P: AsRef<Path>>(
-    zip_path: P,
-    template: &Sketch,
-    report_type: ReportType,
-) -> Result<(Vec<PathBuf>, tempfile::TempDir)> {
-    let mut signature_paths = Vec::new();
-    let temp_dir = tempdir()?;
-    let zip_file = File::open(&zip_path)?;
-    let mut zip_archive = ZipArchive::new(zip_file)?;
-
-    let mut skipped_paths = 0;
-    for i in 0..zip_archive.len() {
-        let mut file = zip_archive.by_index(i)?;
-        // make string copy to avoid file borrowing issues
-        let file_name_str = file.name().to_string();
-        let file_name = Path::new(&file_name_str)
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap();
-        // use contains to account for sig.gz_0 bug in sourmash
-        if file_name.contains(".sig") || file_name.contains(".sig.gz") {
-            // read file
-            let mut contents = Vec::new();
-            file.read_to_end(&mut contents)?;
-            // get sig from file
-            let sigs = Signature::from_reader(&contents[..])?;
-            if sigs.len() > 1 {
-                return Err(anyhow::anyhow!(
-                    "File '{}' has more than one signature.",
-                    file_name
-                ));
-            }
-            let sig = &sigs[0]; // Directly take the first (only) signature
-                                // check for compatible sketch
-            let is_compatible = if let Some(Sketch::MinHash(_)) = sig.select_sketch(template) {
-                true
-            } else if let Sketch::MinHash(template_mh) = template {
-                sig.sketches().iter().any(|sketch| {
-                    matches!(sketch, Sketch::MinHash(ref_mh) if check_compatible_downsample(&ref_mh, template_mh).is_ok())
-                })
-            } else {
-                false
-            };
-
-            if is_compatible {
-                let path = temp_dir.path().join(file_name);
-                // write contents to new file
-                let mut new_file = File::create(&path)?;
-                new_file.write_all(&contents)?;
-                // add filepath to signature paths
-                signature_paths.push(path);
-            } else {
-                skipped_paths += 1;
-            }
-        }
-    }
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} {} paths - no compatible signatures.",
-            skipped_paths, report_type
-        );
-    }
-    eprintln!(
-        "loaded paths for {} signature files from zipfile {}",
-        signature_paths.len(),
-        zip_path.as_ref().display()
-    );
-    Ok((signature_paths, temp_dir))
-}
-
 pub fn load_fasta_fromfile<P: AsRef<Path>>(
     sketchlist_filename: &P,
 ) -> Result<Vec<(String, PathBuf, String)>> {
@@ -467,22 +371,22 @@ pub fn load_sketches_above_threshold(
 
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
-        .filter_map(|(idx, against_record)| {
-            let mut mm = None;
+        .filter_map(|(_idx, against_record)| {
+            let mut results = Vec::new();
             // Load against into memory
-            if let Ok(against_sig) = against_collection.sig_for_dataset(idx) {
-                if let Some(sketch) = against_sig.sketches().get(0) {
+            if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
+                for sketch in against_sig.sketches() {
                     if let Sketch::MinHash(against_mh) = sketch {
                         // currently downsampling here to avoid changing md5sum
                         if let Ok(overlap) = against_mh.count_common(query, true) {
                             if overlap >= threshold_hashes {
                                 let result = PrefetchResult {
-                                    name: against_sig.name().to_string(),
-                                    md5sum: against_mh.md5sum().to_string(),
+                                    name: against_record.name().to_string(),
+                                    md5sum: against_mh.md5sum(),
                                     minhash: against_mh.clone(),
                                     overlap,
                                 };
-                                mm = Some(result);
+                                results.push(result);
                             }
                         }
                     } else {
@@ -492,12 +396,6 @@ pub fn load_sketches_above_threshold(
                         );
                         let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-                } else {
-                    eprintln!(
-                        "WARNING: no compatible sketches in path '{}'",
-                        against_sig.filename()
-                    );
-                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
                 // this shouldn't happen here anymore -- likely would happen at load_collection
@@ -507,8 +405,13 @@ pub fn load_sketches_above_threshold(
                 );
                 let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
             }
-            mm
+            if results.is_empty() {
+                None
+            } else {
+                Some(results)
+            }
         })
+        .flatten()
         .collect();
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
@@ -578,50 +481,6 @@ pub fn load_sketches_from_zip<P: AsRef<Path>>(
     drop(zip_archive);
     println!("loaded {} signatures", sketchlist.len());
     Ok((sketchlist, skipped_paths, failed_paths))
-}
-
-/// Control function to read signature FILE PATHS from an input file.
-/// If a ZIP archive is provided (detected via extension),
-/// use `load_sigpaths_from_zip`. Otherwise, assume the
-/// user provided a `fromfile` sketchlist and use
-/// `load_sketchlist_filenames`.
-///
-/// # Arguments
-///
-/// * `sketchlist_path` - Path to either a ZIP archive or a list of signature file paths.
-///
-/// # Returns
-///
-/// Returns a tuple containing:
-/// * A vector of `PathBuf` representing the signature file paths.
-/// * If extracting from a zipfile, signature files will be extracted to a
-///  `TempDir` temporary directory where they can be used individually.
-pub fn load_sigpaths_from_zip_or_pathlist<P: AsRef<Path>>(
-    sketchlist_path: P,
-    template: &Sketch,
-    report_type: ReportType,
-) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
-    eprintln!(
-        "Reading list of filepaths from: '{}'",
-        sketchlist_path.as_ref().display()
-    );
-
-    let result = if sketchlist_path
-        .as_ref()
-        .extension()
-        .map(|ext| ext == "zip")
-        .unwrap_or(false)
-    {
-        let (paths, tempdir) = load_sigpaths_from_zip(&sketchlist_path, template, report_type)?;
-        (paths, Some(tempdir))
-    } else {
-        let paths = load_sketchlist_filenames(&sketchlist_path)?;
-        (paths, None)
-    };
-
-    eprintln!("Found {} filepaths", result.0.len());
-    // should we bail here if empty?
-    Ok(result)
 }
 
 pub enum ReportType {
@@ -755,20 +614,8 @@ pub fn load_collection(
     };
 
     let n_total = collection.len();
-    eprintln!("n_total: {}", n_total);
-    // collection = collection.select(selection)?;
     let selected = collection.select(selection)?;
-
-    if selected.len() == 1 {
-        let sig = selected.sig_for_dataset(0).unwrap();
-        eprintln!("sig name: {:?}", sig.name());
-        let mh = sig.minhash().unwrap();
-        eprintln!("scaled= {:?}", mh.scaled())
-    }
-
-    eprintln!("selection_len: {}", selected.len());
     let n_skipped = n_total - selected.len();
-    // let n_skipped = n_total - collection.len();
     report_on_collection_loading(&selected, n_skipped, n_failed, report_type)?;
     Ok(selected)
 }
@@ -799,27 +646,6 @@ pub fn report_on_collection_loading(
     eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);
     Ok(())
 }
-
-// pub fn load_single_sketch_from_sig<'a>(sig: &'a SigStore, selection: &'a Selection) -> Result<&'a KmerMinHash> {
-//     let sketch = sig.sketches().get(0).ok_or_else(|| {
-//         anyhow::anyhow!("No sketch found with scaled={}, k={}", selection.scaled().unwrap_or_default(), selection.ksize().unwrap_or_default())
-//     })?;
-
-//     if let Sketch::MinHash(mh) = sketch {
-//         Ok(mh)
-//     } else {
-//         Err(anyhow::anyhow!("No sketch found with scaled={}, k={}", selection.scaled().unwrap_or_default(), selection.ksize().unwrap_or_default()))
-//     }
-// }
-
-// pub fn load_single_sig_and_sketch<'a>(
-//     query_collection: &'a Collection,
-//     selection: &'a Selection,
-// ) -> Result<(SigStore, &'a KmerMinHash)> {
-//     let sig = load_single_sig_from_collection(query_collection, selection)?;
-//     let sketch = load_single_sketch_from_sig(&sig, selection)?;
-//     Ok((sig, sketch))
-// }
 
 /// Uses the output of sketch loading functions to report the
 /// total number of sketches loaded, as well as the number of files,
@@ -988,20 +814,19 @@ pub fn build_template(ksize: u8, scaled: usize, moltype: &str) -> Sketch {
 }
 
 pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
-    // let hash_function = match moltype {
-    //     "dna" => HashFunctions::Murmur64Dna,
-    //     "protein" => HashFunctions::Murmur64Protein,
-    //     "dayhoff" => HashFunctions::Murmur64Dayhoff,
-    //     "hp" => HashFunctions::Murmur64Hp,
-    //     _ => panic!("Unknown molecule type: {}", moltype),
-    // };
-    let hash_function = HashFunctions::try_from(moltype)
-        .map_err(|_| panic!("Unknown molecule type: {}", moltype))
-        .unwrap();
-    let adjusted_ksize = if moltype == "dna" { ksize } else { ksize * 3 };
+    let hash_function = match moltype {
+        "dna" => HashFunctions::Murmur64Dna,
+        "protein" => HashFunctions::Murmur64Protein,
+        "dayhoff" => HashFunctions::Murmur64Dayhoff,
+        "hp" => HashFunctions::Murmur64Hp,
+        _ => panic!("Unknown molecule type: {}", moltype),
+    };
+    // let hash_function = HashFunctions::try_from(moltype)
+    //     .map_err(|_| panic!("Unknown molecule type: {}", moltype))
+    //     .unwrap();
 
     Selection::builder()
-        .ksize(adjusted_ksize.into())
+        .ksize(ksize.into())
         .scaled(scaled as u32)
         .moltype(hash_function)
         .build()

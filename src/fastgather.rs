@@ -1,13 +1,8 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
 
-use serde::Serialize;
 use sourmash::selection::Selection;
-use sourmash::signature::Signature;
-use sourmash::sketch::Sketch;
 // use camino;
-use crate::utils::PrefetchResult;
-use std::collections::BinaryHeap;
 
 use sourmash::prelude::Select;
 use sourmash::signature::SigsTrait;
@@ -45,17 +40,8 @@ pub fn fastgather(
             bail!("No query sketch matching selection parameters.");
         }
     };
-    // some debugging prints
-    // eprintln!("selection scaled: {:?}", selection.scaled());
-    // eprintln!("selection ksize: {:?}", selection.ksize());
-    // eprintln!("query ksize: {:?}", query_mh.ksize());
-    // eprintln!("selection moltype: {:?}", selection.moltype());
-    // eprintln!("query moltype: {:?}", query_sig.hash_function());
-
     // build the list of paths to match against.
-    eprintln!("Loading matchlist from '{}'", against_filepath);
     let against_collection = load_collection(against_filepath, selection, ReportType::Against)?;
-    eprintln!("Loaded {} sig paths in matchlist", against_collection.len());
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes: u64 = {

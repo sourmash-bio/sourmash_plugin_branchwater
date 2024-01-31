@@ -1,6 +1,5 @@
 /// Python interface Rust code for sourmash_plugin_branchwater.
 use pyo3::prelude::*;
-use sourmash::selection;
 
 #[macro_use]
 extern crate simple_error;
@@ -18,8 +17,6 @@ mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
-use sourmash::encodings::HashFunctions;
-use sourmash::selection::Selection;
 
 use camino::Utf8PathBuf;
 
@@ -212,13 +209,16 @@ fn do_multisearch(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    let queryfile_path: camino::Utf8PathBuf = querylist_path.into();
+    let againstfile_path: camino::Utf8PathBuf = siglist_path.into();
+    let selection = build_selection(ksize, scaled, &moltype);
     // let selection = build_selection(ksize, scaled, &moltype);
     let template = build_template(ksize, scaled, &moltype);
     match multisearch::multisearch(
-        querylist_path,
-        siglist_path,
+        &queryfile_path,
+        &againstfile_path,
         threshold,
-        template,
+        &selection,
         output_path,
     ) {
         Ok(_) => Ok(0),
