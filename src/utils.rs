@@ -473,7 +473,8 @@ pub fn load_sketches_above_threshold(
             if let Ok(against_sig) = against_collection.sig_for_dataset(idx) {
                 if let Some(sketch) = against_sig.sketches().get(0) {
                     if let Sketch::MinHash(against_mh) = sketch {
-                        if let Ok(overlap) = against_mh.count_common(query, false) {
+                        // currently downsampling here to avoid changing md5sum
+                        if let Ok(overlap) = against_mh.count_common(query, true) {
                             if overlap >= threshold_hashes {
                                 let result = PrefetchResult {
                                     name: against_sig.name().to_string(),
@@ -987,16 +988,20 @@ pub fn build_template(ksize: u8, scaled: usize, moltype: &str) -> Sketch {
 }
 
 pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
-    let hash_function = match moltype {
-        "dna" => HashFunctions::Murmur64Dna,
-        "protein" => HashFunctions::Murmur64Protein,
-        "dayhoff" => HashFunctions::Murmur64Dayhoff,
-        "hp" => HashFunctions::Murmur64Hp,
-        _ => panic!("Unknown molecule type: {}", moltype),
-    };
+    // let hash_function = match moltype {
+    //     "dna" => HashFunctions::Murmur64Dna,
+    //     "protein" => HashFunctions::Murmur64Protein,
+    //     "dayhoff" => HashFunctions::Murmur64Dayhoff,
+    //     "hp" => HashFunctions::Murmur64Hp,
+    //     _ => panic!("Unknown molecule type: {}", moltype),
+    // };
+    let hash_function = HashFunctions::try_from(moltype)
+        .map_err(|_| panic!("Unknown molecule type: {}", moltype))
+        .unwrap();
+    let adjusted_ksize = if moltype == "dna" { ksize } else { ksize * 3 };
 
     Selection::builder()
-        .ksize(ksize.into())
+        .ksize(adjusted_ksize.into())
         .scaled(scaled as u32)
         .moltype(hash_function)
         .build()

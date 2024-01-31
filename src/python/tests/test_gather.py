@@ -183,8 +183,8 @@ def test_missing_against(runtmp, capfd, zip_against):
     assert 'Error: No such file or directory' in captured.err
 
 
-def test_bad_against(runtmp, capfd):
-    # test bad 'against' file - in this case, use a .sig.gz file.
+def test_sig_against(runtmp, capfd):
+    # sig file is ok as against file now 
     query = get_test_data('SRR606249.sig.gz')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -192,18 +192,23 @@ def test_bad_against(runtmp, capfd):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastgather', query, sig2,
+    runtmp.sourmash('scripts', 'fastgather', query, sig2,
                         '-o', g_output, '--output-prefetch', p_output,
                         '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile' in captured.err
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
-def test_bad_against_2(runtmp, capfd):
+
+def test_bad_against(runtmp, capfd):
     # test bad 'against' file - in this case, one containing a bad filename.
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -226,7 +231,7 @@ def test_bad_against_2(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-def test_bad_against_3(runtmp, capfd):
+def test_bad_against_2(runtmp, capfd):
     # test bad 'against' file - in this case, one containing an empty file
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -254,7 +259,7 @@ def test_bad_against_3(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-def test_bad_against_4(runtmp, capfd):
+def test_bad_against_3(runtmp, capfd):
     # test with a bad against (a .sig.gz file renamed as zip file)
     query = get_test_data('SRR606249.sig.gz')
 
@@ -276,7 +281,7 @@ def test_bad_against_4(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert 'InvalidArchive' in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])

@@ -10,6 +10,7 @@ use crate::utils::PrefetchResult;
 use std::collections::BinaryHeap;
 
 use sourmash::prelude::Select;
+use sourmash::signature::SigsTrait;
 
 use crate::utils::{
     consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
@@ -27,31 +28,6 @@ pub fn fastgather(
     prefetch_output: Option<String>,
 ) -> Result<()> {
     let query_collection = load_collection(query_filepath, selection, ReportType::Query)?;
-    let mut query_sig = None;
-    let mut query_mh = None;
-
-    for (idx, record) in query_collection.iter() {
-        if let Ok(sig) = query_collection
-            .sig_for_dataset(idx)
-            .unwrap()
-            .select(&selection)
-        {
-            query_sig = Some(sig.clone());
-
-            for sketch in sig.iter() {
-                // Access query MinHash
-                if let Sketch::MinHash(mh) = sketch {
-                    query_mh = Some(mh.clone());
-                    // eprintln!("mh mins: {:?}", mh.mins());
-                }
-            }
-        } else {
-            eprintln!("Failed to load 'query sig: {}", record.name());
-        }
-    }
-    if query_mh.is_none() {
-        bail!("No query sketch matching selection parameters.");
-    }
 
     if query_collection.len() != 1 {
         bail!(
@@ -59,6 +35,22 @@ pub fn fastgather(
             &query_filepath
         )
     }
+    // get single query sig and minhash
+    let query_sig = query_collection.sig_for_dataset(0)?; // need original md5sum, etc
+                                                          // downsample
+    let query_sig_ds = query_sig.clone().select(selection)?;
+    let query_mh = match query_sig_ds.minhash() {
+        Some(query_mh) => query_mh,
+        None => {
+            bail!("No query sketch matching selection parameters.");
+        }
+    };
+    // some debugging prints
+    // eprintln!("selection scaled: {:?}", selection.scaled());
+    // eprintln!("selection ksize: {:?}", selection.ksize());
+    // eprintln!("query ksize: {:?}", query_mh.ksize());
+    // eprintln!("selection moltype: {:?}", selection.moltype());
+    // eprintln!("query moltype: {:?}", query_sig.hash_function());
 
     // build the list of paths to match against.
     eprintln!("Loading matchlist from '{}'", against_filepath);
@@ -82,12 +74,8 @@ pub fn fastgather(
     );
 
     // load a set of sketches, filtering for those with overlaps > threshold
-    let result = load_sketches_above_threshold(
-        against_collection,
-        &selection,
-        &query_mh.unwrap(),
-        threshold_hashes,
-    )?;
+    let result =
+        load_sketches_above_threshold(against_collection, &selection, &query_mh, threshold_hashes)?;
     let matchlist = result.0;
     let skipped_paths = result.1;
     let failed_paths = result.2;
@@ -110,12 +98,12 @@ pub fn fastgather(
     }
 
     if prefetch_output.is_some() {
-        write_prefetch(query_sig.as_ref().unwrap(), prefetch_output, &matchlist).ok();
+        write_prefetch(&query_sig, prefetch_output, &matchlist).ok();
     }
 
     // run the gather!
     consume_query_by_gather(
-        query_sig.clone().unwrap(),
+        query_sig.clone(),
         matchlist,
         threshold_hashes,
         gather_output,
