@@ -1,6 +1,7 @@
 use anyhow::Result;
 /// pairwise: massively parallel in-memory pairwise comparisons.
 use rayon::prelude::*;
+use sourmash::sketch::minhash::KmerMinHash;
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -12,20 +13,41 @@ use std::sync::atomic::AtomicUsize;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::Sketch;
 
-use crate::utils::{load_sketches_from_zip_or_pathlist, ReportType};
+use crate::utils::{load_collection, ReportType};
+use sourmash::prelude::Select;
+use sourmash::selection::Selection;
+use sourmash::storage::SigStore;
 
 /// Perform pairwise comparisons of all signatures in a list.
 ///
 /// Note: this function loads all _signatures_ into memory.
 
 pub fn pairwise<P: AsRef<Path>>(
-    siglist: P,
+    sigpath: &camino::Utf8PathBuf,
     threshold: f64,
-    template: Sketch,
+    selection: &Selection,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
-    let sigs = load_sketches_from_zip_or_pathlist(&siglist, &template, ReportType::Query)?;
+    let collection = load_collection(sigpath, selection, ReportType::Query)?;
+
+    if collection.len() <= 1 {
+        bail!(
+            "Pairwise requires two or more sketches. Check input: '{:?}'",
+            &sigpath
+        )
+    }
+
+    let mut sketches: Vec<(KmerMinHash, String, String)> = Vec::new();
+    for (_idx, record) in collection.iter() {
+        if let Ok(sig) = collection.sig_from_record(record) {
+            if let Some(ds_mh) = sig.clone().select(&selection)?.minhash().cloned() {
+                sketches.push((ds_mh, record.name().to_string(), record.md5().to_string()));
+            }
+        } else {
+            eprintln!("Failed to load record: {}", record.name());
+        }
+    }
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -54,37 +76,40 @@ pub fn pairwise<P: AsRef<Path>>(
 
     let processed_cmp = AtomicUsize::new(0);
 
-    sigs.par_iter().enumerate().for_each(|(i, q1)| {
-        for q2 in &sigs[(i + 1)..] {
-            let overlap = q1.minhash.count_common(&q2.minhash, false).unwrap() as f64;
-            let query1_size = q1.minhash.size() as f64;
-            let query2_size = q2.minhash.size() as f64;
+    sketches
+        .par_iter()
+        .enumerate()
+        .for_each(|(idx, (q1, q1_name, q1_md5))| {
+            for (j, (q2, q2_name, q2_md5)) in sketches.iter().enumerate().skip(idx + 1) {
+                let overlap = q1.count_common(q2, false).unwrap() as f64;
+                let query1_size = q1.size() as f64;
+                let query2_size = q2.size() as f64;
 
-            let containment_q1_in_q2 = overlap / query1_size;
-            let containment_q2_in_q1 = overlap / query2_size;
-            let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
-            let jaccard = overlap / (query1_size + query2_size - overlap);
+                let containment_q1_in_q2 = overlap / query1_size;
+                let containment_q2_in_q1 = overlap / query2_size;
+                let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
+                let jaccard = overlap / (query1_size + query2_size - overlap);
 
-            if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
-                send.send((
-                    q1.name.clone(),
-                    q1.md5sum.clone(),
-                    q2.name.clone(),
-                    q2.md5sum.clone(),
-                    containment_q1_in_q2,
-                    max_containment,
-                    jaccard,
-                    overlap,
-                ))
-                .unwrap();
+                if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
+                    send.send((
+                        q1_name.clone(),
+                        q1_md5.clone(),
+                        q2_name.clone(),
+                        q2_md5.clone(),
+                        containment_q1_in_q2,
+                        max_containment,
+                        jaccard,
+                        overlap,
+                    ))
+                    .unwrap();
+                }
+
+                let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
+                if i % 100000 == 0 {
+                    eprintln!("Processed {} comparisons", i);
+                }
             }
-
-            let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
-            if i % 100000 == 0 {
-                eprintln!("Processed {} comparisons", i);
-            }
-        }
-    });
+        });
 
     // do some cleanup and error handling -
     drop(send); // close the channel

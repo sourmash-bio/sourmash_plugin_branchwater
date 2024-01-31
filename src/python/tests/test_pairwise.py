@@ -115,15 +115,9 @@ def test_simple_threshold(runtmp, zip_query):
 
 
 
-def test_bad_query(runtmp, capfd):
-    # test with a bad query (a .sig.gz file)
-    against_list = runtmp.output('against.txt')
-
+def test_sig_query(runtmp, capfd):
+    # sig query is ok now, but fails bc only one sig
     sig2 = get_test_data('2.fa.sig.gz')
-    sig47 = get_test_data('47.fa.sig.gz')
-    sig63 = get_test_data('63.fa.sig.gz')
-
-    make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
 
@@ -133,18 +127,16 @@ def test_bad_query(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
+    assert "Error: Pairwise requires two or more sketches. Check input" in captured.err
 
-    assert 'Error: invalid line in fromfile ' in captured.err
 
-
-def test_bad_query_2(runtmp, capfd):
+def test_bad_query(runtmp, capfd):
     # test with a bad query list (a missing file)
     query_list = runtmp.output('query.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
-    sig63 = get_test_data('63.fa.sig.gz')
-    make_file_list(query_list, [sig2, "no-exist"])
+    make_file_list(query_list, [sig2, sig47, "no-exist"])
 
     output = runtmp.output('out.csv')
 
@@ -160,7 +152,7 @@ def test_bad_query_2(runtmp, capfd):
 
 
 
-def test_bad_query_3(runtmp, capfd):
+def test_bad_query_2(runtmp, capfd):
     # test with a bad query (a .sig.gz file renamed as zip file)
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -182,7 +174,7 @@ def test_bad_query_3(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert 'InvalidArchive' in captured.err
 
 
 @pytest.mark.parametrize("zip_db", [False, True])
@@ -203,7 +195,7 @@ def test_missing_query(runtmp, capfd, zip_db):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
 

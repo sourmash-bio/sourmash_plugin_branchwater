@@ -238,8 +238,9 @@ fn do_pairwise(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let template = build_template(ksize, scaled, &moltype);
-    match pairwise::pairwise(siglist_path, threshold, template, output_path) {
+    let queryfile_path: camino::Utf8PathBuf = siglist_path.into();
+    let selection = build_selection(ksize, scaled, &moltype);
+    match pairwise::pairwise(&queryfile_path, threshold, &selection, output_path) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
