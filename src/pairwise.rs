@@ -1,7 +1,6 @@
 use anyhow::Result;
 /// pairwise: massively parallel in-memory pairwise comparisons.
 use rayon::prelude::*;
-use sourmash::sketch::minhash::KmerMinHash;
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -11,12 +10,9 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use sourmash::signature::SigsTrait;
-use sourmash::sketch::Sketch;
 
-use crate::utils::{load_collection, ReportType};
-use sourmash::prelude::Select;
+use crate::utils::{load_collection, load_mh_with_name_and_md5, ReportType};
 use sourmash::selection::Selection;
-use sourmash::storage::SigStore;
 
 /// Perform pairwise comparisons of all signatures in a list.
 ///
@@ -29,7 +25,7 @@ pub fn pairwise<P: AsRef<Path>>(
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
-    let collection = load_collection(sigpath, selection, ReportType::Query)?;
+    let collection = load_collection(sigpath, selection, ReportType::Pairwise)?;
 
     if collection.len() <= 1 {
         bail!(
@@ -37,17 +33,7 @@ pub fn pairwise<P: AsRef<Path>>(
             &sigpath
         )
     }
-
-    let mut sketches: Vec<(KmerMinHash, String, String)> = Vec::new();
-    for (_idx, record) in collection.iter() {
-        if let Ok(sig) = collection.sig_from_record(record) {
-            if let Some(ds_mh) = sig.clone().select(&selection)?.minhash().cloned() {
-                sketches.push((ds_mh, record.name().to_string(), record.md5().to_string()));
-            }
-        } else {
-            eprintln!("Failed to load record: {}", record.name());
-        }
-    }
+    let sketches = load_mh_with_name_and_md5(collection, &selection, ReportType::Pairwise).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());

@@ -5,7 +5,6 @@ use sourmash::selection::Selection;
 // use camino;
 
 use sourmash::prelude::Select;
-use sourmash::signature::SigsTrait;
 
 use crate::utils::{
     consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,

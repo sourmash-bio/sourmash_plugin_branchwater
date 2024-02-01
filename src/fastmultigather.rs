@@ -2,19 +2,16 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use serde::Serialize;
-use sourmash::prelude::Select;
 use sourmash::selection::Selection;
 use sourmash::sketch::Sketch;
 use sourmash::storage::SigStore;
-use sourmash::{selection, signature::Signature};
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 
 use crate::utils::{
     consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,

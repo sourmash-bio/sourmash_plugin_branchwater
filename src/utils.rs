@@ -5,39 +5,25 @@ use sourmash::manifest::Manifest;
 use sourmash::selection::Select;
 
 use std::fs::{create_dir_all, File};
-use std::io::Read;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
 use std::path::{Path, PathBuf};
-
-use tempfile::tempdir;
-use zip::read::ZipArchive;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use std::cmp::{Ordering, PartialOrd};
 
-use sourmash::collection::{self, Collection};
-use sourmash::errors::SourmashError;
+use sourmash::collection::Collection;
 use sourmash::manifest::Record;
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
-use sourmash::sketch::minhash::{max_hash_for_scaled, KmerMinHash};
+use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
-
-/// Track a name/minhash.
-
-pub struct SmallSignature {
-    pub location: String,
-    pub name: String,
-    pub md5sum: String,
-    pub minhash: KmerMinHash,
-}
 
 /// Structure to hold overlap information from comparisons.
 
@@ -67,86 +53,6 @@ impl PartialEq for PrefetchResult {
 }
 
 impl Eq for PrefetchResult {}
-
-/// check to see if two KmerMinHash are compatible.
-///
-/// CTB note: despite the name, downsampling is not performed?
-/// Although it checks if they are compatible in one direction...
-
-pub fn check_compatible_downsample(
-    me: &KmerMinHash,
-    other: &KmerMinHash,
-) -> Result<(), sourmash::Error> {
-    /* // ignore num minhashes.
-    if self.num != other.num {
-        return Err(Error::MismatchNum {
-            n1: self.num,
-            n2: other.num,
-        }
-        .into());
-    }
-    */
-    use sourmash::Error;
-
-    if me.ksize() != other.ksize() {
-        return Err(Error::MismatchKSizes);
-    }
-    if me.hash_function() != other.hash_function() {
-        // TODO: fix this error
-        return Err(Error::MismatchDNAProt);
-    }
-    if me.max_hash() < other.max_hash() {
-        return Err(Error::MismatchScaled);
-    }
-    if me.seed() != other.seed() {
-        return Err(Error::MismatchSeed);
-    }
-    Ok(())
-}
-
-/// Given a vec of search Signatures, each containing one or more sketches,
-/// and a template Sketch, return a compatible (& now downsampled)
-/// Sketch from the search Signatures..
-///
-/// CTB note: this will return the first acceptable match, I think, ignoring
-/// all others.
-
-pub fn prepare_query(
-    search_sigs: &[Signature],
-    template: &Sketch,
-    location: &str,
-) -> Option<SmallSignature> {
-    for search_sig in search_sigs.iter() {
-        // find exact match for template?
-        if let Some(Sketch::MinHash(mh)) = search_sig.select_sketch(template) {
-            return Some(SmallSignature {
-                location: location.to_string().clone(),
-                name: search_sig.name(),
-                md5sum: mh.md5sum(),
-                minhash: mh.clone(),
-            });
-        } else {
-            // no - try to find one that can be downsampled
-            if let Sketch::MinHash(template_mh) = template {
-                for sketch in search_sig.sketches() {
-                    if let Sketch::MinHash(ref_mh) = sketch {
-                        if check_compatible_downsample(&ref_mh, template_mh).is_ok() {
-                            let max_hash = max_hash_for_scaled(template_mh.scaled());
-                            let mh = ref_mh.downsample_max_hash(max_hash).unwrap();
-                            return Some(SmallSignature {
-                                location: location.to_string().clone(),
-                                name: search_sig.name(),
-                                md5sum: ref_mh.md5sum(), // original
-                                minhash: mh,             // downsampled
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
 
 /// Find sketches in 'sketchlist' that overlap with 'query' above
 /// specified threshold.
@@ -319,42 +225,26 @@ pub fn load_fasta_fromfile<P: AsRef<Path>>(
     Ok(results)
 }
 
-/// Load a collection of sketches from a file in parallel.
-pub fn load_sketches(
-    sketchlist_paths: Vec<PathBuf>,
-    template: &Sketch,
-) -> Result<(Vec<SmallSignature>, usize, usize)> {
-    let skipped_paths = AtomicUsize::new(0);
-    let failed_paths = AtomicUsize::new(0);
-
-    let sketchlist: Vec<SmallSignature> = sketchlist_paths
-        .par_iter()
-        .filter_map(|m| {
-            let filename = m.display().to_string();
-
-            match Signature::from_path(m) {
-                Ok(sigs) => {
-                    let sm = prepare_query(&sigs, template, &filename);
-                    if sm.is_none() {
-                        // track number of paths that have no matching sigs
-                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    }
-                    sm
-                }
-                Err(err) => {
-                    // failed to load from this path - print error & track.
-                    eprintln!("Sketch loading error: {}", err);
-                    eprintln!("WARNING: could not load sketches from path '{}'", filename);
-                    let _i = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    None
-                }
+pub fn load_mh_with_name_and_md5(
+    collection: Collection,
+    selection: &Selection,
+    report_type: ReportType,
+) -> Result<Vec<(KmerMinHash, String, String)>> {
+    let mut sketchinfo: Vec<(KmerMinHash, String, String)> = Vec::new();
+    for (_idx, record) in collection.iter() {
+        if let Ok(sig) = collection.sig_from_record(record) {
+            if let Some(ds_mh) = sig.clone().select(&selection)?.minhash().cloned() {
+                sketchinfo.push((ds_mh, record.name().to_string(), record.md5().to_string()));
             }
-        })
-        .collect();
-
-    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
-    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
-    Ok((sketchlist, skipped_paths, failed_paths))
+        } else {
+            bail!(
+                "Error: Failed to load {} record: {}",
+                report_type,
+                record.name()
+            );
+        }
+    }
+    Ok(sketchinfo)
 }
 
 /// Load a collection of sketches from a file, filtering to keep only
@@ -423,7 +313,7 @@ pub fn load_sketches_above_threshold(
 pub enum ReportType {
     Query,
     Against,
-    Index,
+    Pairwise,
 }
 
 impl std::fmt::Display for ReportType {
@@ -431,7 +321,7 @@ impl std::fmt::Display for ReportType {
         let description = match self {
             ReportType::Query => "query",
             ReportType::Against => "search",
-            ReportType::Index => "index",
+            ReportType::Pairwise => "signature",
         };
         write!(f, "{}", description)
     }
@@ -447,7 +337,7 @@ pub fn load_collection(
     }
 
     let mut n_failed = 0;
-    let mut collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
         match Collection::from_zipfile(&sigpath) {
             Ok(collection) => collection,
             Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
@@ -514,6 +404,28 @@ pub fn load_collection(
     Ok(selected)
 }
 
+/// Uses the output of collection loading function to report the
+/// total number of sketches loaded, as well as the number of files,
+/// if any, that failed to load or contained no compatible sketches.
+/// If no sketches were loaded, bail.
+///
+/// # Arguments
+///
+/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
+/// * `skipped_paths` - # paths that contained no compatible sketches.
+/// * `failed_paths` - # paths that failed to load.
+/// * `report_type` - ReportType Enum (Query or Against). Used to specify
+///                   which sketch input this information pertains to.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if at least one signature was successfully loaded.
+/// Returns an error if no signatures were loaded.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * No signatures were successfully loaded.
 pub fn report_on_collection_loading(
     collection: &Collection,
     skipped_paths: usize,
@@ -538,55 +450,6 @@ pub fn report_on_collection_loading(
         bail!("No {} signatures loaded, exiting.", report_type);
     }
     eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);
-    Ok(())
-}
-
-/// Uses the output of sketch loading functions to report the
-/// total number of sketches loaded, as well as the number of files,
-/// if any, that failed to load or contained no compatible sketches.
-/// If no sketches were loaded, bail.
-///
-/// # Arguments
-///
-/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
-/// * `skipped_paths` - # paths that contained no compatible sketches.
-/// * `failed_paths` - # paths that failed to load.
-/// * `report_type` - ReportType Enum (Query or Against). Used to specify
-///                   which sketch input this information pertains to.
-///
-/// # Returns
-///
-/// Returns `Ok(())` if at least one signature was successfully loaded.
-/// Returns an error if no signatures were loaded.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// * No signatures were successfully loaded.
-pub fn report_on_sketch_loading(
-    sketchlist: &[SmallSignature],
-    skipped_paths: usize,
-    failed_paths: usize,
-    report_type: ReportType,
-) -> Result<()> {
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} {} paths failed to load. See error messages above.",
-            failed_paths, report_type
-        );
-    }
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} {} paths - no compatible signatures.",
-            skipped_paths, report_type
-        );
-    }
-
-    // Validate sketches
-    eprintln!("Loaded {} {} signature(s)", sketchlist.len(), report_type);
-    if sketchlist.is_empty() {
-        bail!("No {} signatures loaded, exiting.", report_type);
-    }
     Ok(())
 }
 
@@ -685,26 +548,6 @@ pub fn consume_query_by_gather(
         last_matches = matching_sketches.len();
     }
     Ok(())
-}
-
-pub fn build_template(ksize: u8, scaled: usize, moltype: &str) -> Sketch {
-    let hash_function = match moltype {
-        "dna" => HashFunctions::Murmur64Dna,
-        "protein" => HashFunctions::Murmur64Protein,
-        "dayhoff" => HashFunctions::Murmur64Dayhoff,
-        "hp" => HashFunctions::Murmur64Hp,
-        _ => panic!("Unknown molecule type: {}", moltype),
-    };
-    //adjust ksize if not dna
-    let adjusted_ksize = if moltype == "dna" { ksize } else { ksize * 3 };
-    let max_hash = max_hash_for_scaled(scaled as u64);
-    let template_mh = KmerMinHash::builder()
-        .num(0u32)
-        .ksize(adjusted_ksize as u32)
-        .max_hash(max_hash)
-        .hash_function(hash_function)
-        .build();
-    Sketch::MinHash(template_mh)
 }
 
 pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {

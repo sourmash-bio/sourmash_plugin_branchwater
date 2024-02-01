@@ -4,18 +4,14 @@ use rayon::prelude::*;
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::path::Path;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use sourmash::prelude::Select;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
-use sourmash::sketch::Sketch;
-use sourmash::storage::SigStore;
 
-use crate::utils::{load_collection, ReportType};
+use crate::utils::{load_collection, load_mh_with_name_and_md5, ReportType};
 
 /// Search many queries against a list of signatures.
 ///
@@ -31,37 +27,14 @@ pub fn multisearch(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
 
-    // let queries = load_sketches_from_zip_or_pathlist(&querylist, &template, ReportType::Query)?;
     let query_collection = load_collection(query_filepath, selection, ReportType::Query)?;
-    let mut queries: Vec<SigStore> = vec![];
-    for (idx, record) in query_collection.iter() {
-        if let Ok(sig) = query_collection.sig_from_record(record)
-        // .unwrap()
-        // .select(&selection) // if we select here, we downsample and the md5sum changes!
-        // ...which means we would lose the original md5sum that is used in the standard gather results.
-        {
-            queries.push(sig);
-        } else {
-            eprintln!("Failed to load 'against' record: {}", record.name());
-        }
-    }
+    let queries =
+        load_mh_with_name_and_md5(query_collection, &selection, ReportType::Query).unwrap();
 
     // Load all against sketches into memory at once.
-    // let against = load_sketches_from_zip_or_pathlist(&againstlist, &template, ReportType::Against)?;
     let against_collection = load_collection(against_filepath, selection, ReportType::Against)?;
-    let mut against: Vec<SigStore> = vec![];
-
-    for (idx, record) in against_collection.iter() {
-        if let Ok(sig) = against_collection.sig_from_record(record)
-        // .unwrap()
-        // .select(&selection) // if we select here, we downsample and the md5sum changes!
-        // ...which means we would lose the original md5sum that is used in the standard gather results.
-        {
-            against.push(sig);
-        } else {
-            eprintln!("Failed to load 'against' record: {}", record.name());
-        }
-    }
+    let against =
+        load_mh_with_name_and_md5(against_collection, &selection, ReportType::Against).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
@@ -94,49 +67,42 @@ pub fn multisearch(
 
     let send = against
         .par_iter()
-        .filter_map(|target| {
+        .filter_map(|(against_mh, against_name, against_md5)| {
             let mut results = vec![];
-
-            let ds_against_sig = target.clone().select(&selection).unwrap();
-            if let Some(against_mh) = ds_against_sig.minhash() {
-                // search for matches & save containment.
-                for query_sig in queries.iter() {
-                    let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
-                    if i % 100000 == 0 {
-                        eprintln!("Processed {} comparisons", i);
-                    }
-                    let ds_q = query_sig.clone().select(&selection).unwrap();
-                    let query_mh = ds_q.minhash()?;
-                    let overlap = query_mh.count_common(&against_mh, false).unwrap() as f64;
-                    // use downsampled sizes
-                    let query_size = query_mh.size() as f64;
-                    let target_size = against_mh.size() as f64;
-
-                    let containment_query_in_target = overlap / query_size;
-                    let containment_in_target = overlap / target_size;
-                    let max_containment = containment_query_in_target.max(containment_in_target);
-                    let jaccard = overlap / (target_size + query_size - overlap);
-
-                    if containment_query_in_target > threshold {
-                        results.push((
-                            query_sig.name(),
-                            query_sig.md5sum(),
-                            target.name(),
-                            target.md5sum(),
-                            containment_query_in_target,
-                            max_containment,
-                            jaccard,
-                            overlap,
-                        ))
-                    }
+            // search for matches & save containment.
+            for (query_mh, query_name, query_md5) in queries.iter() {
+                let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
+                if i % 100000 == 0 {
+                    eprintln!("Processed {} comparisons", i);
                 }
-                if results.is_empty() {
-                    None
-                } else {
-                    Some(results)
+
+                let overlap = query_mh.count_common(&against_mh, false).unwrap() as f64;
+                // use downsampled sizes
+                let query_size = query_mh.size() as f64;
+                let target_size = against_mh.size() as f64;
+
+                let containment_query_in_target = overlap / query_size;
+                let containment_in_target = overlap / target_size;
+                let max_containment = containment_query_in_target.max(containment_in_target);
+                let jaccard = overlap / (target_size + query_size - overlap);
+
+                if containment_query_in_target > threshold {
+                    results.push((
+                        query_name.clone(),
+                        query_md5.clone(),
+                        against_name.clone(),
+                        against_md5.clone(),
+                        containment_query_in_target,
+                        max_containment,
+                        jaccard,
+                        overlap,
+                    ))
                 }
-            } else {
+            }
+            if results.is_empty() {
                 None
+            } else {
+                Some(results)
             }
         })
         .flatten()

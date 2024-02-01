@@ -2,7 +2,6 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::signature::Signature;
 use sourmash::sketch::Sketch;
 use std::path::Path;
 
