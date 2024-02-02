@@ -71,7 +71,7 @@ pub fn fastmultigather(
                 if let Some(query_mh) = query_sig.minhash() {
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
-                        .filter_map(|(against)| {
+                        .filter_map(|against| {
                             let mut mm: Option<PrefetchResult> = None;
                             if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {

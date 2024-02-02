@@ -7,6 +7,9 @@ use sourmash::selection::Select;
 use anyhow::{anyhow, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
+use csv::Writer;
+use serde::ser::Serializer;
+use serde::Serialize;
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, File};
@@ -568,6 +571,7 @@ pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
     }
 }
 
+#[derive(Serialize)]
 pub struct SearchResult {
     pub query_name: String,
     pub query_md5: String,
@@ -579,43 +583,7 @@ pub struct SearchResult {
     pub max_containment: Option<f64>,
 }
 
-impl ResultType for SearchResult {
-    fn header_fields() -> Vec<&'static str> {
-        vec![
-            "query_name",
-            "query_md5",
-            "match_name",
-            "containment",
-            "intersect_hashes",
-            "match_md5",
-            "jaccard",
-            "max_containment",
-        ]
-    }
-
-    fn format_fields(&self) -> Vec<String> {
-        vec![
-            format!("\"{}\"", self.query_name), // Wrap query_name with quotes
-            self.query_md5.clone(),
-            format!("\"{}\"", self.match_name), // Wrap match_name with quotes
-            self.containment.to_string(),
-            self.intersect_hashes.to_string(),
-            match &self.match_md5 {
-                Some(md5) => md5.clone(),
-                None => "".to_string(),
-            },
-            match &self.jaccard {
-                Some(jaccard) => jaccard.to_string(),
-                None => "".to_string(),
-            },
-            match &self.max_containment {
-                Some(max_containment) => max_containment.to_string(),
-                None => "".to_string(),
-            },
-        ]
-    }
-}
-
+#[derive(Serialize)]
 pub struct BranchwaterGatherResult {
     pub query_name: String,
     pub query_md5: String,
@@ -625,29 +593,7 @@ pub struct BranchwaterGatherResult {
     pub intersect_bp: usize,
 }
 
-impl ResultType for BranchwaterGatherResult {
-    fn header_fields() -> Vec<&'static str> {
-        vec![
-            "query_name",
-            "query_md5",
-            "match_name",
-            "match_md5",
-            "f_match_query",
-            "intersect_bp",
-        ]
-    }
-    fn format_fields(&self) -> Vec<String> {
-        vec![
-            format!("\"{}\"", self.query_name), // Wrap query_name with quotes
-            self.query_md5.clone(),
-            format!("\"{}\"", self.match_name), // Wrap match_name with quotes
-            self.match_md5.clone(),
-            self.f_match_query.to_string(),
-            self.intersect_bp.to_string(),
-        ]
-    }
-}
-
+#[derive(Serialize)]
 pub struct MultiSearchResult {
     pub query_name: String,
     pub query_md5: String,
@@ -659,33 +605,7 @@ pub struct MultiSearchResult {
     pub intersect_hashes: f64,
 }
 
-impl ResultType for MultiSearchResult {
-    fn header_fields() -> Vec<&'static str> {
-        vec![
-            "query_name",
-            "query_md5",
-            "match_name",
-            "match_md5",
-            "containment",
-            "max_containment",
-            "jaccard",
-            "intersect_hashes",
-        ]
-    }
-
-    fn format_fields(&self) -> Vec<String> {
-        vec![
-            format!("\"{}\"", self.query_name), // Wrap query_name with quotes
-            self.query_md5.clone(),
-            format!("\"{}\"", self.match_name), // Wrap match_name with quotes
-            self.match_md5.clone(),
-            self.containment.to_string(),
-            self.max_containment.to_string(),
-            self.jaccard.to_string(),
-            self.intersect_hashes.to_string(),
-        ]
-    }
-}
+#[derive(Serialize)]
 pub struct ManifestRow {
     pub md5: String,
     pub md5short: String,
@@ -694,50 +614,24 @@ pub struct ManifestRow {
     pub num: u32,
     pub scaled: u64,
     pub n_hashes: usize,
-    pub with_abundance: bool,
+    pub with_abundance: BoolPython,
     pub name: String,
     pub filename: String,
     pub internal_location: String,
 }
 
-pub fn bool_to_python_string(b: bool) -> String {
-    match b {
-        true => "True".to_string(),
-        false => "False".to_string(),
-    }
-}
+// A wrapper type for booleans to customize serialization
+pub struct BoolPython(bool);
 
-impl ResultType for ManifestRow {
-    fn header_fields() -> Vec<&'static str> {
-        vec![
-            "internal_location",
-            "md5",
-            "md5short",
-            "ksize",
-            "moltype",
-            "num",
-            "scaled",
-            "n_hashes",
-            "with_abundance",
-            "name",
-            "filename",
-        ]
-    }
-
-    fn format_fields(&self) -> Vec<String> {
-        vec![
-            self.internal_location.clone(),
-            self.md5.clone(),
-            self.md5short.clone(),
-            self.ksize.to_string(),
-            self.moltype.clone(),
-            self.num.to_string(),
-            self.scaled.to_string(),
-            self.n_hashes.to_string(),
-            bool_to_python_string(self.with_abundance),
-            format!("\"{}\"", self.name), // Wrap name with quotes
-            self.filename.clone(),
-        ]
+impl Serialize for BoolPython {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.0 {
+            true => serializer.serialize_str("True"),
+            false => serializer.serialize_str("False"),
+        }
     }
 }
 
@@ -771,7 +665,7 @@ pub fn make_manifest_row(
         num,
         scaled,
         n_hashes: sketch.size(),
-        with_abundance: abund,
+        with_abundance: BoolPython(abund),
         name: sig.name().to_string(),
         filename: filename.to_string(),
     }
@@ -876,24 +770,27 @@ pub fn sigwriter(
                     println!("Writing manifest");
                     // Start the CSV file inside the zip
                     zip.start_file("SOURMASH-MANIFEST.csv", options).unwrap();
-
                     // write manifest version line
                     writeln!(&mut zip, "# SOURMASH-MANIFEST-VERSION: 1.0").unwrap();
-                    // Write the header
-                    let header = ManifestRow::header_fields();
-                    if let Err(e) = writeln!(&mut zip, "{}", header.join(",")) {
-                        eprintln!("Error writing header: {:?}", e);
-                    }
+                    // scoped block for csv writing
+                    {
+                        let mut csv_writer = Writer::from_writer(&mut zip);
 
-                    // Write each manifest row
-                    for row in &manifest_rows {
-                        let formatted_fields = row.format_fields(); // Assuming you have a format_fields method on ManifestRow
-                        if let Err(e) = writeln!(&mut zip, "{}", formatted_fields.join(",")) {
-                            eprintln!("Error writing item: {:?}", e);
+                        for row in &manifest_rows {
+                            if let Err(e) = csv_writer.serialize(row) {
+                                eprintln!("Error writing item: {:?}", e);
+                            }
                         }
+                        //  CSV writer must be manually flushed to ensure all data is written
+                        if let Err(e) = csv_writer.flush() {
+                            eprintln!("Error flushing CSV writer: {:?}", e);
+                        }
+                    } // drop csv writer here
+
+                    // Properly finish writing to the ZIP file
+                    if let Err(e) = zip.finish() {
+                        eprintln!("Error finalizing ZIP file: {:?}", e);
                     }
-                    // finalize the zip file writing.
-                    zip.finish().unwrap();
                 }
             }
         }
@@ -901,37 +798,22 @@ pub fn sigwriter(
     })
 }
 
-pub trait ResultType {
-    fn header_fields() -> Vec<&'static str>;
-    fn format_fields(&self) -> Vec<String>;
-}
-
-pub fn csvwriter_thread<T: ResultType + Send + 'static>(
+pub fn csvwriter_thread<T: Serialize + Send + 'static>(
     recv: std::sync::mpsc::Receiver<T>,
     output: Option<String>,
-) -> std::thread::JoinHandle<()>
-where
-    T: ResultType,
-{
+) -> std::thread::JoinHandle<()> {
     // create output file
     let out = open_stdout_or_file(output);
     // spawn a thread that is dedicated to printing to a buffered output
     std::thread::spawn(move || {
-        let mut writer = out;
+        let mut writer = Writer::from_writer(out);
 
-        let header = T::header_fields();
-        if let Err(e) = writeln!(&mut writer, "{}", header.join(",")) {
-            eprintln!("Error writing header: {:?}", e);
-        }
-        writer.flush().unwrap();
-
-        for item in recv.iter() {
-            let formatted_fields = item.format_fields();
-            if let Err(e) = writeln!(&mut writer, "{}", formatted_fields.join(",")) {
+        for res in recv.iter() {
+            if let Err(e) = writer.serialize(res) {
                 eprintln!("Error writing item: {:?}", e);
             }
-            writer.flush().unwrap();
         }
+        writer.flush().expect("Failed to flush writer.");
     })
 }
 

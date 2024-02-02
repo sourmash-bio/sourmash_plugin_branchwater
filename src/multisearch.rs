@@ -59,7 +59,7 @@ pub fn multisearch(
 
     let send = against
         .par_iter()
-        .filter_map(|(against)| {
+        .filter_map(|against| {
             let mut results = vec![];
             // search for matches & save containment.
             for query in queries.iter() {

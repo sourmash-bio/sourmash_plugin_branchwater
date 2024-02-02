@@ -1,10 +1,7 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
-
-use sourmash::selection::Selection;
-// use camino;
-
 use sourmash::prelude::Select;
+use sourmash::selection::Selection;
 
 use crate::utils::{
     consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
@@ -43,7 +40,7 @@ pub fn fastgather(
             bail!("No query sketch matching selection parameters.");
         }
     };
-    // build the list of paths to match against.
+    // load collection to match against.
     let against_collection = load_collection(
         &against_filepath,
         selection,
