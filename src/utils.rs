@@ -204,7 +204,7 @@ pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<Vec<(String, P
 
 // Load all compatible minhashes from a collection into memory
 // also store sig name and md5 alongside, as we usually need those
-pub fn load_mh_with_name_and_md5(
+pub fn load_sketches(
     collection: Collection,
     selection: &Selection,
     report_type: ReportType,

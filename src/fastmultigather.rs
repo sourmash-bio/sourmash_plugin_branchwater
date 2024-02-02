@@ -12,8 +12,8 @@ use std::collections::BinaryHeap;
 use camino::Utf8Path as PathBuf;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_mh_with_name_and_md5, write_prefetch,
-    PrefetchResult, ReportType,
+    consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
+    ReportType,
 };
 
 pub fn fastmultigather(
@@ -53,8 +53,7 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against =
-        load_mh_with_name_and_md5(against_collection, selection, ReportType::Against).unwrap();
+    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);

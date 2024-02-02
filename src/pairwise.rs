@@ -5,7 +5,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, load_mh_with_name_and_md5, MultiSearchResult, ReportType,
+    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
 };
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
@@ -35,7 +35,7 @@ pub fn pairwise(
             &siglist
         )
     }
-    let sketches = load_mh_with_name_and_md5(collection, selection, ReportType::General).unwrap();
+    let sketches = load_sketches(collection, selection, ReportType::General).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

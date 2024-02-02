@@ -7,7 +7,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, load_mh_with_name_and_md5, MultiSearchResult, ReportType,
+    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
 };
 
 /// Search many queries against a list of signatures.
@@ -31,8 +31,7 @@ pub fn multisearch(
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    let queries =
-        load_mh_with_name_and_md5(query_collection, selection, ReportType::Query).unwrap();
+    let queries = load_sketches(query_collection, selection, ReportType::Query).unwrap();
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
@@ -41,8 +40,7 @@ pub fn multisearch(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    let against =
-        load_mh_with_name_and_md5(against_collection, selection, ReportType::Against).unwrap();
+    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

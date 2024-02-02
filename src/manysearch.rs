@@ -8,9 +8,7 @@ use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{
-    csvwriter_thread, load_collection, load_mh_with_name_and_md5, ReportType, SearchResult,
-};
+use crate::utils::{csvwriter_thread, load_collection, load_sketches, ReportType, SearchResult};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 
@@ -30,8 +28,7 @@ pub fn manysearch(
         allow_failed_sigpaths,
     )?;
     // load all query sketches into memory, downsampling on the way
-    let query_sketchlist =
-        load_mh_with_name_and_md5(query_collection, selection, ReportType::Query).unwrap();
+    let query_sketchlist = load_sketches(query_collection, selection, ReportType::Query).unwrap();
 
     // Against: Load all _paths_, not signatures, into memory.
     let against_collection = load_collection(
