@@ -19,21 +19,27 @@ use sourmash::selection::Selection;
 /// Note: this function loads all _signatures_ into memory.
 
 pub fn pairwise<P: AsRef<Path>>(
-    sigpath: &camino::Utf8PathBuf,
+    siglist: String,
     threshold: f64,
     selection: &Selection,
     output: Option<P>,
+    allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
-    let collection = load_collection(sigpath, selection, ReportType::Pairwise)?;
+    let collection = load_collection(
+        &siglist,
+        selection,
+        ReportType::General,
+        allow_failed_sigpaths,
+    )?;
 
     if collection.len() <= 1 {
         bail!(
             "Pairwise requires two or more sketches. Check input: '{:?}'",
-            &sigpath
+            &siglist
         )
     }
-    let sketches = load_mh_with_name_and_md5(collection, &selection, ReportType::Pairwise).unwrap();
+    let sketches = load_mh_with_name_and_md5(collection, &selection, ReportType::General).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());

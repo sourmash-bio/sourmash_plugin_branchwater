@@ -18,7 +18,7 @@ mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
 
-use camino::Utf8PathBuf;
+use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
 fn do_manysearch(
@@ -30,20 +30,20 @@ fn do_manysearch(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let queryfile_path: camino::Utf8PathBuf = querylist_path.clone().into();
-    let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
+    let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
+    let allow_failed_sigpaths = true;
 
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
     if is_revindex_database(&againstfile_path) {
-        // if is_revindex_database(siglist_path.as_ref()) {
         match mastiff_manysearch::mastiff_manysearch(
-            queryfile_path,
+            querylist_path,
             againstfile_path,
             &selection,
             threshold,
             output_path,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -53,11 +53,12 @@ fn do_manysearch(
         }
     } else {
         match manysearch::manysearch(
-            &queryfile_path,
-            &againstfile_path,
+            querylist_path,
+            siglist_path,
             &selection,
             threshold,
             output_path,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -79,20 +80,19 @@ fn do_fastgather(
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let queryfile_path: camino::Utf8PathBuf = query_filename.into();
-    let againstfile_path: camino::Utf8PathBuf = siglist_path.into();
-
     let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
 
     match fastgather::fastgather(
-        &queryfile_path,
-        &againstfile_path,
+        query_filename,
+        siglist_path,
         threshold_bp,
         ksize,
         scaled,
         &selection,
         output_path_prefetch,
         output_path_gather,
+        allow_failed_sigpaths,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -112,18 +112,19 @@ fn do_fastmultigather(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let queryfile_path: camino::Utf8PathBuf = query_filenames.into();
-    let againstfile_path: camino::Utf8PathBuf = siglist_path.into();
+    let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
 
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
     if is_revindex_database(&againstfile_path) {
         match mastiff_manygather::mastiff_manygather(
-            queryfile_path,
+            query_filenames,
             againstfile_path,
             &selection,
             threshold_bp,
             output_path,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -133,11 +134,12 @@ fn do_fastmultigather(
         }
     } else {
         match fastmultigather::fastmultigather(
-            queryfile_path,
-            againstfile_path,
+            query_filenames,
+            siglist_path,
             threshold_bp,
             scaled,
             &selection,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -176,9 +178,15 @@ fn do_index(
     colors: bool,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
-    let location = camino::Utf8PathBuf::from(siglist);
-    let manifest = None;
-    match index::index(location, manifest, selection, output, save_paths, colors) {
+    let allow_failed_sigpaths = false;
+    match index::index(
+        siglist,
+        &selection,
+        output,
+        save_paths,
+        colors,
+        allow_failed_sigpaths,
+    ) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -189,7 +197,7 @@ fn do_index(
 
 #[pyfunction]
 fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
-    let idx: camino::Utf8PathBuf = index.into();
+    let idx: PathBuf = index.into();
     match check::check(idx, quick) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -209,15 +217,16 @@ fn do_multisearch(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let queryfile_path: camino::Utf8PathBuf = querylist_path.into();
-    let againstfile_path: camino::Utf8PathBuf = siglist_path.into();
     let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
+
     match multisearch::multisearch(
-        &queryfile_path,
-        &againstfile_path,
+        querylist_path,
+        siglist_path,
         threshold,
         &selection,
         output_path,
+        allow_failed_sigpaths,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -236,9 +245,15 @@ fn do_pairwise(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let queryfile_path: camino::Utf8PathBuf = siglist_path.into();
     let selection = build_selection(ksize, scaled, &moltype);
-    match pairwise::pairwise(&queryfile_path, threshold, &selection, output_path) {
+    let allow_failed_sigpaths = true;
+    match pairwise::pairwise(
+        siglist_path,
+        threshold,
+        &selection,
+        output_path,
+        allow_failed_sigpaths,
+    ) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

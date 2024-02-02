@@ -89,22 +89,22 @@ def test_index_missing_siglist(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Error loading siglist' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
-def test_index_bad_siglist(runtmp, capfd):
-    # test index with a bad siglist (.sig.gz file instead of pathlist)
+def test_index_sig(runtmp, capfd):
+    # test index with a .sig.gz file instead of pathlist
+    # (should work now)
     sig2 = get_test_data('2.fa.sig.gz')
     output = runtmp.output('out.db')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'index', sig2,
+    runtmp.sourmash('scripts', 'index', sig2,
                         '-o', output)
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Error loading siglist' in captured.err
     print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
 
 
 def test_index_bad_siglist_2(runtmp, capfd):
@@ -124,28 +124,25 @@ def test_index_bad_siglist_2(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Error processing "no-exist"' in captured.err
+    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
 
 
 def test_index_empty_siglist(runtmp, capfd):
-    ## TODO: index:: do not write output if no signatures to write?
-    # OR, warn user?
-
     # test empty siglist file
     siglist = runtmp.output('db-sigs.txt')
     output = runtmp.output('out.db')
     make_file_list(siglist, []) # empty
 
-    # with pytest.raises(utils.SourmashCommandFailed):
-    runtmp.sourmash('scripts', 'index', siglist,
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'index', siglist,
                         '-o', output)
 
     captured = capfd.readouterr()
-    assert os.path.exists(output) # do we want an empty file, or no file?
+    assert not os.path.exists(output) # do we want an empty file, or no file?
     print(runtmp.last_result.out)
     print(runtmp.last_result.err)
     print(captured.err)
-    # assert "No signatures to index loaded, exiting." in captured.err
+    assert "Error: Signatures failed to load. Exiting." in captured.err
 
 
 def test_index_nomatch_sig_in_siglist(runtmp, capfd):

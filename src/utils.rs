@@ -7,7 +7,9 @@ use sourmash::selection::Select;
 use std::fs::{create_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
-use std::path::{Path, PathBuf};
+// use std::path::{Path, PathBuf};
+use camino::Utf8Path as Path;
+use camino::Utf8PathBuf as PathBuf;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -126,34 +128,32 @@ pub fn write_prefetch(
 }
 
 /// Load a list of filenames from a file. Exits on bad lines.
-pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<PathBuf>> {
-    let sketchlist_file = BufReader::new(File::open(sketchlist_filename)?);
+// pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<PathBuf>> {
+//     let sketchlist_file = BufReader::new(File::open(sketchlist_filename)?);
 
-    let mut sketchlist_filenames: Vec<PathBuf> = Vec::new();
-    for line in sketchlist_file.lines() {
-        let line = match line {
-            Ok(v) => v,
-            Err(_) => {
-                return {
-                    let filename = sketchlist_filename.as_ref().display();
-                    let msg = format!("invalid line in fromfile '{}'", filename);
-                    Err(anyhow!(msg))
-                }
-            }
-        };
+//     let mut sketchlist_filenames: Vec<PathBuf> = Vec::new();
+//     for line in sketchlist_file.lines() {
+//         let line = match line {
+//             Ok(v) => v,
+//             Err(_) => {
+//                 return {
+//                     let filename = sketchlist_filename.as_ref().display();
+//                     let msg = format!("invalid line in fromfile '{}'", filename);
+//                     Err(anyhow!(msg))
+//                 }
+//             }
+//         };
 
-        if !line.is_empty() {
-            let mut path = PathBuf::new();
-            path.push(line);
-            sketchlist_filenames.push(path);
-        }
-    }
-    Ok(sketchlist_filenames)
-}
+//         if !line.is_empty() {
+//             let mut path = PathBuf::new();
+//             path.push(line);
+//             sketchlist_filenames.push(path);
+//         }
+//     }
+//     Ok(sketchlist_filenames)
+// }
 
-pub fn load_fasta_fromfile<P: AsRef<Path>>(
-    sketchlist_filename: &P,
-) -> Result<Vec<(String, PathBuf, String)>> {
+pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<Vec<(String, PathBuf, String)>> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
     // Check for right header
@@ -313,7 +313,7 @@ pub fn load_sketches_above_threshold(
 pub enum ReportType {
     Query,
     Against,
-    Pairwise,
+    General,
 }
 
 impl std::fmt::Display for ReportType {
@@ -321,19 +321,22 @@ impl std::fmt::Display for ReportType {
         let description = match self {
             ReportType::Query => "query",
             ReportType::Against => "search",
-            ReportType::Pairwise => "signature",
+            ReportType::General => "signature",
         };
         write!(f, "{}", description)
     }
 }
 
 pub fn load_collection(
-    sigpath: &camino::Utf8PathBuf,
+    siglist: &String,
     selection: &Selection,
     report_type: ReportType,
+    allow_failed: bool,
 ) -> Result<Collection> {
+    let sigpath = PathBuf::from(siglist);
+
     if !sigpath.exists() {
-        bail!("No such file or directory: '{}'", sigpath);
+        bail!("No such file or directory: '{}'", &sigpath);
     }
 
     let mut n_failed = 0;
@@ -344,7 +347,7 @@ pub fn load_collection(
         }
     } else {
         // if pathlist is just a signature path, load it into a collection
-        match Signature::from_path(sigpath) {
+        match Signature::from_path(&sigpath) {
             Ok(signatures) => {
                 // Load the collection from the signature
                 match Collection::from_sigs(signatures) {
@@ -358,7 +361,7 @@ pub fn load_collection(
             }
             // if not, try to load file as list of sig paths
             Err(_) => {
-                //             // using core fn doesn't allow us to ignore failed paths; I reimplement loading here to allow
+                // using core fn doesn't allow us to ignore failed paths; I reimplement loading here to allow
                 let sketchlist_file = BufReader::new(File::open(sigpath)?);
                 let records: Vec<Record> = sketchlist_file
                     .lines()
@@ -400,7 +403,7 @@ pub fn load_collection(
     let n_total = collection.len();
     let selected = collection.select(selection)?;
     let n_skipped = n_total - selected.len();
-    report_on_collection_loading(&selected, n_skipped, n_failed, report_type)?;
+    report_on_collection_loading(&selected, n_skipped, n_failed, report_type, allow_failed)?;
     Ok(selected)
 }
 
@@ -431,12 +434,16 @@ pub fn report_on_collection_loading(
     skipped_paths: usize,
     failed_paths: usize,
     report_type: ReportType,
+    allow_failed: bool,
 ) -> Result<()> {
     if failed_paths > 0 {
         eprintln!(
             "WARNING: {} {} paths failed to load. See error messages above.",
             failed_paths, report_type
         );
+        if !allow_failed {
+            bail! {"Signatures failed to load. Exiting."}
+        }
     }
     if skipped_paths > 0 {
         eprintln!(
@@ -715,21 +722,21 @@ pub fn make_manifest_row(
         n_hashes: sketch.size(),
         with_abundance: abund,
         name: sig.name().to_string(),
-        // filename: filename.display().to_string(),
-        filename: filename.to_str().unwrap().to_string(),
+        filename: filename.to_string(),
     }
 }
 
-pub fn open_stdout_or_file<P: AsRef<Path>>(output: Option<P>) -> Box<dyn Write + Send + 'static> {
+pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
     // if output is a file, use open_output_file
     if let Some(path) = output {
-        Box::new(open_output_file(&path))
+        let outpath: PathBuf = path.into();
+        Box::new(open_output_file(&outpath))
     } else {
         Box::new(std::io::stdout())
     }
 }
 
-pub fn open_output_file<P: AsRef<Path>>(output: &P) -> BufWriter<File> {
+pub fn open_output_file(output: &PathBuf) -> BufWriter<File> {
     let file = File::create(output).unwrap_or_else(|e| {
         eprintln!("Error creating output file: {:?}", e);
         std::process::exit(1);
@@ -772,7 +779,10 @@ pub fn sigwriter<P: AsRef<Path> + Send + 'static>(
     output: String,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
-        let file_writer = open_output_file(&output);
+        // cast output as pathbuf
+        let outpath: PathBuf = output.into();
+
+        let file_writer = open_output_file(&outpath);
 
         let options = zip::write::FileOptions::default()
             .compression_method(zip::CompressionMethod::Stored)
@@ -845,16 +855,15 @@ pub trait ResultType {
     fn format_fields(&self) -> Vec<String>;
 }
 
-pub fn csvwriter_thread<T: ResultType + Send + 'static, P>(
+pub fn csvwriter_thread<T: ResultType + Send + 'static>(
     recv: std::sync::mpsc::Receiver<T>,
-    output: Option<P>,
+    output: Option<String>,
 ) -> std::thread::JoinHandle<()>
 where
     T: ResultType,
-    P: Clone + std::convert::AsRef<std::path::Path>,
 {
     // create output file
-    let out = open_stdout_or_file(output.as_ref());
+    let out = open_stdout_or_file(output);
     // spawn a thread that is dedicated to printing to a buffered output
     std::thread::spawn(move || {
         let mut writer = out;

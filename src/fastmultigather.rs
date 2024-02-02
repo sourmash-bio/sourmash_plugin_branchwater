@@ -18,14 +18,20 @@ use crate::utils::{
 };
 
 pub fn fastmultigather(
-    query_filepath: camino::Utf8PathBuf,
-    against_filepath: camino::Utf8PathBuf,
+    query_filepath: String,
+    against_filepath: String,
     threshold_bp: usize,
     scaled: usize,
     selection: &Selection,
+    allow_failed_sigpaths: bool,
 ) -> Result<()> {
     // load the list of query paths
-    let query_collection = load_collection(&query_filepath, selection, ReportType::Query)?;
+    let query_collection = load_collection(
+        &query_filepath,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
     println!("Loaded {} sig paths in querylist", query_collection.len());
 
     let threshold_hashes: u64 = {
@@ -42,7 +48,12 @@ pub fn fastmultigather(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // Load all the against sketches
-    let against_collection = load_collection(&against_filepath, selection, ReportType::Against)?;
+    let against_collection = load_collection(
+        &against_filepath,
+        selection,
+        ReportType::Against,
+        allow_failed_sigpaths,
+    )?;
     // load actual signatures
     let mut sketchlist: Vec<SigStore> = vec![];
 

@@ -11,25 +11,30 @@ use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::Sketch;
 use sourmash::storage::SigStore;
-use std::path::Path;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{csvwriter_thread, load_collection, ReportType, SearchResult};
 
-pub fn manysearch<P: AsRef<Path>>(
-    query_filepath: &camino::Utf8PathBuf,
-    against_filepath: &camino::Utf8PathBuf,
+pub fn manysearch(
+    query_filepath: String,
+    against_filepath: String,
     selection: &Selection,
     threshold: f64,
-    output: Option<P>,
+    output: Option<String>,
+    allow_failed_sigpaths: bool,
 ) -> Result<()> {
     // Read in list of query paths.
     eprintln!("Reading queries from: '{}'", query_filepath);
 
     // Load all query sigs into memory at once.
-    let query_collection = load_collection(query_filepath, selection, ReportType::Query)?;
+    let query_collection = load_collection(
+        &query_filepath,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
     // load actual signatures
     let mut query_sketchlist: Vec<SigStore> = vec![];
 
@@ -46,13 +51,18 @@ pub fn manysearch<P: AsRef<Path>>(
     }
 
     // Load all _paths_, not signatures, into memory.
-    let against_collection = load_collection(against_filepath, selection, ReportType::Against)?;
+    let against_collection = load_collection(
+        &against_filepath,
+        selection,
+        ReportType::Against,
+        allow_failed_sigpaths,
+    )?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = csvwriter_thread(recv, output.as_ref());
+    let thrd = csvwriter_thread(recv, output);
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,

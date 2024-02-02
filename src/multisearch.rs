@@ -19,20 +19,31 @@ use crate::utils::{load_collection, load_mh_with_name_and_md5, ReportType};
 /// database once.
 
 pub fn multisearch(
-    query_filepath: &camino::Utf8PathBuf,
-    against_filepath: &camino::Utf8PathBuf,
+    query_filepath: String,
+    against_filepath: String,
     threshold: f64,
     selection: &Selection,
     output: Option<String>,
+    allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
 
-    let query_collection = load_collection(query_filepath, selection, ReportType::Query)?;
+    let query_collection = load_collection(
+        &query_filepath,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
     let queries =
         load_mh_with_name_and_md5(query_collection, &selection, ReportType::Query).unwrap();
 
     // Load all against sketches into memory at once.
-    let against_collection = load_collection(against_filepath, selection, ReportType::Against)?;
+    let against_collection = load_collection(
+        &against_filepath,
+        selection,
+        ReportType::Against,
+        allow_failed_sigpaths,
+    )?;
     let against =
         load_mh_with_name_and_md5(against_collection, &selection, ReportType::Against).unwrap();
 

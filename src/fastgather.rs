@@ -12,16 +12,22 @@ use crate::utils::{
 };
 
 pub fn fastgather(
-    query_filepath: &camino::Utf8PathBuf,
-    against_filepath: &camino::Utf8PathBuf,
+    query_filepath: String,
+    against_filepath: String,
     threshold_bp: usize,
     ksize: u8,
     scaled: usize,
     selection: &Selection,
     gather_output: Option<String>,
     prefetch_output: Option<String>,
+    allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    let query_collection = load_collection(query_filepath, selection, ReportType::Query)?;
+    let query_collection = load_collection(
+        &query_filepath,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
     if query_collection.len() != 1 {
         bail!(
@@ -40,7 +46,12 @@ pub fn fastgather(
         }
     };
     // build the list of paths to match against.
-    let against_collection = load_collection(against_filepath, selection, ReportType::Against)?;
+    let against_collection = load_collection(
+        &against_filepath,
+        selection,
+        ReportType::Against,
+        allow_failed_sigpaths,
+    )?;
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes: u64 = {

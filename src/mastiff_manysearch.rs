@@ -1,11 +1,11 @@
 /// mastiff_manysearch: mastiff-indexed version of manysearch.
 use anyhow::Result;
+use camino::Utf8PathBuf as PathBuf;
 use rayon::prelude::*;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::Sketch;
-use std::path::Path;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -13,12 +13,13 @@ use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
 };
 
-pub fn mastiff_manysearch<P: AsRef<Path>>(
-    queries_path: camino::Utf8PathBuf,
-    index: camino::Utf8PathBuf,
+pub fn mastiff_manysearch(
+    queries_path: String,
+    index: PathBuf,
     selection: &Selection,
     minimum_containment: f64,
-    output: Option<P>,
+    output: Option<String>,
+    allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !is_revindex_database(&index) {
         bail!("'{}' is not a valid RevIndex database", index);
@@ -28,7 +29,12 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     println!("Loaded DB");
 
     // Load query paths
-    let query_collection = load_collection(&queries_path, selection, ReportType::Query)?;
+    let query_collection = load_collection(
+        &queries_path,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
     // if query_paths is empty, exit with error. this should already happen via load_collection, i think?
     if query_collection.len() == 0 {
@@ -39,7 +45,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
     let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = csvwriter_thread(recv, output.as_ref());
+    let thrd = csvwriter_thread(recv, output);
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,

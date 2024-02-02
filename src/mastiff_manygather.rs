@@ -6,7 +6,7 @@ use sourmash::sketch::Sketch;
 use std::path::Path;
 
 // use camino::Utf8Path as Path;
-// use camino::Utf8PathBuf as PathBuf;
+use camino::Utf8PathBuf as PathBuf;
 
 use sourmash::prelude::*;
 
@@ -21,11 +21,12 @@ use std::io::{BufWriter, Write};
 use crate::utils::{is_revindex_database, load_collection, ReportType};
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
-    queries_file: camino::Utf8PathBuf,
-    index: camino::Utf8PathBuf,
+    queries_file: String,
+    index: PathBuf,
     selection: &Selection,
     threshold_bp: usize,
     output: Option<P>,
+    allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !is_revindex_database(&index) {
         bail!("'{}' is not a valid RevIndex database", index);
@@ -34,7 +35,12 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     let db = RevIndex::open(index, true)?;
     println!("Loaded DB");
 
-    let query_collection = load_collection(&queries_file, selection, ReportType::Query)?;
+    let query_collection = load_collection(
+        &queries_file,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());

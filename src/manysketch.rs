@@ -3,10 +3,10 @@ use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 use crate::utils::{load_fasta_fromfile, sigwriter, Params, ZipMessage};
+use camino::Utf8Path as Path;
 use needletail::parse_fastx_file;
 use sourmash::cmd::ComputeParameters;
 use sourmash::signature::Signature;
-use std::path::Path;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -117,7 +117,7 @@ fn build_siginfo(
         let sig = Signature::builder()
             .hash_function("0.murmur64")
             .name(Some(name.to_string()))
-            .filename(Some(filename.to_string_lossy().into_owned()))
+            .filename(Some(filename.to_string()))
             .signatures(template)
             .build();
         sigs.push(sig);
@@ -128,12 +128,12 @@ fn build_siginfo(
     (sigs, params_vec)
 }
 
-pub fn manysketch<P: AsRef<Path> + Sync>(
-    filelist: P,
+pub fn manysketch(
+    filelist: String,
     param_str: String,
     output: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let fileinfo = match load_fasta_fromfile(&filelist) {
+    let fileinfo = match load_fasta_fromfile(filelist) {
         Ok(result) => result,
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e),
     };
@@ -206,7 +206,7 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
             let mut reader = match parse_fastx_file(filename) {
                 Ok(r) => r,
                 Err(err) => {
-                    eprintln!("Error opening file {}: {:?}", filename.display(), err);
+                    eprintln!("Error opening file {}: {:?}", filename, err);
                     let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     return None;
                 }
