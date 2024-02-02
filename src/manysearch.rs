@@ -71,9 +71,10 @@ pub fn manysearch(
             match against_collection.sig_from_record(record) {
                 Ok(against_sig) => {
                     if let Some(against_mh) = against_sig.minhash() {
-                        for (query_mh, query_name, query_md5) in query_sketchlist.iter() {
-                            let overlap = query_mh.count_common(against_mh, false).unwrap() as f64;
-                            let query_size = query_mh.size() as f64;
+                        for query in query_sketchlist.iter() {
+                            let overlap =
+                                query.minhash.count_common(against_mh, false).unwrap() as f64;
+                            let query_size = query.minhash.size() as f64;
                             let target_size = against_mh.size() as f64;
                             let containment_query_in_target = overlap / query_size;
                             let containment_in_target = overlap / target_size;
@@ -83,8 +84,8 @@ pub fn manysearch(
 
                             if containment_query_in_target > threshold {
                                 results.push(SearchResult {
-                                    query_name: query_name.clone(),
-                                    query_md5: query_md5.clone(),
+                                    query_name: query.name.clone(),
+                                    query_md5: query.md5sum.clone(),
                                     match_name: against_sig.name(),
                                     containment: containment_query_in_target,
                                     intersect_hashes: overlap as usize,

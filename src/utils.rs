@@ -22,6 +22,14 @@ use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 
+/// Track a name/minhash.
+
+pub struct SmallSignature {
+    pub location: String,
+    pub name: String,
+    pub md5sum: String,
+    pub minhash: KmerMinHash,
+}
 /// Structure to hold overlap information from comparisons.
 
 pub struct PrefetchResult {
@@ -200,12 +208,17 @@ pub fn load_mh_with_name_and_md5(
     collection: Collection,
     selection: &Selection,
     report_type: ReportType,
-) -> Result<Vec<(KmerMinHash, String, String)>> {
-    let mut sketchinfo: Vec<(KmerMinHash, String, String)> = Vec::new();
+) -> Result<Vec<SmallSignature>> {
+    let mut sketchinfo: Vec<SmallSignature> = Vec::new();
     for (_idx, record) in collection.iter() {
         if let Ok(sig) = collection.sig_from_record(record) {
-            if let Some(ds_mh) = sig.clone().select(selection)?.minhash().cloned() {
-                sketchinfo.push((ds_mh, record.name().to_string(), record.md5().to_string()));
+            if let Some(minhash) = sig.clone().select(selection)?.minhash().cloned() {
+                sketchinfo.push(SmallSignature {
+                    location: record.internal_location().to_string(),
+                    name: sig.name(),
+                    md5sum: sig.md5sum(),
+                    minhash,
+                })
             }
         } else {
             bail!(

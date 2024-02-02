@@ -50,40 +50,37 @@ pub fn pairwise(
 
     let processed_cmp = AtomicUsize::new(0);
 
-    sketches
-        .par_iter()
-        .enumerate()
-        .for_each(|(idx, (q1, q1_name, q1_md5))| {
-            for (q2, q2_name, q2_md5) in sketches.iter().skip(idx + 1) {
-                let overlap = q1.count_common(q2, false).unwrap() as f64;
-                let query1_size = q1.size() as f64;
-                let query2_size = q2.size() as f64;
+    sketches.par_iter().enumerate().for_each(|(idx, query)| {
+        for against in sketches.iter().skip(idx + 1) {
+            let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
+            let query1_size = query.minhash.size() as f64;
+            let query2_size = against.minhash.size() as f64;
 
-                let containment_q1_in_q2 = overlap / query1_size;
-                let containment_q2_in_q1 = overlap / query2_size;
-                let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
-                let jaccard = overlap / (query1_size + query2_size - overlap);
+            let containment_q1_in_q2 = overlap / query1_size;
+            let containment_q2_in_q1 = overlap / query2_size;
+            let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
+            let jaccard = overlap / (query1_size + query2_size - overlap);
 
-                if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
-                    send.send(MultiSearchResult {
-                        query_name: q1_name.clone(),
-                        query_md5: q1_md5.clone(),
-                        match_name: q2_name.clone(),
-                        match_md5: q2_md5.clone(),
-                        containment: containment_q1_in_q2,
-                        max_containment,
-                        jaccard,
-                        intersect_hashes: overlap,
-                    })
-                    .unwrap();
-                }
-
-                let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
-                if i % 100000 == 0 {
-                    eprintln!("Processed {} comparisons", i);
-                }
+            if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
+                send.send(MultiSearchResult {
+                    query_name: query.name.clone(),
+                    query_md5: query.md5sum.clone(),
+                    match_name: against.name.clone(),
+                    match_md5: against.md5sum.clone(),
+                    containment: containment_q1_in_q2,
+                    max_containment,
+                    jaccard,
+                    intersect_hashes: overlap,
+                })
+                .unwrap();
             }
-        });
+
+            let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
+            if i % 100000 == 0 {
+                eprintln!("Processed {} comparisons", i);
+            }
+        }
+    });
 
     // do some cleanup and error handling -
     drop(send); // close the channel

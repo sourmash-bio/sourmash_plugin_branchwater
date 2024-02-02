@@ -72,14 +72,14 @@ pub fn fastmultigather(
                 if let Some(query_mh) = query_sig.minhash() {
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
-                        .filter_map(|(against_mh, against_name, against_md5)| {
+                        .filter_map(|(against)| {
                             let mut mm: Option<PrefetchResult> = None;
-                            if let Ok(overlap) = against_mh.count_common(query_mh, false) {
+                            if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
                                     let result = PrefetchResult {
-                                        name: against_name.clone(),
-                                        md5sum: against_md5.clone(),
-                                        minhash: against_mh.clone(),
+                                        name: against.name.clone(),
+                                        md5sum: against.md5sum.clone(),
+                                        minhash: against.minhash.clone(),
                                         overlap,
                                     };
                                     mm = Some(result);

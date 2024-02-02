@@ -61,19 +61,19 @@ pub fn multisearch(
 
     let send = against
         .par_iter()
-        .filter_map(|(against_mh, against_name, against_md5)| {
+        .filter_map(|(against)| {
             let mut results = vec![];
             // search for matches & save containment.
-            for (query_mh, query_name, query_md5) in queries.iter() {
+            for query in queries.iter() {
                 let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
                 if i % 100000 == 0 {
                     eprintln!("Processed {} comparisons", i);
                 }
 
-                let overlap = query_mh.count_common(against_mh, false).unwrap() as f64;
+                let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
                 // use downsampled sizes
-                let query_size = query_mh.size() as f64;
-                let target_size = against_mh.size() as f64;
+                let query_size = query.minhash.size() as f64;
+                let target_size = against.minhash.size() as f64;
 
                 let containment_query_in_target = overlap / query_size;
                 let containment_in_target = overlap / target_size;
@@ -82,10 +82,10 @@ pub fn multisearch(
 
                 if containment_query_in_target > threshold {
                     results.push(MultiSearchResult {
-                        query_name: query_name.clone(),
-                        query_md5: query_md5.clone(),
-                        match_name: against_name.clone(),
-                        match_md5: against_md5.clone(),
+                        query_name: query.name.clone(),
+                        query_md5: query.md5sum.clone(),
+                        match_name: against.name.clone(),
+                        match_md5: against.md5sum.clone(),
                         containment: containment_query_in_target,
                         max_containment,
                         jaccard,
