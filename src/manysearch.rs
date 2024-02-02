@@ -5,19 +5,14 @@
 /// database once.
 use anyhow::Result;
 use rayon::prelude::*;
-
-use sourmash::prelude::Select;
-use sourmash::selection::Selection;
-use sourmash::signature::SigsTrait;
-use sourmash::sketch::Sketch;
-use sourmash::storage::SigStore;
-
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
     csvwriter_thread, load_collection, load_mh_with_name_and_md5, ReportType, SearchResult,
 };
+use sourmash::selection::Selection;
+use sourmash::signature::SigsTrait;
 
 pub fn manysearch(
     query_filepath: String,
@@ -36,7 +31,7 @@ pub fn manysearch(
     )?;
     // load all query sketches into memory, downsampling on the way
     let query_sketchlist =
-        load_mh_with_name_and_md5(query_collection, &selection, ReportType::Query).unwrap();
+        load_mh_with_name_and_md5(query_collection, selection, ReportType::Query).unwrap();
 
     // Against: Load all _paths_, not signatures, into memory.
     let against_collection = load_collection(
@@ -77,7 +72,7 @@ pub fn manysearch(
                 Ok(against_sig) => {
                     if let Some(against_mh) = against_sig.minhash() {
                         for (query_mh, query_name, query_md5) in query_sketchlist.iter() {
-                            let overlap = query_mh.count_common(&against_mh, false).unwrap() as f64;
+                            let overlap = query_mh.count_common(against_mh, false).unwrap() as f64;
                             let query_size = query_mh.size() as f64;
                             let target_size = against_mh.size() as f64;
                             let containment_query_in_target = overlap / query_size;

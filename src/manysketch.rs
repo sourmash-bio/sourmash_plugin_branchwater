@@ -158,7 +158,7 @@ pub fn manysketch(
     let send = std::sync::Arc::new(send);
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sigwriter::<&str>(recv, output);
+    let thrd = sigwriter(recv, output);
 
     // parse param string into params_vec, print error if fail
     let param_result = parse_params_str(param_str);

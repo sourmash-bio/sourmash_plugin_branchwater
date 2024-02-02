@@ -4,26 +4,22 @@ use sourmash::encodings::HashFunctions;
 use sourmash::manifest::Manifest;
 use sourmash::selection::Select;
 
+use anyhow::{anyhow, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
+use std::cmp::{Ordering, PartialOrd};
+use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
-
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-
-use std::collections::BinaryHeap;
-
-use anyhow::{anyhow, Result};
-use std::cmp::{Ordering, PartialOrd};
 
 use sourmash::collection::Collection;
 use sourmash::manifest::Record;
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::sketch::Sketch;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 
 /// Structure to hold overlap information from comparisons.
@@ -208,7 +204,7 @@ pub fn load_mh_with_name_and_md5(
     let mut sketchinfo: Vec<(KmerMinHash, String, String)> = Vec::new();
     for (_idx, record) in collection.iter() {
         if let Ok(sig) = collection.sig_from_record(record) {
-            if let Some(ds_mh) = sig.clone().select(&selection)?.minhash().cloned() {
+            if let Some(ds_mh) = sig.clone().select(selection)?.minhash().cloned() {
                 sketchinfo.push((ds_mh, record.name().to_string(), record.md5().to_string()));
             }
         } else {
@@ -227,7 +223,6 @@ pub fn load_mh_with_name_and_md5(
 
 pub fn load_sketches_above_threshold(
     against_collection: Collection,
-    selection: &Selection,
     query: &KmerMinHash,
     threshold_hashes: u64,
 ) -> Result<(BinaryHeap<PrefetchResult>, usize, usize)> {
@@ -475,11 +470,7 @@ pub fn consume_query_by_gather(
     // let location = query.location;
     let location = query.filename(); // this is different (original fasta filename) than query.location was (sig name)!!
 
-    let sketches = query.sketches();
-    let orig_query_mh = match sketches.get(0) {
-        Some(Sketch::MinHash(mh)) => Ok(mh),
-        _ => Err(anyhow::anyhow!("No MinHash found")),
-    }?;
+    let orig_query_mh = query.minhash().unwrap();
     let mut query_mh = orig_query_mh.clone();
     let mut last_hashes = orig_query_mh.size();
 
@@ -821,7 +812,7 @@ pub enum ZipMessage {
     WriteManifest,
 }
 
-pub fn sigwriter<P: AsRef<Path> + Send + 'static>(
+pub fn sigwriter(
     recv: std::sync::mpsc::Receiver<ZipMessage>,
     output: String,
 ) -> std::thread::JoinHandle<Result<()>> {

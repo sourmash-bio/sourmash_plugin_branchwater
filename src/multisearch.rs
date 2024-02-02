@@ -32,7 +32,7 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
     let queries =
-        load_mh_with_name_and_md5(query_collection, &selection, ReportType::Query).unwrap();
+        load_mh_with_name_and_md5(query_collection, selection, ReportType::Query).unwrap();
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
@@ -42,7 +42,7 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
     let against =
-        load_mh_with_name_and_md5(against_collection, &selection, ReportType::Against).unwrap();
+        load_mh_with_name_and_md5(against_collection, selection, ReportType::Against).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -70,7 +70,7 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
-                let overlap = query_mh.count_common(&against_mh, false).unwrap() as f64;
+                let overlap = query_mh.count_common(against_mh, false).unwrap() as f64;
                 // use downsampled sizes
                 let query_size = query_mh.size() as f64;
                 let target_size = against_mh.size() as f64;
@@ -81,18 +81,16 @@ pub fn multisearch(
                 let jaccard = overlap / (target_size + query_size - overlap);
 
                 if containment_query_in_target > threshold {
-                    results.push(
-                        (MultiSearchResult {
-                            query_name: query_name.clone(),
-                            query_md5: query_md5.clone(),
-                            match_name: against_name.clone(),
-                            match_md5: against_md5.clone(),
-                            containment: containment_query_in_target,
-                            max_containment: max_containment,
-                            jaccard: jaccard,
-                            intersect_hashes: overlap,
-                        }),
-                    )
+                    results.push(MultiSearchResult {
+                        query_name: query_name.clone(),
+                        query_md5: query_md5.clone(),
+                        match_name: against_name.clone(),
+                        match_md5: against_md5.clone(),
+                        containment: containment_query_in_target,
+                        max_containment,
+                        jaccard,
+                        intersect_hashes: overlap,
+                    })
                 }
             }
             if results.is_empty() {

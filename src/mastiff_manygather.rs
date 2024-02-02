@@ -62,29 +62,27 @@ pub fn mastiff_manygather(
                     if let Some(query_mh) = query_sig.minhash() {
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(&query_mh);
+                            db.prepare_gather_counters(query_mh);
 
                         let matches = db.gather(
                             counter,
                             query_colors,
                             hash_to_color,
                             threshold,
-                            &query_mh,
+                            query_mh,
                             Some(selection.clone()),
                         );
                         // extract results TODO: ADD REST OF GATHER COLUMNS
                         if let Ok(matches) = matches {
                             for match_ in &matches {
-                                results.push(
-                                    (BranchwaterGatherResult {
-                                        query_name: query_sig.name().clone(),
-                                        query_md5: query_sig.md5sum().clone(),
-                                        match_name: match_.name().clone(),
-                                        match_md5: match_.md5().clone(),
-                                        f_match_query: match_.f_match(),
-                                        intersect_bp: match_.intersect_bp(),
-                                    }),
-                                );
+                                results.push(BranchwaterGatherResult {
+                                    query_name: query_sig.name().clone(),
+                                    query_md5: query_sig.md5sum().clone(),
+                                    match_name: match_.name().clone(),
+                                    match_md5: match_.md5().clone(),
+                                    f_match_query: match_.f_match(),
+                                    intersect_bp: match_.intersect_bp(),
+                                });
                             }
                         } else {
                             eprintln!("Error gathering matches: {:?}", matches.err());

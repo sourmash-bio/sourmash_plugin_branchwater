@@ -54,7 +54,7 @@ pub fn fastmultigather(
     )?;
     // load against sketches into memory, downsampling on the way
     let against =
-        load_mh_with_name_and_md5(against_collection, &selection, ReportType::Against).unwrap();
+        load_mh_with_name_and_md5(against_collection, selection, ReportType::Against).unwrap();
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
@@ -73,8 +73,8 @@ pub fn fastmultigather(
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
                         .filter_map(|(against_mh, against_name, against_md5)| {
-                            let mut mm = None;
-                            if let Ok(overlap) = against_mh.count_common(&query_mh, false) {
+                            let mut mm: Option<PrefetchResult> = None;
+                            if let Ok(overlap) = against_mh.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
                                     let result = PrefetchResult {
                                         name: against_name.clone(),

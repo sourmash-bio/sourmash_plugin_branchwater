@@ -22,7 +22,7 @@ pub fn index<P: AsRef<Path>>(
 
     RevIndex::create(
         output.as_ref(),
-        collection.select(&selection)?.try_into()?,
+        collection.select(selection)?.try_into()?,
         colors,
     )?;
 

@@ -65,7 +65,7 @@ pub fn mastiff_manysearch(
                 Ok(query_sig) => {
                     if let Some(query_mh) = query_sig.minhash() {
                         let query_size = query_mh.size();
-                        let counter = db.counter_for_query(&query_mh);
+                        let counter = db.counter_for_query(query_mh);
                         let matches =
                             db.matches_from_counter(counter, minimum_containment as usize);
 

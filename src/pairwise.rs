@@ -35,7 +35,7 @@ pub fn pairwise(
             &siglist
         )
     }
-    let sketches = load_mh_with_name_and_md5(collection, &selection, ReportType::General).unwrap();
+    let sketches = load_mh_with_name_and_md5(collection, selection, ReportType::General).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -54,7 +54,7 @@ pub fn pairwise(
         .par_iter()
         .enumerate()
         .for_each(|(idx, (q1, q1_name, q1_md5))| {
-            for (j, (q2, q2_name, q2_md5)) in sketches.iter().enumerate().skip(idx + 1) {
+            for (q2, q2_name, q2_md5) in sketches.iter().skip(idx + 1) {
                 let overlap = q1.count_common(q2, false).unwrap() as f64;
                 let query1_size = q1.size() as f64;
                 let query2_size = q2.size() as f64;
@@ -65,18 +65,16 @@ pub fn pairwise(
                 let jaccard = overlap / (query1_size + query2_size - overlap);
 
                 if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
-                    send.send(
-                        (MultiSearchResult {
-                            query_name: q1_name.clone(),
-                            query_md5: q1_md5.clone(),
-                            match_name: q2_name.clone(),
-                            match_md5: q2_md5.clone(),
-                            containment: containment_q1_in_q2,
-                            max_containment: max_containment,
-                            jaccard: jaccard,
-                            intersect_hashes: overlap,
-                        }),
-                    )
+                    send.send(MultiSearchResult {
+                        query_name: q1_name.clone(),
+                        query_md5: q1_md5.clone(),
+                        match_name: q2_name.clone(),
+                        match_md5: q2_md5.clone(),
+                        containment: containment_q1_in_q2,
+                        max_containment,
+                        jaccard,
+                        intersect_hashes: overlap,
+                    })
                     .unwrap();
                 }
 
