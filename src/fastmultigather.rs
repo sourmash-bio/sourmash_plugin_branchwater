@@ -3,8 +3,6 @@ use anyhow::Result;
 use rayon::prelude::*;
 
 use sourmash::selection::Selection;
-use sourmash::sketch::Sketch;
-use sourmash::storage::SigStore;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -14,7 +12,8 @@ use std::collections::BinaryHeap;
 use camino::Utf8Path;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
+    consume_query_by_gather, load_collection, load_mh_with_name_and_md5, write_prefetch,
+    PrefetchResult, ReportType,
 };
 
 pub fn fastmultigather(
@@ -32,7 +31,6 @@ pub fn fastmultigather(
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    println!("Loaded {} sig paths in querylist", query_collection.len());
 
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
@@ -55,90 +53,70 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
     // load actual signatures
-    let mut sketchlist: Vec<SigStore> = vec![];
-
-    for (idx, record) in against_collection.iter() {
-        if let Ok(sig) = against_collection.sig_for_dataset(idx)
-        // .unwrap()
-        // .select(&selection) // if we select here, we downsample and the md5sum changes!
-        // ...which means we would lose the original md5sum that is used in the standard gather results.
-        {
-            sketchlist.push(sig);
-        } else {
-            eprintln!("Failed to load 'against' record: {}", record.name());
-        }
-    }
+    let against =
+        load_mh_with_name_and_md5(against_collection, &selection, ReportType::Against).unwrap();
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    query_collection.par_iter().for_each(|(idx, record)| {
-        // increment counter of # of queries. q: could we instead use the index from par_iter()?
+    query_collection.par_iter().for_each(|(_idx, record)| {
+        // increment counter of # of queries. q: could we instead use the _idx from par_iter(), or will it vary based on thread?
         let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
         // Load query sig
-        match query_collection.sig_for_dataset(idx) {
+        match query_collection.sig_from_record(record) {
             Ok(query_sig) => {
                 let prefix = query_sig.name();
                 let location = Utf8Path::new(&prefix).file_name().unwrap();
-                for sketch in query_sig.iter() {
-                    // Access query MinHash
-                    if let Sketch::MinHash(query) = sketch {
-                        let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                            .iter()
-                            .filter_map(|sm| {
-                                let mut mm = None;
-                                // Access against MinHash
-                                if let Some(sketch) = sm.sketches().get(0) {
-                                    if let Sketch::MinHash(against_sketch) = sketch {
-                                        if let Ok(overlap) =
-                                            // downsample here to just get downsampled mh and avoid changing md5sum
-                                            against_sketch.count_common(&query, true)
-                                        {
-                                            if overlap >= threshold_hashes {
-                                                let result = PrefetchResult {
-                                                    name: sm.name(),
-                                                    md5sum: sm.md5sum().clone(),
-                                                    minhash: against_sketch.clone(),
-                                                    overlap,
-                                                };
-                                                mm = Some(result);
-                                            }
-                                        }
-                                    }
+                if let Some(query_mh) = query_sig.minhash() {
+                    let matchlist: BinaryHeap<PrefetchResult> = against
+                        .iter()
+                        .filter_map(|(against_mh, against_name, against_md5)| {
+                            let mut mm = None;
+                            if let Ok(overlap) = against_mh.count_common(&query_mh, false) {
+                                if overlap >= threshold_hashes {
+                                    let result = PrefetchResult {
+                                        name: against_name.clone(),
+                                        md5sum: against_md5.clone(),
+                                        minhash: against_mh.clone(),
+                                        overlap,
+                                    };
+                                    mm = Some(result);
                                 }
-                                mm
-                            })
-                            .collect();
-                        if !matchlist.is_empty() {
-                            let prefetch_output = format!("{}.prefetch.csv", location);
-                            let gather_output = format!("{}.gather.csv", location);
+                            }
+                            mm
+                        })
+                        .collect();
+                    if !matchlist.is_empty() {
+                        let prefetch_output = format!("{}.prefetch.csv", location);
+                        let gather_output = format!("{}.gather.csv", location);
 
-                            // Save initial list of matches to prefetch output
-                            write_prefetch(&query_sig, Some(prefetch_output), &matchlist).ok();
+                        // Save initial list of matches to prefetch output
+                        write_prefetch(&query_sig, Some(prefetch_output), &matchlist).ok();
 
-                            // Now, do the gather!
-                            consume_query_by_gather(
-                                query_sig.clone(),
-                                matchlist,
-                                threshold_hashes,
-                                Some(gather_output),
-                            )
-                            .ok();
-                        } else {
-                            println!("No matches to '{}'", location);
-                        }
+                        // Now, do the gather!
+                        consume_query_by_gather(
+                            query_sig.clone(),
+                            matchlist,
+                            threshold_hashes,
+                            Some(gather_output),
+                        )
+                        .ok();
                     } else {
-                        eprintln!(
-                            "WARNING: no compatible sketches in path '{}'",
-                            record.internal_location()
-                        );
-                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        println!("No matches to '{}'", location);
                     }
+                } else {
+                    // different warning here? Could not load sig from record??
+                    eprintln!(
+                        "WARNING: no compatible sketches in path '{}'",
+                        record.internal_location()
+                    );
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             }
             Err(_) => {
+                // different warning here? Could not load sig from record??
                 eprintln!(
                     "WARNING: no compatible sketches in path '{}'",
                     record.internal_location()

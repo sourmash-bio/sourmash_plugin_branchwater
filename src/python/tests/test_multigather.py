@@ -424,6 +424,7 @@ def test_bad_against_2(runtmp, capfd, zip_query):
 
 
 def test_empty_against(runtmp, capfd):
+    # like fastgather - exit gracefully.
     # test bad 'against' file - in this case, an empty one
     query = get_test_data('SRR606249.sig.gz')
     query_list = runtmp.output('query.txt')
@@ -432,15 +433,14 @@ def test_empty_against(runtmp, capfd):
     against_list = runtmp.output('against.txt')
     make_file_list(against_list, [])
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
                         '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
 
     assert "Sketch loading error: No such file or directory" in captured.err
-    assert "Error: No search signatures loaded, exiting." in captured.err
+    assert "No search signatures loaded, exiting." in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])

@@ -300,8 +300,8 @@ def test_bad_against(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-def test_empty_query(runtmp):
-    # test with an empty query list
+def test_empty_query(runtmp, capfd):
+    # test with an empty query list - fail gracefully
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -314,11 +314,13 @@ def test_empty_query(runtmp):
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                         '-o', output)
 
     print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "No query signatures loaded, exiting." in captured.err
     # @CTB
 
 

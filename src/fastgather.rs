@@ -15,7 +15,6 @@ pub fn fastgather(
     query_filepath: String,
     against_filepath: String,
     threshold_bp: usize,
-    ksize: u8,
     scaled: usize,
     selection: &Selection,
     gather_output: Option<String>,
@@ -36,9 +35,8 @@ pub fn fastgather(
         )
     }
     // get single query sig and minhash
-    let query_sig = query_collection.sig_for_dataset(0)?; // need original md5sum, etc
-                                                          // downsample
-    let query_sig_ds = query_sig.clone().select(selection)?;
+    let query_sig = query_collection.sig_for_dataset(0)?; // need this for original md5sum
+    let query_sig_ds = query_sig.clone().select(selection)?; // downsample
     let query_mh = match query_sig_ds.minhash() {
         Some(query_mh) => query_mh,
         None => {
@@ -98,12 +96,6 @@ pub fn fastgather(
     }
 
     // run the gather!
-    consume_query_by_gather(
-        query_sig.clone(),
-        matchlist,
-        threshold_hashes,
-        gather_output,
-    )
-    .ok();
+    consume_query_by_gather(query_sig, matchlist, threshold_hashes, gather_output).ok();
     Ok(())
 }

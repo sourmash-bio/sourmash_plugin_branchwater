@@ -127,32 +127,6 @@ pub fn write_prefetch(
     Ok(())
 }
 
-/// Load a list of filenames from a file. Exits on bad lines.
-// pub fn load_sketchlist_filenames<P: AsRef<Path>>(sketchlist_filename: &P) -> Result<Vec<PathBuf>> {
-//     let sketchlist_file = BufReader::new(File::open(sketchlist_filename)?);
-
-//     let mut sketchlist_filenames: Vec<PathBuf> = Vec::new();
-//     for line in sketchlist_file.lines() {
-//         let line = match line {
-//             Ok(v) => v,
-//             Err(_) => {
-//                 return {
-//                     let filename = sketchlist_filename.as_ref().display();
-//                     let msg = format!("invalid line in fromfile '{}'", filename);
-//                     Err(anyhow!(msg))
-//                 }
-//             }
-//         };
-
-//         if !line.is_empty() {
-//             let mut path = PathBuf::new();
-//             path.push(line);
-//             sketchlist_filenames.push(path);
-//         }
-//     }
-//     Ok(sketchlist_filenames)
-// }
-
 pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<Vec<(String, PathBuf, String)>> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
@@ -265,27 +239,27 @@ pub fn load_sketches_above_threshold(
             let mut results = Vec::new();
             // Load against into memory
             if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
-                for sketch in against_sig.sketches() {
-                    if let Sketch::MinHash(against_mh) = sketch {
-                        // currently downsampling here to avoid changing md5sum
-                        if let Ok(overlap) = against_mh.count_common(query, true) {
-                            if overlap >= threshold_hashes {
-                                let result = PrefetchResult {
-                                    name: against_record.name().to_string(),
-                                    md5sum: against_mh.md5sum(),
-                                    minhash: against_mh.clone(),
-                                    overlap,
-                                };
-                                results.push(result);
-                            }
+                if let Some(against_mh) = against_sig.minhash() {
+                    // if let Some(against_mh) = against_sig.select(&selection).unwrap().minhash() { // downsample via select
+                    // currently downsampling here to avoid changing md5sum
+                    if let Ok(overlap) = against_mh.count_common(query, true) {
+                        //downsample via count_common
+                        if overlap >= threshold_hashes {
+                            let result = PrefetchResult {
+                                name: against_record.name().to_string(),
+                                md5sum: against_mh.md5sum(),
+                                minhash: against_mh.clone(),
+                                overlap,
+                            };
+                            results.push(result);
                         }
-                    } else {
-                        eprintln!(
-                            "WARNING: no compatible sketches in path '{}'",
-                            against_sig.filename()
-                        );
-                        let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
+                } else {
+                    eprintln!(
+                        "WARNING: no compatible sketches in path '{}'",
+                        against_sig.filename()
+                    );
+                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
                 // this shouldn't happen here anymore -- likely would happen at load_collection
@@ -454,7 +428,8 @@ pub fn report_on_collection_loading(
 
     // Validate sketches
     if collection.is_empty() {
-        bail!("No {} signatures loaded, exiting.", report_type);
+        eprintln!("No {} signatures loaded, exiting.", report_type);
+        return Ok(());
     }
     eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);
     Ok(())

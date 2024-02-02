@@ -371,8 +371,8 @@ def test_nomatch_against(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+    # with pytest.raises(utils.SourmashCommandFailed):
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
     captured = capfd.readouterr()
@@ -403,7 +403,7 @@ def test_bad_against(runtmp, capfd):
 
 
 @pytest.mark.parametrize("indexed", [False, True])
-def test_empty_query(runtmp, indexed):
+def test_empty_query(runtmp, indexed, capfd):
     # test with an empty query list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -420,11 +420,14 @@ def test_empty_query(runtmp, indexed):
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+    # with pytest.raises(utils.SourmashCommandFailed):
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
     print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "No query signatures loaded, exiting." in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])

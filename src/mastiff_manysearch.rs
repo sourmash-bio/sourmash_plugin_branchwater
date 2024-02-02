@@ -36,11 +36,6 @@ pub fn mastiff_manysearch(
         allow_failed_sigpaths,
     )?;
 
-    // if query_paths is empty, exit with error. this should already happen via load_collection, i think?
-    if query_collection.len() == 0 {
-        bail!("No query signatures loaded, exiting.");
-    }
-
     // set up a multi-producer, single-consumer channel.
     let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
 

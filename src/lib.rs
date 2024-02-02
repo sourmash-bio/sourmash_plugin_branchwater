@@ -87,7 +87,6 @@ fn do_fastgather(
         query_filename,
         siglist_path,
         threshold_bp,
-        ksize,
         scaled,
         &selection,
         output_path_prefetch,
