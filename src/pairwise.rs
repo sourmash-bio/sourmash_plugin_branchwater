@@ -1,28 +1,24 @@
-use anyhow::Result;
 /// pairwise: massively parallel in-memory pairwise comparisons.
+use anyhow::Result;
 use rayon::prelude::*;
-
-use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::path::Path;
-
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use sourmash::signature::SigsTrait;
-
-use crate::utils::{load_collection, load_mh_with_name_and_md5, ReportType};
+use crate::utils::{
+    csvwriter_thread, load_collection, load_mh_with_name_and_md5, MultiSearchResult, ReportType,
+};
 use sourmash::selection::Selection;
+use sourmash::signature::SigsTrait;
 
 /// Perform pairwise comparisons of all signatures in a list.
 ///
 /// Note: this function loads all _signatures_ into memory.
 
-pub fn pairwise<P: AsRef<Path>>(
+pub fn pairwise(
     siglist: String,
     threshold: f64,
     selection: &Selection,
-    output: Option<P>,
+    output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
@@ -42,25 +38,11 @@ pub fn pairwise<P: AsRef<Path>>(
     let sketches = load_mh_with_name_and_md5(collection, &selection, ReportType::General).unwrap();
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
 
-    // & spawn a thread that is dedicated to printing to a buffered output
-    let out: Box<dyn Write + Send> = match output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let thrd = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
-            writeln!(
-                &mut writer,
-                "\"{}\",{},\"{}\",{},{},{},{},{}",
-                query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap
-            )
-            .ok();
-        }
-    });
+    // // & spawn a thread that is dedicated to printing to a buffered output
+    let thrd = csvwriter_thread(recv, output);
 
     //
     // Main loop: iterate (in parallel) over all signature,
@@ -83,16 +65,18 @@ pub fn pairwise<P: AsRef<Path>>(
                 let jaccard = overlap / (query1_size + query2_size - overlap);
 
                 if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
-                    send.send((
-                        q1_name.clone(),
-                        q1_md5.clone(),
-                        q2_name.clone(),
-                        q2_md5.clone(),
-                        containment_q1_in_q2,
-                        max_containment,
-                        jaccard,
-                        overlap,
-                    ))
+                    send.send(
+                        (MultiSearchResult {
+                            query_name: q1_name.clone(),
+                            query_md5: q1_md5.clone(),
+                            match_name: q2_name.clone(),
+                            match_md5: q2_md5.clone(),
+                            containment: containment_q1_in_q2,
+                            max_containment: max_containment,
+                            jaccard: jaccard,
+                            intersect_hashes: overlap,
+                        }),
+                    )
                     .unwrap();
                 }
 

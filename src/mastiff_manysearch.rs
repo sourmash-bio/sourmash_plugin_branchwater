@@ -5,13 +5,11 @@ use rayon::prelude::*;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
-use sourmash::sketch::Sketch;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, open_stdout_or_file, ReportType,
-    SearchResult,
+    csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
 };
 
 pub fn mastiff_manysearch(
@@ -55,46 +53,44 @@ pub fn mastiff_manysearch(
 
     let send_result = query_collection
         .par_iter()
-        .filter_map(|(idx, record)| {
+        .filter_map(|(_idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
                 eprintln!("Processed {} search sigs", i);
             }
 
             let mut results = vec![];
-            match query_collection.sig_for_dataset(idx) {
+            // query downsample happens here
+            match query_collection.sig_from_record(record) {
                 Ok(query_sig) => {
-                    for sketch in query_sig.iter() {
-                        if let Sketch::MinHash(query_mh) = sketch {
-                            // let location = query_sig.filename();
-                            let query_size = query_mh.size();
-                            let counter = db.counter_for_query(&query_mh);
-                            let matches =
-                                db.matches_from_counter(counter, minimum_containment as usize);
+                    if let Some(query_mh) = query_sig.minhash() {
+                        let query_size = query_mh.size();
+                        let counter = db.counter_for_query(&query_mh);
+                        let matches =
+                            db.matches_from_counter(counter, minimum_containment as usize);
 
-                            // filter the matches for containment
-                            for (path, overlap) in matches {
-                                let containment = overlap as f64 / query_size as f64;
-                                if containment >= minimum_containment {
-                                    results.push(SearchResult {
-                                        query_name: query_sig.name(),
-                                        query_md5: query_sig.md5sum(),
-                                        match_name: path.clone(),
-                                        containment,
-                                        intersect_hashes: overlap,
-                                        match_md5: None,
-                                        jaccard: None,
-                                        max_containment: None,
-                                    });
-                                }
+                        // filter the matches for containment
+                        for (path, overlap) in matches {
+                            let containment = overlap as f64 / query_size as f64;
+                            if containment >= minimum_containment {
+                                results.push(SearchResult {
+                                    query_name: query_sig.name(),
+                                    query_md5: query_sig.md5sum(),
+                                    match_name: path.clone(),
+                                    containment,
+                                    intersect_hashes: overlap,
+                                    match_md5: None,
+                                    jaccard: None,
+                                    max_containment: None,
+                                });
                             }
-                        } else {
-                            eprintln!(
-                                "WARNING: no compatible sketches in path '{}'",
-                                query_sig.filename()
-                            );
-                            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         }
+                    } else {
+                        eprintln!(
+                            "WARNING: no compatible sketches in path '{}'",
+                            query_sig.filename()
+                        );
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     if results.is_empty() {
                         None

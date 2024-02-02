@@ -644,6 +644,44 @@ impl ResultType for BranchwaterGatherResult {
     }
 }
 
+pub struct MultiSearchResult {
+    pub query_name: String,
+    pub query_md5: String,
+    pub match_name: String,
+    pub match_md5: String,
+    pub containment: f64,
+    pub max_containment: f64,
+    pub jaccard: f64,
+    pub intersect_hashes: f64,
+}
+
+impl ResultType for MultiSearchResult {
+    fn header_fields() -> Vec<&'static str> {
+        vec![
+            "query_name",
+            "query_md5",
+            "match_name",
+            "match_md5",
+            "containment",
+            "max_containment",
+            "jaccard",
+            "intersect_hashes",
+        ]
+    }
+
+    fn format_fields(&self) -> Vec<String> {
+        vec![
+            format!("\"{}\"", self.query_name), // Wrap query_name with quotes
+            self.query_md5.clone(),
+            format!("\"{}\"", self.match_name), // Wrap match_name with quotes
+            self.match_md5.clone(),
+            self.containment.to_string(),
+            self.max_containment.to_string(),
+            self.jaccard.to_string(),
+            self.intersect_hashes.to_string(),
+        ]
+    }
+}
 pub struct ManifestRow {
     pub md5: String,
     pub md5short: String,

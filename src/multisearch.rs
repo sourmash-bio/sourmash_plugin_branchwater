@@ -1,17 +1,14 @@
-use anyhow::Result;
 /// multisearch: massively parallel in-memory sketch search.
+use anyhow::Result;
 use rayon::prelude::*;
-
-use std::fs::File;
-use std::io::{BufWriter, Write};
-
+use sourmash::selection::Selection;
+use sourmash::signature::SigsTrait;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use sourmash::selection::Selection;
-use sourmash::signature::SigsTrait;
-
-use crate::utils::{load_collection, load_mh_with_name_and_md5, ReportType};
+use crate::utils::{
+    csvwriter_thread, load_collection, load_mh_with_name_and_md5, MultiSearchResult, ReportType,
+};
 
 /// Search many queries against a list of signatures.
 ///
@@ -48,25 +45,11 @@ pub fn multisearch(
         load_mh_with_name_and_md5(against_collection, &selection, ReportType::Against).unwrap();
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
 
-    // & spawn a thread that is dedicated to printing to a buffered output
-    let out: Box<dyn Write + Send> = match output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let thrd = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
-            writeln!(
-                &mut writer,
-                "\"{}\",{},\"{}\",{},{},{},{},{}",
-                query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap
-            )
-            .ok();
-        }
-    });
+    // // & spawn a thread that is dedicated to printing to a buffered output
+    let thrd = csvwriter_thread(recv, output);
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,
@@ -98,16 +81,18 @@ pub fn multisearch(
                 let jaccard = overlap / (target_size + query_size - overlap);
 
                 if containment_query_in_target > threshold {
-                    results.push((
-                        query_name.clone(),
-                        query_md5.clone(),
-                        against_name.clone(),
-                        against_md5.clone(),
-                        containment_query_in_target,
-                        max_containment,
-                        jaccard,
-                        overlap,
-                    ))
+                    results.push(
+                        (MultiSearchResult {
+                            query_name: query_name.clone(),
+                            query_md5: query_md5.clone(),
+                            match_name: against_name.clone(),
+                            match_md5: against_md5.clone(),
+                            containment: containment_query_in_target,
+                            max_containment: max_containment,
+                            jaccard: jaccard,
+                            intersect_hashes: overlap,
+                        }),
+                    )
                 }
             }
             if results.is_empty() {

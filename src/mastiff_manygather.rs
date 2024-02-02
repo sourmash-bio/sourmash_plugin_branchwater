@@ -34,7 +34,6 @@ pub fn mastiff_manygather(
     )?;
 
     // set up a multi-producer, single-consumer channel.
-    // let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
 
