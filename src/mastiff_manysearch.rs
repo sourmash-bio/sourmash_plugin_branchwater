@@ -10,7 +10,8 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
+    csvwriter_thread, is_revindex_database, load_collection, open_stdout_or_file, ReportType,
+    SearchResult,
 };
 
 pub fn mastiff_manysearch(

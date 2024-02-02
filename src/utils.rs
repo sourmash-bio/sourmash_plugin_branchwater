@@ -4,12 +4,11 @@ use sourmash::encodings::HashFunctions;
 use sourmash::manifest::Manifest;
 use sourmash::selection::Select;
 
+use camino::Utf8Path as Path;
+use camino::Utf8PathBuf as PathBuf;
 use std::fs::{create_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
-// use std::path::{Path, PathBuf};
-use camino::Utf8Path as Path;
-use camino::Utf8PathBuf as PathBuf;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -199,6 +198,8 @@ pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<Vec<(String, P
     Ok(results)
 }
 
+// Load all compatible minhashes from a collection into memory
+// also store sig name and md5 alongside, as we usually need those
 pub fn load_mh_with_name_and_md5(
     collection: Collection,
     selection: &Selection,
@@ -312,6 +313,7 @@ pub fn load_collection(
     if !sigpath.exists() {
         bail!("No such file or directory: '{}'", &sigpath);
     }
+    eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
 
     let mut n_failed = 0;
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
@@ -606,6 +608,38 @@ impl ResultType for SearchResult {
                 Some(max_containment) => max_containment.to_string(),
                 None => "".to_string(),
             },
+        ]
+    }
+}
+
+pub struct BranchwaterGatherResult {
+    pub query_name: String,
+    pub query_md5: String,
+    pub match_name: String,
+    pub match_md5: String,
+    pub f_match_query: f64,
+    pub intersect_bp: usize,
+}
+
+impl ResultType for BranchwaterGatherResult {
+    fn header_fields() -> Vec<&'static str> {
+        vec![
+            "query_name",
+            "query_md5",
+            "match_name",
+            "match_md5",
+            "f_match_query",
+            "intersect_bp",
+        ]
+    }
+    fn format_fields(&self) -> Vec<String> {
+        vec![
+            format!("\"{}\"", self.query_name), // Wrap query_name with quotes
+            self.query_md5.clone(),
+            format!("\"{}\"", self.match_name), // Wrap match_name with quotes
+            self.match_md5.clone(),
+            self.f_match_query.to_string(),
+            self.intersect_bp.to_string(),
         ]
     }
 }

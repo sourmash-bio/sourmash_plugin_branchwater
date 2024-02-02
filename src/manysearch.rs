@@ -27,17 +27,14 @@ pub fn manysearch(
     output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    // Read in list of query paths.
-    eprintln!("Reading queries from: '{}'", query_filepath);
-
-    // Load all query sigs into memory at once.
+    // Load query collection
     let query_collection = load_collection(
         &query_filepath,
         selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    // load query sketches into memory, downsampling on the way
+    // load all query sketches into memory, downsampling on the way
     let query_sketchlist =
         load_mh_with_name_and_md5(query_collection, &selection, ReportType::Query).unwrap();
 
