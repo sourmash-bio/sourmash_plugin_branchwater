@@ -304,17 +304,40 @@ def test_against_multisigfile(runtmp, zip_against):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
+    runtmp.sourmash('scripts', 'fastgather', query, combined,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    print(df)
+
+
+def test_against_multisigfile_in_pathlist(runtmp):
+    # test against a sigfile that contains multiple sketches
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    combined = runtmp.output('combined.sig.gz')
+    runtmp.sourmash('sig', 'cat', sig2, sig47, sig63, '-o', combined)
+    make_file_list(against_list, [combined])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
     runtmp.sourmash('scripts', 'fastgather', query, against_list,
                     '-o', g_output, '--output-prefetch', p_output,
                     '-s', '100000')
     df = pandas.read_csv(g_output)
-    if zip_against:
-        assert len(df) == 3
-        print(df)
-    else:
-        print(df)
-        assert len(df) == 1
+    print(df)
+    assert len(df) == 3
     # @CTB this is a bug :(. It should load multiple sketches properly!
+    # @NTP: see pathlist loading in load_collection. When we build
+    # records from a signature, all records from the same signature
+    # are read in, but end up having the same name/md5sum
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
