@@ -9,7 +9,7 @@ use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
-use camino::Utf8Path;
+use camino::Utf8Path as PathBuf;
 
 use crate::utils::{
     consume_query_by_gather, load_collection, load_mh_with_name_and_md5, write_prefetch,
@@ -24,7 +24,7 @@ pub fn fastmultigather(
     selection: &Selection,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    // load the list of query paths
+    // load query collection
     let query_collection = load_collection(
         &query_filepath,
         selection,
@@ -45,14 +45,14 @@ pub fn fastmultigather(
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
-    // Load all the against sketches
+    // load against collection
     let against_collection = load_collection(
         &against_filepath,
         selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    // load actual signatures
+    // load against sketches into memory, downsampling on the way
     let against =
         load_mh_with_name_and_md5(against_collection, &selection, ReportType::Against).unwrap();
 
@@ -64,11 +64,11 @@ pub fn fastmultigather(
     query_collection.par_iter().for_each(|(_idx, record)| {
         // increment counter of # of queries. q: could we instead use the _idx from par_iter(), or will it vary based on thread?
         let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
-        // Load query sig
+        // Load query sig (downsampling happens here)
         match query_collection.sig_from_record(record) {
             Ok(query_sig) => {
                 let prefix = query_sig.name();
-                let location = Utf8Path::new(&prefix).file_name().unwrap();
+                let location = PathBuf::new(&prefix).file_name().unwrap();
                 if let Some(query_mh) = query_sig.minhash() {
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()

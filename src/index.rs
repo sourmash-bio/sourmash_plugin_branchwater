@@ -8,7 +8,6 @@ pub fn index<P: AsRef<Path>>(
     siglist: String,
     selection: &Selection,
     output: P,
-    save_paths: bool,
     colors: bool,
     allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
