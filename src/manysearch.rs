@@ -15,7 +15,9 @@ use sourmash::storage::SigStore;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{csvwriter_thread, load_collection, ReportType, SearchResult};
+use crate::utils::{
+    csvwriter_thread, load_collection, load_mh_with_name_and_md5, ReportType, SearchResult,
+};
 
 pub fn manysearch(
     query_filepath: String,
@@ -35,22 +37,11 @@ pub fn manysearch(
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    // load actual signatures
-    let mut query_sketchlist: Vec<SigStore> = vec![];
+    // load query sketches into memory, downsampling on the way
+    let query_sketchlist =
+        load_mh_with_name_and_md5(query_collection, &selection, ReportType::Query).unwrap();
 
-    for (idx, record) in query_collection.iter() {
-        if let Ok(sig) = query_collection
-            .sig_for_dataset(idx)
-            .unwrap()
-            .select(&selection)
-        {
-            query_sketchlist.push(sig);
-        } else {
-            eprintln!("Failed to load 'query' sig: {}", record.name());
-        }
-    }
-
-    // Load all _paths_, not signatures, into memory.
+    // Against: Load all _paths_, not signatures, into memory.
     let against_collection = load_collection(
         &against_filepath,
         selection,
@@ -76,7 +67,7 @@ pub fn manysearch(
 
     let send = against_collection
         .par_iter()
-        .filter_map(|(idx, record)| {
+        .filter_map(|(_idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 {
                 eprintln!("Processed {} search sigs", i);
@@ -84,54 +75,41 @@ pub fn manysearch(
 
             let mut results = vec![];
 
-            match against_collection.sig_for_dataset(idx) {
-                Ok(against_sig) => match against_sig.select(selection) {
-                    Ok(against_sig) => {
-                        for sketch in against_sig.iter() {
-                            if let Sketch::MinHash(against_mh) = sketch {
-                                for query_sig in query_sketchlist.iter() {
-                                    for sketch in query_sig.iter() {
-                                        if let Sketch::MinHash(query_mh) = sketch {
-                                            let overlap =
-                                                query_mh.count_common(&against_mh, false).unwrap()
-                                                    as f64;
-                                            let query_size = query_mh.size() as f64;
-                                            let target_size = against_mh.size() as f64;
+            // against downsampling happens here
+            match against_collection.sig_from_record(record) {
+                Ok(against_sig) => {
+                    if let Some(against_mh) = against_sig.minhash() {
+                        for (query_mh, query_name, query_md5) in query_sketchlist.iter() {
+                            let overlap = query_mh.count_common(&against_mh, false).unwrap() as f64;
+                            let query_size = query_mh.size() as f64;
+                            let target_size = against_mh.size() as f64;
+                            let containment_query_in_target = overlap / query_size;
+                            let containment_in_target = overlap / target_size;
+                            let max_containment =
+                                containment_query_in_target.max(containment_in_target);
+                            let jaccard = overlap / (target_size + query_size - overlap);
 
-                                            let containment_query_in_target = overlap / query_size;
-                                            let containment_in_target = overlap / target_size;
-                                            let max_containment = containment_query_in_target
-                                                .max(containment_in_target);
-                                            let jaccard =
-                                                overlap / (target_size + query_size - overlap);
-
-                                            if containment_query_in_target > threshold {
-                                                results.push(SearchResult {
-                                                    query_name: query_sig.name(),
-                                                    query_md5: query_mh.md5sum(),
-                                                    match_name: against_sig.name(),
-                                                    containment: containment_query_in_target,
-                                                    intersect_hashes: overlap as usize,
-                                                    match_md5: Some(against_mh.md5sum()),
-                                                    jaccard: Some(jaccard),
-                                                    max_containment: Some(max_containment),
-                                                });
-                                            }
-                                        }
-                                    }
-                                }
+                            if containment_query_in_target > threshold {
+                                results.push(SearchResult {
+                                    query_name: query_name.clone(),
+                                    query_md5: query_md5.clone(),
+                                    match_name: against_sig.name(),
+                                    containment: containment_query_in_target,
+                                    intersect_hashes: overlap as usize,
+                                    match_md5: Some(against_sig.md5sum()),
+                                    jaccard: Some(jaccard),
+                                    max_containment: Some(max_containment),
+                                });
                             }
                         }
-                    }
-                    Err(err) => {
-                        eprintln!("Sketch selection error: {}", err);
+                    } else {
                         eprintln!(
                             "WARNING: no compatible sketches in path '{}'",
                             record.internal_location()
                         );
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
-                },
+                }
                 Err(err) => {
                     eprintln!("Sketch loading error: {}", err);
                     eprintln!(
