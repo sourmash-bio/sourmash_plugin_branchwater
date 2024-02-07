@@ -54,12 +54,14 @@ pub fn mastiff_manygather(
         .par_iter()
         .filter_map(|(_idx, record)| {
             let threshold = threshold_bp / selection.scaled()? as usize;
+            let ksize = selection.ksize()?;
 
             // query downsampling happens here
             match query_collection.sig_from_record(record) {
                 Ok(query_sig) => {
                     let mut results = vec![];
                     if let Some(query_mh) = query_sig.minhash() {
+                        let query_bp = query_sig.size() * query_mh.scaled() as usize;
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
                             db.prepare_gather_counters(query_mh);
@@ -82,6 +84,15 @@ pub fn mastiff_manygather(
                                     match_md5: match_.md5().clone(),
                                     f_match_query: match_.f_match(),
                                     intersect_bp: match_.intersect_bp(),
+                                    f_unique_weighted: match_.f_unique_weighted(),
+                                    f_unique_to_query: match_.f_unique_to_query(),
+                                    unique_intersect_bp: match_.unique_intersect_bp(),
+                                    remaining_bp: match_.remaining_bp(),
+                                    query_filename: query_sig.filename(),
+                                    query_bp: query_bp,
+                                    ksize: ksize as usize,
+                                    scaled: query_mh.scaled() as usize,
+                                    name: match_.name().clone(),
                                 });
                             }
                         } else {

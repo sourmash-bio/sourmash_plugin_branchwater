@@ -710,10 +710,20 @@ pub struct SearchResult {
 pub struct BranchwaterGatherResult {
     pub query_name: String,
     pub query_md5: String,
-    pub match_name: String,
+    pub match_name: String, // tax needs 'name'! argh. fix tax to accept either
     pub match_md5: String,
     pub f_match_query: f64,
     pub intersect_bp: usize,
+    // new cols
+    pub f_unique_weighted: f64,
+    pub f_unique_to_query: f64,
+    pub unique_intersect_bp: usize,
+    pub remaining_bp: usize,
+    pub query_filename: String,
+    pub query_bp: usize,
+    pub ksize: usize,
+    pub scaled: usize,
+    pub name: String, // temp, equal to match_name, but tax only accepts name -- fix to allow match_name too
 }
 
 #[derive(Serialize)]

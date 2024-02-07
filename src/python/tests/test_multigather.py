@@ -735,7 +735,7 @@ def test_csv_columns_vs_sourmash_prefetch_indexed(runtmp, zip_query):
 
     gather_df = pandas.read_csv(g_output)
     g_keys = set(gather_df.keys())
-    assert g_keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+    assert {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'} in g_keys
 
     sourmash_prefetch_df = pandas.read_csv(sp_output)
     sp_keys = set(sourmash_prefetch_df.keys())
