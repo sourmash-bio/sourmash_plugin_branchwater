@@ -17,6 +17,8 @@ mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
+use sourmash::encodings::HashFunctions;
+use sourmash::selection::Selection;
 
 #[pyfunction]
 fn do_manysearch(
@@ -104,10 +106,24 @@ fn do_fastmultigather(
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
     let template = build_template(ksize, scaled, &moltype);
     if is_revindex_database(siglist_path.as_ref()) {
+        // build selection instead of template
+        let hash_function = match moltype.as_str() {
+            "dna" => HashFunctions::Murmur64Dna,
+            "protein" => HashFunctions::Murmur64Protein,
+            "dayhoff" => HashFunctions::Murmur64Dayhoff,
+            "hp" => HashFunctions::Murmur64Hp,
+            _ => panic!("Unknown molecule type: {}", moltype),
+        };
+        let selection = Selection::builder()
+            .ksize(ksize.into())
+            .scaled(scaled as u32)
+            .moltype(hash_function)
+            .build();
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
             siglist_path,
             template,
+            selection,
             threshold_bp,
             output_path,
         ) {
@@ -161,9 +177,25 @@ fn do_index(
     save_paths: bool,
     colors: bool,
 ) -> anyhow::Result<u8> {
+    let hash_function = match moltype.as_str() {
+        "dna" => HashFunctions::Murmur64Dna,
+        "protein" => HashFunctions::Murmur64Protein,
+        "dayhoff" => HashFunctions::Murmur64Dayhoff,
+        "hp" => HashFunctions::Murmur64Hp,
+        _ => panic!("Unknown molecule type: {}", moltype),
+    };
+    let selection = Selection::builder()
+        .ksize(ksize.into())
+        .scaled(scaled as u32)
+        .moltype(hash_function)
+        .build();
+    // match index::index(siglist, template, output, save_paths, colors) {
+    // convert siglist to PathBuf
     // build template from ksize, scaled
     let template = build_template(ksize, scaled, &moltype);
-    match index::index(siglist, template, output, save_paths, colors) {
+    let location = camino::Utf8PathBuf::from(siglist);
+    let manifest = None;
+    match index::index(location, manifest, selection, output, save_paths, colors) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

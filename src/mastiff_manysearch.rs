@@ -1,13 +1,10 @@
 /// mastiff_manysearch: mastiff-indexed version of manysearch.
 use anyhow::Result;
 use rayon::prelude::*;
-
+use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::Sketch;
 use std::path::Path;
-
-use sourmash::index::revindex::RevIndex;
-
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -30,7 +27,7 @@ pub fn mastiff_manysearch<P: AsRef<Path>>(
         );
     }
     // Open database once
-    let db = RevIndex::open(index.as_ref(), true);
+    let db = RevIndex::open(index.as_ref(), true)?;
     println!("Loaded DB");
 
     // Load query paths

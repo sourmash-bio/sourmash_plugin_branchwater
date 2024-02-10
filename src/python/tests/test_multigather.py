@@ -244,7 +244,7 @@ def test_bad_query_2(runtmp, capfd, indexed):
 
 @pytest.mark.parametrize('indexed', [False, True])
 def test_missing_query(runtmp, capfd, indexed):
-    # test missingfile in querylist
+    # test missing query
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -263,7 +263,6 @@ def test_missing_query(runtmp, capfd, indexed):
 
     captured = capfd.readouterr()
     print(captured.err)
-
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
     assert "WARNING: 1 query paths failed to load. See error messages above."
 

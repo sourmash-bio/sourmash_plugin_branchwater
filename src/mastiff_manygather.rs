@@ -6,7 +6,9 @@ use sourmash::signature::Signature;
 use sourmash::sketch::Sketch;
 use std::path::Path;
 
-use sourmash::index::revindex::RevIndex;
+use sourmash::prelude::*;
+
+use sourmash::index::revindex::{RevIndex, RevIndexOps};
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -14,14 +16,13 @@ use std::sync::atomic::AtomicUsize;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
-use crate::utils::{
-    is_revindex_database, load_sigpaths_from_zip_or_pathlist, prepare_query, ReportType,
-};
+use crate::utils::{is_revindex_database, load_sigpaths_from_zip_or_pathlist, ReportType};
 
 pub fn mastiff_manygather<P: AsRef<Path>>(
     queries_file: P,
     index: P,
     template: Sketch,
+    selection: Selection,
     threshold_bp: usize,
     output: Option<P>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -32,7 +33,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
         );
     }
     // Open database once
-    let db = RevIndex::open(index.as_ref(), true);
+    let db = RevIndex::open(index.as_ref(), true)?;
     println!("Loaded DB");
 
     // Load query paths
@@ -78,71 +79,81 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     let send = query_paths
         .par_iter()
         .filter_map(|filename| {
-            let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-            if i % 1000 == 0 {
-                eprintln!("Processed {} search sigs", i);
-            }
+            let threshold = threshold_bp / selection.scaled()? as usize;
 
-            let mut results = vec![];
-
-            // load query signature from path:
             match Signature::from_path(filename) {
-                Ok(query_sig) => {
-                    let location = filename.display().to_string();
-                    if let Some(query) = prepare_query(&query_sig, &template, &location) {
-                        // let query_size = query.minhash.size() as f64;
-                        let threshold = threshold_bp / query.minhash.scaled() as usize;
+                Ok(mut signatures) if !signatures.is_empty() => {
+                    match signatures.swap_remove(0).select(&selection) {
+                        Ok(query_sig) => {
+                            let mut results = vec![];
+                            let mut found_compatible_sketch = false;
+                            for sketch in query_sig.iter() {
+                                if let Sketch::MinHash(query) = sketch {
+                                    found_compatible_sketch = true;
+                                    // Gather!
+                                    let (counter, query_colors, hash_to_color) =
+                                        db.prepare_gather_counters(&query);
 
-                        // mastiff gather code
-                        let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(&query.minhash);
-
-                        let matches = db.gather(
-                            counter,
-                            query_colors,
-                            hash_to_color,
-                            threshold,
-                            &query.minhash,
-                            &template,
-                        );
-
-                        // extract matches from Result
-                        if let Ok(matches) = matches {
-                            for match_ in &matches {
-                                results.push((
-                                    query.name.clone(),
-                                    query.md5sum.clone(),
-                                    match_.name().clone(),
-                                    match_.md5().clone(),
-                                    match_.f_match(), // f_match_query
-                                    match_.intersect_bp(),
-                                )); // intersect_bp
+                                    let matches = db.gather(
+                                        counter,
+                                        query_colors,
+                                        hash_to_color,
+                                        threshold,
+                                        &query,
+                                        Some(selection.clone()),
+                                    );
+                                    // extract results
+                                    if let Ok(matches) = matches {
+                                        for match_ in &matches {
+                                            results.push((
+                                                query_sig.name().clone(),
+                                                query.md5sum().clone(),
+                                                match_.name().clone(),
+                                                match_.md5().clone(),
+                                                match_.f_match(), // f_match_query
+                                                match_.intersect_bp(),
+                                            )); // intersect_bp
+                                        }
+                                    } else {
+                                        eprintln!("Error gathering matches: {:?}", matches.err());
+                                    }
+                                }
                             }
-                        } else {
-                            eprintln!("Error gathering matches: {:?}", matches.err());
+                            if !found_compatible_sketch {
+                                if !queryfile_name.ends_with(".zip") {
+                                    eprintln!(
+                                        "WARNING: no compatible sketches in path '{}'",
+                                        filename.display()
+                                    );
+                                }
+                                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                            }
+
+                            if results.is_empty() {
+                                None
+                            } else {
+                                Some(results)
+                            }
                         }
-                    } else {
-                        if !queryfile_name.ends_with(".zip") {
-                            eprintln!(
-                                "WARNING: no compatible sketches in path '{}'",
-                                filename.display()
-                            );
+                        Err(err) => {
+                            eprintln!("Error selecting sketches: {}", err);
+                            let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                            None
                         }
-                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    }
-                    if results.is_empty() {
-                        None
-                    } else {
-                        Some(results)
                     }
                 }
-                Err(err) => {
+                Ok(_) => {
+                    eprintln!("No signatures found in '{}'", filename.display());
                     let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    eprintln!("Sketch loading error: {}", err);
+                    None
+                }
+                Err(err) => {
                     eprintln!(
-                        "WARNING: could not load sketches from path '{}'",
-                        filename.display()
+                        "WARNING: could not load sketches from path '{}': {}",
+                        filename.display(),
+                        err
                     );
+                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     None
                 }
             }
@@ -174,7 +185,7 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     }
     if failed_paths > 0 {
         eprintln!(
-            "WARNING: {} signature paths failed to load. See error messages above.",
+            "WARNING: {} query paths failed to load. See error messages above.",
             failed_paths
         );
     }
