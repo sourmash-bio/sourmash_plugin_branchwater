@@ -25,7 +25,7 @@ pub fn mastiff_manysearch(
     }
     // Open database once
     let db = RevIndex::open(index, true)?;
-  
+
     println!("Loaded DB");
 
     // Load query paths
