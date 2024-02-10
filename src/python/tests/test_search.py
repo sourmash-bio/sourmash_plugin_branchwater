@@ -229,7 +229,7 @@ def test_missing_query(runtmp, capfd, indexed, zip_query):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    #make_file_list(query_list, [sig2, sig47, sig63])
+    #make_file_list(query_list, [sig2, sig47, sig63]) # don't make query
     make_file_list(against_list, [sig2, sig47, sig63])
 
     if indexed:
@@ -266,14 +266,8 @@ def test_sig_query(runtmp, capfd, indexed):
 
     output = runtmp.output('out.csv')
 
-    # with pytest.raises(utils.SourmashCommandFailed):
     runtmp.sourmash('scripts', 'manysearch', sig2, against_list,
                         '-o', output)
-
-    # captured = capfd.readouterr()
-    # print(captured.err)
-
-    # assert 'Error: invalid line in fromfile' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
@@ -363,7 +357,6 @@ def test_nomatch_against(runtmp, capfd):
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
-    # nomatch_sketch = get_test_data('genome-s11.fa.gz.sig')
     nomatch_sketch = get_test_data('SRR606249.sig.gz')
 
     make_file_list(query_list, [sig2, sig47, sig63])
@@ -371,7 +364,6 @@ def test_nomatch_against(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    # with pytest.raises(utils.SourmashCommandFailed):
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
@@ -420,7 +412,6 @@ def test_empty_query(runtmp, indexed, capfd):
 
     output = runtmp.output('out.csv')
 
-    # with pytest.raises(utils.SourmashCommandFailed):
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 

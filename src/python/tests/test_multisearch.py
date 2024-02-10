@@ -133,7 +133,6 @@ def test_missing_query(runtmp, capfd, zip_query):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    #make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
@@ -172,6 +171,7 @@ def test_sig_query(runtmp, capfd):
     assert os.path.exists(output)
     df = pandas.read_csv(output)
     assert len(df) == 1
+
 
 def test_bad_query(runtmp, capfd):
     # test with a bad query list (a missing file)
@@ -238,7 +238,7 @@ def test_missing_against(runtmp, capfd, zip_db):
     # do not create against_list
 
     if zip_db:
-        #.zip but don't create the file
+        #specify .zip but don't create the file
         against_list = runtmp.output('db.zip')
 
     output = runtmp.output('out.csv')
@@ -263,7 +263,6 @@ def test_sig_against(runtmp, capfd):
     sig63 = get_test_data('63.fa.sig.gz')
 
     make_file_list(query_list, [sig2, sig47, sig63])
-    #make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
 
@@ -276,6 +275,7 @@ def test_sig_against(runtmp, capfd):
     assert os.path.exists(output)
     df = pandas.read_csv(output)
     assert len(df) == 1
+
 
 def test_bad_against(runtmp, capfd):
     # test with a bad against list (a missing file)

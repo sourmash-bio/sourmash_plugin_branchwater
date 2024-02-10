@@ -215,7 +215,6 @@ def test_index_zipfile_repeated_md5sums(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    # assert 'Found 3 filepaths' in captured.err
     assert 'index is done' in runtmp.last_result.err
 
 

@@ -182,8 +182,6 @@ def test_missing_querylist(runtmp, capfd, indexed, zip_query):
 
     captured = capfd.readouterr()
     print(captured.err)
-
-        # assert 'Error: failed to load query' in captured.err
     assert 'Error: No such file or directory' in captured.err
 
 
@@ -313,8 +311,6 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
 
     captured = capfd.readouterr()
     print(captured.err)
-
-    # assert "WARNING: no compatible sketches in path " in captured.err
     assert "WARNING: skipped 1 query paths - no compatible signatures." in captured.err
 
 
@@ -424,7 +420,6 @@ def test_bad_against_2(runtmp, capfd, zip_query):
 
 
 def test_empty_against(runtmp, capfd):
-    # like fastgather - exit gracefully.
     # test bad 'against' file - in this case, an empty one
     query = get_test_data('SRR606249.sig.gz')
     query_list = runtmp.output('query.txt')

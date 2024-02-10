@@ -114,7 +114,6 @@ def test_simple_threshold(runtmp, zip_query):
     assert len(df) == 1
 
 
-
 def test_sig_query(runtmp, capfd):
     # sig query is ok now, but fails bc only one sig
     sig2 = get_test_data('2.fa.sig.gz')
@@ -152,7 +151,6 @@ def test_bad_query(runtmp, capfd):
 
 def test_bad_query_2(runtmp, capfd):
     # test with a bad query (a .sig.gz file renamed as zip file)
-
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
@@ -274,11 +272,6 @@ def test_load_only_one_bug(runtmp, capfd, zip_db):
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
-
-
-
-
-
 @pytest.mark.parametrize("zip_query", [False, True])
 def test_md5(runtmp, zip_query):
     # test that md5s match what was in the original files, not downsampled etc.
@@ -312,8 +305,6 @@ def test_md5(runtmp, zip_query):
 
     md5s = list(df['match_md5'])
     print(md5s)
-
-
 
 
 def test_simple_prot(runtmp):
@@ -366,7 +357,6 @@ def test_simple_prot(runtmp):
                 assert cont == 0.0712
                 assert maxcont == 0.1003
                 assert intersect_hashes == 342
-
 
 
 def test_simple_dayhoff(runtmp):

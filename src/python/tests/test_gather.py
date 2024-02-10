@@ -58,7 +58,6 @@ def test_simple(runtmp, zip_against):
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
-
 @pytest.mark.parametrize('zip_against', [False, True])
 def test_simple_with_prefetch(runtmp, zip_against):
     # test basic execution!
@@ -135,7 +134,7 @@ def test_bad_query(runtmp, capfd, zip_against):
 
     # query doesn't need to be a sig anymore - sig, zip, or pathlist welcome
     # as long as there's only one sketch that matches params
-    make_file_list(query, [sig2,sig47]) # [sig2]
+    make_file_list(query, [sig2,sig47])
     make_file_list(against_list, [sig2, sig47, sig63])
 
     if zip_against:
@@ -161,11 +160,7 @@ def test_missing_against(runtmp, capfd, zip_against):
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
 
-    sig2 = get_test_data('2.fa.sig.gz')
-    sig47 = get_test_data('47.fa.sig.gz')
-    sig63 = get_test_data('63.fa.sig.gz')
-
-    #make_file_list(against_list, [sig2, sig47, sig63])
+    # don't make against list
     if zip_against:
         against_list = runtmp.output('against.zip')
 
@@ -205,7 +200,6 @@ def test_sig_against(runtmp, capfd):
     assert len(df) == 1
     keys = set(df.keys())
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
-
 
 
 def test_bad_against(runtmp, capfd):
