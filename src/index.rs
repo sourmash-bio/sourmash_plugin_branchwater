@@ -1,3 +1,5 @@
+use camino::Utf8PathBuf as PathBuf;
+use sourmash::collection::Collection;
 use sourmash::index::revindex::RevIndex;
 use sourmash::prelude::*;
 use std::path::Path;

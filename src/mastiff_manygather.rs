@@ -84,8 +84,6 @@ pub fn mastiff_manygather(
                                     intersect_bp: match_.intersect_bp(),
                                 });
                             }
-                        } else {
-                            eprintln!("Error gathering matches: {:?}", matches.err());
                         }
                     } else {
                         eprintln!(

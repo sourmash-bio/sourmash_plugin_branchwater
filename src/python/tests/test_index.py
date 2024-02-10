@@ -133,7 +133,6 @@ def test_index_empty_siglist(runtmp, capfd):
     output = runtmp.output('out.db')
     make_file_list(siglist, []) # empty
 
-
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'index', siglist,
                         '-o', output)

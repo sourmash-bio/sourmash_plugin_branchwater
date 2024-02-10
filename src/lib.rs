@@ -17,6 +17,8 @@ mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
+use sourmash::encodings::HashFunctions;
+use sourmash::selection::Selection;
 
 use camino::Utf8PathBuf as PathBuf;
 
