@@ -92,7 +92,6 @@ pub fn mastiff_manygather(
                                     query_bp: query_bp,
                                     ksize: ksize as usize,
                                     scaled: query_mh.scaled() as usize,
-                                    name: match_.name().clone(),
                                 });
                             }
                         } else {
