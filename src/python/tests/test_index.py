@@ -128,15 +128,11 @@ def test_index_bad_siglist_2(runtmp, capfd):
 
 
 def test_index_empty_siglist(runtmp, capfd):
-    ## TODO: index:: do not write output if no signatures to write?
-    # OR, warn user?
-
     # test empty siglist file
     siglist = runtmp.output('db-sigs.txt')
     output = runtmp.output('out.db')
     make_file_list(siglist, []) # empty
 
-    # with pytest.raises(utils.SourmashCommandFailed):
     runtmp.sourmash('scripts', 'index', siglist,
                         '-o', output)
 
@@ -145,12 +141,9 @@ def test_index_empty_siglist(runtmp, capfd):
     print(runtmp.last_result.out)
     print(runtmp.last_result.err)
     print(captured.err)
-    # assert "No signatures to index loaded, exiting." in captured.err
 
 
 def test_index_nomatch_sig_in_siglist(runtmp, capfd):
-    ## TODO: index:: do not write output if no signatures to write?
-
     # test index with a siglist file that has (only) a non-matching ksize sig
     siglist = runtmp.output('against.txt')
     db = runtmp.output('db.rdb')
@@ -159,16 +152,14 @@ def test_index_nomatch_sig_in_siglist(runtmp, capfd):
     sig1 = get_test_data('1.fa.k21.sig.gz')
     make_file_list(siglist, [sig2, sig1])
 
-    # with pytest.raises(utils.SourmashCommandFailed):
     runtmp.sourmash('scripts', 'index', siglist,
                         '-o', db)
 
     captured = capfd.readouterr()
-    assert os.path.exists(db) # do we want an empty file, or no file?
+    assert os.path.exists(db) # currently empty file
     print(runtmp.last_result.out)
     print(runtmp.last_result.err)
     print(captured.err)
-    # assert "Couldn't find a compatible MinHash" in captured.err
 
 
 def test_index_zipfile(runtmp, capfd):
@@ -195,7 +186,6 @@ def test_index_zipfile(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
     captured = capfd.readouterr()
     print(captured.err)
-    # assert 'Found 3 filepaths' in captured.err
 
 
 def test_index_zipfile_repeated_md5sums(runtmp, capfd):
@@ -254,8 +244,6 @@ def test_index_zipfile_multiparam(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
     captured = capfd.readouterr()
     print(captured.err)
-    # assert 'WARNING: skipped 5 index paths - no compatible signatures.' in captured.err
-    # assert 'Found 4 filepaths' in captured.err
 
 
 def test_index_zipfile_bad(runtmp, capfd):
@@ -278,7 +266,6 @@ def test_index_zipfile_bad(runtmp, capfd):
     print(captured.err)
 
     assert "Couldn't find End Of Central Directory Record" in captured.err
-    # assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
 
 
 def test_index_check(runtmp):
