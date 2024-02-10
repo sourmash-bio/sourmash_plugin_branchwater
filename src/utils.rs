@@ -717,6 +717,7 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
     gather_output: Option<P>,
+    details_output: Option<P>,
 ) -> Result<()> {
     // Set up a writer for gather output
     let gather_out: Box<dyn Write> = match gather_output {
@@ -727,6 +728,17 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
     writeln!(
         &mut writer,
         "query_filename,rank,query_name,query_md5,match_name,match_md5,intersect_bp"
+    )
+    .ok();
+
+    let details_out: Box<dyn Write> = match details_output {
+        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
+        None => Box::new(std::io::stdout()),
+    };
+    let mut details_writer = BufWriter::new(details_out);
+    writeln!(
+        &mut details_writer,
+        "rank,remaining_hashes,sub_hashes,remaining_sketches,sub_matches"
     )
     .ok();
 
@@ -783,6 +795,17 @@ pub fn consume_query_by_gather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Disp
             matching_sketches.len(),
             sub_matches
         );
+
+        writeln!(
+            &mut details_writer,
+            "{},{},{},{},{}",
+            rank,
+            query_mh.size(),
+            sub_hashes,
+            matching_sketches.len(),
+            sub_matches
+        )
+        .ok();
 
         last_hashes = query_mh.size();
         last_matches = matching_sketches.len();
