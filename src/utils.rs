@@ -4,7 +4,7 @@ use sourmash::encodings::HashFunctions;
 use sourmash::manifest::Manifest;
 use sourmash::selection::Select;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
@@ -313,6 +313,118 @@ impl std::fmt::Display for ReportType {
     }
 }
 
+pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
+    match Collection::from_zipfile(sigpath) {
+        Ok(collection) => Ok(collection),
+        Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
+    }
+}
+
+fn collection_from_manifest(
+    sigpath: &Path,
+    report_type: &ReportType,
+) -> Result<Collection, anyhow::Error> {
+    let file = File::open(sigpath)
+        .with_context(|| format!("Failed to open {} file: '{}'", report_type, sigpath))?;
+
+    let reader = BufReader::new(file);
+    let manifest = Manifest::from_reader(reader).with_context(|| {
+        format!(
+            "Failed to read {} manifest from: '{}'",
+            report_type, sigpath
+        )
+    })?;
+
+    eprintln!("{:?}", manifest);
+    if manifest.is_empty() {
+        // If the manifest is empty, return an error constructed with the anyhow! macro
+        Err(anyhow!("could not read as manifest: '{}'", sigpath))
+    } else {
+        // If the manifest is not empty, proceed to create and return the Collection
+        Ok(Collection::new(
+            manifest,
+            InnerStorage::new(
+                FSStorage::builder()
+                    .fullpath("".into())
+                    .subdir("".into())
+                    .build(),
+            ),
+        ))
+    }
+}
+
+fn collection_from_pathlist(
+    sigpath: &Path,
+    report_type: &ReportType,
+) -> Result<(Collection, usize), anyhow::Error> {
+    let file = File::open(sigpath).with_context(|| {
+        format!(
+            "Failed to open {} pathlist file: '{}'",
+            report_type, sigpath
+        )
+    })?;
+    let reader = BufReader::new(file);
+
+    let mut n_failed = 0;
+    let records: Vec<Record> = reader
+        .lines()
+        .filter_map(|line| {
+            let path = line.ok()?;
+            match Signature::from_path(&path) {
+                Ok(signatures) => {
+                    let recs: Vec<Record> = signatures
+                        .into_iter()
+                        .flat_map(|v| Record::from_sig(&v, &path))
+                        .collect();
+                    Some(recs)
+                }
+                Err(err) => {
+                    eprintln!("Sketch loading error: {}", err);
+                    eprintln!("WARNING: could not load sketches from path '{}'", path);
+                    n_failed += 1;
+                    None
+                }
+            }
+        })
+        .flatten()
+        .collect();
+
+    if records.is_empty() {
+        eprintln!(
+            "No valid signatures found in {} pathlist '{}'",
+            report_type, sigpath
+        );
+    }
+
+    let manifest: Manifest = records.into();
+    let collection = Collection::new(
+        manifest,
+        InnerStorage::new(
+            FSStorage::builder()
+                .fullpath("".into())
+                .subdir("".into())
+                .build(),
+        ),
+    );
+    Ok((collection, n_failed))
+}
+
+fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
+    let signatures = Signature::from_path(sigpath).with_context(|| {
+        format!(
+            "Failed to load {} signatures from: '{}'",
+            report_type, sigpath
+        )
+    })?;
+
+    Collection::from_sigs(signatures).with_context(|| {
+        format!(
+            "Loaded {} signatures but failed to load as collection: '{}'",
+            report_type, sigpath
+        )
+    })
+}
+
 pub fn load_collection(
     siglist: &String,
     selection: &Selection,
@@ -331,73 +443,78 @@ pub fn load_collection(
     }
 
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
+    let mut last_error = None;
 
-    let mut n_failed = 0;
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
-        match Collection::from_zipfile(&sigpath) {
-            Ok(collection) => collection,
-            Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
+        match collection_from_zipfile(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
         }
     } else {
-        // if pathlist is just a signature path, load it into a collection
-        match Signature::from_path(&sigpath) {
-            Ok(signatures) => {
-                // Load the collection from the signature
-                match Collection::from_sigs(signatures) {
-                    Ok(collection) => collection,
-                    Err(_) => bail!(
-                        "loaded {} signatures but failed to load as collection: '{}'",
-                        report_type,
-                        sigpath
-                    ),
-                }
-            }
-            // if not, try to load file as list of sig paths
-            Err(_) => {
-                // using core fn doesn't allow us to ignore failed paths; I reimplement loading here to allow
-                let sketchlist_file = BufReader::new(File::open(sigpath)?);
-                let records: Vec<Record> = sketchlist_file
-                    .lines()
-                    .filter_map(|line| {
-                        let path = line.ok()?;
-                        match Signature::from_path(&path) {
-                            Ok(signatures) => {
-                                let recs: Vec<Record> = signatures
-                                    .into_iter()
-                                    .flat_map(|v| Record::from_sig(&v, &path))
-                                    .collect();
-                                Some(recs)
-                            }
-                            Err(err) => {
-                                eprintln!("Sketch loading error: {}", err);
-                                eprintln!("WARNING: could not load sketches from path '{}'", path);
-                                n_failed += 1;
-                                None
-                            }
-                        }
-                    })
-                    .flatten()
-                    .collect();
-
-                let manifest: Manifest = records.into();
-                Collection::new(
-                    manifest,
-                    InnerStorage::new(
-                        FSStorage::builder()
-                            .fullpath("".into())
-                            .subdir("".into())
-                            .build(),
-                    ),
-                )
-            }
-        }
+        None
     };
 
-    let n_total = collection.len();
-    let selected = collection.select(selection)?;
-    let n_skipped = n_total - selected.len();
-    report_on_collection_loading(&selected, n_skipped, n_failed, report_type, allow_failed)?;
-    Ok(selected)
+    let collection = collection.or_else(|| {
+        dbg!("attempting to load as manifest");
+        match collection_from_manifest(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    });
+
+    let collection = collection.or_else(|| {
+        dbg!("attempting to load as signature");
+        match collection_from_signature(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    });
+
+    let collection = collection.or_else(|| {
+        dbg!("attempting to load as pathlist");
+        match collection_from_pathlist(&sigpath, &report_type) {
+            Ok((coll, n_failed)) => Some((coll, n_failed)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    });
+
+    match collection {
+        Some((coll, n_failed)) => {
+            let n_total = coll.len();
+            let selected = coll.select(selection)?;
+            let n_skipped = n_total - selected.len();
+            report_on_collection_loading(
+                &selected,
+                n_skipped,
+                n_failed,
+                report_type,
+                allow_failed,
+            )?;
+            Ok(selected)
+        }
+        None => {
+            if let Some(e) = last_error {
+                Err(e)
+            } else {
+                // Should never get here
+                Err(anyhow!(
+                    "Unable to load the collection for an unknown reason."
+                ))
+            }
+        }
+    }
 }
 
 /// Uses the output of collection loading function to report the

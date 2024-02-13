@@ -657,3 +657,32 @@ def test_indexed_against(runtmp, capfd):
     print(captured.err)
 
     assert "Cannot load search signatures from a 'rocksdb' database. Please use sig, zip, or pathlist." in captured.err
+
+
+def test_simple_with_manifest_loading(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+    query_manifest = get_test_data("query-manifest.csv")
+    against_manifest = get_test_data("against-manifest.csv")
+
+    runtmp.sourmash("sig", "manifest", query, "-o", query_manifest)
+    runtmp.sourmash("sig", "manifest", against_list, "-o", against_manifest)
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query_manifest, against_manifest,
+                    '-o', g_output, '-s', '100000')
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}

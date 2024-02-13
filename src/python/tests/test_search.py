@@ -219,6 +219,40 @@ def test_simple_threshold(runtmp, indexed, zip_query):
 
 
 @pytest.mark.parametrize("indexed", [False, True])
+def test_simple_manifest(runtmp, indexed):
+    # test with a simple threshold => only 3 results
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    query_mf = runtmp.output("qmf.csv")
+    against_mf = runtmp.output("amf.csv")
+
+    runtmp.sourmash("sig", "manifest", query_list, "-o", query_mf)
+    runtmp.sourmash("sig", "manifest", against_list, "-o", against_mf)
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+    else:
+        against_list = against_mf
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query_mf, against_list,
+                    '-o', output, '-t', '0.5')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 3
+
+
+@pytest.mark.parametrize("indexed", [False, True])
 @pytest.mark.parametrize("zip_query", [False, True])
 def test_missing_query(runtmp, capfd, indexed, zip_query):
     # test with a missing query list

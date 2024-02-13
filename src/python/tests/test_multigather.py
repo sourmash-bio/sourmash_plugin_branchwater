@@ -159,6 +159,49 @@ def test_simple_zip_query(runtmp):
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
+def test_simple_read_manifests(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    against_list = runtmp.output('against.txt')
+    against_mf = runtmp.output("against.csv")
+    query_mf = runtmp.output("query.csv")
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    runtmp.sourmash("sig","manifest", query, "-o", query_mf)
+    runtmp.sourmash("sig", "manifest", against_list, "-o", against_mf)
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(runtmp.output(''))
+        runtmp.sourmash('scripts', 'fastmultigather', query_mf, against_list,
+                        '-s', '100000', '-t', '0')
+    finally:
+        os.chdir(cwd)
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
+
+    # check prefetch output (only non-indexed gather)
+    assert os.path.exists(p_output)
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+
+
 @pytest.mark.parametrize('zip_query', [False, True])
 def test_simple_indexed(runtmp, zip_query):
     # test basic execution!
@@ -179,6 +222,32 @@ def test_simple_indexed(runtmp, zip_query):
     g_output = runtmp.output('out.csv')
     against_db = index_siglist(runtmp, against_list, runtmp.output('db'))
     runtmp.sourmash('scripts', 'fastmultigather', query_list,
+                        against_db, '-s', '100000', '-t', '0',
+                        '-o', g_output)
+
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+
+
+def test_simple_indexed_query_manifest(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_mf = runtmp.output('query.csv')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+    runtmp.sourmash("sig", "manifest", query, "-o", query_mf)
+
+    g_output = runtmp.output('out.csv')
+    against_db = index_siglist(runtmp, against_list, runtmp.output('db'))
+    runtmp.sourmash('scripts', 'fastmultigather', query_mf,
                         against_db, '-s', '100000', '-t', '0',
                         '-o', g_output)
 

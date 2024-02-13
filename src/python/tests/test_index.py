@@ -107,6 +107,22 @@ def test_index_sig(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
 
 
+def test_index_manifest(runtmp, capfd):
+    # test index with a manifest file
+    sig2 = get_test_data('2.fa.sig.gz')
+    output = runtmp.output('out.db')
+    sig_mf = runtmp.output('mf.csv')
+    runtmp.sourmash("sig", "manifest", sig2, "-o", sig_mf)
+
+    runtmp.sourmash('scripts', 'index', sig_mf,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
 def test_index_bad_siglist_2(runtmp, capfd):
     # test with a bad siglist (containing a missing file)
     against_list = runtmp.output('against.txt')
