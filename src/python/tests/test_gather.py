@@ -58,7 +58,6 @@ def test_simple(runtmp, zip_against):
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
-
 @pytest.mark.parametrize('zip_against', [False, True])
 def test_simple_with_prefetch(runtmp, zip_against):
     # test basic execution!
@@ -120,7 +119,8 @@ def test_missing_query(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
+
 
 @pytest.mark.parametrize('zip_against', [False, True])
 def test_bad_query(runtmp, capfd, zip_against):
@@ -132,9 +132,9 @@ def test_bad_query(runtmp, capfd, zip_against):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    # since 'query' needs to be a sig, this breaks it.
-    make_file_list(query, [sig2])
-
+    # query doesn't need to be a sig anymore - sig, zip, or pathlist welcome
+    # as long as there's only one sketch that matches params
+    make_file_list(query, [sig2,sig47])
     make_file_list(against_list, [sig2, sig47, sig63])
 
     if zip_against:
@@ -151,7 +151,7 @@ def test_bad_query(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: expected value at line 1' in captured.err
+    assert 'Error: Fastgather requires a single query sketch. Check input:' in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
@@ -160,11 +160,7 @@ def test_missing_against(runtmp, capfd, zip_against):
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
 
-    sig2 = get_test_data('2.fa.sig.gz')
-    sig47 = get_test_data('47.fa.sig.gz')
-    sig63 = get_test_data('63.fa.sig.gz')
-
-    #make_file_list(against_list, [sig2, sig47, sig63])
+    # don't make against list
     if zip_against:
         against_list = runtmp.output('against.zip')
 
@@ -179,11 +175,11 @@ def test_missing_against(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
-def test_bad_against(runtmp, capfd):
-    # test bad 'against' file - in this case, use a .sig.gz file.
+def test_sig_against(runtmp, capfd):
+    # sig file is ok as against file now 
     query = get_test_data('SRR606249.sig.gz')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -191,18 +187,22 @@ def test_bad_against(runtmp, capfd):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastgather', query, sig2,
+    runtmp.sourmash('scripts', 'fastgather', query, sig2,
                         '-o', g_output, '--output-prefetch', p_output,
                         '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
-def test_bad_against_2(runtmp, capfd):
+def test_bad_against(runtmp, capfd):
     # test bad 'against' file - in this case, one containing a bad filename.
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -225,7 +225,7 @@ def test_bad_against_2(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-def test_bad_against_3(runtmp, capfd):
+def test_bad_against_2(runtmp, capfd):
     # test bad 'against' file - in this case, one containing an empty file
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -253,7 +253,7 @@ def test_bad_against_3(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-def test_bad_against_4(runtmp, capfd):
+def test_bad_against_3(runtmp, capfd):
     # test with a bad against (a .sig.gz file renamed as zip file)
     query = get_test_data('SRR606249.sig.gz')
 
@@ -275,7 +275,7 @@ def test_bad_against_4(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert 'InvalidArchive' in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
@@ -304,13 +304,15 @@ def test_against_multisigfile(runtmp, zip_against):
     df = pandas.read_csv(g_output)
     if zip_against:
         assert len(df) == 3
+        print(df)
     else:
+        print(df)
         assert len(df) == 1
     # @CTB this is a bug :(. It should load multiple sketches properly!
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
-def test_query_multisigfile(runtmp, zip_against):
+def test_query_multisigfile(runtmp, capfd, zip_against):
     # test with a sigfile that contains multiple sketches
     against_list = runtmp.output('against.txt')
 
@@ -329,12 +331,14 @@ def test_query_multisigfile(runtmp, zip_against):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
-    runtmp.sourmash('scripts', 'fastgather', combined, against_list,
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', combined, against_list,
                     '-o', g_output, '--output-prefetch', p_output,
                     '-s', '100000')
-    # @CTB this should fail, not succeed :(.
-    df = pandas.read_csv(g_output)
-    assert len(df) == 1
+    # this fails now :)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Error: Fastgather requires a single query sketch. Check input:" in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
@@ -549,7 +553,7 @@ def test_simple_protein(runtmp):
     # test basic protein execution
     sigs = get_test_data('protein.zip')
 
-    query = runtmp.output('query.sig')
+    query = runtmp.output('query.zip')
     against = runtmp.output('against.zip')
     # extract query from zip file
     runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
@@ -576,7 +580,7 @@ def test_simple_dayhoff(runtmp):
     # test basic protein execution
     sigs = get_test_data('dayhoff.zip')
 
-    query = runtmp.output('query.sig')
+    query = runtmp.output('query.zip')
     against = runtmp.output('against.zip')
     # extract query from zip file
     runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
@@ -603,7 +607,7 @@ def test_simple_hp(runtmp):
     # test basic protein execution
     sigs = get_test_data('hp.zip')
 
-    query = runtmp.output('query.sig')
+    query = runtmp.output('query.zip')
     against = runtmp.output('against.zip')
     # extract query from zip file
     runtmp.sourmash('sig', 'extract', sigs, '--name', 'GCA_001593935', '-o', query)
@@ -624,3 +628,32 @@ def test_simple_hp(runtmp):
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
     print(df)
     assert df['match_md5'][0] == "ea2a1ad233c2908529d124a330bcb672"
+
+
+def test_indexed_against(runtmp, capfd):
+    # do not accept rocksdb for now
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+
+    make_file_list(against_list, [sig2])
+    db_against = runtmp.output('against.rocksdb')
+
+    ## index against
+    runtmp.sourmash('scripts', 'index', against_list,
+                    '-o', db_against, '-k', str(31), '--scaled', str(1000),
+                    '--moltype', "DNA")
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', query, db_against,
+                        '-o', g_output, '--output-prefetch', p_output,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "Cannot load search signatures from a 'rocksdb' database. Please use sig, zip, or pathlist." in captured.err

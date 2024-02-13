@@ -189,8 +189,6 @@ class Branchwater_Index(CommandLinePlugin):
                        help='scaled factor at which to do comparisons')
         p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
-        p.add_argument('--save-paths', action='store_true',
-                       help='save paths to signatures into index. Default: save full sig into index')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
@@ -208,7 +206,6 @@ class Branchwater_Index(CommandLinePlugin):
                                                       args.scaled,
                                                       args.moltype,
                                                       args.output,
-                                                      args.save_paths,
                                                       False) # colors - currently must be false?
         if status == 0:
             notify(f"...index is done! results in '{args.output}'")

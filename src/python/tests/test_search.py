@@ -229,7 +229,7 @@ def test_missing_query(runtmp, capfd, indexed, zip_query):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    #make_file_list(query_list, [sig2, sig47, sig63])
+    #make_file_list(query_list, [sig2, sig47, sig63]) # don't make query
     make_file_list(against_list, [sig2, sig47, sig63])
 
     if indexed:
@@ -247,12 +247,12 @@ def test_missing_query(runtmp, capfd, indexed, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
-def test_bad_query(runtmp, capfd, indexed):
-    # test with a bad query (a .sig.gz file)
+def test_sig_query(runtmp, capfd, indexed):
+    # test with a single sig query (a .sig.gz file)
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -266,14 +266,8 @@ def test_bad_query(runtmp, capfd, indexed):
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch', sig2, against_list,
+    runtmp.sourmash('scripts', 'manysearch', sig2, against_list,
                         '-o', output)
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert 'Error: invalid line in fromfile ' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
@@ -327,7 +321,7 @@ def test_bad_query_3(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert 'InvalidArchive' in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])
@@ -352,34 +346,32 @@ def test_missing_against(runtmp, capfd, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
-def test_bad_against(runtmp, capfd):
-    # test with a bad against list (a .sig file in this case)
+def test_nomatch_against(runtmp, capfd):
+    # nonmatching against file (num sig)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
+    nomatch_sketch = get_test_data('SRR606249.sig.gz')
 
     make_file_list(query_list, [sig2, sig47, sig63])
-    #make_file_list(against_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [nomatch_sketch])
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch', query_list, sig2,
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
     captured = capfd.readouterr()
-    print(captured.err)
-
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert "No search signatures loaded, exiting." in captured.err
 
 
-def test_bad_against_2(runtmp, capfd):
+def test_bad_against(runtmp, capfd):
     # test with a bad against list (a missing file)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -403,7 +395,7 @@ def test_bad_against_2(runtmp, capfd):
 
 
 @pytest.mark.parametrize("indexed", [False, True])
-def test_empty_query(runtmp, indexed):
+def test_empty_query(runtmp, indexed, capfd):
     # test with an empty query list
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -420,11 +412,13 @@ def test_empty_query(runtmp, indexed):
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
     print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "No query signatures loaded, exiting." in captured.err
 
 
 @pytest.mark.parametrize("indexed", [False, True])

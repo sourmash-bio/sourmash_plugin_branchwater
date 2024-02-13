@@ -2,32 +2,35 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::signature::Signature;
-use sourmash::sketch::Sketch;
-use std::path::Path;
+use sourmash::selection::Selection;
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
+use camino::Utf8Path as PathBuf;
+
 use crate::utils::{
-    consume_query_by_gather, load_sigpaths_from_zip_or_pathlist,
-    load_sketches_from_zip_or_pathlist, prepare_query, write_prefetch, PrefetchResult, ReportType,
+    consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
+    ReportType,
 };
 
-pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
-    query_filenames: P,
-    matchlist_filename: P,
+pub fn fastmultigather(
+    query_filepath: String,
+    against_filepath: String,
     threshold_bp: usize,
     scaled: usize,
-    template: Sketch,
+    selection: &Selection,
+    allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    // load the list of query paths
-    let queryfile_name = query_filenames.as_ref().to_string_lossy().to_string();
-    let (querylist_paths, _temp_dir) =
-        load_sigpaths_from_zip_or_pathlist(&query_filenames, &template, ReportType::Query)?;
-    println!("Loaded {} sig paths in querylist", querylist_paths.len());
+    // load query collection
+    let query_collection = load_collection(
+        &query_filepath,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
@@ -42,80 +45,83 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
-    // Load all the against sketches
-    let sketchlist =
-        load_sketches_from_zip_or_pathlist(&matchlist_filename, &template, ReportType::Against)?;
+    // load against collection
+    let against_collection = load_collection(
+        &against_filepath,
+        selection,
+        ReportType::Against,
+        allow_failed_sigpaths,
+    )?;
+    // load against sketches into memory, downsampling on the way
+    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    querylist_paths.par_iter().for_each(|q| {
-        // increment counter of # of queries
+    query_collection.par_iter().for_each(|(_idx, record)| {
+        // increment counter of # of queries. q: could we instead use the _idx from par_iter(), or will it vary based on thread?
         let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
+        // Load query sig (downsampling happens here)
+        match query_collection.sig_from_record(record) {
+            Ok(query_sig) => {
+                let name = query_sig.name();
+                let prefix = name.split(' ').next().unwrap_or_default().to_string();
+                let location = PathBuf::new(&prefix).file_name().unwrap();
+                if let Some(query_mh) = query_sig.minhash() {
+                    let matchlist: BinaryHeap<PrefetchResult> = against
+                        .iter()
+                        .filter_map(|against| {
+                            let mut mm: Option<PrefetchResult> = None;
+                            if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
+                                if overlap >= threshold_hashes {
+                                    let result = PrefetchResult {
+                                        name: against.name.clone(),
+                                        md5sum: against.md5sum.clone(),
+                                        minhash: against.minhash.clone(),
+                                        overlap,
+                                    };
+                                    mm = Some(result);
+                                }
+                            }
+                            mm
+                        })
+                        .collect();
+                    if !matchlist.is_empty() {
+                        let prefetch_output = format!("{}.prefetch.csv", location);
+                        let gather_output = format!("{}.gather.csv", location);
 
-        // set query_label to the last path element.
-        let location = q.clone().into_os_string().into_string().unwrap();
-        let location = location.split('/').last().unwrap().to_string();
+                        // Save initial list of matches to prefetch output
+                        write_prefetch(&query_sig, Some(prefetch_output), &matchlist).ok();
 
-        let query = match Signature::from_path(dbg!(q)) {
-            Ok(sigs) => {
-                let mm = prepare_query(&sigs, &template, &location);
-
-                if mm.is_none() {
-                    if !queryfile_name.ends_with(".zip") {
-                        eprintln!("WARNING: no compatible sketches in path '{}'", q.display());
+                        // Now, do the gather!
+                        consume_query_by_gather(
+                            query_sig.clone(),
+                            matchlist,
+                            threshold_hashes,
+                            Some(gather_output),
+                        )
+                        .ok();
+                    } else {
+                        println!("No matches to '{}'", location);
                     }
+                } else {
+                    // different warning here? Could not load sig from record??
+                    eprintln!(
+                        "WARNING: no compatible sketches in path '{}'",
+                        record.internal_location()
+                    );
                     let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
-                mm
             }
-            Err(err) => {
-                eprintln!("Sketch loading error: {}", err);
+            Err(_) => {
+                // different warning here? Could not load sig from record??
                 eprintln!(
-                    "WARNING: could not load sketches from path '{}'",
-                    q.display()
+                    "WARNING: no compatible sketches in path '{}'",
+                    record.internal_location()
                 );
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                None
-            }
-        };
-
-        if let Some(query) = query {
-            // filter first set of matches out of sketchlist
-            let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                .par_iter()
-                .filter_map(|sm| {
-                    let mut mm = None;
-
-                    if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: sm.name.clone(),
-                                md5sum: sm.md5sum.clone(),
-                                minhash: sm.minhash.clone(),
-                                overlap,
-                            };
-                            mm = Some(result);
-                        }
-                    }
-                    mm
-                })
-                .collect();
-
-            if !matchlist.is_empty() {
-                let prefetch_output = format!("{location}.prefetch.csv");
-                let gather_output = format!("{location}.gather.csv");
-
-                // save initial list of matches to prefetch output
-                write_prefetch(&query, Some(prefetch_output), &matchlist).ok();
-
-                // now, do the gather!
-                consume_query_by_gather(query, matchlist, threshold_hashes, Some(gather_output))
-                    .ok();
-            } else {
-                println!("No matches to '{}'", location);
+                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
             }
         }
     });

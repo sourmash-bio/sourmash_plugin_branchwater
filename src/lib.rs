@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 extern crate simple_error;
 
 mod utils;
-use crate::utils::build_template;
+use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
 mod fastgather;
@@ -17,8 +17,8 @@ mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
-use sourmash::encodings::HashFunctions;
-use sourmash::selection::Selection;
+
+use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
 fn do_manysearch(
@@ -30,15 +30,20 @@ fn do_manysearch(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    let againstfile_path: PathBuf = siglist_path.clone().into();
+    let selection = build_selection(ksize, scaled, &moltype);
+    eprintln!("selection scaled: {:?}", selection.scaled());
+    let allow_failed_sigpaths = true;
+
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
-    let template = build_template(ksize, scaled, &moltype);
-    if is_revindex_database(siglist_path.as_ref()) {
+    if is_revindex_database(&againstfile_path) {
         match mastiff_manysearch::mastiff_manysearch(
             querylist_path,
-            siglist_path,
-            template,
+            againstfile_path,
+            &selection,
             threshold,
             output_path,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -50,9 +55,10 @@ fn do_manysearch(
         match manysearch::manysearch(
             querylist_path,
             siglist_path,
-            template,
+            &selection,
             threshold,
             output_path,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -74,16 +80,18 @@ fn do_fastgather(
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let template = build_template(ksize, scaled, &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
+
     match fastgather::fastgather(
         query_filename,
         siglist_path,
         threshold_bp,
-        ksize,
         scaled,
-        template,
+        &selection,
         output_path_prefetch,
         output_path_gather,
+        allow_failed_sigpaths,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -103,29 +111,19 @@ fn do_fastmultigather(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
+    let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
+
     // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
-    let template = build_template(ksize, scaled, &moltype);
-    if is_revindex_database(siglist_path.as_ref()) {
-        // build selection instead of template
-        let hash_function = match moltype.as_str() {
-            "dna" => HashFunctions::Murmur64Dna,
-            "protein" => HashFunctions::Murmur64Protein,
-            "dayhoff" => HashFunctions::Murmur64Dayhoff,
-            "hp" => HashFunctions::Murmur64Hp,
-            _ => panic!("Unknown molecule type: {}", moltype),
-        };
-        let selection = Selection::builder()
-            .ksize(ksize.into())
-            .scaled(scaled as u32)
-            .moltype(hash_function)
-            .build();
+    if is_revindex_database(&againstfile_path) {
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
-            siglist_path,
-            template,
-            selection,
+            againstfile_path,
+            &selection,
             threshold_bp,
             output_path,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -139,7 +137,8 @@ fn do_fastmultigather(
             siglist_path,
             threshold_bp,
             scaled,
-            template,
+            &selection,
+            allow_failed_sigpaths,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -174,28 +173,11 @@ fn do_index(
     scaled: usize,
     moltype: String,
     output: String,
-    save_paths: bool,
     colors: bool,
 ) -> anyhow::Result<u8> {
-    let hash_function = match moltype.as_str() {
-        "dna" => HashFunctions::Murmur64Dna,
-        "protein" => HashFunctions::Murmur64Protein,
-        "dayhoff" => HashFunctions::Murmur64Dayhoff,
-        "hp" => HashFunctions::Murmur64Hp,
-        _ => panic!("Unknown molecule type: {}", moltype),
-    };
-    let selection = Selection::builder()
-        .ksize(ksize.into())
-        .scaled(scaled as u32)
-        .moltype(hash_function)
-        .build();
-    // match index::index(siglist, template, output, save_paths, colors) {
-    // convert siglist to PathBuf
-    // build template from ksize, scaled
-    let template = build_template(ksize, scaled, &moltype);
-    let location = camino::Utf8PathBuf::from(siglist);
-    let manifest = None;
-    match index::index(location, manifest, selection, output, save_paths, colors) {
+    let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = false;
+    match index::index(siglist, &selection, output, colors, allow_failed_sigpaths) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -206,7 +188,8 @@ fn do_index(
 
 #[pyfunction]
 fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
-    match check::check(index, quick) {
+    let idx: PathBuf = index.into();
+    match check::check(idx, quick) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -225,13 +208,16 @@ fn do_multisearch(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let template = build_template(ksize, scaled, &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
+
     match multisearch::multisearch(
         querylist_path,
         siglist_path,
         threshold,
-        template,
+        &selection,
         output_path,
+        allow_failed_sigpaths,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -250,8 +236,15 @@ fn do_pairwise(
     moltype: String,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let template = build_template(ksize, scaled, &moltype);
-    match pairwise::pairwise(siglist_path, threshold, template, output_path) {
+    let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
+    match pairwise::pairwise(
+        siglist_path,
+        threshold,
+        &selection,
+        output_path,
+        allow_failed_sigpaths,
+    ) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

@@ -67,8 +67,8 @@ def test_simple(runtmp, zip_against):
 
     print(os.listdir(runtmp.output('')))
 
-    g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
-    p_output = runtmp.output('SRR606249.sig.gz.prefetch.csv')
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
     assert os.path.exists(p_output)
 
     # check prefetch output (only non-indexed gather)
@@ -79,9 +79,42 @@ def test_simple(runtmp, zip_against):
 
     assert os.path.exists(g_output)
     df = pandas.read_csv(g_output)
+    print(df)
     assert len(df) == 3
     keys = set(df.keys())
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+
+
+def test_simple_space_in_signame(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    renamed_query = runtmp.output('in.zip')
+    name = 'my-favorite-signame has spaces'
+    # rename signature
+    runtmp.sourmash('sig', 'rename', query, name, '-o', renamed_query)
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(runtmp.output(''))
+        runtmp.sourmash('scripts', 'fastmultigather', renamed_query, against_list,
+                        '-s', '100000', '-t', '0')
+    finally:
+        os.chdir(cwd)
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('my-favorite-signame.gather.csv')
+    p_output = runtmp.output('my-favorite-signame.prefetch.csv')
+    assert os.path.exists(p_output)
+    assert os.path.exists(g_output)
 
 
 def test_simple_zip_query(runtmp):
@@ -109,9 +142,8 @@ def test_simple_zip_query(runtmp):
 
     print(os.listdir(runtmp.output('')))
 
-    # outputs are based on md5sum, e.g. "{md5}.sig.gz.gather.csv"
-    g_output = runtmp.output('dec29ca72e68db0f15de0b1b46f82fc5.sig.gz.gather.csv')
-    p_output = runtmp.output('dec29ca72e68db0f15de0b1b46f82fc5.sig.gz.prefetch.csv')
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
 
     # check prefetch output (only non-indexed gather)
     assert os.path.exists(p_output)
@@ -182,13 +214,14 @@ def test_missing_querylist(runtmp, capfd, indexed, zip_query):
 
     captured = capfd.readouterr()
     print(captured.err)
-
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
 @pytest.mark.parametrize('indexed', [False, True])
-def test_bad_query(runtmp, capfd, indexed):
-    # test bad querylist (a sig file)
+def test_sig_query(runtmp, capfd, indexed):
+    # sig file is now fine as a query
+    query = get_test_data('SRR606249.sig.gz')
+
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -199,19 +232,37 @@ def test_bad_query(runtmp, capfd, indexed):
 
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+        g_output = runtmp.output('out.csv')
+    else:
+        g_output = runtmp.output('SRR606249.gather.csv')
+        p_output = runtmp.output('SRR606249.prefetch.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastmultigather', sig2, against_list,
-                        '-s', '100000')
+    runtmp.sourmash('scripts', 'fastmultigather', query, against_list,
+                        '-s', '100000', '-o', g_output)
 
     captured = capfd.readouterr()
     print(captured.err)
+    if not indexed:
+        # check prefetch output (only non-indexed gather)
+        assert os.path.exists(p_output)
+        df = pandas.read_csv(p_output)
+        assert len(df) == 3
+        keys = set(df.keys())
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    # check gather output (both)
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    if indexed:
+        assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+    else:
+        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
 @pytest.mark.parametrize('indexed', [False, True])
-def test_bad_query_2(runtmp, capfd, indexed):
+def test_bad_query(runtmp, capfd, indexed):
     # test with a bad query (a .sig.gz file renamed as zip file)
     against_list = runtmp.output('against.txt')
 
@@ -239,7 +290,7 @@ def test_bad_query_2(runtmp, capfd, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert "InvalidArchive" in captured.err
 
 
 @pytest.mark.parametrize('indexed', [False, True])
@@ -292,11 +343,6 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
 
     captured = capfd.readouterr()
     print(captured.err)
-
-    if zip_query:
-        assert "WARNING: no compatible sketches in path " not in captured.err
-    else:
-        assert "WARNING: no compatible sketches in path " in captured.err
     assert "WARNING: skipped 1 query paths - no compatible signatures." in captured.err
 
 
@@ -323,27 +369,40 @@ def test_missing_against(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
-def test_bad_against(runtmp, capfd):
-    # test bad 'against' file - in this case, use a .sig.gz file.
+def test_sig_against(runtmp, capfd):
+    # against file can be a sig now
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastmultigather', query, sig2,
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
+    runtmp.sourmash('scripts', 'fastmultigather', query, sig2,
                         '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    # check prefetch output (only non-indexed gather)
+    assert os.path.exists(p_output)
+    df = pandas.read_csv(p_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
+    # check gather output
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
-def test_bad_against_2(runtmp, capfd):
+def test_bad_against(runtmp, capfd):
     # test bad 'against' file - in this case, one containing a nonexistent file
     query = get_test_data('SRR606249.sig.gz')
     query_list = runtmp.output('query.txt')
@@ -365,8 +424,8 @@ def test_bad_against_2(runtmp, capfd):
 
 
 @pytest.mark.parametrize('zip_query', [False, True])
-def test_bad_against_3(runtmp, capfd, zip_query):
-    # test with a bad query (a .sig.gz file renamed as zip file)
+def test_bad_against_2(runtmp, capfd, zip_query):
+    # test with a bad against (a .sig.gz file renamed as zip file)
     query = get_test_data('SRR606249.sig.gz')
     query_list = runtmp.output('query.txt')
     make_file_list(query_list, [query])
@@ -384,12 +443,12 @@ def test_bad_against_3(runtmp, capfd, zip_query):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'fastmultigather', query_list, against_zip,
-                        '-o', output)
+                        '-s', '100000', '-o', output)
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert 'InvalidArchive' in captured.err
 
 
 def test_empty_against(runtmp, capfd):
@@ -401,15 +460,14 @@ def test_empty_against(runtmp, capfd):
     against_list = runtmp.output('against.txt')
     make_file_list(against_list, [])
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
                         '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Loaded 0 search signature(s)" in captured.err
-    assert "Error: No search signatures loaded, exiting." in captured.err
+    assert "Sketch loading error: No such file or directory" in captured.err
+    assert "No search signatures loaded, exiting." in captured.err
 
 
 @pytest.mark.parametrize('zip_against', [False, True])
@@ -464,11 +522,8 @@ def test_md5(runtmp, zip_query):
 
     print(os.listdir(runtmp.output('')))
 
-    g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
-    p_output = runtmp.output('SRR606249.sig.gz.prefetch.csv')
-    if zip_query:
-        g_output = runtmp.output('dec29ca72e68db0f15de0b1b46f82fc5.sig.gz.gather.csv')
-        p_output = runtmp.output('dec29ca72e68db0f15de0b1b46f82fc5.sig.gz.prefetch.csv')
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
 
     # check prefetch output (only non-indexed gather)
     assert os.path.exists(p_output)
@@ -559,11 +614,8 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_query, zip_against):
     finally:
         os.chdir(cwd)
 
-    g_output = runtmp.output('SRR606249.sig.gz.gather.csv')
-    p_output = runtmp.output('SRR606249.sig.gz.prefetch.csv')
-    if zip_query:
-        g_output = runtmp.output('dec29ca72e68db0f15de0b1b46f82fc5.sig.gz.gather.csv')
-        p_output = runtmp.output('dec29ca72e68db0f15de0b1b46f82fc5.sig.gz.prefetch.csv')
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
 
     assert os.path.exists(p_output)
     assert os.path.exists(g_output)
@@ -626,14 +678,14 @@ def test_simple_protein(runtmp):
     # test basic protein execution
     sigs = get_test_data('protein.zip')
 
-    sig_names = ["GCA_001593935.1_ASM159393v1_protein.faa.gz", "GCA_001593925.1_ASM159392v1_protein.faa.gz"]
+    sig_names = ["GCA_001593935", "GCA_001593925"]
 
     runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs,
                     '-s', '100', '--moltype', 'protein', '-k', '19')
 
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + '.sig.gather.csv'))
-        p_output = runtmp.output(os.path.join(qsig + '.sig.prefetch.csv'))
+        g_output = runtmp.output(os.path.join(qsig + '.gather.csv'))
+        p_output = runtmp.output(os.path.join(qsig + '.prefetch.csv'))
         print(g_output)
         assert os.path.exists(g_output)
         assert os.path.exists(p_output)
@@ -651,14 +703,14 @@ def test_simple_dayhoff(runtmp):
     # test basic protein execution
     sigs = get_test_data('dayhoff.zip')
 
-    sig_names = ["GCA_001593935.1_ASM159393v1_protein.faa.gz", "GCA_001593925.1_ASM159392v1_protein.faa.gz"]
+    sig_names = ["GCA_001593935", "GCA_001593925"]
 
     runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs,
                     '-s', '100', '--moltype', 'dayhoff', '-k', '19')
 
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + '.sig.gather.csv'))
-        p_output = runtmp.output(os.path.join(qsig + '.sig.prefetch.csv'))
+        g_output = runtmp.output(os.path.join(qsig + '.gather.csv'))
+        p_output = runtmp.output(os.path.join(qsig + '.prefetch.csv'))
         print(g_output)
         assert os.path.exists(g_output)
         assert os.path.exists(p_output)
@@ -676,14 +728,14 @@ def test_simple_hp(runtmp):
     # test basic protein execution
     sigs = get_test_data('hp.zip')
 
-    sig_names = ["GCA_001593935.1_ASM159393v1_protein.faa.gz", "GCA_001593925.1_ASM159392v1_protein.faa.gz"]
+    sig_names = ["GCA_001593935", "GCA_001593925"]
 
     runtmp.sourmash('scripts', 'fastmultigather', sigs, sigs,
                     '-s', '100', '--moltype', 'hp', '-k', '19')
 
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + '.sig.gather.csv'))
-        p_output = runtmp.output(os.path.join(qsig + '.sig.prefetch.csv'))
+        g_output = runtmp.output(os.path.join(qsig + '.gather.csv'))
+        p_output = runtmp.output(os.path.join(qsig + '.prefetch.csv'))
         print(g_output)
         assert os.path.exists(g_output)
         assert os.path.exists(p_output)

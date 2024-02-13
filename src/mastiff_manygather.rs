@@ -1,70 +1,44 @@
 /// mastiff_manygather: mastiff-indexed version of fastmultigather.
 use anyhow::Result;
+use camino::Utf8PathBuf as PathBuf;
 use rayon::prelude::*;
-
-use sourmash::signature::Signature;
-use sourmash::sketch::Sketch;
-use std::path::Path;
-
-use sourmash::prelude::*;
-
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
-
+use sourmash::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use std::fs::File;
-use std::io::{BufWriter, Write};
+use crate::utils::{
+    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType,
+};
 
-use crate::utils::{is_revindex_database, load_sigpaths_from_zip_or_pathlist, ReportType};
-
-pub fn mastiff_manygather<P: AsRef<Path>>(
-    queries_file: P,
-    index: P,
-    template: Sketch,
-    selection: Selection,
+pub fn mastiff_manygather(
+    queries_file: String,
+    index: PathBuf,
+    selection: &Selection,
     threshold_bp: usize,
-    output: Option<P>,
+    output: Option<String>,
+    allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !is_revindex_database(index.as_ref()) {
-        bail!(
-            "'{}' is not a valid RevIndex database",
-            index.as_ref().display()
-        );
+    if !is_revindex_database(&index) {
+        bail!("'{}' is not a valid RevIndex database", index);
     }
     // Open database once
-    let db = RevIndex::open(index.as_ref(), true)?;
+    let db = RevIndex::open(index, true)?;
     println!("Loaded DB");
 
-    // Load query paths
-    let queryfile_name = queries_file.as_ref().to_string_lossy().to_string();
-    let (query_paths, _temp_dir) =
-        load_sigpaths_from_zip_or_pathlist(&queries_file, &template, ReportType::Query)?;
+    let query_collection = load_collection(
+        &queries_file,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let out: Box<dyn Write + Send> = match output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let thrd = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(out);
-        writeln!(
-            &mut writer,
-            "query_name,query_md5,match_name,match_md5,f_match_query,intersect_bp"
-        )
-        .unwrap();
-        for (query, query_md5, m, m_md5, f_match_query, intersect_bp) in recv.into_iter() {
-            writeln!(
-                &mut writer,
-                "\"{}\",{},\"{}\",{},{},{}",
-                query, query_md5, m, m_md5, f_match_query, intersect_bp
-            )
-            .ok();
-        }
-    });
+    let thrd = csvwriter_thread(recv, output);
 
     //
     // Main loop: iterate (in parallel) over all search signature paths,
@@ -76,83 +50,59 @@ pub fn mastiff_manygather<P: AsRef<Path>>(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let send = query_paths
+    let send = query_collection
         .par_iter()
-        .filter_map(|filename| {
+        .filter_map(|(_idx, record)| {
             let threshold = threshold_bp / selection.scaled()? as usize;
 
-            match Signature::from_path(filename) {
-                Ok(mut signatures) if !signatures.is_empty() => {
-                    match signatures.swap_remove(0).select(&selection) {
-                        Ok(query_sig) => {
-                            let mut results = vec![];
-                            let mut found_compatible_sketch = false;
-                            for sketch in query_sig.iter() {
-                                if let Sketch::MinHash(query) = sketch {
-                                    found_compatible_sketch = true;
-                                    // Gather!
-                                    let (counter, query_colors, hash_to_color) =
-                                        db.prepare_gather_counters(&query);
+            // query downsampling happens here
+            match query_collection.sig_from_record(record) {
+                Ok(query_sig) => {
+                    let mut results = vec![];
+                    if let Some(query_mh) = query_sig.minhash() {
+                        // Gather!
+                        let (counter, query_colors, hash_to_color) =
+                            db.prepare_gather_counters(query_mh);
 
-                                    let matches = db.gather(
-                                        counter,
-                                        query_colors,
-                                        hash_to_color,
-                                        threshold,
-                                        &query,
-                                        Some(selection.clone()),
-                                    );
-                                    // extract results
-                                    if let Ok(matches) = matches {
-                                        for match_ in &matches {
-                                            results.push((
-                                                query_sig.name().clone(),
-                                                query.md5sum().clone(),
-                                                match_.name().clone(),
-                                                match_.md5().clone(),
-                                                match_.f_match(), // f_match_query
-                                                match_.intersect_bp(),
-                                            )); // intersect_bp
-                                        }
-                                    } else {
-                                        eprintln!("Error gathering matches: {:?}", matches.err());
-                                    }
-                                }
+                        let matches = db.gather(
+                            counter,
+                            query_colors,
+                            hash_to_color,
+                            threshold,
+                            query_mh,
+                            Some(selection.clone()),
+                        );
+                        // extract results TODO: ADD REST OF GATHER COLUMNS
+                        if let Ok(matches) = matches {
+                            for match_ in &matches {
+                                results.push(BranchwaterGatherResult {
+                                    query_name: query_sig.name().clone(),
+                                    query_md5: query_sig.md5sum().clone(),
+                                    match_name: match_.name().clone(),
+                                    match_md5: match_.md5().clone(),
+                                    f_match_query: match_.f_match(),
+                                    intersect_bp: match_.intersect_bp(),
+                                });
                             }
-                            if !found_compatible_sketch {
-                                if !queryfile_name.ends_with(".zip") {
-                                    eprintln!(
-                                        "WARNING: no compatible sketches in path '{}'",
-                                        filename.display()
-                                    );
-                                }
-                                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                            }
+                        } else {
+                            eprintln!("Error gathering matches: {:?}", matches.err());
+                        }
+                    } else {
+                        eprintln!(
+                            "WARNING: no compatible sketches in path '{}'",
+                            query_sig.filename()
+                        );
+                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    }
 
-                            if results.is_empty() {
-                                None
-                            } else {
-                                Some(results)
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("Error selecting sketches: {}", err);
-                            let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                            None
-                        }
+                    if results.is_empty() {
+                        None
+                    } else {
+                        Some(results)
                     }
                 }
-                Ok(_) => {
-                    eprintln!("No signatures found in '{}'", filename.display());
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    None
-                }
                 Err(err) => {
-                    eprintln!(
-                        "WARNING: could not load sketches from path '{}': {}",
-                        filename.display(),
-                        err
-                    );
+                    eprintln!("Error loading sketch: {}", err);
                     let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     None
                 }

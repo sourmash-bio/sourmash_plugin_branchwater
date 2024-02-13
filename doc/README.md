@@ -2,29 +2,17 @@
 
 This repository implements five sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory, than sourmash.
 
-The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. In particular, this means that input databases need to be prepared differently. Moreover, the output may be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
+The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. This may mean that your input files need to be prepared differently. The output may currently be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
 
 ## Input file formats
 
-All four search/gather commands use either zip files or _text files containing lists of signature files_ ("fromfiles") for the search database. `multisearch`, `manysearch` and `fastmultigather` also use either zips or "fromfiles" for queries, too.
+All four search/gather commands accept zip files or _text files containing lists of signature files_ ("fromfiles") for the search database. `multisearch`, `manysearch` and `fastmultigather` also use either zips or "fromfiles" for queries, too. All commands now accept single signature files as well, though this is only useful for single-query input.
 
 `manysketch` takes as input a CSV file with columns `name,genome_filename,protein_filename`. If you don't have `protein_filename` entries, be sure to include the trailing comma so the CSV reader can process the file correctly.
 
 ### Using zip files
 
-Zip files are used in two ways, depending on how the command works.
-
-If the command loads a collection of sketches into memory at the start, then the sketches from the zip file are simply loaded into memory! So,
-* `multisearch` loads both query and database into memory;
-* `manysearch` loads the queries into memory;
-* `fastmultigather` loads the search database into memory;
-
-If the command loads a collection of sketches throughout execution, then the zip file is _unpacked_ to a temporary directory and the sketches are loaded from there. (This can consume a lot of extra disk space!) So,
-* `manysearch` loads the sketches being searched this way;
-* `fastgather` loads the database sketches this way;
-* `fastmultigather` loads the query sketches this way;
-
-Note that the temp directory is created under the path specified in the `TMPDIR` environment variable if it is set, otherwise it returns `/tmp`.
+Signature zip files are the most efficient file to load, as they contain 'manifest' files with parameter information for each included sketch. When loading the zipfile, we can select relevant signatures without loading the sketches themselves into memory. We then only load the actual sketches (and optionally, downsample to a lower scaled value) when we're ready to use them.
 
 ### Using "fromfiles"
 
@@ -40,6 +28,8 @@ and then build a "fromfile":
 ```
 find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.txt
 ```
+
+When using these files for search, we have no a priori information about the parameters used for each sketch, so we load all signatures into memory at the start.
 
 ## Running the commands
 
@@ -101,7 +91,7 @@ The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and
 
 The `fastgather` command is a much faster version of `sourmash gather`.
 
-`fastgather` takes a query metagenome and an input collection (zip or "fromfile") as database, and outputs a CSV:
+`fastgather` takes a single query metagenome (in any file format) and an input collection (zip or "fromfile") as database, and outputs a CSV:
 ```
 sourmash scripts fastgather query.sig.gz podar-ref-list.txt -o results.csv --cores 4
 ```
@@ -144,9 +134,9 @@ The main advantage that `fastmultigather` has over running `fastgather` on multi
 
 `fastmultigather` will output two CSV files for each query, a `prefetch` file containing all overlapping matches between that query and the database, and a `gather` file containing the minimum metagenome cover for that query in the database.
 
-The prefetch CSV will be named `{basename}.prefetch.csv`, and the gather CSV will be named `{basename}.gather.csv`.  Here, `{basename}` is the filename, stripped of its path. If zipfiles are used, `{basename}` will be the md5sum.
+The prefetch CSV will be named `{signame}.prefetch.csv`, and the gather CSV will be named `{signame}.gather.csv`.  Here, `{signame}` is the name of your sourmash signature.
 
-**Warning:** At the moment, if two different queries have the same `{basename}`, the CSVs for one of the queries will be overwritten by the other query. The behavior here is undefined in practice, because of multithreading: we don't know what queries will be executed when or files will be written first.
+**Warning:** At the moment, if two different queries have the same `{signame}`, the CSVs for one of the queries will be overwritten by the other query. The behavior here is undefined in practice, because of multithreading: we don't know what queries will be executed when or files will be written first.
 
 ### Running `manysearch`
 

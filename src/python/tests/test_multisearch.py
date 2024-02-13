@@ -133,7 +133,6 @@ def test_missing_query(runtmp, capfd, zip_query):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    #make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
@@ -148,11 +147,11 @@ def test_missing_query(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
-def test_bad_query(runtmp, capfd):
-    # test with a bad query (a .sig.gz file)
+def test_sig_query(runtmp, capfd):
+    # sig is ok as query now
     against_list = runtmp.output('against.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -163,17 +162,18 @@ def test_bad_query(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'multisearch', sig2, against_list,
+    runtmp.sourmash('scripts', 'multisearch', sig2, against_list,
                         '-o', output)
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert os.path.exists(output)
+    df = pandas.read_csv(output)
+    assert len(df) == 1
 
 
-def test_bad_query_2(runtmp, capfd):
+def test_bad_query(runtmp, capfd):
     # test with a bad query list (a missing file)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -221,7 +221,7 @@ def test_bad_query_3(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid Zip archive: Could not find central directory end' in captured.err
+    assert 'InvalidArchive' in captured.err
 
 
 @pytest.mark.parametrize("zip_db", [False, True])
@@ -238,7 +238,7 @@ def test_missing_against(runtmp, capfd, zip_db):
     # do not create against_list
 
     if zip_db:
-        #.zip but don't create the file
+        #specify .zip but don't create the file
         against_list = runtmp.output('db.zip')
 
     output = runtmp.output('out.csv')
@@ -250,11 +250,11 @@ def test_missing_against(runtmp, capfd, zip_db):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: No such file or directory ' in captured.err
+    assert 'Error: No such file or directory' in captured.err
 
 
-def test_bad_against(runtmp, capfd):
-    # test with a bad against list (a .sig file in this case)
+def test_sig_against(runtmp, capfd):
+    # against can be sig now
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -263,21 +263,21 @@ def test_bad_against(runtmp, capfd):
     sig63 = get_test_data('63.fa.sig.gz')
 
     make_file_list(query_list, [sig2, sig47, sig63])
-    #make_file_list(against_list, [sig2, sig47, sig63])
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'multisearch', query_list, sig2,
+    runtmp.sourmash('scripts', 'multisearch', query_list, sig2,
                         '-o', output)
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'Error: invalid line in fromfile ' in captured.err
+    assert os.path.exists(output)
+    df = pandas.read_csv(output)
+    assert len(df) == 1
 
 
-def test_bad_against_2(runtmp, capfd):
+def test_bad_against(runtmp, capfd):
     # test with a bad against list (a missing file)
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -300,8 +300,8 @@ def test_bad_against_2(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-def test_empty_query(runtmp):
-    # test with an empty query list
+def test_empty_query(runtmp, capfd):
+    # test with an empty query list - fail gracefully
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -314,11 +314,13 @@ def test_empty_query(runtmp):
 
     output = runtmp.output('out.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                         '-o', output)
 
     print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "No query signatures loaded, exiting." in captured.err
     # @CTB
 
 
@@ -380,7 +382,7 @@ def test_load_only_one_bug(runtmp, capfd, zip_db):
     print(captured.err)
 
     assert not 'WARNING: skipped 1 paths - no compatible signatures.' in captured.err
-    assert not 'WARNING: no compatible sketches in path ' in captured.err
+    assert not 'WARNING: no compatible sketches in path' in captured.err
 
 
 @pytest.mark.parametrize("zip_query", [False, True])
