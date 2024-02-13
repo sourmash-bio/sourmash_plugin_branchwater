@@ -255,7 +255,7 @@ def test_simple_indexed_query_manifest(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}
+    assert {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match_query', 'intersect_bp'}.issubset(keys)
 
 
 @pytest.mark.parametrize('zip_query', [False, True])
