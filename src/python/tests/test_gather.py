@@ -656,4 +656,4 @@ def test_indexed_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Fastgather does not accept 'rocksdb' databases. Please use fastmultigather." in captured.err
+    assert "Cannot load search signatures from a 'rocksdb' database. Please use sig, zip, or pathlist." in captured.err

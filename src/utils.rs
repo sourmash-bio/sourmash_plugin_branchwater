@@ -324,6 +324,12 @@ pub fn load_collection(
     if !sigpath.exists() {
         bail!("No such file or directory: '{}'", &sigpath);
     }
+
+    // disallow rocksdb input here
+    if is_revindex_database(&sigpath) {
+        bail!("Cannot load {} signatures from a 'rocksdb' database. Please use sig, zip, or pathlist.", report_type);
+    }
+
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
 
     let mut n_failed = 0;
