@@ -2,7 +2,6 @@
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::manifest::Manifest;
-use sourmash::selection;
 use sourmash::selection::Select;
 
 use anyhow::{anyhow, Result};

@@ -628,3 +628,32 @@ def test_simple_hp(runtmp):
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
     print(df)
     assert df['match_md5'][0] == "ea2a1ad233c2908529d124a330bcb672"
+
+
+def test_indexed_against(runtmp, capfd):
+    # do not accept rocksdb for now
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+
+    make_file_list(against_list, [sig2])
+    db_against = runtmp.output('against.rocksdb')
+
+    ## index against
+    runtmp.sourmash('scripts', 'index', against_list,
+                    '-o', db_against, '-k', str(31), '--scaled', str(1000),
+                    '--moltype', "DNA")
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastgather', query, db_against,
+                        '-o', g_output, '--output-prefetch', p_output,
+                        '-s', '100000')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "Fastgather does not accept 'rocksdb' databases. Please use fastmultigather." in captured.err

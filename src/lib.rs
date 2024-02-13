@@ -83,6 +83,13 @@ fn do_fastgather(
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
+    // disable rocksdb input as database
+    let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
+    if is_revindex_database(&againstfile_path) {
+        eprintln!("Fastgather does not accept 'rocksdb' databases. Please use fastmultigather.");
+        // exit
+        return Ok(1);
+    }
     match fastgather::fastgather(
         query_filename,
         siglist_path,
