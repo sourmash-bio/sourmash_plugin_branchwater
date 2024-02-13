@@ -114,6 +114,30 @@ def test_simple_threshold(runtmp, zip_query):
     assert len(df) == 1
 
 
+def test_simple_manifest(runtmp):
+    # test with a simple threshold => only 3 results
+    query_list = runtmp.output('query.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    query_mf = runtmp.output('qmf.csv')
+
+    runtmp.sourmash("sig", "manifest", query_list, "-o", query_mf)
+
+    runtmp.sourmash('scripts', 'pairwise', query_mf,
+                    '-o', output, '-t', '0.1')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 1
+
+
 def test_sig_query(runtmp, capfd):
     # sig query is ok now, but fails bc only one sig
     sig2 = get_test_data('2.fa.sig.gz')
