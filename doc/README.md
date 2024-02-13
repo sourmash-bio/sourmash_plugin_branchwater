@@ -1,18 +1,23 @@
 # manysketch, fastgather, fastmultigather, multisearch, and manysearch - an introduction
 
-This repository implements five sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory, than sourmash.
+This repository implements six sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, `pairwise`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory, than sourmash.
 
 The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. This may mean that your input files need to be prepared differently. The output may currently be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
 
 ## Input file formats
 
 
-All four search/gather commands accept zip files, manifest files, or _text files containing lists of signature files_ ("fromfiles") for the search database. `multisearch`, `manysearch` and `fastmultigather` also use either zips, manifests, or "fromfiles" for queries, too. All commands now accept single signature files as well, though this is only useful for single-query input.
+All five search/gather commands accept zip files, manifest files, or _text files containing lists of signature files_ ("fromfiles") for the search database. `multisearch`, `manysearch` and `fastmultigather` also use either zipfiles, manifests, or "fromfiles" for queries, too. All commands now accept single signature files as well, though this is only useful for single-query input.
+
+**As of v0.9.0, we strongly recommend using zipfiles or manifests over
+"fromfiles" due to internal changes in sketch loading; this reverses
+earlier recommendations to use fromfiles!**
 
 `manysketch` takes as input a CSV file with columns `name,genome_filename,protein_filename`. If you don't have `protein_filename` entries, be sure to include the trailing comma so the CSV reader can process the file correctly.
 
 ### Using zip files or manifest files
 
+Zip files are compressed collections of sourmash sketches. When created with sourmash, they also contain manifests. They are generally the most efficient option for loading and storing sourmash signatures.
 
 Manifest files are csv files with all information about sourmash signature parameters. Having a manifest allows us to select sketches relevant to the search (e.g. by k-mer size, scaled factor, etc) and perform checks without loading the sketches themselves into memory. We then only load the actual sketches (and optionally, downsample to a lower scaled value) when we're ready to use them.
 
@@ -21,11 +26,13 @@ If you have a `sourmash` zip file of signatures, it already contains a manifest 
 If you'd like to generate a standalone `manifest` file from your signatures, you can do it like so:
 
 ```
-sourmash sig manifest <sigs> -o sigs.manifest.csv
+sourmash sig manifest <sigfile> -o sigfile.manifest.csv
 ```
-> Here, `sigs` can be any type of sourmash input, including a signature file or `pathlist`
+> Here, `sigfile` can be any type of sourmash input, including a signature file or `pathlist`
 
 ### Using "fromfiles"
+
+**Note: We no longer recommend using "fromfiles". Use zip files instead.**
 
 To prepare a **signature** fromfile from a database, first you need to split the database into individual files:
 ```
@@ -179,13 +186,15 @@ Each command does things slightly differently, with implications for CPU and dis
 
 `manysketch` loads one sequence file from disk per thread and sketches it using all signature params simultaneously.
 
-`manysearch` loads all the queries at the beginning, and then loads one database sketch from disk per thread. The compute-per-database-sketch is dominated by I/O. So your number of threads should be chosen with care for disk load. We typically limit it to `-c 32` for shared disks.
+`manysearch` loads all the queries at the beginning, and then loads one database sketch from disk per thread. The compute-per-database-sketch is dominated by I/O. So your number of threads should be chosen with care for disk load. We typically limit it to `-c 32` for shared disks. We suggest using a manifest CSV file for the database sketches.
 
-`multisearch` loads all the queries and database sketches once, at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine!
+`multisearch` loads all the queries and database sketches once, at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! Zipfiles and manifests should work well.
 
-Like `multisearch`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine!
+`pairwise` acts just like `multisearch`, but only loads one file (and then does all comparisons between all pairs within that file).
 
-`fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
+Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! We suggest using zipfile or manifests for the database.
+
+`fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load. We also suggest using a zipfile or manifest for the database rather than a pathlist.
 
 ## Appendix 1 - `index` to create a low-memory index
 
@@ -193,4 +202,4 @@ The command `sourmash scripts index` makes an on-disk inverted index
 for low memory fast search. Indexing takes a while, but then search
 takes fewer resources.
 
-Currently only fastmultigather and manysearch can use this kind of index.
+Currently only fastmultigather and manysearch can use this kind of inde.
