@@ -66,7 +66,8 @@ pub fn fastmultigather(
         // Load query sig (downsampling happens here)
         match query_collection.sig_from_record(record) {
             Ok(query_sig) => {
-                let prefix = query_sig.name();
+                let name = query_sig.name();
+                let prefix = name.split(' ').next().unwrap_or_default().to_string();
                 let location = PathBuf::new(&prefix).file_name().unwrap();
                 if let Some(query_mh) = query_sig.minhash() {
                     let matchlist: BinaryHeap<PrefetchResult> = against

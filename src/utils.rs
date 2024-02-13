@@ -2,6 +2,7 @@
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::manifest::Manifest;
+use sourmash::selection;
 use sourmash::selection::Select;
 
 use anyhow::{anyhow, Result};
@@ -75,7 +76,7 @@ pub fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            // TODO: fix Select so we can go back to downsample: false here
+            // downsample within count_common
             let overlap = searchsig.count_common(query_mh, true);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {

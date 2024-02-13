@@ -85,6 +85,38 @@ def test_simple(runtmp, zip_against):
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
 
 
+def test_simple_space_in_signame(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    renamed_query = runtmp.output('in.zip')
+    name = 'my-favorite-signame has spaces'
+    # rename signature
+    runtmp.sourmash('sig', 'rename', query, name, '-o', renamed_query)
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(runtmp.output(''))
+        runtmp.sourmash('scripts', 'fastmultigather', renamed_query, against_list,
+                        '-s', '100000', '-t', '0')
+    finally:
+        os.chdir(cwd)
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('my-favorite-signame.gather.csv')
+    p_output = runtmp.output('my-favorite-signame.prefetch.csv')
+    assert os.path.exists(p_output)
+    assert os.path.exists(g_output)
+
+
 def test_simple_zip_query(runtmp):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
