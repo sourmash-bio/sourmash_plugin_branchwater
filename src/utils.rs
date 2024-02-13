@@ -253,7 +253,12 @@ pub fn load_sketches_above_threshold(
             // Load against into memory
             if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
                 if let Some(against_mh) = against_sig.minhash() {
-                    // if let Some(against_mh) = against_sig.select(&selection).unwrap().minhash() { // downsample via select
+                    eprintln!(
+                        "against_sig info: name: {}, md5:{},",
+                        against_sig.name(),
+                        against_sig.md5sum()
+                    );
+                    eprintln!("against_mh info:  md5:{},", against_mh.md5sum());
                     // currently downsampling here to avoid changing md5sum
                     if let Ok(overlap) = against_mh.count_common(query, true) {
                         //downsample via count_common
@@ -357,6 +362,8 @@ pub fn load_collection(
                         let path = line.ok()?;
                         match Signature::from_path(&path) {
                             Ok(signatures) => {
+                                // TODO: Handling for multisig files: Split into separate sigs so records are unique?
+                                // Currently, we end up with a single record
                                 let recs: Vec<Record> = signatures
                                     .into_iter()
                                     .flat_map(|v| Record::from_sig(&v, &path))
@@ -375,6 +382,7 @@ pub fn load_collection(
                     .collect();
 
                 let manifest: Manifest = records.into();
+                eprintln!("len manifest: {}", manifest.len());
                 Collection::new(
                     manifest,
                     InnerStorage::new(
