@@ -6,11 +6,13 @@ The main *drawback* to these plugin commands is that their inputs and outputs ar
 
 ## Input file formats
 
+
 All four search/gather commands accept zip files, manifest files, or _text files containing lists of signature files_ ("fromfiles") for the search database. `multisearch`, `manysearch` and `fastmultigather` also use either zips, manifests, or "fromfiles" for queries, too. All commands now accept single signature files as well, though this is only useful for single-query input.
 
 `manysketch` takes as input a CSV file with columns `name,genome_filename,protein_filename`. If you don't have `protein_filename` entries, be sure to include the trailing comma so the CSV reader can process the file correctly.
 
 ### Using zip files or manifest files
+
 
 Manifest files are csv files with all information about sourmash signature parameters. Having a manifest allows us to select sketches relevant to the search (e.g. by k-mer size, scaled factor, etc) and perform checks without loading the sketches themselves into memory. We then only load the actual sketches (and optionally, downsample to a lower scaled value) when we're ready to use them.
 
