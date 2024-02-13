@@ -334,16 +334,23 @@ fn collection_from_manifest(
             report_type, sigpath
         )
     })?;
-    eprintln!("LOADING MANIFEST");
-    Ok(Collection::new(
-        manifest,
-        InnerStorage::new(
-            FSStorage::builder()
-                .fullpath("".into())
-                .subdir("".into())
-                .build(),
-        ),
-    ))
+
+    eprintln!("{:?}", manifest);
+    if manifest.is_empty() {
+        // If the manifest is empty, return an error constructed with the anyhow! macro
+        Err(anyhow!("could not read as manifest: '{}'", sigpath))
+    } else {
+        // If the manifest is not empty, proceed to create and return the Collection
+        Ok(Collection::new(
+            manifest,
+            InnerStorage::new(
+                FSStorage::builder()
+                    .fullpath("".into())
+                    .subdir("".into())
+                    .build(),
+            ),
+        ))
+    }
 }
 
 fn collection_from_pathlist(
@@ -402,22 +409,13 @@ fn collection_from_pathlist(
     Ok((collection, n_failed))
 }
 
-//     // if pathlist is just a signature path, load it into a collection
-//     match Signature::from_path(&sigpath) {
-//         Ok(signatures) => {
-//             // Load the collection from the signature
-//             match Collection::from_sigs(signatures) {
-//                 Ok(collection) => collection,
-//                 Err(_) => bail!(
-//                     "loaded {} signatures but failed to load as collection: '{}'",
-//                     report_type,
-//                     sigpath
-//                 ),
-//             }
-//         }
 fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
-    let signatures = Signature::from_path(sigpath)
-        .with_context(|| format!("Failed to load signatures from: '{}'", sigpath))?;
+    let signatures = Signature::from_path(sigpath).with_context(|| {
+        format!(
+            "Failed to load {} signatures from: '{}'",
+            report_type, sigpath
+        )
+    })?;
 
     Collection::from_sigs(signatures).with_context(|| {
         format!(
@@ -445,25 +443,78 @@ pub fn load_collection(
     }
 
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
+    let mut last_error = None;
 
-    // let mut n_failed = 0;
-    let (collection, n_failed) = if sigpath.extension().map_or(false, |ext| ext == "zip") {
-        (collection_from_zipfile(&sigpath, &report_type)?, 0)
-    // } else if let Ok(coll) = collection_from_manifest(&sigpath, &report_type) {
-    //     (coll, 0)
-    // } else if let Ok((coll, n_failed)) = collection_from_pathlist(&sigpath, &report_type) {
-    } else if let Ok(coll) = collection_from_signature(&sigpath, &report_type) {
-        (coll, 0)
+    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+        match collection_from_zipfile(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
     } else {
-        collection_from_pathlist(&sigpath, &report_type)?
-        // (collection_from_signature(&sigpath, &report_type)?, 0)
+        None
     };
 
-    let n_total = collection.len();
-    let selected = collection.select(selection)?;
-    let n_skipped = n_total - selected.len();
-    report_on_collection_loading(&selected, n_skipped, n_failed, report_type, allow_failed)?;
-    Ok(selected)
+    let collection = collection.or_else(|| {
+        dbg!("attempting to load as manifest");
+        match collection_from_manifest(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    });
+
+    let collection = collection.or_else(|| {
+        dbg!("attempting to load as signature");
+        match collection_from_signature(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    });
+
+    let collection = collection.or_else(|| {
+        dbg!("attempting to load as pathlist");
+        match collection_from_pathlist(&sigpath, &report_type) {
+            Ok((coll, n_failed)) => Some((coll, n_failed)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    });
+
+    match collection {
+        Some((coll, n_failed)) => {
+            let n_total = coll.len();
+            let selected = coll.select(selection)?;
+            let n_skipped = n_total - selected.len();
+            report_on_collection_loading(
+                &selected,
+                n_skipped,
+                n_failed,
+                report_type,
+                allow_failed,
+            )?;
+            Ok(selected)
+        }
+        None => {
+            if let Some(e) = last_error {
+                Err(e)
+            } else {
+                // Should never get here
+                Err(anyhow!(
+                    "Unable to load the collection for an unknown reason."
+                ))
+            }
+        }
+    }
 }
 
 /// Uses the output of collection loading function to report the
