@@ -105,6 +105,11 @@ sourmash scripts multisearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.
 
 The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
+The `pairwise` command does the same thing as `multisearch` but takes
+only a single file, which it uses to calculate all pairwise
+comparisons. Since the comparisons are symmetric, it is a bit more than
+twice as fast as `multisearch`.
+
 ### Running `fastgather`
 
 The `fastgather` command is a much faster version of `sourmash gather`.
@@ -202,4 +207,8 @@ The command `sourmash scripts index` makes an on-disk inverted index
 for low memory fast search. Indexing takes a while, but then search
 takes fewer resources.
 
-Currently only fastmultigather and manysearch can use this kind of inde.
+Currently only `fastmultigather` and `manysearch` can use this kind of index.
+
+We suggest using the extension `.rocksdb` for these databases, as we
+use [RocksDB](https://rocksdb.org/) for the underlying database storage
+mechanism.
