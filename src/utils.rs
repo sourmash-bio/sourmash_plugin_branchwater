@@ -458,7 +458,7 @@ pub fn load_collection(
     };
 
     let collection = collection.or_else(|| {
-        dbg!("attempting to load as manifest");
+        // dbg!("attempting to load as manifest");
         match collection_from_manifest(&sigpath, &report_type) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
@@ -469,7 +469,7 @@ pub fn load_collection(
     });
 
     let collection = collection.or_else(|| {
-        dbg!("attempting to load as signature");
+        // dbg!("attempting to load as signature");
         match collection_from_signature(&sigpath, &report_type) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
@@ -480,7 +480,7 @@ pub fn load_collection(
     });
 
     let collection = collection.or_else(|| {
-        dbg!("attempting to load as pathlist");
+        // dbg!("attempting to load as pathlist");
         match collection_from_pathlist(&sigpath, &report_type) {
             Ok((coll, n_failed)) => Some((coll, n_failed)),
             Err(e) => {
