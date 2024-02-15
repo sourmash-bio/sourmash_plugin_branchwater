@@ -1,19 +1,33 @@
-# manysketch, fastgather, fastmultigather, multisearch, and manysearch - an introduction
+# The branchwater plugin for sourmash
 
-This repository implements six sourmash plugins, `manysketch`, `fastgather`, `fastmultigather`, `multisearch`, `pairwise`, and `manysearch`. These plugins make use of multithreading in Rust to provide very fast implementations of `sketch`, `search`, and `gather`. With large databases, these commands can be hundreds to thousands of times faster, and 10-50x lower memory, than sourmash.
+@CTB TODO: add [link] stuff
 
-The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. This may mean that your input files need to be prepared differently. The output may currently be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
+| command | functionality | docs |
+| -------- | -------- | -------- |
+| `manysketch` | Rapidly build sketches for many input files     | [link]     |
+| `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link]
+| `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link]
+| `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link]
+| `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link]
+| `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link]
+
+This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code.
+
+The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. This means that your input files may need to be prepared differently, and the output may in some cases be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
 
 ## Input file formats
 
+sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.6).
 
-All five search/gather commands accept zip files, manifest files, or _text files containing lists of signature files_ ("fromfiles") for the search database. `multisearch`, `manysearch` and `fastmultigather` also use either zipfiles, manifests, or "fromfiles" for queries, too. All commands now accept single signature files as well, though this is only useful for single-query input.
+**As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.** Prior to v0.9.0, we suggest pathlists, but these now incur substantial overhead.
 
-**As of v0.9.0, we strongly recommend using zipfiles or manifests over
-"fromfiles" due to internal changes in sketch loading; this reverses
-earlier recommendations to use fromfiles!**
-
-`manysketch` takes as input a CSV file with columns `name,genome_filename,protein_filename`. If you don't have `protein_filename` entries, be sure to include the trailing comma so the CSV reader can process the file correctly.
+| command | query input | database format |
+| -------- | -------- | -------- |
+| `gather`     | Single metagenome in sig, zip, manifest CSV, or fromfile     | Zip, manifest CSV, or fromfile |
+| `fastmultigather` | Multiple metagenomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
+| `manysearch` | Multiple genomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
+| `multisearch` | Multiple sketches in sig, zip, manifest CSV, or fromfile | Multiple sketches in sig, zip, manifest CSV, or fromfile |
+| `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A 
 
 ### Using zip files or manifest files
 
@@ -28,7 +42,9 @@ If you'd like to generate a standalone `manifest` file from your signatures, you
 ```
 sourmash sig manifest <sigfile> -o sigfile.manifest.csv
 ```
-> Here, `sigfile` can be any type of sourmash input, including a signature file or `pathlist`
+> Here, `sigfile` can be any type of sourmash input, including a signature file or fromfile.
+
+@CTB: fix fromfile vs pathlist stuff, explain manifests more/diff/better.
 
 ### Using "fromfiles"
 
@@ -53,7 +69,7 @@ When using these files for search, we have no a priori information about the par
 
 ### Running `manysketch`
 
-The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped sourmash signature collection (`zip`). `manysketch` uses one thread per input file, so it can (very) efficiently sketch many files at once; and, because sequence file parsing is entirely implemented in Rust, it is much faster than `sourmash sketch` for large FASTQ files.
+The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped sourmash signature collection (`zip`). `manysketch` uses one thread per input file, so it can (very) efficiently sketch many files at once; and, because sequence file parsing is entirely implemented in Rust, it is much, _much_ faster than `sourmash sketch` for large FASTQ files.
 
 To run `manysketch`, you need to build a text file list of FASTA/FASTQ files, with one on each line (`manysketch.csv`, below).  A simple way to do this for a directory is this command snippet:
 ```
@@ -63,7 +79,6 @@ do
 echo $i,$i,
 done >> manysketch.csv
 ```
-
 
 You can then run:
 
@@ -81,77 +96,67 @@ To modify sketching parameters, use `--param-str` or `-p` and provide valid para
 ```
 sourmash scripts manysketch fa.csv -o fa.zip -p k=21,k=31,k=51,scaled=1000,abund -p protein,k=10,scaled=200
 ```
-
+See [the sourmash sketch docs](https://sourmash.readthedocs.io/en/latest/command-line.html#sourmash-sketch-make-sourmash-signatures-from-sequence-data) for more information on param strings.
 
 ### Running `multisearch`
 
 The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading all genomes into memory.
 
-`multisearch` takes two input collections (zip or "fromfiles"), and outputs a CSV:
+`multisearch` takes two input collections and outputs a CSV:
 ```
-sourmash scripts multisearch query-list.txt podar-ref-list.txt -o results.csv
-```
-
-To run it, you need to provide two collections of signature files. If you create a fromfile as above with GTDB reps, you can generate a query fromfile like so:
-
-```
-head -10 list.gtdb-reps-rs214-k21.txt > list.query.txt
-```
-and then run `multisearch` like so:
-
-```
-sourmash scripts multisearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21 --cores 4
+sourmash scripts multisearch query.sig.gz database.zip -o results.csv
 ```
 
-The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
-The `pairwise` command does the same thing as `multisearch` but takes
-only a single file, which it uses to calculate all pairwise
-comparisons. Since the comparisons are symmetric, it is a bit more than
+The results file `results.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
+
+The `pairwise` command does the same comparisons as `multisearch` but takes
+only a single collection of sketches, for which it calculates all the pairwise comparisons. Since the comparisons are symmetric, it approximately
 twice as fast as `multisearch`.
 
 ### Running `fastgather`
 
 The `fastgather` command is a much faster version of `sourmash gather`.
 
-`fastgather` takes a single query metagenome (in any file format) and an input collection (zip or "fromfile") as database, and outputs a CSV:
+`fastgather` takes a single query metagenome and a database, and outputs a CSV:
 ```
-sourmash scripts fastgather query.sig.gz podar-ref-list.txt -o results.csv --cores 4
+sourmash scripts fastgather query.sig.gz database.zip -o results.csv --cores 4
 ```
 
 #### Using `fastgather` to create a picklist for `sourmash gather`
 
 One handy use case for `fastgather` is to create a picklist that can be used by `sourmash gather`. This makes full use of the speed of `fastgather` while producing a complete set of `gather` outputs.
 
-For example, if `list.gtdb-rs214-k21.txt` contains the paths to all GTDB RS214 genomes in `sig.gz` files, as above, then the following command will do a complete gather against GTDB:
+For example, if you run a complete `gather` against GTDB rs214,
 
 ```
 sourmash scripts fastgather SRR606249.trim.sig.gz \
-    list.gtdb-rs214-k21.txt -o SRR606249.fastgather.csv -k 21
+    gdtb-rs214-k21.zip -o SRR606249.fastgather.csv -k 21
 ```
 
-This CSV file can then be used as a picklist for `sourmash gather` like so:
+The resulting CSV file can then be used as a picklist for `sourmash gather` like so:
 
 ```
-sourmash gather SRR606249.trim.sig.gz /group/ctbrowngrp/sourmash-db/gtdb-rs214/gtdb-rs214-k21.zip \
+sourmash gather SRR606249.trim.sig.gz gtdb-rs214-k21.zip \
     --picklist SRR606249.fastgather.csv:match_name:ident \
     -o SRR606249.gather.csv
 ```
 
-Here the picklist should be used on a sourmash collection that contains a manifest - this will prevent sourmash from loading any sketches other than the ones in the fastgather CSV file. We recommend using zip file databases - manifests are produced automatically when `-o filename.zip` is used with `sketch dna`, and they also be prepared with `sourmash sig cat`. (If you are using a GTDB database, as above, then you already have a manifest!)
-
 #### Example of picklist usage
 
-A complete example Snakefile implementing the above workflow is available [in the 2023-swine-usda](https://github.com/ctb/2023-swine-usda/blob/main/Snakefile) repository. Note, it is slightly out of date at the moment!
+A complete example Snakefile implementing the above workflow is available [in the sourmash-slainte Snakefile](https://github.com/dib-lab/sourmash-slainte/blob/main/Snakefile).
 
 ### Running `fastmultigather`
 
 `fastmultigather` takes a collection of query metagenomes and a collection of sketches as a database, and outputs many CSVs:
 ```
-sourmash scripts fastmultigather query-list.txt podar-ref-lists.txt --cores 4
+sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4
 ```
+We suggest using a manifest CSV for the queries.
 
 The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that you only load the database files once, which can be a significant time savings for large databases!
+
+@CTB: NTP, is this comment on loading still true?
 
 #### Output files for `fastmultigather`
 
@@ -167,27 +172,15 @@ The `manysearch` command compares one or more collections of query sketches, and
 
 `manysearch` takes two collections as input, and outputs a CSV:
 ```
-sourmash scripts manysearch query-list.txt podar-ref-list.txt -o results.csv
+sourmash scripts manysearch queries.zip metagenomes.manifest.csv -o results.csv
 ```
-
-To run it, you need to provide two "fromfiles" containing lists of paths to signature files (`.sig` or `.sig.gz`). If you create a fromfile as above with GTDB reps, you can generate a query fromfile like so:
-
-```
-head -10 list.gtdb-reps-rs214-k21.txt > list.query.txt
-```
-and then run `manysearch` like so:
-
-```
-sourmash scripts manysearch list.query.txt list.gtdb-rs214-k21.txt  -o query.x.gtdb-reps.csv -k 21 --cores 4
-```
+We suggest using a manifest CSV for the metagenome collection.
 
 The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
 ## Notes on concurrency and efficiency
 
 Each command does things slightly differently, with implications for CPU and disk load. You can measure threading efficiency with `/usr/bin/time -v` on Linux systems, and disk load by number of complaints received when running.
-
-(The below info is for fromfile lists. If you are using mastiff indexes, very different performance parameters apply. We will update here as we benchmark and improve!)
 
 `manysketch` loads one sequence file from disk per thread and sketches it using all signature params simultaneously.
 
@@ -199,7 +192,9 @@ Each command does things slightly differently, with implications for CPU and dis
 
 Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! We suggest using zipfile or manifests for the database.
 
-`fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load. We also suggest using a zipfile or manifest for the database rather than a pathlist.
+@CTB: NTP, is this "loads everything at the beginning" comment still true?
+
+`fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
 
 ## Appendix 1 - `index` to create a low-memory index
 
