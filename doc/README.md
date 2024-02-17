@@ -1,15 +1,13 @@
 # The branchwater plugin for sourmash
 
-@CTB TODO: add [link] stuff
-
 | command | functionality | docs |
 | -------- | -------- | -------- |
-| `manysketch` | Rapidly build sketches for many input files     | [link]     |
-| `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link]
-| `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link]
-| `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link]
-| `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link]
-| `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link]
+| `manysketch` | Rapidly build sketches for many input files     | [link](#Running-manysketch)     |
+| `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link](#Running-fastgather)
+| `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link](#Running-fastmultigather)
+| `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
+| `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch)
+| `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch)
 
 This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code.
 
@@ -19,7 +17,7 @@ The main *drawback* to these plugin commands is that their inputs and outputs ar
 
 sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.6).
 
-**As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.** Prior to v0.9.0, we suggest pathlists, but these now incur substantial overhead.
+**As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.** Prior to v0.9.0, we suggest fromfiles, but these now incur substantial overhead.
 
 | command | query input | database format |
 | -------- | -------- | -------- |
@@ -29,41 +27,61 @@ sourmash supports a variety of different storage formats for sketches (see [sour
 | `multisearch` | Multiple sketches in sig, zip, manifest CSV, or fromfile | Multiple sketches in sig, zip, manifest CSV, or fromfile |
 | `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A 
 
-### Using zip files or manifest files
+### Using zipfiles
 
-Zip files are compressed collections of sourmash sketches. When created with sourmash, they also contain manifests. They are generally the most efficient option for loading and storing sourmash signatures.
+When working with large collections of small sketches such as genomes, we suggest using zipfiles as produced by sourmash (e.g. using `sourmash sig cat`). Zip files have a few nice features:
 
-Manifest files are csv files with all information about sourmash signature parameters. Having a manifest allows us to select sketches relevant to the search (e.g. by k-mer size, scaled factor, etc) and perform checks without loading the sketches themselves into memory. We then only load the actual sketches (and optionally, downsample to a lower scaled value) when we're ready to use them.
+* sketches are compressed in zip files;
+* zip files can contain many sketches, including incompatible types (e.g. multiple k-mer sizes);
+* zip files contain "manifests" listing their contents;
+* subsets of zip files can be efficiently selected and loaded depending on what is needed;
+* in particular, _single_ sketches can be loaded on demand, supporting lower memory requirements for certain kinds of searches.
 
-If you have a `sourmash` zip file of signatures, it already contains a manifest that we can use internally.
+For all these reasons, zip files are the most efficient and effective basic storage type for sketches in sourmash, and as of the branchwater plugin v0.9.0, they are fully supported!
 
-If you'd like to generate a standalone `manifest` file from your signatures, you can do it like so:
-
+You can create zipfiles with sourmash like so:
 ```
-sourmash sig manifest <sigfile> -o sigfile.manifest.csv
+sourmash sig cat <list of sketches> -o sigs.zip
 ```
-> Here, `sigfile` can be any type of sourmash input, including a signature file or fromfile.
 
-@CTB: fix fromfile vs pathlist stuff, explain manifests more/diff/better.
+### Using manifests instead of zip files - why and when?
+
+There are various places where we recommend using manifests instead of zip files. Why?
+
+Well, first, if you are using a zip file created by sourmash, you are already using a manifest! And you will get all of the benefits described above!
+
+But if you want to use a collection of multiple very large metagenomes (as search targets in `manysearch`, or as queries in `fastmultigather`), then standalone manifests might be a good solution for you.
+
+This is for two specific reasons:
+* first, metagenome sketches are often extremely large (100s of MBs to GBs), and it is not ideal to zip many large sketches into a single zip file;
+* second, both `manysearch` and `fastmultigather` take a single argument that specifies collections of metagenomes which need to be loaded on demand, because they cannot fit into memory;
+
+so the question becomes, how do you provide collections of large metagenomes to `manysearch` and `fastmultigather` in a single filename?
+
+And the answer is: manifests. Manifests are a sourmash filetype that contains information about sketches without containing the actual sketch content, and they can be used as "catalogs" of sketch content.
+
+The branchwater plugin supports manifest CSVs.  These can be created from lists of sketches by using `sourmash sig collect` or `sourmash sig manifest`; for example,
+```
+sourmash sig manifest <from file> -o manifest.csv
+```
+will create a manifest CSV from a list of sketches.
+
+### Using RocksDB inverted indexes
+
+The branchwater plugin also supports a database type that is not yet supported by sourmash: inverted indexes stored in a RocksDB database. These indexes provide fast and low-memory lookups when searching very large datasets, and are used for the branchwater petabase scale search hosted at [branchwater.sourmash.bio](https://branchwater.sourmash.bio). 
+
+Some commands - `fastmultigather` and `manysearch` - support using these RocksDB-based inverted indexes. They can be created by running `sourmash scripts index`.
 
 ### Using "fromfiles"
 
-**Note: We no longer recommend using "fromfiles". Use zip files instead.**
+**Note: We no longer recommend using "fromfiles". Use zip files or manifests instead.**
 
-To prepare a **signature** fromfile from a database, first you need to split the database into individual files:
+You can make a fromfile by listing a collection of .sig.gz files like so:
 ```
-mkdir gtdb-reps-rs214-k21/
-cd gtdb-reps-rs214-k21/
-sourmash sig split -k 21 /group/ctbrowngrp/sourmash-db/gtdb-rs214/gtdb-rs214-reps.k21.zip -E .sig.gz
-cd ..
+find /path/to/directory/ -name "*.sig.gz" -type f > directory.txt
 ```
 
-and then build a "fromfile":
-```
-find gtdb-reps-rs214-k21/ -name "*.sig.gz" -type f > list.gtdb-reps-rs214-k21.txt
-```
-
-When using these files for search, we have no a priori information about the parameters used for each sketch, so we load all signatures into memory at the start in order to generate a manifest. To avoid memory issues, the signatures are not kept in memory, but instead re-loaded as described below for each command (see: Notes on concurrency and efficiency). This makes using `pathlists` less efficient than `zip` files or `manifests`.
+When using a fromfile for search, we load all signatures into memory at the start in order to generate a manifest. To avoid memory issues, the signatures are not kept in memory, but instead re-loaded as described below for each command (see: Notes on concurrency and efficiency). This makes using fromfiles less efficient than `zip` files or manifests (as of v0.9.0).
 
 ## Running the commands
 
@@ -154,9 +172,7 @@ sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4
 ```
 We suggest using a manifest CSV for the queries.
 
-The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that you only load the database files once, which can be a significant time savings for large databases!
-
-@CTB: NTP, is this comment on loading still true?
+The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that you only load the database files once with `fastmultigather`, which can be a significant time savings for large databases!
 
 #### Output files for `fastmultigather`
 
@@ -191,8 +207,6 @@ Each command does things slightly differently, with implications for CPU and dis
 `pairwise` acts just like `multisearch`, but only loads one file (and then does all comparisons between all pairs within that file).
 
 Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! We suggest using zipfile or manifests for the database.
-
-@CTB: NTP, is this "loads everything at the beginning" comment still true?
 
 `fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
 
