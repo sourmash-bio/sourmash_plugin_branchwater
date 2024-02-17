@@ -367,11 +367,9 @@ fn collection_from_pathlist(
     // load list of paths
     let lines: Vec<_> = reader
         .lines()
-        .filter_map(|line| {
-            match line {
-                Ok(path) => Some(path),
-                Err(_err) => None
-            }
+        .filter_map(|line| match line {
+            Ok(path) => Some(path),
+            Err(_err) => None,
         })
         .collect();
 
@@ -379,21 +377,19 @@ fn collection_from_pathlist(
     let n_failed = AtomicUsize::new(0);
     let records: Vec<Record> = lines
         .par_iter()
-        .filter_map(|path| {
-            match Signature::from_path(&path) {
-                Ok(signatures) => {
-                    let recs: Vec<Record> = signatures
-                        .into_iter()
-                        .flat_map(|v| Record::from_sig(&v, &path))
-                        .collect();
-                    Some(recs)
-                }
-                Err(err) => {
-                    eprintln!("Sketch loading error: {}", err);
-                    eprintln!("WARNING: could not load sketches from path '{}'", path);
-                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
-                    None
-                }
+        .filter_map(|path| match Signature::from_path(&path) {
+            Ok(signatures) => {
+                let recs: Vec<Record> = signatures
+                    .into_iter()
+                    .flat_map(|v| Record::from_sig(&v, &path))
+                    .collect();
+                Some(recs)
+            }
+            Err(err) => {
+                eprintln!("Sketch loading error: {}", err);
+                eprintln!("WARNING: could not load sketches from path '{}'", path);
+                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                None
             }
         })
         .flatten()
