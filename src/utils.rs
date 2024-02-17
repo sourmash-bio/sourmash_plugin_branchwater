@@ -364,7 +364,7 @@ fn collection_from_pathlist(
     })?;
     let reader = BufReader::new(file);
 
-    let mut n_failed = 0;
+    // load list of paths
     let lines: Vec<_> = reader
         .lines()
         .filter_map(|line| {
@@ -375,6 +375,8 @@ fn collection_from_pathlist(
         })
         .collect();
 
+    // load sketches from paths in parallel.
+    let n_failed = AtomicUsize::new(0);
     let records: Vec<Record> = lines
         .par_iter()
         .filter_map(|path| {
@@ -389,7 +391,7 @@ fn collection_from_pathlist(
                 Err(err) => {
                     eprintln!("Sketch loading error: {}", err);
                     eprintln!("WARNING: could not load sketches from path '{}'", path);
-                    // n_failed += 1;
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                     None
                 }
             }
@@ -414,6 +416,8 @@ fn collection_from_pathlist(
                 .build(),
         ),
     );
+    let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
     Ok((collection, n_failed))
 }
 
