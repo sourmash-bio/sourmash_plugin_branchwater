@@ -365,10 +365,19 @@ fn collection_from_pathlist(
     let reader = BufReader::new(file);
 
     let mut n_failed = 0;
-    let records: Vec<Record> = reader
+    let lines: Vec<_> = reader
         .lines()
         .filter_map(|line| {
-            let path = line.ok()?;
+            match line {
+                Ok(path) => Some(path),
+                Err(_err) => None
+            }
+        })
+        .collect();
+
+    let records: Vec<Record> = lines
+        .par_iter()
+        .filter_map(|path| {
             match Signature::from_path(&path) {
                 Ok(signatures) => {
                     let recs: Vec<Record> = signatures
@@ -380,7 +389,7 @@ fn collection_from_pathlist(
                 Err(err) => {
                     eprintln!("Sketch loading error: {}", err);
                     eprintln!("WARNING: could not load sketches from path '{}'", path);
-                    n_failed += 1;
+                    // n_failed += 1;
                     None
                 }
             }
