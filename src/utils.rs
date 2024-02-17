@@ -335,7 +335,6 @@ fn collection_from_manifest(
         )
     })?;
 
-    eprintln!("{:?}", manifest);
     if manifest.is_empty() {
         // If the manifest is empty, return an error constructed with the anyhow! macro
         Err(anyhow!("could not read as manifest: '{}'", sigpath))
