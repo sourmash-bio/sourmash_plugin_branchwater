@@ -837,7 +837,6 @@ pub fn sigwriter(
                         };
                         write_signature(sig, &mut zip, options, &sig_filename);
                         let records: Vec<Record> = Record::from_sig(&sig, &sig_filename.as_str());
-                        eprintln!("{:?}", &records);
                         manifest_rows.extend(records);
                     }
                 }
