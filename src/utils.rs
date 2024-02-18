@@ -800,7 +800,7 @@ impl Hash for Params {
 }
 
 pub enum ZipMessage {
-    SignatureData(Vec<Signature>, Vec<Params>, PathBuf),
+    SignatureData(Vec<Signature>),
     WriteManifest,
 }
 
@@ -825,13 +825,8 @@ pub fn sigwriter(
 
         while let Ok(message) = recv.recv() {
             match message {
-                // TODO: can remove params and filename from here now
-                ZipMessage::SignatureData(sigs, params, _filename) => {
-                    if sigs.len() != params.len() {
-                        bail!("Mismatched lengths of signatures and parameters");
-                    }
-                    // TODO: can remove _param here now.
-                    for (sig, _param) in sigs.iter().zip(params.iter()) {
+                ZipMessage::SignatureData(sigs) => {
+                    for sig in sigs.iter() {
                         let md5sum_str = sig.md5sum();
                         let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
                         *count += 1;
@@ -850,12 +845,8 @@ pub fn sigwriter(
                     println!("Writing manifest");
                     // Start the CSV file inside the zip
                     zip.start_file("SOURMASH-MANIFEST.csv", options).unwrap();
-                    // write manifest version line
-                    // scoped block for csv writing
-                    {
-                        let manifest: Manifest = manifest_rows.clone().into();
-                        manifest.to_writer(&mut zip)?;
-                    } // drop csv writer here
+                    let manifest: Manifest = manifest_rows.clone().into();
+                    manifest.to_writer(&mut zip)?;
 
                     // Properly finish writing to the ZIP file
                     if let Err(e) = zip.finish() {

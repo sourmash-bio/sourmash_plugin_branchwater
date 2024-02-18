@@ -79,14 +79,8 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
     Ok(unique_params.into_iter().collect())
 }
 
-fn build_siginfo(
-    params: &[Params],
-    moltype: &str,
-    name: &str,
-    filename: &Path,
-) -> (Vec<Signature>, Vec<Params>) {
+fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &Path) -> Vec<Signature> {
     let mut sigs = Vec::new();
-    let mut params_vec = Vec::new();
 
     for param in params.iter().cloned() {
         match moltype {
@@ -121,11 +115,10 @@ fn build_siginfo(
             .signatures(template)
             .build();
         sigs.push(sig);
-
-        params_vec.push(param);
     }
 
-    (sigs, params_vec)
+    sigs
+    // (sigs, params_vec)
 }
 
 pub fn manysketch(
@@ -144,7 +137,7 @@ pub fn manysketch(
         bail!("No files to load, exiting.");
     }
 
-    // if output doesnt end in zip, bail
+    // if output doesn't end in zip, bail
     if Path::new(&output)
         .extension()
         .map_or(true, |ext| ext != "zip")
@@ -195,7 +188,7 @@ pub fn manysketch(
             }
 
             // build sig templates from params
-            let (mut sigs, sig_params) = build_siginfo(&params_vec, moltype, name, filename);
+            let mut sigs = build_siginfo(&params_vec, moltype, name, filename);
             // if no sigs to build, skip
             if sigs.is_empty() {
                 let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -231,17 +224,12 @@ pub fn manysketch(
                     }
                 }
             }
-            Some((sigs, sig_params, filename))
+            Some((sigs))
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>,
-             (sigs, sig_params, filename)| {
-                if let Err(e) = s.send(ZipMessage::SignatureData(
-                    sigs,
-                    sig_params,
-                    filename.clone(),
-                )) {
+            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs)| {
+                if let Err(e) = s.send(ZipMessage::SignatureData(sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {
                     Ok(())
