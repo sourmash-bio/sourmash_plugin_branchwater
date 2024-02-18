@@ -333,7 +333,6 @@ fn collection_from_manifest(
         )
     })?;
 
-    eprintln!("{:?}", manifest);
     if manifest.is_empty() {
         // If the manifest is empty, return an error constructed with the anyhow! macro
         Err(anyhow!("could not read as manifest: '{}'", sigpath))
@@ -363,25 +362,32 @@ fn collection_from_pathlist(
     })?;
     let reader = BufReader::new(file);
 
-    let mut n_failed = 0;
-    let records: Vec<Record> = reader
+    // load list of paths
+    let lines: Vec<_> = reader
         .lines()
-        .filter_map(|line| {
-            let path = line.ok()?;
-            match Signature::from_path(&path) {
-                Ok(signatures) => {
-                    let recs: Vec<Record> = signatures
-                        .into_iter()
-                        .flat_map(|v| Record::from_sig(&v, &path))
-                        .collect();
-                    Some(recs)
-                }
-                Err(err) => {
-                    eprintln!("Sketch loading error: {}", err);
-                    eprintln!("WARNING: could not load sketches from path '{}'", path);
-                    n_failed += 1;
-                    None
-                }
+        .filter_map(|line| match line {
+            Ok(path) => Some(path),
+            Err(_err) => None,
+        })
+        .collect();
+
+    // load sketches from paths in parallel.
+    let n_failed = AtomicUsize::new(0);
+    let records: Vec<Record> = lines
+        .par_iter()
+        .filter_map(|path| match Signature::from_path(&path) {
+            Ok(signatures) => {
+                let recs: Vec<Record> = signatures
+                    .into_iter()
+                    .flat_map(|v| Record::from_sig(&v, &path))
+                    .collect();
+                Some(recs)
+            }
+            Err(err) => {
+                eprintln!("Sketch loading error: {}", err);
+                eprintln!("WARNING: could not load sketches from path '{}'", path);
+                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                None
             }
         })
         .flatten()
@@ -404,6 +410,8 @@ fn collection_from_pathlist(
                 .build(),
         ),
     );
+    let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
     Ok((collection, n_failed))
 }
 
