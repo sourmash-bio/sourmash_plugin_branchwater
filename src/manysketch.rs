@@ -79,7 +79,7 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
     Ok(unique_params.into_iter().collect())
 }
 
-fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &Path) -> Vec<Signature> {
+fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
     let mut sigs = Vec::new();
 
     for param in params.iter().cloned() {
@@ -106,19 +106,11 @@ fn build_siginfo(params: &[Params], moltype: &str, name: &str, filename: &Path) 
             .track_abundance(param.track_abundance)
             .build();
 
-        // let sig = Signature::from_params(&cp); // cant set name with this
-        let template = sourmash::cmd::build_template(&cp);
-        let sig = Signature::builder()
-            .hash_function("0.murmur64")
-            .name(Some(name.to_string()))
-            .filename(Some(filename.to_string()))
-            .signatures(template)
-            .build();
+        let sig = Signature::from_params(&cp);
         sigs.push(sig);
     }
 
     sigs
-    // (sigs, params_vec)
 }
 
 pub fn manysketch(
@@ -188,7 +180,7 @@ pub fn manysketch(
             }
 
             // build sig templates from params
-            let mut sigs = build_siginfo(&params_vec, moltype, name, filename);
+            let mut sigs = build_siginfo(&params_vec, moltype);
             // if no sigs to build, skip
             if sigs.is_empty() {
                 let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -210,20 +202,26 @@ pub fn manysketch(
                     Ok(record) => {
                         // do we need to normalize to make sure all the bases are consistently capitalized?
                         // let norm_seq = record.normalize(false);
-                        for sig in &mut sigs {
+                        sigs.iter_mut().for_each(|sig| {
                             if moltype == "protein" {
-                                sig.add_protein(&record.seq()).unwrap();
+                                sig.add_protein(&record.seq())
+                                    .expect("Failed to add protein");
                             } else {
-                                sig.add_sequence(&record.seq(), true).unwrap();
+                                sig.add_sequence(&record.seq(), true)
+                                    .expect("Failed to add sequence");
                                 // if not force, panics with 'N' in dna sequence
                             }
-                        }
+                        });
                     }
-                    Err(err) => {
-                        eprintln!("Error while processing record: {:?}", err);
-                    }
+                    Err(err) => eprintln!("Error while processing record: {:?}", err),
                 }
             }
+
+            // Set name and filename for each signature after processing all records
+            sigs.iter_mut().for_each(|sig| {
+                sig.set_name(name);
+                sig.set_filename(filename.as_str());
+            });
             Some((sigs))
         })
         .try_for_each_with(
