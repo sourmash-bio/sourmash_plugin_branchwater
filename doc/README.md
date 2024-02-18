@@ -9,7 +9,7 @@
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch)
 
-This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` takes only 2 minutes and 2 GB of RAM.
+This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
 
 The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. This means that your input files may need to be prepared differently, and the output may in some cases be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
 
@@ -17,7 +17,7 @@ The main *drawback* to these plugin commands is that their inputs and outputs ar
 
 sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.6).
 
-**As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.** Prior to v0.9.0, we suggest fromfiles, but these now incur substantial overhead.
+**As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.**
 
 | command | query input | database format |
 | -------- | -------- | -------- |
