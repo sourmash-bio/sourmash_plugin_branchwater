@@ -9,7 +9,7 @@
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch)
 
-This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code.
+This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` takes only 2 minutes and 2 GB of RAM.
 
 The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. This means that your input files may need to be prepared differently, and the output may in some cases be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
 
@@ -49,7 +49,7 @@ sourmash sig cat <list of sketches> -o sigs.zip
 There are various places where we recommend using manifests instead of zip files. Why?
 
 Well, first, if you are using a zip file created by sourmash, you are already using a manifest! And you will get all of the benefits described above!
-
+ 
 But if you want to use a collection of multiple very large metagenomes (as search targets in `manysearch`, or as queries in `fastmultigather`), then standalone manifests might be a good solution for you.
 
 This is for two specific reasons:
