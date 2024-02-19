@@ -441,7 +441,7 @@ def test_protein_zip_manifest(runtmp, capfd):
     md5_list = [ row['md5'] for row in manifest.rows ]
     assert 'eb4467d11e0ecd2dbde4193bfc255310' in md5_list
     ksize_list = [ row['ksize'] for row in manifest.rows ]
-    assert 10 in ksize_list
+    assert 10 in ksize_list # manifest ksizes are human-readable (k, not k*3)
     scaled_list = [ row['scaled'] for row in manifest.rows ]
     assert 1 in scaled_list
     moltype_list = [ row['moltype'] for row in manifest.rows ]
@@ -449,6 +449,6 @@ def test_protein_zip_manifest(runtmp, capfd):
 
     for sig in siglist:
         assert sig in manifest
-        assert sig.minhash.ksize == 10
+        assert sig.minhash.ksize == 10 # minhash stores k*3, but does the conversion back for us
         assert sig.minhash.moltype == 'protein'
         assert sig.minhash.scaled == 1
