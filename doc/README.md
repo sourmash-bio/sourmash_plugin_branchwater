@@ -15,12 +15,13 @@ The main *drawback* to these plugin commands is that their inputs and outputs ar
 
 ## Input file formats
 
-sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.6).
+sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.6).
 
 **As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.**
 
 | command | query input | database format |
 | -------- | -------- | -------- |
+| `manysketch`     | CSV with input fasta/fastq paths (details below)    | _produces_ Zip database |
 | `gather`     | Single metagenome in sig, zip, manifest CSV, or fromfile     | Zip, manifest CSV, or fromfile |
 | `fastmultigather` | Multiple metagenomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
 | `manysearch` | Multiple genomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
@@ -29,7 +30,7 @@ sourmash supports a variety of different storage formats for sketches (see [sour
 
 ### Using zipfiles
 
-When working with large collections of small sketches such as genomes, we suggest using zipfiles as produced by sourmash (e.g. using `sourmash sig cat`). Zip files have a few nice features:
+When working with large collections of small sketches such as genomes, we suggest using zipfiles as produced by sourmash (e.g. using `sourmash sig cat` or `manysketch`). Zip files have a few nice features:
 
 * sketches are compressed in zip files;
 * zip files can contain many sketches, including incompatible types (e.g. multiple k-mer sizes);
