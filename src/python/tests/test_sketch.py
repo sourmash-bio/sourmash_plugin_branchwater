@@ -405,3 +405,47 @@ def test_zip_manifest(runtmp, capfd):
         assert sig.minhash.ksize == 31
         assert sig.minhash.moltype == 'DNA'
         assert sig.minhash.scaled == 1
+
+
+def test_protein_zip_manifest(runtmp, capfd):
+    # test basic manifest-generating functionality.
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short-protein.fa')
+
+    make_file_csv(fa_csv, [fa1], [fa2])
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "protein,k=10,scaled=1")
+
+    loader = sourmash.load_file_as_index(output)
+
+    rows = []
+    siglist = []
+    # make manifest via sourmash python code
+    for (sig, loc) in loader._signatures_with_internal():
+        row = index.CollectionManifest.make_manifest_row(sig, loc)
+        rows.append(row)
+        siglist.append(sig)
+
+    manifest = index.CollectionManifest(rows)
+
+    assert len(manifest) == len(rows)
+    assert len(manifest) == 1
+
+    md5_list = [ row['md5'] for row in manifest.rows ]
+    assert 'eb4467d11e0ecd2dbde4193bfc255310' in md5_list
+    ksize_list = [ row['ksize'] for row in manifest.rows ]
+    assert 10 in ksize_list # manifest ksizes are human-readable (k, not k*3)
+    scaled_list = [ row['scaled'] for row in manifest.rows ]
+    assert 1 in scaled_list
+    moltype_list = [ row['moltype'] for row in manifest.rows ]
+    assert "protein" in moltype_list
+
+    for sig in siglist:
+        assert sig in manifest
+        assert sig.minhash.ksize == 10 # minhash stores k*3, but does the conversion back for us
+        assert sig.minhash.moltype == 'protein'
+        assert sig.minhash.scaled == 1
