@@ -18,7 +18,7 @@ niffler = "2.4.0"
 log = "0.4.14"
 env_logger = "0.10.2"
 simple-error = "0.3.0"
-anyhow = "1.0.79"
+anyhow = "1.0.80"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 tempfile = "3.10"
 needletail = "0.5.1"
