@@ -465,35 +465,32 @@ pub fn load_collection(
         None
     };
 
-    let collection = collection.or_else(|| {
-        match collection_from_manifest(&sigpath, &report_type) {
+    let collection =
+        collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        }
-    });
+        });
 
-    let collection = collection.or_else(|| {
-        match collection_from_signature(&sigpath, &report_type) {
+    let collection =
+        collection.or_else(|| match collection_from_signature(&sigpath, &report_type) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        }
-    });
+        });
 
-    let collection = collection.or_else(|| {
-        match collection_from_pathlist(&sigpath, &report_type) {
+    let collection =
+        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type) {
             Ok((coll, n_failed)) => Some((coll, n_failed)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        }
-    });
+        });
 
     match collection {
         Some((coll, n_failed)) => {
