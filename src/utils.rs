@@ -784,11 +784,16 @@ pub fn make_manifest_row(
         "protein".to_string()
     };
     let sketch = &sig.sketches()[0];
+    let ksize: u32 = if is_dna {
+        sketch.ksize() as u32
+    } else {
+        sketch.ksize() as u32 / 3
+    };
     ManifestRow {
         internal_location: internal_location.to_string(),
         md5: sig.md5sum(),
         md5short: sig.md5sum()[0..8].to_string(),
-        ksize: sketch.ksize() as u32,
+        ksize: ksize,
         moltype,
         num,
         scaled,
