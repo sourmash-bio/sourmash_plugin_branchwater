@@ -23,7 +23,7 @@ pub fn mastiff_manygather(
         bail!("'{}' is not a valid RevIndex database", index);
     }
     // Open database once
-    let db = RevIndex::open(index, true)?;
+    let db = RevIndex::open(index, true, None)?;
     println!("Loaded DB");
 
     let query_collection = load_collection(
