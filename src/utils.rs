@@ -714,7 +714,6 @@ pub struct BranchwaterGatherResult {
     pub match_md5: String,
     pub f_match_query: f64,
     pub intersect_bp: usize,
-    // new cols
     pub f_unique_weighted: f64,
     pub f_unique_to_query: f64,
     pub unique_intersect_bp: usize,
@@ -723,6 +722,16 @@ pub struct BranchwaterGatherResult {
     pub query_bp: usize,
     pub ksize: usize,
     pub scaled: usize,
+    pub query_containment_ani: f64,
+    pub match_containment_ani: f64,
+    pub average_containment_ani: f64,
+    pub max_containment_ani: f64,
+    pub sum_weighted_found: usize,
+    pub n_unique_weighted_found: usize,
+    pub query_containment_ani_ci_low: Option<f64>,
+    pub query_containment_ani_ci_high: Option<f64>,
+    pub match_containment_ani_ci_low: Option<f64>,
+    pub match_containment_ani_ci_high: Option<f64>,
 }
 
 #[derive(Serialize)]

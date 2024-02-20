@@ -92,6 +92,20 @@ pub fn mastiff_manygather(
                                     query_bp: query_bp,
                                     ksize: ksize as usize,
                                     scaled: query_mh.scaled() as usize,
+                                    query_containment_ani: match_.query_containment_ani(),
+                                    match_containment_ani: match_.match_containment_ani(),
+                                    average_containment_ani: match_.average_containment_ani(),
+                                    max_containment_ani: match_.max_containment_ani(),
+                                    query_containment_ani_ci_low: match_
+                                        .query_containment_ani_ci_low(),
+                                    query_containment_ani_ci_high: match_
+                                        .query_containment_ani_ci_high(),
+                                    match_containment_ani_ci_low: match_
+                                        .match_containment_ani_ci_low(),
+                                    match_containment_ani_ci_high: match_
+                                        .match_containment_ani_ci_high(),
+                                    n_unique_weighted_found: match_.n_unique_weighted_found(),
+                                    sum_weighted_found: match_.sum_weighted_found(),
                                 });
                             }
                         } else {
