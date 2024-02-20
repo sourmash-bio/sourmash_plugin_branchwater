@@ -61,7 +61,7 @@ pub fn mastiff_manygather(
                 Ok(query_sig) => {
                     let mut results = vec![];
                     if let Some(query_mh) = query_sig.minhash() {
-                        let query_bp = query_sig.size() * query_mh.scaled() as usize;
+                        let query_bp = query_mh.n_unique_kmers() as usize;
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
                             db.prepare_gather_counters(query_mh);
