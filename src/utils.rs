@@ -731,9 +731,15 @@ pub struct BranchwaterGatherResult {
     pub std_abund: f64,
     pub sum_weighted_found: usize,
     pub n_unique_weighted_found: usize,
+    pub total_weighted_hashes: usize,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani_ci_low: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani_ci_high: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub match_containment_ani_ci_low: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub match_containment_ani_ci_high: Option<f64>,
 }
 

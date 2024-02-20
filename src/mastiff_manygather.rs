@@ -109,6 +109,7 @@ pub fn mastiff_manygather(
                                         .match_containment_ani_ci_high(),
                                     n_unique_weighted_found: match_.n_unique_weighted_found(),
                                     sum_weighted_found: match_.sum_weighted_found(),
+                                    total_weighted_hashes: match_.total_weighted_hashes(),
                                 });
                             }
                         } else {
