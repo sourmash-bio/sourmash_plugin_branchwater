@@ -99,7 +99,6 @@ fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
 
         let cp = ComputeParameters::builder()
             .ksizes(vec![adjusted_ksize])
-            // .ksizes(vec![param.ksize])
             .scaled(param.scaled)
             .protein(param.is_protein)
             .dna(param.is_dna)
