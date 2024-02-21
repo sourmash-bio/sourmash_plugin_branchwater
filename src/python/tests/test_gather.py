@@ -669,7 +669,7 @@ def test_simple_with_manifest_loading(runtmp):
     sig63 = get_test_data('63.fa.sig.gz')
 
     make_file_list(against_list, [sig2, sig47, sig63])
-    query_manifest = runtmp.output("qmf.csv")
+    query_manifest = runtmp.output("query-manifest.csv")
     against_manifest = runtmp.output("against-manifest.csv")
 
     runtmp.sourmash("sig", "manifest", query, "-o", query_manifest)

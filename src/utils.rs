@@ -335,7 +335,6 @@ fn collection_from_manifest(
         )
     })?;
 
-    eprintln!("{:?}", manifest);
     if manifest.is_empty() {
         // If the manifest is empty, return an error constructed with the anyhow! macro
         Err(anyhow!("could not read as manifest: '{}'", sigpath))
@@ -365,25 +364,32 @@ fn collection_from_pathlist(
     })?;
     let reader = BufReader::new(file);
 
-    let mut n_failed = 0;
-    let records: Vec<Record> = reader
+    // load list of paths
+    let lines: Vec<_> = reader
         .lines()
-        .filter_map(|line| {
-            let path = line.ok()?;
-            match Signature::from_path(&path) {
-                Ok(signatures) => {
-                    let recs: Vec<Record> = signatures
-                        .into_iter()
-                        .flat_map(|v| Record::from_sig(&v, &path))
-                        .collect();
-                    Some(recs)
-                }
-                Err(err) => {
-                    eprintln!("Sketch loading error: {}", err);
-                    eprintln!("WARNING: could not load sketches from path '{}'", path);
-                    n_failed += 1;
-                    None
-                }
+        .filter_map(|line| match line {
+            Ok(path) => Some(path),
+            Err(_err) => None,
+        })
+        .collect();
+
+    // load sketches from paths in parallel.
+    let n_failed = AtomicUsize::new(0);
+    let records: Vec<Record> = lines
+        .par_iter()
+        .filter_map(|path| match Signature::from_path(&path) {
+            Ok(signatures) => {
+                let recs: Vec<Record> = signatures
+                    .into_iter()
+                    .flat_map(|v| Record::from_sig(&v, &path))
+                    .collect();
+                Some(recs)
+            }
+            Err(err) => {
+                eprintln!("Sketch loading error: {}", err);
+                eprintln!("WARNING: could not load sketches from path '{}'", path);
+                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                None
             }
         })
         .flatten()
@@ -406,6 +412,8 @@ fn collection_from_pathlist(
                 .build(),
         ),
     );
+    let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
     Ok((collection, n_failed))
 }
 
@@ -457,38 +465,32 @@ pub fn load_collection(
         None
     };
 
-    let collection = collection.or_else(|| {
-        dbg!("attempting to load as manifest");
-        match collection_from_manifest(&sigpath, &report_type) {
+    let collection =
+        collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        }
-    });
+        });
 
-    let collection = collection.or_else(|| {
-        dbg!("attempting to load as signature");
-        match collection_from_signature(&sigpath, &report_type) {
+    let collection =
+        collection.or_else(|| match collection_from_signature(&sigpath, &report_type) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        }
-    });
+        });
 
-    let collection = collection.or_else(|| {
-        dbg!("attempting to load as pathlist");
-        match collection_from_pathlist(&sigpath, &report_type) {
+    let collection =
+        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type) {
             Ok((coll, n_failed)) => Some((coll, n_failed)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        }
-    });
+        });
 
     match collection {
         Some((coll, n_failed)) => {
@@ -806,11 +808,16 @@ pub fn make_manifest_row(
         "protein".to_string()
     };
     let sketch = &sig.sketches()[0];
+    let ksize: u32 = if is_dna {
+        sketch.ksize() as u32
+    } else {
+        sketch.ksize() as u32 / 3
+    };
     ManifestRow {
         internal_location: internal_location.to_string(),
         md5: sig.md5sum(),
         md5short: sig.md5sum()[0..8].to_string(),
-        ksize: sketch.ksize() as u32,
+        ksize: ksize,
         moltype,
         num,
         scaled,
