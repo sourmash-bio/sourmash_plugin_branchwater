@@ -8,7 +8,7 @@ pub fn check(index: camino::Utf8PathBuf, quick: bool) -> Result<(), Box<dyn std:
     }
 
     println!("Opening DB");
-    let db = RevIndex::open(index, true)?;
+    let db = RevIndex::open(index, true, None)?;
 
     println!("Starting check");
     db.check(quick);

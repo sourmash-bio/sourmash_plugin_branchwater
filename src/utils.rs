@@ -375,11 +375,11 @@ fn collection_from_pathlist(
     let n_failed = AtomicUsize::new(0);
     let records: Vec<Record> = lines
         .par_iter()
-        .filter_map(|path| match Signature::from_path(&path) {
+        .filter_map(|path| match Signature::from_path(path) {
             Ok(signatures) => {
                 let recs: Vec<Record> = signatures
                     .into_iter()
-                    .flat_map(|v| Record::from_sig(&v, &path))
+                    .flat_map(|v| Record::from_sig(&v, path))
                     .collect();
                 Some(recs)
             }
@@ -844,7 +844,7 @@ pub fn sigwriter(
                             format!("signatures/{}.sig.gz", md5sum_str)
                         };
                         write_signature(sig, &mut zip, options, &sig_filename);
-                        let records: Vec<Record> = Record::from_sig(&sig, &sig_filename.as_str());
+                        let records: Vec<Record> = Record::from_sig(sig, sig_filename.as_str());
                         manifest_rows.extend(records);
                     }
                 }

@@ -24,7 +24,7 @@ pub fn mastiff_manysearch(
         bail!("'{}' is not a valid RevIndex database", index);
     }
     // Open database once
-    let db = RevIndex::open(index, true)?;
+    let db = RevIndex::open(index, true, None)?;
 
     println!("Loaded DB");
 

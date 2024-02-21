@@ -223,11 +223,11 @@ pub fn manysketch(
                 sig.set_name(name);
                 sig.set_filename(filename.as_str());
             });
-            Some((sigs))
+            Some(sigs)
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, (sigs)| {
+            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, sigs| {
                 if let Err(e) = s.send(ZipMessage::SignatureData(sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {
