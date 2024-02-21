@@ -197,12 +197,18 @@ pub fn manysketch(
                 }
             };
             // parse fasta and add to signature
+            let mut set_name = false;
             while let Some(record_result) = reader.next() {
                 match record_result {
                     Ok(record) => {
                         // do we need to normalize to make sure all the bases are consistently capitalized?
                         // let norm_seq = record.normalize(false);
                         sigs.iter_mut().for_each(|sig| {
+                            if !set_name {
+                                sig.set_name(name);
+                                sig.set_filename(filename.as_str());
+                                set_name = true;
+                            };
                             if moltype == "protein" {
                                 sig.add_protein(&record.seq())
                                     .expect("Failed to add protein");
@@ -217,11 +223,6 @@ pub fn manysketch(
                 }
             }
 
-            // Set name and filename for each signature after processing all records
-            sigs.iter_mut().for_each(|sig| {
-                sig.set_name(name);
-                sig.set_filename(filename.as_str());
-            });
             Some(sigs)
         })
         .try_for_each_with(
