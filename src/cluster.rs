@@ -52,19 +52,17 @@ pub fn cluster(
         build_graph(&pairwise_csv, &similarity_column, similarity_threshold)
             .context("Failed to build graph")?;
 
-    // Assuming connected_components is defined as shown and returns Vec<HashSet<G::NodeId>>
     let components = connected_components(&graph);
 
     // Prepare to write the components to a file
     let mut file = File::create(&output_clusters).context("Failed to create output file")?;
 
-    // Now, for each component, we find the corresponding node names and write them to the file
+    // for each component, find corresponding node names + write to file
     for (i, component) in components.iter().enumerate() {
         let component_name = format!("Component_{}", i + 1);
         let node_names: Vec<String> = component
             .iter()
             .filter_map(|node_id| {
-                // Here we reverse lookup our node_id back to the node name
                 name_to_node.iter().find_map(|(name, &id)| {
                     if id == *node_id {
                         Some(name.clone())
