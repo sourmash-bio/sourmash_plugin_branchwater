@@ -364,9 +364,10 @@ class Branchwater_Cluster(CommandLinePlugin):
                         Currently, only a branchwater 'pairwise' file will work")
         p.add_argument('-o', '--output', required=True,
                        help='output csv file for the clusters')
-        p.add_argument('-d', '--similarity-column', type=str, default='containment',
+        p.add_argument('--similarity-column', type=str, default='containment',
                           choices=['containment', 'max_containment', 'jaccard'],
                           help='column to use as distance measure')
+        p.add_argument('-t', '--similarity-threshold',  type=float, default=0.5)
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
@@ -378,9 +379,10 @@ class Branchwater_Cluster(CommandLinePlugin):
         notify(f"generating clusters for comparisons in '{args.pairwise_csv}' using {num_threads} threads")
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_cluster(args.distance_csv,
+        status = sourmash_plugin_branchwater.do_cluster(args.pairwise_csv,
+                                                           args.output,
                                                            args.similarity_column,
-                                                           args.output)
+                                                           args.similarity_threshold)
         if status == 0:
             notify(f"...clustering is done! results in '{args.output}'")
         return status

@@ -267,12 +267,12 @@ fn do_manysketch(filelist: String, param_str: String, output: String) -> anyhow:
 
 #[pyfunction]
 fn do_cluster(
-    distance_csv: String,
+    pairwise_csv: String,
     output: String,
     similarity_col: String,
     similarity_threshold: f64,
 ) -> anyhow::Result<u8> {
-    match cluster::cluster(distance_csv, similarity_col, output, similarity_threshold) {
+    match cluster::cluster(pairwise_csv, output, similarity_col, similarity_threshold) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
