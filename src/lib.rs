@@ -8,6 +8,7 @@ mod utils;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
+mod cluster;
 mod fastgather;
 mod fastmultigather;
 mod index;
@@ -264,6 +265,22 @@ fn do_manysketch(filelist: String, param_str: String, output: String) -> anyhow:
     }
 }
 
+#[pyfunction]
+fn do_cluster(
+    distance_csv: String,
+    output: String,
+    similarity_col: String,
+    similarity_threshold: f64,
+) -> anyhow::Result<u8> {
+    match cluster::cluster(distance_csv, similarity_col, output, similarity_threshold) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
@@ -275,5 +292,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
+    m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     Ok(())
 }

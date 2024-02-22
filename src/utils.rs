@@ -9,7 +9,7 @@ use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use serde::ser::Serializer;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, File};
@@ -718,7 +718,7 @@ pub struct BranchwaterGatherResult {
     pub intersect_bp: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct MultiSearchResult {
     pub query_name: String,
     pub query_md5: String,

@@ -353,3 +353,34 @@ class Branchwater_Manysketch(CommandLinePlugin):
         if status == 0:
             notify(f"...manysketch is done! results in '{args.output}'")
         return status
+
+class Branchwater_Cluster(CommandLinePlugin):
+    command = 'cluster'
+    description = 'cluster from "pairwise" results'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('pairwise_csv', help="a csv file containing distance information. \
+                        Currently, only a branchwater 'pairwise' file will work")
+        p.add_argument('-o', '--output', required=True,
+                       help='output csv file for the clusters')
+        p.add_argument('-d', '--similarity-column', type=str, default='containment',
+                          choices=['containment', 'max_containment', 'jaccard'],
+                          help='column to use as distance measure')
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
+
+    def main(self, args):
+        print_version()
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"generating clusters for comparisons in '{args.pairwise_csv}' using {num_threads} threads")
+
+        super().main(args)
+        status = sourmash_plugin_branchwater.do_cluster(args.distance_csv,
+                                                           args.similarity_column,
+                                                           args.output)
+        if status == 0:
+            notify(f"...clustering is done! results in '{args.output}'")
+        return status

@@ -30,6 +30,7 @@ index = "sourmash_plugin_branchwater:Branchwater_Index"
 check = "sourmash_plugin_branchwater:Branchwater_Check"
 manysketch = "sourmash_plugin_branchwater:Branchwater_Manysketch"
 pairwise = "sourmash_plugin_branchwater:Branchwater_Pairwise"
+cluster = "sourmash_plugin_branchwater:Branchwater_Cluster"
 
 [project.optional-dependencies]
 test = [
