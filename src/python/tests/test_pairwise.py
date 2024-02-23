@@ -62,8 +62,8 @@ def test_simple(runtmp, zip_query):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['ani_query_in_target'])
-        q2_ani = float(row['ani_target_in_query'])
+        q1_ani = float(row['query_ani'])
+        q2_ani = float(row['match_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 
@@ -354,8 +354,8 @@ def test_simple_prot(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['ani_query_in_target'])
-        q2_ani = float(row['ani_target_in_query'])
+        q1_ani = float(row['query_ani'])
+        q2_ani = float(row['match_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 
@@ -404,8 +404,8 @@ def test_simple_dayhoff(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['ani_query_in_target'])
-        q2_ani = float(row['ani_target_in_query'])
+        q1_ani = float(row['query_ani'])
+        q2_ani = float(row['match_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 
@@ -454,8 +454,8 @@ def test_simple_hp(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['ani_query_in_target'])
-        q2_ani = float(row['ani_target_in_query'])
+        q1_ani = float(row['query_ani'])
+        q2_ani = float(row['match_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 

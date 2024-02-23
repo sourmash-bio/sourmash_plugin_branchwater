@@ -728,8 +728,8 @@ pub struct MultiSearchResult {
     pub max_containment: f64,
     pub jaccard: f64,
     pub intersect_hashes: f64,
-    pub ani_query_in_target: f64,
-    pub ani_target_in_query: f64,
+    pub query_ani: f64,
+    pub match_ani: f64,
     pub average_containment_ani: f64,
     pub max_containment_ani: f64,
 }

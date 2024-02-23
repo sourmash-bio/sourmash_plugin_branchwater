@@ -21,9 +21,11 @@ fn build_graph(
     for result in reader.deserialize() {
         let record: MultiSearchResult = result.context("Error deserializing CSV record")?;
         let similarity = match similarity_measure {
-            // start with containment/jaccard for now.
             "containment" => record.containment,
+            "max_containment" => record.max_containment,
             "jaccard" => record.jaccard,
+            "ani" => record.average_containment_ani,
+            "max_ani" => record.max_containment_ani,
             _ => return Err(anyhow::anyhow!("Invalid similarity measure")),
         };
 
