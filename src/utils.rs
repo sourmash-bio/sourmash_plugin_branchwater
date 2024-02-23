@@ -1,7 +1,6 @@
 /// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
-use sourmash::manifest::Manifest;
 use sourmash::selection::Select;
 
 use anyhow::{anyhow, Context, Result};
@@ -19,12 +18,11 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use sourmash::collection::Collection;
-use sourmash::manifest::Record;
+use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
-
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -377,11 +375,11 @@ fn collection_from_pathlist(
     let n_failed = AtomicUsize::new(0);
     let records: Vec<Record> = lines
         .par_iter()
-        .filter_map(|path| match Signature::from_path(&path) {
+        .filter_map(|path| match Signature::from_path(path) {
             Ok(signatures) => {
                 let recs: Vec<Record> = signatures
                     .into_iter()
-                    .flat_map(|v| Record::from_sig(&v, &path))
+                    .flat_map(|v| Record::from_sig(&v, path))
                     .collect();
                 Some(recs)
             }
@@ -794,47 +792,6 @@ impl Serialize for BoolPython {
     }
 }
 
-pub fn make_manifest_row(
-    sig: &Signature,
-    filename: &Path,
-    internal_location: &str,
-    scaled: u64,
-    num: u32,
-    abund: bool,
-    is_dna: bool,
-    is_protein: bool,
-) -> ManifestRow {
-    if is_dna && is_protein {
-        panic!("Both is_dna and is_protein cannot be true at the same time.");
-    } else if !is_dna && !is_protein {
-        panic!("Either is_dna or is_protein must be true.");
-    }
-    let moltype = if is_dna {
-        "DNA".to_string()
-    } else {
-        "protein".to_string()
-    };
-    let sketch = &sig.sketches()[0];
-    let ksize: u32 = if is_dna {
-        sketch.ksize() as u32
-    } else {
-        sketch.ksize() as u32 / 3
-    };
-    ManifestRow {
-        internal_location: internal_location.to_string(),
-        md5: sig.md5sum(),
-        md5short: sig.md5sum()[0..8].to_string(),
-        ksize: ksize,
-        moltype,
-        num,
-        scaled,
-        n_hashes: sketch.size(),
-        with_abundance: BoolPython(abund),
-        name: sig.name().to_string(),
-        filename: filename.to_string(),
-    }
-}
-
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
     // if output is a file, use open_output_file
     if let Some(path) = output {
@@ -879,7 +836,7 @@ impl Hash for Params {
 }
 
 pub enum ZipMessage {
-    SignatureData(Vec<Signature>, Vec<Params>, PathBuf),
+    SignatureData(Vec<Signature>),
     WriteManifest,
 }
 
@@ -897,18 +854,15 @@ pub fn sigwriter(
             .compression_method(zip::CompressionMethod::Stored)
             .large_file(true);
         let mut zip = zip::ZipWriter::new(file_writer);
-        let mut manifest_rows: Vec<ManifestRow> = Vec::new();
+        let mut manifest_rows: Vec<Record> = Vec::new();
         // keep track of md5sum occurrences to prevent overwriting duplicates
         let mut md5sum_occurrences: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
 
         while let Ok(message) = recv.recv() {
             match message {
-                ZipMessage::SignatureData(sigs, params, filename) => {
-                    if sigs.len() != params.len() {
-                        bail!("Mismatched lengths of signatures and parameters");
-                    }
-                    for (sig, param) in sigs.iter().zip(params.iter()) {
+                ZipMessage::SignatureData(sigs) => {
+                    for sig in sigs.iter() {
                         let md5sum_str = sig.md5sum();
                         let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
                         *count += 1;
@@ -918,38 +872,16 @@ pub fn sigwriter(
                             format!("signatures/{}.sig.gz", md5sum_str)
                         };
                         write_signature(sig, &mut zip, options, &sig_filename);
-                        manifest_rows.push(make_manifest_row(
-                            sig,
-                            &filename,
-                            &sig_filename,
-                            param.scaled,
-                            param.num,
-                            param.track_abundance,
-                            param.is_dna,
-                            param.is_protein,
-                        ));
+                        let records: Vec<Record> = Record::from_sig(sig, sig_filename.as_str());
+                        manifest_rows.extend(records);
                     }
                 }
                 ZipMessage::WriteManifest => {
                     println!("Writing manifest");
                     // Start the CSV file inside the zip
                     zip.start_file("SOURMASH-MANIFEST.csv", options).unwrap();
-                    // write manifest version line
-                    writeln!(&mut zip, "# SOURMASH-MANIFEST-VERSION: 1.0").unwrap();
-                    // scoped block for csv writing
-                    {
-                        let mut csv_writer = Writer::from_writer(&mut zip);
-
-                        for row in &manifest_rows {
-                            if let Err(e) = csv_writer.serialize(row) {
-                                eprintln!("Error writing item: {:?}", e);
-                            }
-                        }
-                        //  CSV writer must be manually flushed to ensure all data is written
-                        if let Err(e) = csv_writer.flush() {
-                            eprintln!("Error flushing CSV writer: {:?}", e);
-                        }
-                    } // drop csv writer here
+                    let manifest: Manifest = manifest_rows.clone().into();
+                    manifest.to_writer(&mut zip)?;
 
                     // Properly finish writing to the ZIP file
                     if let Err(e) = zip.finish() {
