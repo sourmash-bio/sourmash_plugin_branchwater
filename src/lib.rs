@@ -270,10 +270,17 @@ fn do_manysketch(filelist: String, param_str: String, output: String) -> anyhow:
 fn do_cluster(
     pairwise_csv: String,
     output: String,
+    cluster_sizes: String,
     similarity_col: String,
     similarity_threshold: f64,
 ) -> anyhow::Result<u8> {
-    match cluster::cluster(pairwise_csv, output, similarity_col, similarity_threshold) {
+    match cluster::cluster(
+        pairwise_csv,
+        output,
+        cluster_sizes,
+        similarity_col,
+        similarity_threshold,
+    ) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

@@ -36,7 +36,6 @@ fn build_graph(
             let node2 = *name_to_node
                 .entry(record.match_name.clone())
                 .or_insert_with(|| graph.add_node(record.match_name.clone()));
-
             graph.add_edge(node1, node2, similarity);
         }
     }
@@ -47,6 +46,7 @@ fn build_graph(
 pub fn cluster(
     pairwise_csv: String,
     output_clusters: String,
+    cluster_sizes: String,
     similarity_column: String,
     similarity_threshold: f64,
 ) -> Result<()> {
@@ -56,9 +56,14 @@ pub fn cluster(
 
     let components = connected_components(&graph);
 
-    // Prepare to write the components to a file
+    // HashMap to count cluster sizes
+    let mut size_counts: HashMap<usize, usize> = HashMap::new();
+
+    // Open file for components + names
     let mut file = File::create(&output_clusters).context("Failed to create output file")?;
 
+    // write header
+    writeln!(file, "cluster,nodes").context("Failed to write header to output file")?;
     // for each component, find corresponding node names + write to file
     for (i, component) in components.iter().enumerate() {
         let component_name = format!("Component_{}", i + 1);
@@ -75,10 +80,26 @@ pub fn cluster(
             })
             .collect();
 
-        writeln!(file, "{}: {:?}", component_name, node_names).context(format!(
+        let node_names_str = node_names.join(";");
+
+        writeln!(file, "{},{}", component_name, node_names_str).context(format!(
             "Failed to write component {} to output file",
             i + 1
         ))?;
+
+        // add cluster to aggregated counts
+        let count = size_counts.entry(component.len()).or_insert(0);
+        *count += 1;
+    }
+
+    // write the sizes and counts
+    let mut cluster_size_file =
+        File::create(cluster_sizes).context("Failed to create cluster size file")?;
+    writeln!(cluster_size_file, "cluster_size,count")
+        .context("Failed to write header to cluster size file")?;
+    for (size, count) in size_counts {
+        writeln!(cluster_size_file, "{},{}", size, count)
+            .context("Failed to write size count to cluster size file")?;
     }
 
     Ok(())
