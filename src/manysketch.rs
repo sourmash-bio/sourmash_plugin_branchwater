@@ -79,14 +79,8 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
     Ok(unique_params.into_iter().collect())
 }
 
-fn build_siginfo(
-    params: &[Params],
-    moltype: &str,
-    name: &str,
-    filename: &Path,
-) -> (Vec<Signature>, Vec<Params>) {
+fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
     let mut sigs = Vec::new();
-    let mut params_vec = Vec::new();
 
     for param in params.iter().cloned() {
         match moltype {
@@ -112,20 +106,11 @@ fn build_siginfo(
             .track_abundance(param.track_abundance)
             .build();
 
-        // let sig = Signature::from_params(&cp); // cant set name with this
-        let template = sourmash::cmd::build_template(&cp);
-        let sig = Signature::builder()
-            .hash_function("0.murmur64")
-            .name(Some(name.to_string()))
-            .filename(Some(filename.to_string()))
-            .signatures(template)
-            .build();
+        let sig = Signature::from_params(&cp);
         sigs.push(sig);
-
-        params_vec.push(param);
     }
 
-    (sigs, params_vec)
+    sigs
 }
 
 pub fn manysketch(
@@ -144,7 +129,7 @@ pub fn manysketch(
         bail!("No files to load, exiting.");
     }
 
-    // if output doesnt end in zip, bail
+    // if output doesn't end in zip, bail
     if Path::new(&output)
         .extension()
         .map_or(true, |ext| ext != "zip")
@@ -195,7 +180,7 @@ pub fn manysketch(
             }
 
             // build sig templates from params
-            let (mut sigs, sig_params) = build_siginfo(&params_vec, moltype, name, filename);
+            let mut sigs = build_siginfo(&params_vec, moltype);
             // if no sigs to build, skip
             if sigs.is_empty() {
                 let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
@@ -212,36 +197,38 @@ pub fn manysketch(
                 }
             };
             // parse fasta and add to signature
+            let mut set_name = false;
             while let Some(record_result) = reader.next() {
                 match record_result {
                     Ok(record) => {
                         // do we need to normalize to make sure all the bases are consistently capitalized?
                         // let norm_seq = record.normalize(false);
-                        for sig in &mut sigs {
+                        sigs.iter_mut().for_each(|sig| {
+                            if !set_name {
+                                sig.set_name(name);
+                                sig.set_filename(filename.as_str());
+                                set_name = true;
+                            };
                             if moltype == "protein" {
-                                sig.add_protein(&record.seq()).unwrap();
+                                sig.add_protein(&record.seq())
+                                    .expect("Failed to add protein");
                             } else {
-                                sig.add_sequence(&record.seq(), true).unwrap();
+                                sig.add_sequence(&record.seq(), true)
+                                    .expect("Failed to add sequence");
                                 // if not force, panics with 'N' in dna sequence
                             }
-                        }
+                        });
                     }
-                    Err(err) => {
-                        eprintln!("Error while processing record: {:?}", err);
-                    }
+                    Err(err) => eprintln!("Error while processing record: {:?}", err),
                 }
             }
-            Some((sigs, sig_params, filename))
+
+            Some(sigs)
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>,
-             (sigs, sig_params, filename)| {
-                if let Err(e) = s.send(ZipMessage::SignatureData(
-                    sigs,
-                    sig_params,
-                    filename.clone(),
-                )) {
+            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, sigs| {
+                if let Err(e) = s.send(ZipMessage::SignatureData(sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {
                     Ok(())

@@ -13,11 +13,14 @@ def get_test_data(filename):
 
 
 def make_file_csv(filename, genome_paths, protein_paths = []):
+    # equalize path lengths by adding "".
     names = [os.path.basename(x).split('.fa')[0] for x in genome_paths]
-    # Check if the number of protein paths is less than genome paths
-    # and fill in the missing paths with "".
     if len(protein_paths) < len(genome_paths):
         protein_paths.extend(["" for _ in range(len(genome_paths) - len(protein_paths))])
+    elif len(genome_paths) < len(protein_paths):
+        genome_paths.extend(["" for _ in range(len(protein_paths) - len(genome_paths))])
+        names = [os.path.basename(x).split('.fa')[0] for x in protein_paths]
+
     with open(filename, 'wt') as fp:
         fp.write("name,genome_filename,protein_filename\n")
         for name, genome_path, protein_path in zip(names, genome_paths, protein_paths):
