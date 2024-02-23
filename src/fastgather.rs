@@ -8,6 +8,7 @@ use crate::utils::{
     ReportType,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn fastgather(
     query_filepath: String,
     against_filepath: String,

@@ -70,6 +70,7 @@ fn do_manysearch(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
