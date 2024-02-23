@@ -9,6 +9,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::utils::{
     csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
 };
+use sourmash::ani_utils::ani_from_containment;
 
 /// Search many queries against a list of signatures.
 ///
@@ -56,6 +57,7 @@ pub fn multisearch(
     //
 
     let processed_cmp = AtomicUsize::new(0);
+    let ksize = selection.ksize().unwrap() as f64;
 
     let send = against
         .par_iter()
@@ -78,6 +80,12 @@ pub fn multisearch(
                 let max_containment = containment_query_in_target.max(containment_in_target);
                 let jaccard = overlap / (target_size + query_size - overlap);
 
+                // estimate ANI values
+                let ani_query_in_target = ani_from_containment(containment_query_in_target, ksize);
+                let ani_target_in_query = ani_from_containment(containment_in_target, ksize);
+                let average_containment_ani = (ani_query_in_target + ani_target_in_query) / 2.;
+                let max_containment_ani = f64::max(ani_query_in_target, ani_target_in_query);
+
                 if containment_query_in_target > threshold {
                     results.push(MultiSearchResult {
                         query_name: query.name.clone(),
@@ -88,6 +96,10 @@ pub fn multisearch(
                         max_containment,
                         jaccard,
                         intersect_hashes: overlap,
+                        ani_query_in_target: ani_query_in_target,
+                        ani_target_in_query: ani_target_in_query,
+                        average_containment_ani: average_containment_ani,
+                        max_containment_ani: max_containment_ani,
                     })
                 }
             }

@@ -7,6 +7,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::utils::{
     csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
 };
+use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 
@@ -49,6 +50,7 @@ pub fn pairwise(
     // Results written to the writer thread above.
 
     let processed_cmp = AtomicUsize::new(0);
+    let ksize = selection.ksize().unwrap() as f64;
 
     sketches.par_iter().enumerate().for_each(|(idx, query)| {
         for against in sketches.iter().skip(idx + 1) {
@@ -61,6 +63,12 @@ pub fn pairwise(
             let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
             let jaccard = overlap / (query1_size + query2_size - overlap);
 
+            // estimate ANI values
+            let ani_query_in_target = ani_from_containment(containment_q1_in_q2, ksize);
+            let ani_target_in_query = ani_from_containment(containment_q2_in_q1, ksize);
+            let average_containment_ani = (ani_query_in_target + ani_target_in_query) / 2.;
+            let max_containment_ani = f64::max(ani_query_in_target, ani_target_in_query);
+
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
                 send.send(MultiSearchResult {
                     query_name: query.name.clone(),
@@ -71,6 +79,10 @@ pub fn pairwise(
                     max_containment,
                     jaccard,
                     intersect_hashes: overlap,
+                    ani_query_in_target: ani_query_in_target,
+                    ani_target_in_query: ani_target_in_query,
+                    average_containment_ani: average_containment_ani,
+                    max_containment_ani: max_containment_ani,
                 })
                 .unwrap();
             }
