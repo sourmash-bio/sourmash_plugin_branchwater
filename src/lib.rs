@@ -242,7 +242,6 @@ fn do_pairwise(
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
-    eprintln!("{}", estimate_ani);
     match pairwise::pairwise(
         siglist_path,
         threshold,
