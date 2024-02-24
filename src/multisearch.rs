@@ -81,8 +81,8 @@ pub fn multisearch(
                 let jaccard = overlap / (target_size + query_size - overlap);
 
                 // estimate ANI values
-                let query_ani = ani_from_containment(containment_query_in_target, ksize) *100.0;
-                let match_ani = ani_from_containment(containment_target_in_query, ksize) *100.0;
+                let query_ani = ani_from_containment(containment_query_in_target, ksize) * 100.0;
+                let match_ani = ani_from_containment(containment_target_in_query, ksize) * 100.0;
                 let average_containment_ani = (query_ani + match_ani) / 2.;
                 let max_containment_ani = f64::max(query_ani, match_ani);
 

@@ -39,7 +39,7 @@ fn build_graph(
         })
         .collect();
 
-    if edges.is_empty(){
+    if edges.is_empty() {
         bail!("No edges to add.")
     }
 
@@ -79,7 +79,7 @@ pub fn cluster(
     let mut size_counts: HashMap<usize, usize> = HashMap::new();
 
     // Open file for components + names
-    let mut file = File::create(&output_clusters).context("Failed to create output file")?;
+    let mut file = File::create(output_clusters).context("Failed to create output file")?;
 
     // write header
     writeln!(file, "cluster,nodes").context("Failed to write header to output file")?;
