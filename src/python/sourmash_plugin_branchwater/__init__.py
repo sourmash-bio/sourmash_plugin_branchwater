@@ -252,6 +252,8 @@ class Branchwater_Multisearch(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('-a', '--ani', action='store_true',
+                       help='estimate ANI from containment')
 
     def main(self, args):
         print_version()
@@ -269,6 +271,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
                                                             args.ksize,
                                                             args.scaled,
                                                             args.moltype,
+                                                            args.ani,
                                                             args.output)
         if status == 0:
             notify(f"...multisearch is done! results in '{args.output}'")
@@ -294,6 +297,8 @@ class Branchwater_Pairwise(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('-a', '--ani', action='store_true',
+                       help='estimate ANI from containment')
 
     def main(self, args):
         print_version()
@@ -310,6 +315,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
                                                             args.ksize,
                                                             args.scaled,
                                                             args.moltype,
+                                                            args.ani,
                                                             args.output)
         if status == 0:
             notify(f"...pairwise is done! results in '{args.output}'")

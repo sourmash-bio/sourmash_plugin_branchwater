@@ -726,10 +726,15 @@ pub struct MultiSearchResult {
     pub max_containment: f64,
     pub jaccard: f64,
     pub intersect_hashes: f64,
-    pub query_ani: f64,
-    pub match_ani: f64,
-    pub average_containment_ani: f64,
-    pub max_containment_ani: f64,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub average_containment_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_containment_ani: Option<f64>,
 }
 
 #[derive(Serialize)]
