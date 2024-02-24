@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use rayon::prelude::*;
 use rustworkx_core::connectivity::connected_components;
 use rustworkx_core::petgraph::graph::{NodeIndex, UnGraph};
 use std::collections::HashMap;
@@ -8,7 +7,9 @@ use std::io::Write;
 
 use crate::utils::MultiSearchResult;
 
-// todo: eval DiGraph for directed similarity info (e.g. input containment_A, containment_B independently)
+// potential todo:
+// - eval DiGraph for directed similarity info (e.g. input containment_A, containment_B independently)
+// - explore if collect-first, add edges second style parallelization is worthwhile
 
 fn build_graph(
     file_path: &str,
@@ -16,47 +17,45 @@ fn build_graph(
     similarity_threshold: f64,
 ) -> Result<(UnGraph<String, f64>, HashMap<String, NodeIndex>)> {
     let mut reader = csv::Reader::from_path(file_path).context("Failed to open CSV file")?;
-    let records: Result<Vec<MultiSearchResult>, csv::Error> = reader.deserialize().collect();
-
-    let edges: Vec<(String, String, f64)> = records?
-        .par_iter()
-        .filter_map(|record| {
-            let similarity = match similarity_measure {
-                "containment" => record.containment,
-                "max_containment" => record.max_containment,
-                "jaccard" => record.jaccard,
-                "average_ani" => record.average_containment_ani,
-                "max_ani" => record.max_containment_ani,
-                _ => return None, // should never get here b/c python cli enforces these choices
-            };
-
-            // keep all edges so we keep singletons
-            Some((
-                record.query_name.clone(),
-                record.match_name.clone(),
-                similarity,
-            ))
-        })
-        .collect();
-
-    if edges.is_empty() {
-        bail!("No edges to add.")
-    }
-
-    // sequentially build the graph
-    let mut graph = UnGraph::<String, f64>::new_undirected();
     let mut name_to_node: HashMap<String, NodeIndex> = HashMap::new();
+    let mut graph = UnGraph::<String, f64>::new_undirected();
 
-    for (query, match_name, similarity) in edges {
+    for result in reader.deserialize::<MultiSearchResult>() {
+        let record = match result {
+            Ok(rec) => rec,
+            Err(e) => {
+                eprintln!("Error deserializing record: {}", e);
+                continue;
+            }
+        };
+
+        let similarity = match similarity_measure {
+            "containment" => record.containment,
+            "max_containment" => record.max_containment,
+            "jaccard" => record.jaccard,
+            "average_ani" => record.average_containment_ani,
+            "max_ani" => record.max_containment_ani,
+            _ => return Err(anyhow::anyhow!("Invalid similarity measure")), // should not happen
+        };
+
         let node1 = *name_to_node
-            .entry(query.clone())
-            .or_insert_with(|| graph.add_node(query.clone()));
+            .entry(record.query_name.clone())
+            .or_insert_with(|| graph.add_node(record.query_name.clone()));
         let node2 = *name_to_node
-            .entry(match_name.clone())
-            .or_insert_with(|| graph.add_node(match_name.clone()));
+            .entry(record.match_name.clone())
+            .or_insert_with(|| graph.add_node(record.match_name.clone()));
+
         if similarity >= similarity_threshold {
             graph.add_edge(node1, node2, similarity);
         }
+    }
+
+    if graph.node_count() == 0 {
+        bail!("No nodes added to graph.")
+    }
+
+    if graph.edge_count() == 0 {
+        bail!("Graph has nodes but no edges were added.");
     }
 
     Ok((graph, name_to_node))
