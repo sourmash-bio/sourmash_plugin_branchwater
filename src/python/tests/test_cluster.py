@@ -155,7 +155,7 @@ def test_cluster_ani(runtmp):
     pairwise_csv = get_test_data('cluster.pairwise.csv')
     output = runtmp.output('clusters.csv')
     sizes = runtmp.output('sizes.csv')
-    threshold = '0.9'
+    threshold = '90'
 
     runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
                     '--similarity-column', "average_ani", "--cluster-sizes",
@@ -193,7 +193,7 @@ def test_cluster_max_ani(runtmp):
     pairwise_csv = get_test_data('cluster.pairwise.csv')
     output = runtmp.output('clusters.csv')
     sizes = runtmp.output('sizes.csv')
-    threshold = '0.9'
+    threshold = '90'
 
     runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
                     '--similarity-column', "max_ani", "--cluster-sizes",
@@ -227,7 +227,7 @@ def test_cluster_ani_pairwise(runtmp):
     pairwise_csv = runtmp.output('pairwise.csv')
     output = runtmp.output('clusters.csv')
     sizes = runtmp.output('sizes.csv')
-    cluster_threshold = '0.9'
+    cluster_threshold = '90'
 
     query_list = runtmp.output('query.txt')
     sig2 = get_test_data('2.fa.sig.gz')
@@ -274,7 +274,7 @@ def test_cluster_ani_multisearch(runtmp):
     multisearch_csv = runtmp.output('multisearch.csv')
     output = runtmp.output('clusters.csv')
     sizes = runtmp.output('sizes.csv')
-    cluster_threshold = '0.9'
+    cluster_threshold = '90'
 
     query_list = runtmp.output('query.txt')
     sig2 = get_test_data('2.fa.sig.gz')

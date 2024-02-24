@@ -76,13 +76,13 @@ pub fn multisearch(
                 let target_size = against.minhash.size() as f64;
 
                 let containment_query_in_target = overlap / query_size;
-                let containment_in_target = overlap / target_size;
-                let max_containment = containment_query_in_target.max(containment_in_target);
+                let containment_target_in_query = overlap / target_size;
+                let max_containment = containment_query_in_target.max(containment_target_in_query);
                 let jaccard = overlap / (target_size + query_size - overlap);
 
                 // estimate ANI values
-                let query_ani = ani_from_containment(containment_query_in_target, ksize);
-                let match_ani = ani_from_containment(containment_in_target, ksize);
+                let query_ani = ani_from_containment(containment_query_in_target, ksize) *100.0;
+                let match_ani = ani_from_containment(containment_target_in_query, ksize) *100.0;
                 let average_containment_ani = (query_ani + match_ani) / 2.;
                 let max_containment_ani = f64::max(query_ani, match_ani);
 
@@ -96,10 +96,10 @@ pub fn multisearch(
                         max_containment,
                         jaccard,
                         intersect_hashes: overlap,
-                        query_ani: query_ani,
-                        match_ani: match_ani,
-                        average_containment_ani: average_containment_ani,
-                        max_containment_ani: max_containment_ani,
+                        query_ani,
+                        match_ani,
+                        average_containment_ani,
+                        max_containment_ani,
                     })
                 }
             }

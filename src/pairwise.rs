@@ -64,8 +64,8 @@ pub fn pairwise(
             let jaccard = overlap / (query1_size + query2_size - overlap);
 
             // estimate ANI values
-            let query_ani = ani_from_containment(containment_q1_in_q2, ksize);
-            let match_ani = ani_from_containment(containment_q2_in_q1, ksize);
+            let query_ani = ani_from_containment(containment_q1_in_q2, ksize) *100.0;
+            let match_ani = ani_from_containment(containment_q2_in_q1, ksize) *100.0;
             let average_containment_ani = (query_ani + match_ani) / 2.;
             let max_containment_ani = f64::max(query_ani, match_ani);
 
@@ -79,10 +79,10 @@ pub fn pairwise(
                     max_containment,
                     jaccard,
                     intersect_hashes: overlap,
-                    query_ani: query_ani,
-                    match_ani: match_ani,
-                    average_containment_ani: average_containment_ani,
-                    max_containment_ani: max_containment_ani,
+                    query_ani,
+                    match_ani,
+                    average_containment_ani,
+                    max_containment_ani,
                 })
                 .unwrap();
             }

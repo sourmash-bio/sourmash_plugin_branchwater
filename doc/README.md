@@ -238,6 +238,8 @@ Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginnin
 
 `fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
 
+`cluster` loads the entire file multithreaded, and then populates the graph sequentially.
+
 ## Appendix 1 - `index` to create a low-memory index
 
 The command `sourmash scripts index` makes an on-disk inverted index
