@@ -29,13 +29,15 @@ fn build_graph(
             _ => return Err(anyhow::anyhow!("Invalid similarity measure")),
         };
 
+        // add all node names so we can include singletons
+        let node1 = *name_to_node
+            .entry(record.query_name.clone())
+            .or_insert_with(|| graph.add_node(record.query_name.clone()));
+        let node2 = *name_to_node
+            .entry(record.match_name.clone())
+            .or_insert_with(|| graph.add_node(record.match_name.clone()));
+        // only add edge if above threshold
         if similarity >= similarity_threshold {
-            let node1 = *name_to_node
-                .entry(record.query_name.clone())
-                .or_insert_with(|| graph.add_node(record.query_name.clone()));
-            let node2 = *name_to_node
-                .entry(record.match_name.clone())
-                .or_insert_with(|| graph.add_node(record.match_name.clone()));
             graph.add_edge(node1, node2, similarity);
         }
     }
@@ -72,7 +74,8 @@ pub fn cluster(
             .filter_map(|node_id| {
                 name_to_node.iter().find_map(|(name, &id)| {
                     if id == *node_id {
-                        Some(name.clone())
+                        let ident: &str = name.split(' ').next().unwrap();
+                        Some(ident.to_owned())
                     } else {
                         None
                     }
