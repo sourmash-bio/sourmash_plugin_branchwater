@@ -79,7 +79,7 @@ pub fn mastiff_manygather(
                                 results.push(BranchwaterGatherResult {
                                     intersect_bp: match_.intersect_bp(),
                                     f_orig_query: match_.f_orig_query(),
-                                    f_match_query: match_.f_match(),
+                                    f_match: match_.f_match(),
                                     f_unique_to_query: match_.f_unique_to_query(),
                                     f_unique_weighted: match_.f_unique_weighted(),
                                     average_abund: match_.average_abund(),

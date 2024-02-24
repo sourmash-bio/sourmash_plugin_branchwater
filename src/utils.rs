@@ -710,7 +710,7 @@ pub struct SearchResult {
 pub struct BranchwaterGatherResult {
     pub intersect_bp: usize,
     pub f_orig_query: f64,
-    pub f_match_query: f64,
+    pub f_match: f64,
     pub f_unique_to_query: f64,
     pub f_unique_weighted: f64,
     pub average_abund: f64,
