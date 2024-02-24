@@ -1,4 +1,5 @@
 import os, csv
+import pytest
 
 from . import sourmash_tst_utils as utils
 
@@ -315,3 +316,44 @@ def test_cluster_ani_multisearch(runtmp):
     rows_as_tuples = {tuple(row.values()) for row in rows}
     expected = {('1', '1'), ('2', '1')}
     assert rows_as_tuples == expected
+
+
+def test_empty_file(runtmp, capfd):
+    # test with an empty query list
+    csv = runtmp.output('empty.csv')
+
+    make_file_list(csv, [])
+
+    output = runtmp.output('out.csv')
+    out2 = runtmp.output('counts.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'cluster', csv,
+                        '-o', output, '--cluster-sizes', out2)
+
+    print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "Error: Failed to build graph" in captured.err
+
+def test_bad_file(runtmp, capfd):
+    # test with an empty query list
+    csv = runtmp.output('bad.csv')
+    with open(csv, 'w') as out:
+        out.write('column1,column2')
+
+    make_file_list(csv, [])
+
+    output = runtmp.output('out.csv')
+    out2 = runtmp.output('counts.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'cluster', csv,
+                        '-o', output, '--cluster-sizes', out2)
+
+    print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "Error: Failed to build graph" in captured.err

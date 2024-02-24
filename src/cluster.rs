@@ -39,6 +39,10 @@ fn build_graph(
         })
         .collect();
 
+    if edges.is_empty(){
+        bail!("No edges to add.")
+    }
+
     // sequentially build the graph
     let mut graph = UnGraph::<String, f64>::new_undirected();
     let mut name_to_node: HashMap<String, NodeIndex> = HashMap::new();
