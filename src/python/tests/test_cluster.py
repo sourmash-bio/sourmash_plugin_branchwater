@@ -94,10 +94,12 @@ def test_cluster_max_containment_2(runtmp):
         assert reader.fieldnames == ['cluster','nodes']
     assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
     assert rows[0]['cluster'] == 'Component_1'
-    expected = set("n1;n2;n3;n4;n5".split(';'))
-    assert set(rows[0]['nodes'].split(';')) == expected
-    expected = set("n6;n7".split(';'))
-    assert set(rows[1]['nodes'].split(';')) == expected
+    expected_node_sets = [
+    set("n1;n2;n3;n4;n5".split(';')),
+    set("n6;n7".split(';')),
+    ]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
 
     # check cluster size histogram
     with open(sizes, mode='r', newline='') as csvfile:
@@ -129,14 +131,14 @@ def test_cluster_jaccard(runtmp):
         assert reader.fieldnames == ['cluster','nodes']
     assert len(rows) == 4, f"Expected 4 data rows but found {len(rows)}"
     assert rows[0]['cluster'] == 'Component_1'
-    expected = set("n1".split(';'))
-    assert set(rows[0]['nodes'].split(';')) == expected
-    expected = set("n2".split(';'))
-    assert set(rows[1]['nodes'].split(';')) == expected
-    expected = set("n3;n4;n5;n6".split(';'))
-    assert set(rows[2]['nodes'].split(';')) == expected
-    expected = set("n7".split(';'))
-    assert set(rows[3]['nodes'].split(';')) == expected
+    expected_node_sets = [
+    set("n3;n4;n5;n6".split(';')),
+    set("n1".split(';')),
+    set("n2".split(';')),
+    set("n7".split(';'))
+    ]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
 
     # check cluster size histogram
     with open(sizes, mode='r', newline='') as csvfile:
@@ -156,7 +158,7 @@ def test_cluster_ani(runtmp):
     threshold = '0.9'
 
     runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "ani", "--cluster-sizes",
+                    '--similarity-column', "average_ani", "--cluster-sizes",
                     sizes, '--threshold', threshold)
 
     assert os.path.exists(output)
@@ -168,10 +170,13 @@ def test_cluster_ani(runtmp):
         assert reader.fieldnames == ['cluster','nodes']
     assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
     assert rows[0]['cluster'] == 'Component_1'
-    expected = set("n1;n2;n3;n4;n5".split(';'))
-    assert set(rows[0]['nodes'].split(';')) == expected
-    expected = set("n6;n7".split(';'))
-    assert set(rows[1]['nodes'].split(';')) == expected
+    expected_node_sets = [
+    set("n1;n2;n3;n4;n5".split(';')),
+    set("n6;n7".split(';'))
+    ]
+    expected_node_sets = [set("n1;n2;n3;n4;n5".split(';')), set("n6;n7".split(';'))]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
 
     # check cluster size histogram
     with open(sizes, mode='r', newline='') as csvfile:
@@ -203,10 +208,9 @@ def test_cluster_max_ani(runtmp):
         assert reader.fieldnames == ['cluster','nodes']
     assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
     assert rows[0]['cluster'] == 'Component_1'
-    expected = set("n1;n2;n3;n4;n5".split(';'))
-    assert set(rows[0]['nodes'].split(';')) == expected
-    expected = set("n6;n7".split(';'))
-    assert set(rows[1]['nodes'].split(';')) == expected
+    expected_node_sets = [set("n1;n2;n3;n4;n5".split(';')), set("n6;n7".split(';'))]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
 
     # check cluster size histogram
     with open(sizes, mode='r', newline='') as csvfile:
@@ -238,7 +242,7 @@ def test_cluster_ani_pairwise(runtmp):
     assert os.path.exists(pairwise_csv)
 
     runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "ani", "--cluster-sizes",
+                    '--similarity-column', "average_ani", "--cluster-sizes",
                     sizes, '--threshold', cluster_threshold)
 
     assert os.path.exists(output)
@@ -251,10 +255,9 @@ def test_cluster_ani_pairwise(runtmp):
     print(rows)
     assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
     assert rows[0]['cluster'] == 'Component_1'
-    expected = set("CP001071.1".split(';'))
-    assert set(rows[0]['nodes'].split(';')) == expected
-    expected = set("NC_009661.1;NC_011665.1".split(';'))
-    assert set(rows[1]['nodes'].split(';')) == expected
+    expected_node_sets = [set("NC_009661.1;NC_011665.1".split(';')), set("CP001071.1".split(';'))]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
 
     # check cluster size histogram
     with open(sizes, mode='r', newline='') as csvfile:
@@ -286,7 +289,7 @@ def test_cluster_ani_multisearch(runtmp):
     assert os.path.exists(multisearch_csv)
 
     runtmp.sourmash('scripts', 'cluster', multisearch_csv, '-o', output,
-                    '--similarity-column', "ani", "--cluster-sizes",
+                    '--similarity-column', "average_ani", "--cluster-sizes",
                     sizes, '--threshold', cluster_threshold)
 
     assert os.path.exists(output)
@@ -299,10 +302,9 @@ def test_cluster_ani_multisearch(runtmp):
     print(rows)
     assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
     assert rows[0]['cluster'] == 'Component_1'
-    expected = set("CP001071.1".split(';'))
-    assert set(rows[0]['nodes'].split(';')) == expected
-    expected = set("NC_009661.1;NC_011665.1".split(';'))
-    assert set(rows[1]['nodes'].split(';')) == expected
+    expected_node_sets = [set("NC_009661.1;NC_011665.1".split(';')), set("CP001071.1".split(';'))]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
 
     # check cluster size histogram
     with open(sizes, mode='r', newline='') as csvfile:

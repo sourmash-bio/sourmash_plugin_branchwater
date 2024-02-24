@@ -8,6 +8,7 @@
 | `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch)
+| `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
 
 This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
 
@@ -26,7 +27,8 @@ sourmash supports a variety of different storage formats for sketches (see [sour
 | `fastmultigather` | Multiple metagenomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
 | `manysearch` | Multiple genomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
 | `multisearch` | Multiple sketches in sig, zip, manifest CSV, or fromfile | Multiple sketches in sig, zip, manifest CSV, or fromfile |
-| `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A 
+| `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A |
+| `cluster`| Output from `pairwise` or `multisearch`| N/A |
 
 ### Using zipfiles
 
@@ -194,6 +196,31 @@ sourmash scripts manysearch queries.zip metagenomes.manifest.csv -o results.csv
 We suggest using a manifest CSV for the metagenome collection.
 
 The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
+
+
+### Running `cluster`
+
+The `cluster` command conducts graph-based clustering via the sequence similarity measures in `pairwise` or `multisearch` outputs. It is a new command and we are exploring its utility.
+
+`cluster` takes the csv output of `pairwise` or `multisearch` input, and outputs two CSVs:
+
+1. `-o`, `--output` will contain the names of the clusters and the `ident` of each sequence included in the cluster (e.g. `Component_1, name1;name2`)
+
+```
+cluster,nodes
+Component_1,name1;name2;name3
+Component_2,name4
+```
+
+2. `--cluster-sizes` will contain information on cluster size, with a counts for the number of clusters of that size. For the two clusters above, the counts would look like this:
+
+```
+cluster_size,count
+3,1
+1,1
+```
+
+`cluster` takes a `--similarity_column` argument to specify which of the similarity columns, with the following choices: `containment`, `max_containment`, `jaccard`, `average_ani`, `max_ani`, where `average_ani` is the average_containment_ani and `max_ani` is the maximum_containment_ani. ANI values should be input in percent form (e.g. 90 as opposed to 0.9)
 
 ## Notes on concurrency and efficiency
 

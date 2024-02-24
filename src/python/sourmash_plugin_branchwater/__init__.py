@@ -367,7 +367,7 @@ class Branchwater_Cluster(CommandLinePlugin):
         p.add_argument('--cluster-sizes', required=True,
                        help='output file for the cluster size histogram')
         p.add_argument('--similarity-column', type=str, default='containment',
-                          choices=['containment', 'max_containment', 'jaccard', 'ani', 'max_ani'],
+                          choices=['containment', 'max_containment', 'jaccard', 'average_ani', 'max_ani'],
                           help='column to use as distance measure')
         p.add_argument('-t', '--threshold',  type=float, default=0.5)
         p.add_argument('-c', '--cores', default=0, type=int,
