@@ -320,7 +320,7 @@ def test_cluster_max_ani_no_ani(runtmp, capfd):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "maximum_ani", "--cluster-sizes",
+                    '--similarity-column', "max_ani", "--cluster-sizes",
                     sizes, '--threshold', cluster_threshold)
 
     print(runtmp.last_result.err)

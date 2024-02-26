@@ -21,25 +21,30 @@ fn build_graph(
     let mut graph = UnGraph::<String, f64>::new_undirected();
 
     for result in reader.deserialize::<MultiSearchResult>() {
-        let record = match result {
-            Ok(rec) => rec,
-            Err(e) => {
-                eprintln!("Error deserializing record: {}", e);
-                continue;
-            }
-        };
+        let record = result.map_err(|e| anyhow::anyhow!("Error deserializing record: {}", e))?;
 
         let similarity = match similarity_measure {
             "containment" => record.containment,
             "max_containment" => record.max_containment,
             "jaccard" => record.jaccard,
-            "average_cANI" => record
-                .average_containment_ani
-                .expect("average_cANI is None. Did you estimate cANI?"),
-            "max_cANI" => record
-                .max_containment_ani
-                .expect("max_cANI is None. Did you estimate cANI?"),
-            _ => return Err(anyhow::anyhow!("Invalid similarity measure")), // should not happen
+            "average_ani" => match record.average_cANI {
+                Some(value) => value,
+                None => {
+                    return Err(anyhow::anyhow!(
+                        "average_cANI is None. Did you estimate cANI?"
+                    ))
+                }
+            },
+            "max_ani" => match record.max_cANI {
+                Some(value) => value,
+                None => return Err(anyhow::anyhow!("max_cANI is None. Did you estimate cANI?")),
+            },
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Invalid similarity measure: {}",
+                    similarity_measure
+                ))
+            } // should not happen
         };
 
         let node1 = *name_to_node
@@ -73,9 +78,13 @@ pub fn cluster(
     similarity_threshold: f64,
 ) -> Result<()> {
     let (graph, name_to_node) =
-        build_graph(&pairwise_csv, &similarity_column, similarity_threshold)
-            .context("Failed to build graph")?;
-
+        match build_graph(&pairwise_csv, &similarity_column, similarity_threshold) {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("Error: {:?}", e); // print the underlying error.
+                bail!("Failed to build graph.");
+            }
+        };
     let components = connected_components(&graph);
 
     // HashMap to count cluster sizes
