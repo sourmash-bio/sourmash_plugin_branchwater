@@ -23,6 +23,11 @@ fn build_graph(
     for result in reader.deserialize::<MultiSearchResult>() {
         let record = result.map_err(|e| anyhow::anyhow!("Error deserializing record: {}", e))?;
 
+        // ignore self-matches reported via multisearch
+        if record.query_name == record.match_name {
+            continue
+        }
+
         let similarity = match similarity_measure {
             "containment" => record.containment,
             "max_containment" => record.max_containment,
