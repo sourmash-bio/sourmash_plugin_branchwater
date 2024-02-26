@@ -9,6 +9,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::utils::{
     csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
 };
+use sourmash::ani_utils::ani_from_containment;
 
 /// Search many queries against a list of signatures.
 ///
@@ -20,8 +21,9 @@ pub fn multisearch(
     against_filepath: String,
     threshold: f64,
     selection: &Selection,
-    output: Option<String>,
     allow_failed_sigpaths: bool,
+    estimate_ani: bool,
+    output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
 
@@ -56,6 +58,7 @@ pub fn multisearch(
     //
 
     let processed_cmp = AtomicUsize::new(0);
+    let ksize = selection.ksize().unwrap() as f64;
 
     let send = against
         .par_iter()
@@ -74,11 +77,27 @@ pub fn multisearch(
                 let target_size = against.minhash.size() as f64;
 
                 let containment_query_in_target = overlap / query_size;
-                let containment_in_target = overlap / target_size;
-                let max_containment = containment_query_in_target.max(containment_in_target);
-                let jaccard = overlap / (target_size + query_size - overlap);
 
                 if containment_query_in_target > threshold {
+                    let containment_target_in_query = overlap / target_size;
+                    let max_containment =
+                        containment_query_in_target.max(containment_target_in_query);
+                    let jaccard = overlap / (target_size + query_size - overlap);
+                    let mut query_ani = None;
+                    let mut match_ani = None;
+                    let mut average_containment_ani = None;
+                    let mut max_containment_ani = None;
+
+                    // estimate ANI values
+                    if estimate_ani {
+                        let qani = ani_from_containment(containment_query_in_target, ksize) * 100.0;
+                        let mani = ani_from_containment(containment_target_in_query, ksize) * 100.0;
+                        query_ani = Some(qani);
+                        match_ani = Some(mani);
+                        average_containment_ani = Some((qani + mani) / 2.);
+                        max_containment_ani = Some(f64::max(qani, mani));
+                    }
+
                     results.push(MultiSearchResult {
                         query_name: query.name.clone(),
                         query_md5: query.md5sum.clone(),
@@ -88,6 +107,10 @@ pub fn multisearch(
                         max_containment,
                         jaccard,
                         intersect_hashes: overlap,
+                        query_ani,
+                        match_ani,
+                        average_containment_ani,
+                        max_containment_ani,
                     })
                 }
             }

@@ -8,7 +8,7 @@ use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use serde::ser::Serializer;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, File};
@@ -750,7 +750,7 @@ pub struct BranchwaterGatherResult {
     pub match_containment_ani_ci_high: Option<f64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct MultiSearchResult {
     pub query_name: String,
     pub query_md5: String,
@@ -760,6 +760,15 @@ pub struct MultiSearchResult {
     pub max_containment: f64,
     pub jaccard: f64,
     pub intersect_hashes: f64,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub average_containment_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_containment_ani: Option<f64>,
 }
 
 #[derive(Serialize)]
