@@ -209,7 +209,12 @@ pub fn manysketch(
                             // do we need to normalize to make sure all the bases are consistently capitalized?
                             // let norm_seq = record.normalize(false);
                             sigs.iter_mut().for_each(|sig| {
-                                if !set_name {
+                                if singleton {
+                                    let record_name = std::str::from_utf8(record.id())
+                                        .expect("could not get record id");
+                                    sig.set_name(record_name);
+                                    sig.set_filename(filename.as_str());
+                                } else if !set_name {
                                     sig.set_name(name);
                                     sig.set_filename(filename.as_str());
                                     set_name = true;
