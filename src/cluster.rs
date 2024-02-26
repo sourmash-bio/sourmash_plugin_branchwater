@@ -25,7 +25,7 @@ fn build_graph(
 
         // ignore self-matches reported via multisearch
         if record.query_name == record.match_name {
-            continue
+            continue;
         }
 
         let similarity = match similarity_measure {
