@@ -1,4 +1,5 @@
 import os
+import csv
 import pytest
 import pandas
 import sourmash
@@ -792,3 +793,38 @@ def test_simple_hp(runtmp):
                 assert q2_ani == 98.48
                 assert avg_ani == 97.91
                 assert max_ani == 98.48
+
+
+def test_simple_below_threshold(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+                    '-o', output, '--ani', '--threshold', '0.5')
+    assert os.path.exists(output)
+
+    with open(output, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = list(reader)
+        assert len(rows) == 3
+        for row in rows:
+            # only identical reported
+            print(row)
+            assert row['query_md5'] == row['match_md5']
+            assert float(row['containment']) == 1.0
+            assert float(row['jaccard']) == 1.0
+            assert float(row['max_containment']) == 1.0
+            assert float(row['query_ani']) == 100.0
+            assert float(row['match_ani']) == 100.0
+            assert float(row['average_containment_ani']) == 100.0
+            assert float(row['max_containment_ani']) == 100.0

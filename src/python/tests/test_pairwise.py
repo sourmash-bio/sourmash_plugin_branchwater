@@ -1,4 +1,5 @@
 import os
+import csv
 import pytest
 import pandas
 import sourmash
@@ -529,3 +530,27 @@ def test_simple_hp_ani(runtmp):
             assert q2_ani == 97.34
             assert avg_ani == 97.91
             assert max_ani == 98.48
+
+
+def test_simple_below_threshold(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'pairwise', query_list,
+                    '-o', output, '--ani', '--threshold', '0.5')
+    assert os.path.exists(output)
+
+    with open(output, 'r') as csvfile:
+        reader = csv.reader(csvfile)
+        rows = list(reader)
+        print(rows)
+        assert len(rows) == 0
