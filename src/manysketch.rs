@@ -168,6 +168,22 @@ pub fn manysketch(
         .par_iter()
         .filter_map(|(name, filenames, moltype)| {
             let mut allsigs = Vec::new();
+            // build sig templates for these sketches from params, check if there are sigs to build
+            let sig_templates = build_siginfo(&params_vec, moltype);
+            // if no sigs to build, skip this iteration
+            if sig_templates.is_empty() {
+                skipped_paths.fetch_add(filenames.len(), atomic::Ordering::SeqCst);
+                processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
+                return None;
+            }
+
+            let mut sigs = sig_templates.clone();
+            // have name / filename been set for each sig yet?
+            let mut set_name = false;
+            // if merging multiple files, sourmash sets filename as last filename
+            let last_filename = filenames.last().unwrap();
+
+            // to do: consider changing reporting to per-sig, no matter how many fastas? but singleton...
             for filename in filenames {
                 // increment processed_fastas counter; make 1-based for % reporting
                 let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
@@ -182,27 +198,17 @@ pub fn manysketch(
                     );
                 }
 
-                // build sig templates from params
-                let sig_templates = build_siginfo(&params_vec, moltype);
-                let mut sigs = sig_templates.clone();
-                // if no sigs to build, skip
-                if sigs.is_empty() {
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    return None;
-                }
-
                 // Open fasta file reader
                 let mut reader = match parse_fastx_file(filename) {
                     Ok(r) => r,
                     Err(err) => {
                         eprintln!("Error opening file {}: {:?}", filename, err);
-                        let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         return None;
                     }
                 };
 
                 // parse fasta and add to signature
-                let mut set_name = false;
                 while let Some(record_result) = reader.next() {
                     match record_result {
                         Ok(record) => {
@@ -216,7 +222,8 @@ pub fn manysketch(
                                     sig.set_filename(filename.as_str());
                                 } else if !set_name {
                                     sig.set_name(name);
-                                    sig.set_filename(filename.as_str());
+                                    // sourmash sets filename to last filename if merging fastas
+                                    sig.set_filename(last_filename.as_str());
                                     set_name = true;
                                 };
                                 if moltype == "protein" {
@@ -236,9 +243,9 @@ pub fn manysketch(
                         sigs = sig_templates.clone();
                     }
                 }
-                if !singleton {
-                    allsigs.append(&mut sigs);
-                }
+            }
+            if !singleton {
+                allsigs.append(&mut sigs);
             }
             Some(allsigs)
         })

@@ -208,9 +208,6 @@ def test_manysketch_skip_incompatible_fastas(runtmp, capfd):
         assert sig.minhash.ksize == 10
         assert sig.minhash.scaled == 1
         assert sig.md5sum() == "eb4467d11e0ecd2dbde4193bfc255310"
-    assert 'Starting file 2/4 (50%)' in captured.err
-    assert 'Starting file 3/4 (75%)' in captured.err
-    assert 'Starting file 4/4 (100%)' in captured.err
     assert 'DONE. Processed 4 fasta files' in captured.err
     assert 'WARNING: 3 fasta files skipped - no compatible signatures.' in captured.err
 
@@ -452,3 +449,41 @@ def test_protein_zip_manifest(runtmp, capfd):
         assert sig.minhash.ksize == 10 # minhash stores k*3, but does the conversion back for us
         assert sig.minhash.moltype == 'protein'
         assert sig.minhash.scaled == 1
+
+
+def test_manysketch_singleton(runtmp):
+    fa_csv = runtmp.output('db-fa.txt')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+
+    make_file_csv(fa_csv, [fa1, fa2, fa3])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dna,k=31,scaled=1", "--singleton")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 4
+    singleton_sketch = runtmp.output('short3.sig')
+    runtmp.sourmash('sketch', 'dna', fa3, '-o', singleton_sketch,
+                    '--param-str', "dna,k=31,scaled=1", "--singleton")
+    ss_sketch = sourmash.load_signatures(singleton_sketch)
+    ss_sketch1 = next(ss_sketch)
+    ss_sketch2 = next(ss_sketch)
+
+    expected_signames = ['shortName', 'tr1 4', 'firstname', 'other']
+    for sig in sigs:
+        assert sig.name in expected_signames
+        if sig.name == 'firstname':
+            assert sig == ss_sketch1
+        if sig.name == 'other':
+            assert sig == ss_sketch2
