@@ -33,8 +33,12 @@ fn build_graph(
             "containment" => record.containment,
             "max_containment" => record.max_containment,
             "jaccard" => record.jaccard,
-            "average_ani" => record.average_containment_ani,
-            "max_ani" => record.max_containment_ani,
+            "average_cANI" => record
+                .average_containment_ani
+                .expect("average_cANI is None. Did you estimate cANI?"),
+            "max_cANI" => record
+                .max_containment_ani
+                .expect("max_cANI is None. Did you estimate cANI?"),
             _ => return Err(anyhow::anyhow!("Invalid similarity measure")), // should not happen
         };
 

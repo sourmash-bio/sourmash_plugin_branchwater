@@ -238,7 +238,7 @@ def test_cluster_ani_pairwise(runtmp):
     make_file_list(query_list, [sig2, sig47, sig63])
 
     runtmp.sourmash('scripts', 'pairwise', query_list,
-                    '-o', pairwise_csv, "-t", "-0.1")
+                    '-o', pairwise_csv, "-t", "-0.1", "--ani")
 
     assert os.path.exists(pairwise_csv)
 
@@ -271,6 +271,64 @@ def test_cluster_ani_pairwise(runtmp):
     assert rows_as_tuples == expected
 
 
+def test_cluster_avg_ani_no_ani(runtmp, capfd):
+    pairwise_csv = runtmp.output('pairwise.csv')
+    output = runtmp.output('clusters.csv')
+    sizes = runtmp.output('sizes.csv')
+    cluster_threshold = '90'
+
+    query_list = runtmp.output('query.txt')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    runtmp.sourmash('scripts', 'pairwise', query_list,
+                    '-o', pairwise_csv, "-t", "-0.1") # do not pass `--ani`
+
+    assert os.path.exists(pairwise_csv)
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
+                    '--similarity-column', "average_ani", "--cluster-sizes",
+                    sizes, '--threshold', cluster_threshold)
+
+    print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert 'average_cANI is None. Did you estimate cANI?' in captured.err
+
+
+def test_cluster_max_ani_no_ani(runtmp, capfd):
+    pairwise_csv = runtmp.output('pairwise.csv')
+    output = runtmp.output('clusters.csv')
+    sizes = runtmp.output('sizes.csv')
+    cluster_threshold = '90'
+
+    query_list = runtmp.output('query.txt')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    runtmp.sourmash('scripts', 'pairwise', query_list,
+                    '-o', pairwise_csv, "-t", "-0.1") # do not pass `--ani`
+
+    assert os.path.exists(pairwise_csv)
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
+                    '--similarity-column', "maximum_ani", "--cluster-sizes",
+                    sizes, '--threshold', cluster_threshold)
+
+    print(runtmp.last_result.err)
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert 'max_cANI is None. Did you estimate cANI?' in captured.err
+
+
 def test_cluster_ani_multisearch(runtmp):
     multisearch_csv = runtmp.output('multisearch.csv')
     output = runtmp.output('clusters.csv')
@@ -285,7 +343,7 @@ def test_cluster_ani_multisearch(runtmp):
     make_file_list(query_list, [sig2, sig47, sig63])
 
     runtmp.sourmash('scripts', 'multisearch', query_list, query_list,
-                    '-o', multisearch_csv, "-t", "-0.1")
+                    '-o', multisearch_csv, "-t", "-0.1", "--ani")
 
     assert os.path.exists(multisearch_csv)
 
@@ -336,6 +394,7 @@ def test_empty_file(runtmp, capfd):
     print(captured.err)
 
     assert "Error: Failed to build graph" in captured.err
+
 
 def test_bad_file(runtmp, capfd):
     # test with an empty query list

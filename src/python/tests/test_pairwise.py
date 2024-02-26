@@ -64,10 +64,10 @@ def test_simple_no_ani(runtmp, zip_query):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        assert 'query_ani' not in row
-        assert 'match_ani' not in row
-        assert 'average_containment_ani' not in row
-        assert 'max_containment_ani' not in row
+        assert 'query_cANI' not in row
+        assert 'match_cANI' not in row
+        assert 'average_cANI' not in row
+        assert 'max_cANI' not in row
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
@@ -115,10 +115,10 @@ def test_simple_ani(runtmp, zip_query):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
-        avg_ani = float(row['average_containment_ani'])
-        max_ani = float(row['max_containment_ani'])
+        q1_ani = float(row['query_cANI'])
+        q2_ani = float(row['match_cANI'])
+        avg_ani = float(row['average_cANI'])
+        max_ani = float(row['max_cANI'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
@@ -407,10 +407,10 @@ def test_simple_prot_ani(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
-        avg_ani = float(row['average_containment_ani'])
-        max_ani = float(row['max_containment_ani'])
+        q1_ani = float(row['query_cANI'])
+        q2_ani = float(row['match_cANI'])
+        avg_ani = float(row['average_cANI'])
+        max_ani = float(row['max_cANI'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
@@ -457,10 +457,10 @@ def test_simple_dayhoff_ani(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
-        avg_ani = float(row['average_containment_ani'])
-        max_ani = float(row['max_containment_ani'])
+        q1_ani = float(row['query_cANI'])
+        q2_ani = float(row['match_cANI'])
+        avg_ani = float(row['average_cANI'])
+        max_ani = float(row['max_cANI'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
@@ -507,10 +507,10 @@ def test_simple_hp_ani(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
-        avg_ani = float(row['average_containment_ani'])
-        max_ani = float(row['max_containment_ani'])
+        q1_ani = float(row['query_cANI'])
+        q2_ani = float(row['match_cANI'])
+        avg_ani = float(row['average_cANI'])
+        max_ani = float(row['max_cANI'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)

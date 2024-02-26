@@ -65,19 +65,19 @@ pub fn pairwise(
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
                 let jaccard = overlap / (query1_size + query2_size - overlap);
-                let mut query_ani = None;
-                let mut match_ani = None;
-                let mut average_containment_ani = None;
-                let mut max_containment_ani = None;
+                let mut query_cANI = None;
+                let mut match_cANI = None;
+                let mut average_cANI = None;
+                let mut max_cANI = None;
 
                 // estimate ANI values
                 if estimate_ani {
                     let qani = ani_from_containment(containment_q1_in_q2, ksize) * 100.0;
                     let mani = ani_from_containment(containment_q2_in_q1, ksize) * 100.0;
-                    query_ani = Some(qani);
-                    match_ani = Some(mani);
-                    average_containment_ani = Some((qani + mani) / 2.);
-                    max_containment_ani = Some(f64::max(qani, mani));
+                    query_cANI = Some(qani);
+                    match_cANI = Some(mani);
+                    average_cANI = Some((qani + mani) / 2.);
+                    max_cANI = Some(f64::max(qani, mani));
                 }
                 send.send(MultiSearchResult {
                     query_name: query.name.clone(),
@@ -88,10 +88,10 @@ pub fn pairwise(
                     max_containment,
                     jaccard,
                     intersect_hashes: overlap,
-                    query_ani,
-                    match_ani,
-                    average_containment_ani,
-                    max_containment_ani,
+                    query_cANI,
+                    match_cANI,
+                    average_cANI,
+                    max_cANI,
                 })
                 .unwrap();
             }
