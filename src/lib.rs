@@ -207,6 +207,7 @@ fn do_multisearch(
     ksize: u8,
     scaled: usize,
     moltype: String,
+    estimate_ani: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
@@ -217,8 +218,9 @@ fn do_multisearch(
         siglist_path,
         threshold,
         &selection,
-        output_path,
         allow_failed_sigpaths,
+        estimate_ani,
+        output_path,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -235,6 +237,7 @@ fn do_pairwise(
     ksize: u8,
     scaled: usize,
     moltype: String,
+    estimate_ani: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
@@ -243,8 +246,9 @@ fn do_pairwise(
         siglist_path,
         threshold,
         &selection,
-        output_path,
         allow_failed_sigpaths,
+        estimate_ani,
+        output_path,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
