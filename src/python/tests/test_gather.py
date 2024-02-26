@@ -685,4 +685,4 @@ def test_simple_with_manifest_loading(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}.issubset(keys)

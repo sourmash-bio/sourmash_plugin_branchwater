@@ -708,12 +708,46 @@ pub struct SearchResult {
 
 #[derive(Serialize)]
 pub struct BranchwaterGatherResult {
-    pub query_name: String,
-    pub query_md5: String,
+    pub intersect_bp: usize,
+    pub f_orig_query: f64,
+    pub f_match: f64,
+    pub f_unique_to_query: f64,
+    pub f_unique_weighted: f64,
+    pub average_abund: f64,
+    pub median_abund: f64,
+    pub std_abund: f64,
+    pub match_filename: String,
     pub match_name: String,
     pub match_md5: String,
-    pub f_match_query: f64,
-    pub intersect_bp: usize,
+    pub f_match_orig: f64,
+    pub unique_intersect_bp: usize,
+    pub gather_result_rank: usize,
+    pub remaining_bp: usize,
+    pub query_filename: String,
+    pub query_name: String,
+    pub query_md5: String,
+    pub query_bp: usize,
+    pub ksize: usize,
+    pub moltype: String,
+    pub scaled: usize,
+    pub query_n_hashes: usize,
+    pub query_abundance: bool,
+    pub query_containment_ani: f64,
+    pub match_containment_ani: f64,
+    pub average_containment_ani: f64,
+    pub max_containment_ani: f64,
+    pub n_unique_weighted_found: usize,
+    pub sum_weighted_found: usize,
+    pub total_weighted_hashes: usize,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_containment_ani_ci_low: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_containment_ani_ci_high: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_containment_ani_ci_low: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_containment_ani_ci_high: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize)]
