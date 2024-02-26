@@ -117,6 +117,7 @@ pub fn manysketch(
     filelist: String,
     param_str: String,
     output: String,
+    singleton: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let fileinfo = match load_fasta_fromfile(filelist) {
         Ok(result) => result,
@@ -165,70 +166,81 @@ pub fn manysketch(
 
     let send_result = fileinfo
         .par_iter()
-        .filter_map(|(name, filename, moltype)| {
-            // increment processed_fastas counter; make 1-based for % reporting
-            let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
-            // progress report at threshold
-            if (i + 1) % reporting_threshold == 0 {
-                let percent_processed = (((i + 1) as f64 / n_fastas as f64) * 100.0).round();
-                eprintln!(
-                    "Starting file {}/{} ({}%)",
-                    (i + 1),
-                    n_fastas,
-                    percent_processed
-                );
-            }
+        .filter_map(|(name, filenames, moltype)| {
+            let mut allsigs = Vec::new();
+            for filename in filenames {
+                // increment processed_fastas counter; make 1-based for % reporting
+                let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
+                // progress report at threshold
+                if (i + 1) % reporting_threshold == 0 {
+                    let percent_processed = (((i + 1) as f64 / n_fastas as f64) * 100.0).round();
+                    eprintln!(
+                        "Starting file {}/{} ({}%)",
+                        (i + 1),
+                        n_fastas,
+                        percent_processed
+                    );
+                }
 
-            // build sig templates from params
-            let mut sigs = build_siginfo(&params_vec, moltype);
-            // if no sigs to build, skip
-            if sigs.is_empty() {
-                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                return None;
-            }
-
-            // Open fasta file reader
-            let mut reader = match parse_fastx_file(filename) {
-                Ok(r) => r,
-                Err(err) => {
-                    eprintln!("Error opening file {}: {:?}", filename, err);
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                // build sig templates from params
+                let sig_templates = build_siginfo(&params_vec, moltype);
+                let mut sigs = sig_templates.clone();
+                // if no sigs to build, skip
+                if sigs.is_empty() {
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     return None;
                 }
-            };
-            // parse fasta and add to signature
-            let mut set_name = false;
-            while let Some(record_result) = reader.next() {
-                match record_result {
-                    Ok(record) => {
-                        // do we need to normalize to make sure all the bases are consistently capitalized?
-                        // let norm_seq = record.normalize(false);
-                        sigs.iter_mut().for_each(|sig| {
-                            if !set_name {
-                                sig.set_name(name);
-                                sig.set_filename(filename.as_str());
-                                set_name = true;
-                            };
-                            if moltype == "protein" {
-                                sig.add_protein(&record.seq())
-                                    .expect("Failed to add protein");
-                            } else {
-                                sig.add_sequence(&record.seq(), true)
-                                    .expect("Failed to add sequence");
-                                // if not force, panics with 'N' in dna sequence
-                            }
-                        });
+
+                // Open fasta file reader
+                let mut reader = match parse_fastx_file(filename) {
+                    Ok(r) => r,
+                    Err(err) => {
+                        eprintln!("Error opening file {}: {:?}", filename, err);
+                        let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        return None;
                     }
-                    Err(err) => eprintln!("Error while processing record: {:?}", err),
+                };
+
+                // parse fasta and add to signature
+                let mut set_name = false;
+                while let Some(record_result) = reader.next() {
+                    match record_result {
+                        Ok(record) => {
+                            // do we need to normalize to make sure all the bases are consistently capitalized?
+                            // let norm_seq = record.normalize(false);
+                            sigs.iter_mut().for_each(|sig| {
+                                if !set_name {
+                                    sig.set_name(name);
+                                    sig.set_filename(filename.as_str());
+                                    set_name = true;
+                                };
+                                if moltype == "protein" {
+                                    sig.add_protein(&record.seq())
+                                        .expect("Failed to add protein");
+                                } else {
+                                    sig.add_sequence(&record.seq(), true)
+                                        .expect("Failed to add sequence");
+                                    // if not force, panics with 'N' in dna sequence
+                                }
+                            });
+                        }
+                        Err(err) => eprintln!("Error while processing record: {:?}", err),
+                    }
+                    if singleton {
+                        allsigs.append(&mut sigs);
+                        sigs = sig_templates.clone();
+                    }
+                }
+                if !singleton {
+                    allsigs.append(&mut sigs);
                 }
             }
-
-            Some(sigs)
+            Some(allsigs)
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, sigs| {
-                if let Err(e) = s.send(ZipMessage::SignatureData(sigs)) {
+            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, filled_sigs| {
+                if let Err(e) = s.send(ZipMessage::SignatureData(filled_sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {
                     Ok(())

@@ -336,6 +336,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
                           help='parameter string for sketching (default: k=31,scaled=1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('-s', '--singleton', action="store_true",
+                       help='build one sketch per fasta record')
 
     def main(self, args):
         print_version()
@@ -355,7 +357,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
         super().main(args)
         status = sourmash_plugin_branchwater.do_manysketch(args.fromfile_csv,
                                                            args.param_string,
-                                                           args.output)
+                                                           args.output,
+                                                           args.singleton)
         if status == 0:
             notify(f"...manysketch is done! results in '{args.output}'")
         return status
