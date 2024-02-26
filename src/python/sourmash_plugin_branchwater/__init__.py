@@ -375,7 +375,7 @@ class Branchwater_Cluster(CommandLinePlugin):
         p.add_argument('--similarity-column', type=str, default='average_ani',
                           choices=['containment', 'max_containment', 'jaccard', 'average_containment_ani', 'max_containment_ani'],
                           help='column to use as distance measure')
-        p.add_argument('-t', '--threshold',  type=float, default=95, help="similarity threshold for clustering. Default: 95% ANI")
+        p.add_argument('-t', '--threshold',  type=float, default=0.95, help="similarity threshold for clustering. Default: 95% ANI (0.95)")
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 

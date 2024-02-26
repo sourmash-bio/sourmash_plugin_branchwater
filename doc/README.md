@@ -220,7 +220,7 @@ cluster_size,count
 1,1
 ```
 
-`cluster` takes a `--similarity_column` argument to specify which of the similarity columns, with the following choices: `containment`, `max_containment`, `jaccard`, `average_containment_ani`, `maximum_containment_ani`. ANI values should be input in percent form (e.g. 90 as opposed to 0.9)
+`cluster` takes a `--similarity_column` argument to specify which of the similarity columns, with the following choices: `containment`, `max_containment`, `jaccard`, `average_containment_ani`, `maximum_containment_ani`. All values should be input as fractions (e.g. 0.9 for 90%)
 
 ## Notes on concurrency and efficiency
 

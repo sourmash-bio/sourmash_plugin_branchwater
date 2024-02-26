@@ -72,8 +72,8 @@ pub fn pairwise(
 
                 // estimate ANI values
                 if estimate_ani {
-                    let qani = ani_from_containment(containment_q1_in_q2, ksize) * 100.0;
-                    let mani = ani_from_containment(containment_q2_in_q1, ksize) * 100.0;
+                    let qani = ani_from_containment(containment_q1_in_q2, ksize);
+                    let mani = ani_from_containment(containment_q2_in_q1, ksize);
                     query_containment_ani = Some(qani);
                     match_containment_ani = Some(mani);
                     average_containment_ani = Some((qani + mani) / 2.);

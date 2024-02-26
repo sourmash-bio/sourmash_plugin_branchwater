@@ -90,8 +90,8 @@ pub fn multisearch(
 
                     // estimate ANI values
                     if estimate_ani {
-                        let qani = ani_from_containment(containment_query_in_target, ksize) * 100.0;
-                        let mani = ani_from_containment(containment_target_in_query, ksize) * 100.0;
+                        let qani = ani_from_containment(containment_query_in_target, ksize);
+                        let mani = ani_from_containment(containment_target_in_query, ksize);
                         query_containment_ani = Some(qani);
                         match_containment_ani = Some(mani);
                         average_containment_ani = Some((qani + mani) / 2.);
