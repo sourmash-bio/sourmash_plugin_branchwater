@@ -19,8 +19,9 @@ pub fn pairwise(
     siglist: String,
     threshold: f64,
     selection: &Selection,
-    output: Option<String>,
     allow_failed_sigpaths: bool,
+    estimate_ani: bool,
+    output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
     let collection = load_collection(
@@ -60,16 +61,24 @@ pub fn pairwise(
 
             let containment_q1_in_q2 = overlap / query1_size;
             let containment_q2_in_q1 = overlap / query2_size;
-            let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
-            let jaccard = overlap / (query1_size + query2_size - overlap);
-
-            // estimate ANI values
-            let query_ani = ani_from_containment(containment_q1_in_q2, ksize) * 100.0;
-            let match_ani = ani_from_containment(containment_q2_in_q1, ksize) * 100.0;
-            let average_containment_ani = (query_ani + match_ani) / 2.;
-            let max_containment_ani = f64::max(query_ani, match_ani);
 
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
+                let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
+                let jaccard = overlap / (query1_size + query2_size - overlap);
+                let mut query_ani = None;
+                let mut match_ani = None;
+                let mut average_containment_ani = None;
+                let mut max_containment_ani = None;
+
+                // estimate ANI values
+                if estimate_ani {
+                    let qani = ani_from_containment(containment_q1_in_q2, ksize) * 100.0;
+                    let mani = ani_from_containment(containment_q2_in_q1, ksize) * 100.0;
+                    query_ani = Some(qani);
+                    match_ani = Some(mani);
+                    average_containment_ani = Some((qani + mani) / 2.);
+                    max_containment_ani = Some(f64::max(qani, mani));
+                }
                 send.send(MultiSearchResult {
                     query_name: query.name.clone(),
                     query_md5: query.md5sum.clone(),

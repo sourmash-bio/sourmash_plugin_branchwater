@@ -1,4 +1,5 @@
 import os
+import csv
 import pytest
 import pandas
 import sourmash
@@ -30,7 +31,7 @@ def zip_siglist(runtmp, siglist, db):
 
 @pytest.mark.parametrize("zip_query", [False, True])
 @pytest.mark.parametrize("zip_db", [False, True])
-def test_simple(runtmp, zip_query, zip_db):
+def test_simple_no_ani(runtmp, zip_query, zip_db):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -51,6 +52,76 @@ def test_simple(runtmp, zip_query, zip_db):
 
     runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output)
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+            assert 'query_ani' not in row
+            assert 'match_ani' not in row
+            assert 'average_containment_ani' not in row
+            assert 'max_containment_ani' not in row
+
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            maxcont = round(maxcont, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
+
+            if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4828
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+
+            if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4885
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+
+
+@pytest.mark.parametrize("zip_query", [False, True])
+@pytest.mark.parametrize("zip_db", [False, True])
+def test_simple_ani(runtmp, zip_query, zip_db):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    if zip_db:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+                    '-o', output, '--ani')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -113,7 +184,6 @@ def test_simple(runtmp, zip_query, zip_db):
                 assert q2_ani == 97.68
                 assert avg_ani == 97.7
                 assert max_ani == 97.72
-
 
 @pytest.mark.parametrize("zip_query", [False, True])
 @pytest.mark.parametrize("zip_db", [False, True])
@@ -517,7 +587,7 @@ def test_simple_prot(runtmp):
 
     runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
                     '-o', output, '--moltype', 'protein',
-                    '-k', '19', '--scaled', '100')
+                    '-k', '19', '--scaled', '100', '--ani')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -589,7 +659,7 @@ def test_simple_dayhoff(runtmp):
 
     runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
                     '-o', output, '--moltype', 'dayhoff',
-                    '-k', '19', '--scaled', '100')
+                    '-k', '19', '--scaled', '100', '--ani')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -661,7 +731,7 @@ def test_simple_hp(runtmp):
 
     runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
                     '-o', output, '--moltype', 'hp',
-                    '-k', '19', '--scaled', '100')
+                    '-k', '19', '--scaled', '100', '--ani')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -723,3 +793,38 @@ def test_simple_hp(runtmp):
                 assert q2_ani == 98.48
                 assert avg_ani == 97.91
                 assert max_ani == 98.48
+
+
+def test_simple_below_threshold(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+                    '-o', output, '--ani', '--threshold', '0.5')
+    assert os.path.exists(output)
+
+    with open(output, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = list(reader)
+        assert len(rows) == 3
+        for row in rows:
+            # only identical reported
+            print(row)
+            assert row['query_md5'] == row['match_md5']
+            assert float(row['containment']) == 1.0
+            assert float(row['jaccard']) == 1.0
+            assert float(row['max_containment']) == 1.0
+            assert float(row['query_ani']) == 100.0
+            assert float(row['match_ani']) == 100.0
+            assert float(row['average_containment_ani']) == 100.0
+            assert float(row['max_containment_ani']) == 100.0

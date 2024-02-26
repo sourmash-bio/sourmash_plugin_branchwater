@@ -21,8 +21,9 @@ pub fn multisearch(
     against_filepath: String,
     threshold: f64,
     selection: &Selection,
-    output: Option<String>,
     allow_failed_sigpaths: bool,
+    estimate_ani: bool,
+    output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
 
@@ -76,17 +77,27 @@ pub fn multisearch(
                 let target_size = against.minhash.size() as f64;
 
                 let containment_query_in_target = overlap / query_size;
-                let containment_target_in_query = overlap / target_size;
-                let max_containment = containment_query_in_target.max(containment_target_in_query);
-                let jaccard = overlap / (target_size + query_size - overlap);
-
-                // estimate ANI values
-                let query_ani = ani_from_containment(containment_query_in_target, ksize) * 100.0;
-                let match_ani = ani_from_containment(containment_target_in_query, ksize) * 100.0;
-                let average_containment_ani = (query_ani + match_ani) / 2.;
-                let max_containment_ani = f64::max(query_ani, match_ani);
 
                 if containment_query_in_target > threshold {
+                    let containment_target_in_query = overlap / target_size;
+                    let max_containment =
+                        containment_query_in_target.max(containment_target_in_query);
+                    let jaccard = overlap / (target_size + query_size - overlap);
+                    let mut query_ani = None;
+                    let mut match_ani = None;
+                    let mut average_containment_ani = None;
+                    let mut max_containment_ani = None;
+
+                    // estimate ANI values
+                    if estimate_ani {
+                        let qani = ani_from_containment(containment_query_in_target, ksize) * 100.0;
+                        let mani = ani_from_containment(containment_target_in_query, ksize) * 100.0;
+                        query_ani = Some(qani);
+                        match_ani = Some(mani);
+                        average_containment_ani = Some((qani + mani) / 2.);
+                        max_containment_ani = Some(f64::max(qani, mani));
+                    }
+
                     results.push(MultiSearchResult {
                         query_name: query.name.clone(),
                         query_md5: query.md5sum.clone(),
