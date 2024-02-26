@@ -32,17 +32,21 @@ fn build_graph(
             "containment" => record.containment,
             "max_containment" => record.max_containment,
             "jaccard" => record.jaccard,
-            "average_ani" => match record.average_cANI {
+            "average_containment_ani" => match record.average_containment_ani {
                 Some(value) => value,
                 None => {
                     return Err(anyhow::anyhow!(
-                        "average_cANI is None. Did you estimate cANI?"
+                        "average_containment_ani is None. Did you estimate ANI?"
                     ))
                 }
             },
-            "max_ani" => match record.max_cANI {
+            "max_containment_ani" => match record.max_containment_ani {
                 Some(value) => value,
-                None => return Err(anyhow::anyhow!("max_cANI is None. Did you estimate cANI?")),
+                None => {
+                    return Err(anyhow::anyhow!(
+                        "max_containment_ani is None. Did you estimate ANI?"
+                    ))
+                }
             },
             _ => {
                 return Err(anyhow::anyhow!(

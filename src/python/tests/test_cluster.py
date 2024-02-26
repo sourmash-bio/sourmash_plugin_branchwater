@@ -159,7 +159,7 @@ def test_cluster_ani(runtmp):
     threshold = '90'
 
     runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "average_ani", "--cluster-sizes",
+                    '--similarity-column', "average_containment_ani", "--cluster-sizes",
                     sizes, '--threshold', threshold)
 
     assert os.path.exists(output)
@@ -197,7 +197,7 @@ def test_cluster_max_ani(runtmp):
     threshold = '90'
 
     runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "max_ani", "--cluster-sizes",
+                    '--similarity-column', "max_containment_ani", "--cluster-sizes",
                     sizes, '--threshold', threshold)
 
     assert os.path.exists(output)
@@ -243,7 +243,7 @@ def test_cluster_ani_pairwise(runtmp):
     assert os.path.exists(pairwise_csv)
 
     runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "average_ani", "--cluster-sizes",
+                    '--similarity-column', "average_containment_ani", "--cluster-sizes",
                     sizes, '--threshold', cluster_threshold)
 
     assert os.path.exists(output)
@@ -291,13 +291,13 @@ def test_cluster_avg_ani_no_ani(runtmp, capfd):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "average_ani", "--cluster-sizes",
+                    '--similarity-column', "average_containment_ani", "--cluster-sizes",
                     sizes, '--threshold', cluster_threshold)
 
     print(runtmp.last_result.err)
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'average_cANI is None. Did you estimate cANI?' in captured.err
+    assert 'average_containment_ani is None. Did you estimate ANI?' in captured.err
 
 
 def test_cluster_max_ani_no_ani(runtmp, capfd):
@@ -320,13 +320,13 @@ def test_cluster_max_ani_no_ani(runtmp, capfd):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
-                    '--similarity-column', "max_ani", "--cluster-sizes",
+                    '--similarity-column', "max_containment_ani", "--cluster-sizes",
                     sizes, '--threshold', cluster_threshold)
 
     print(runtmp.last_result.err)
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'max_cANI is None. Did you estimate cANI?' in captured.err
+    assert 'max_containment_ani is None. Did you estimate ANI?' in captured.err
 
 
 def test_cluster_ani_multisearch(runtmp):
@@ -348,7 +348,7 @@ def test_cluster_ani_multisearch(runtmp):
     assert os.path.exists(multisearch_csv)
 
     runtmp.sourmash('scripts', 'cluster', multisearch_csv, '-o', output,
-                    '--similarity-column', "average_ani", "--cluster-sizes",
+                    '--similarity-column', "average_containment_ani", "--cluster-sizes",
                     sizes, '--threshold', cluster_threshold)
 
     assert os.path.exists(output)

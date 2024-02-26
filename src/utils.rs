@@ -762,13 +762,13 @@ pub struct MultiSearchResult {
     pub intersect_hashes: f64,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub query_cANI: Option<f64>,
+    pub query_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub match_cANI: Option<f64>,
+    pub match_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub average_cANI: Option<f64>,
+    pub average_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_cANI: Option<f64>,
+    pub max_containment_ani: Option<f64>,
 }
 
 #[derive(Serialize)]

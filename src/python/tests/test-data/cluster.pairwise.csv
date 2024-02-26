@@ -1,4 +1,4 @@
-query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes,query_cANI,match_cANI,average_cANI,max_cANI
+query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes,query_containment_ani,match_containment_ani,average_containment_ani,max_containment_ani
 n1,md5q1,n2,md5m1,0.8,0.9,0.55,100,90,90,90,90
 n1,md5q1,n3,md5m1,0.8,0.9,0.55,100,90,90,90,90
 n1,md5q1,n4,md5m1,0.8,0.9,0.55,100,90,90,45,45
