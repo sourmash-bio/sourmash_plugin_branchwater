@@ -4,6 +4,7 @@ use camino::Utf8PathBuf as PathBuf;
 use rayon::prelude::*;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::prelude::*;
+use sourmash::signature::SigsTrait;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -54,6 +55,7 @@ pub fn mastiff_manygather(
         .par_iter()
         .filter_map(|(_idx, record)| {
             let threshold = threshold_bp / selection.scaled()? as usize;
+            let ksize = selection.ksize()?;
 
             // query downsampling happens here
             match query_collection.sig_from_record(record) {
@@ -72,16 +74,49 @@ pub fn mastiff_manygather(
                             query_mh,
                             Some(selection.clone()),
                         );
-                        // extract results TODO: ADD REST OF GATHER COLUMNS
                         if let Ok(matches) = matches {
                             for match_ in &matches {
                                 results.push(BranchwaterGatherResult {
-                                    query_name: query_sig.name().clone(),
-                                    query_md5: query_sig.md5sum().clone(),
+                                    intersect_bp: match_.intersect_bp(),
+                                    f_orig_query: match_.f_orig_query(),
+                                    f_match: match_.f_match(),
+                                    f_unique_to_query: match_.f_unique_to_query(),
+                                    f_unique_weighted: match_.f_unique_weighted(),
+                                    average_abund: match_.average_abund(),
+                                    median_abund: match_.median_abund(),
+                                    std_abund: match_.std_abund(),
+                                    match_filename: match_.filename().clone(),
                                     match_name: match_.name().clone(),
                                     match_md5: match_.md5().clone(),
-                                    f_match_query: match_.f_match(),
-                                    intersect_bp: match_.intersect_bp(),
+                                    f_match_orig: match_.f_match_orig(),
+                                    unique_intersect_bp: match_.unique_intersect_bp(),
+                                    gather_result_rank: match_.gather_result_rank(),
+                                    remaining_bp: match_.remaining_bp(),
+                                    query_filename: query_sig.filename(),
+                                    query_name: query_sig.name().clone(),
+                                    query_md5: query_sig.md5sum().clone(),
+                                    query_bp: query_mh.n_unique_kmers() as usize,
+                                    ksize: ksize as usize,
+                                    moltype: query_mh.hash_function().to_string(),
+                                    scaled: query_mh.scaled() as usize,
+                                    query_n_hashes: query_mh.size() as usize,
+                                    query_abundance: query_mh.track_abundance(),
+                                    query_containment_ani: match_.query_containment_ani(),
+                                    match_containment_ani: match_.match_containment_ani(),
+                                    average_containment_ani: match_.average_containment_ani(),
+                                    max_containment_ani: match_.max_containment_ani(),
+                                    n_unique_weighted_found: match_.n_unique_weighted_found(),
+                                    sum_weighted_found: match_.sum_weighted_found(),
+                                    total_weighted_hashes: match_.total_weighted_hashes(),
+
+                                    query_containment_ani_ci_low: match_
+                                        .query_containment_ani_ci_low(),
+                                    query_containment_ani_ci_high: match_
+                                        .query_containment_ani_ci_high(),
+                                    match_containment_ani_ci_low: match_
+                                        .match_containment_ani_ci_low(),
+                                    match_containment_ani_ci_high: match_
+                                        .match_containment_ani_ci_high(),
                                 });
                             }
                         } else {

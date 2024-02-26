@@ -248,6 +248,8 @@ takes fewer resources.
 
 Currently only `fastmultigather` and `manysearch` can use this kind of index.
 
+`fastmultigather` with this index produces a complete set of `sourmash gather` columns.
+
 We suggest using the extension `.rocksdb` for these databases, as we
 use [RocksDB](https://rocksdb.org/) for the underlying database storage
 mechanism.
