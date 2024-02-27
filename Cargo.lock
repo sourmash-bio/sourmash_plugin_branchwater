@@ -1606,6 +1606,7 @@ dependencies = [
  "camino",
  "csv",
  "env_logger",
+ "glob",
  "log",
  "needletail",
  "niffler",

@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
+use glob::glob;
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
@@ -133,6 +134,7 @@ pub fn write_prefetch(
 enum CSVType {
     Assembly,
     Reads,
+    Prefix,
     Unknown,
 }
 
@@ -149,6 +151,12 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
         && headers.get(2).unwrap() == "read2"
     {
         CSVType::Reads
+    } else if headers.len() == 3
+        && headers.get(0).unwrap() == "name"
+        && headers.get(1).unwrap() == "moltype"
+        && headers.get(2).unwrap() == "prefix"
+    {
+        CSVType::Prefix
     } else {
         CSVType::Unknown
     }
@@ -165,6 +173,7 @@ pub fn load_fasta_fromfile(
     match detect_csv_type(&headers) {
         CSVType::Assembly => process_assembly_csv(rdr),
         CSVType::Reads => process_reads_csv(rdr),
+        CSVType::Prefix => process_prefix_csv(rdr),
         CSVType::Unknown => Err(anyhow!(
             "Invalid header. Expected 'name,genome_filename,protein_filename' or 'name,read1,read2', but got '{}'",
             headers.iter().collect::<Vec<_>>().join(",")
@@ -262,8 +271,9 @@ fn process_reads_csv(
             .get(1)
             .ok_or_else(|| anyhow!("Missing 'read1' field"))?;
         read1_count += 1;
-        let read2 = record.get(2); // No error if missing
+
         let mut paths = vec![PathBuf::from(read1)];
+        // if empty read2, do not add to paths
         let read2 = record
             .get(2)
             .and_then(|r2| if r2.is_empty() { None } else { Some(r2) });
@@ -284,6 +294,77 @@ fn process_reads_csv(
     );
 
     let n_fastas = read1_count + read2_count;
+
+    Ok((results, n_fastas))
+}
+
+fn process_prefix_csv(
+    mut rdr: csv::Reader<std::fs::File>,
+) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
+    let mut results = Vec::new();
+    let mut dna_count = 0;
+    let mut protein_count = 0;
+    let mut processed_rows = std::collections::HashSet::new();
+    let mut duplicate_count = 0;
+
+    for result in rdr.records() {
+        let record = result?;
+        let row_string = record.iter().collect::<Vec<_>>().join(",");
+        if processed_rows.contains(&row_string) {
+            duplicate_count += 1;
+            continue;
+        }
+        processed_rows.insert(row_string.clone());
+
+        let name = record
+            .get(0)
+            .ok_or_else(|| anyhow!("Missing 'name' field"))?
+            .to_string();
+
+        let moltype = record
+            .get(1)
+            .ok_or_else(|| anyhow!("Missing 'moltype' field"))?
+            .to_string();
+
+        let prefix = record
+            .get(2)
+            .ok_or_else(|| anyhow!("Missing 'prefix' field"))?
+            .to_string();
+
+        // Validate moltype
+        match moltype.as_str() {
+            "protein" | "dna" | "DNA" => (),
+            _ => return Err(anyhow!("Invalid 'moltype' field value: {}", moltype)),
+        }
+
+        // Use glob to find matching files
+        let pattern = format!("{}*", prefix);
+        let paths = glob(&pattern)
+            .expect("Failed to read glob pattern")
+            .filter_map(Result::ok) // Filter out Err values and unwrap Ok values
+            .map(|path_buf| PathBuf::from_path_buf(path_buf).expect("Path is not valid UTF-8"))
+            .collect::<Vec<PathBuf>>();
+
+        if !paths.is_empty() {
+            match moltype.as_str() {
+                "dna" | "DNA" => dna_count += paths.len(),
+                "protein" => protein_count += paths.len(),
+                _ => {} // should not get here b/c validated earlier
+            }
+            results.push((name, paths, moltype)); // Use the moltype from the CSV
+        }
+    }
+
+    println!("Found 'prefix' CSV; Using 'glob' to find files based on 'prefix' column.");
+    println!(
+        "Loaded {} rows in total ({} with dna and {} with protein), {} duplicates skipped.",
+        processed_rows.len(),
+        dna_count,
+        protein_count,
+        duplicate_count
+    );
+
+    let n_fastas = dna_count + protein_count;
 
     Ok((results, n_fastas))
 }
