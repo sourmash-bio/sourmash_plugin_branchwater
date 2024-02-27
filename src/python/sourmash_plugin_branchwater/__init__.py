@@ -299,6 +299,10 @@ class Branchwater_Pairwise(CommandLinePlugin):
                        help='number of cores to use (default is all available)')
         p.add_argument('-a', '--ani', action='store_true',
                        help='estimate ANI from containment')
+        p.add_argument('--write-all', action="store_true",
+                       help="write self comparisons for sketches that would otherwise \
+                            not be represented in output (ensures all sketches are \
+                            represented in downstream clustering)")
 
     def main(self, args):
         print_version()
@@ -316,6 +320,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
                                                             args.scaled,
                                                             args.moltype,
                                                             args.ani,
+                                                            args.write_all,
                                                             args.output)
         if status == 0:
             notify(f"...pairwise is done! results in '{args.output}'")
@@ -361,4 +366,41 @@ class Branchwater_Manysketch(CommandLinePlugin):
                                                            args.singleton)
         if status == 0:
             notify(f"...manysketch is done! results in '{args.output}'")
+        return status
+
+class Branchwater_Cluster(CommandLinePlugin):
+    command = 'cluster'
+    description = 'cluster from "pairwise" or "multisearch" results'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('pairwise_csv', help="a csv file containing similarity information. \
+                        Currently, only a branchwater 'pairwise' or 'multisearch' file will work")
+        p.add_argument('-o', '--output', required=True,
+                       help='output csv file for the clusters')
+        p.add_argument('--cluster-sizes', default=None,
+                       help='output file for the cluster size histogram')
+        p.add_argument('--similarity-column', type=str, default='average_containment_ani',
+                       choices=['containment', 'max_containment', 'jaccard', 'average_containment_ani', 'max_containment_ani'],
+                       help='column to use as similarity measure')
+        p.add_argument('-t', '--threshold',  type=float, default=0.95, help="similarity threshold for clustering. Default: 95%% ANI (0.95)")
+        p.add_argument('-c', '--cores', default=0, type=int,
+                       help='number of cores to use (default is all available)')
+
+    def main(self, args):
+        print_version()
+
+        num_threads = set_thread_pool(args.cores)
+
+        notify(f"generating clusters for comparisons in '{args.pairwise_csv}' using {num_threads} threads")
+
+        super().main(args)
+        status = sourmash_plugin_branchwater.do_cluster(args.pairwise_csv,
+                                                        args.output,
+                                                        args.similarity_column,
+                                                        args.threshold,
+                                                        args.cluster_sizes)
+        if status == 0:
+            notify(f"...clustering is done! results in '{args.output}'")
+            notify(f"                       cluster counts in '{args.cluster_sizes}'")
         return status

@@ -8,6 +8,7 @@
 | `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch)
+| `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
 
 This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
 
@@ -26,7 +27,8 @@ sourmash supports a variety of different storage formats for sketches (see [sour
 | `fastmultigather` | Multiple metagenomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
 | `manysearch` | Multiple genomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
 | `multisearch` | Multiple sketches in sig, zip, manifest CSV, or fromfile | Multiple sketches in sig, zip, manifest CSV, or fromfile |
-| `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A 
+| `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A |
+| `cluster`| Output from `pairwise` or `multisearch`| N/A |
 
 ### Using zipfiles
 
@@ -223,6 +225,31 @@ We suggest using a manifest CSV for the metagenome collection.
 
 The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
+
+### Running `cluster`
+
+The `cluster` command conducts graph-based clustering via the sequence similarity measures in `pairwise` or `multisearch` outputs. It is a new command and we are exploring its utility.
+
+`cluster` takes the csv output of `pairwise` or `multisearch` input, and outputs two CSVs:
+
+1. `-o`, `--output` will contain the names of the clusters and the `ident` of each sequence included in the cluster (e.g. `Component_1, name1;name2`)
+
+```
+cluster,nodes
+Component_1,name1;name2;name3
+Component_2,name4
+```
+
+2. `--cluster-sizes` will contain information on cluster size, with a counts for the number of clusters of that size. For the two clusters above, the counts would look like this:
+
+```
+cluster_size,count
+3,1
+1,1
+```
+
+`cluster` takes a `--similarity_column` argument to specify which of the similarity columns, with the following choices: `containment`, `max_containment`, `jaccard`, `average_containment_ani`, `maximum_containment_ani`. All values should be input as fractions (e.g. 0.9 for 90%)
+
 ## Notes on concurrency and efficiency
 
 Each command does things slightly differently, with implications for CPU and disk load. You can measure threading efficiency with `/usr/bin/time -v` on Linux systems, and disk load by number of complaints received when running.
@@ -238,6 +265,8 @@ Each command does things slightly differently, with implications for CPU and dis
 Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! We suggest using zipfile or manifests for the database.
 
 `fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
+
+`cluster` loads the entire file multithreaded, and then populates the graph sequentially.
 
 ## Appendix 1 - `index` to create a low-memory index
 
