@@ -328,14 +328,16 @@ class Branchwater_Manysketch(CommandLinePlugin):
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('fromfile_csv', help="a csv file containing paths to fasta files. \
-                        Columns must be: 'name,genome_filename,protein_filename'")
+        p.add_argument('fromfile_csv', help="a csv file containing paths to FASTA files. \
+                        Columns must be: 'name,genome_filename,protein_filename' or 'name,read1,read2'")
         p.add_argument('-o', '--output', required=True,
                        help='output zip file for the signatures')
         p.add_argument('-p', '--param-string', action='append', type=str, default=[],
                           help='parameter string for sketching (default: k=31,scaled=1000)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('-s', '--singleton', action="store_true",
+                       help='build one sketch per FASTA record, i.e. multiple sketches per FASTA file')
 
     def main(self, args):
         print_version()
@@ -355,7 +357,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
         super().main(args)
         status = sourmash_plugin_branchwater.do_manysketch(args.fromfile_csv,
                                                            args.param_string,
-                                                           args.output)
+                                                           args.output,
+                                                           args.singleton)
         if status == 0:
             notify(f"...manysketch is done! results in '{args.output}'")
         return status
