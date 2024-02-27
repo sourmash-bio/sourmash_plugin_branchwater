@@ -372,10 +372,10 @@ class Branchwater_Cluster(CommandLinePlugin):
                        help='output csv file for the clusters')
         p.add_argument('--cluster-sizes', required=True,
                        help='output file for the cluster size histogram')
-        p.add_argument('--similarity-column', type=str, default='average_ani',
-                          choices=['containment', 'max_containment', 'jaccard', 'average_containment_ani', 'max_containment_ani'],
-                          help='column to use as distance measure')
-        p.add_argument('-t', '--threshold',  type=float, default=0.95, help="similarity threshold for clustering. Default: 95% ANI (0.95)")
+        p.add_argument('--similarity-column', type=str, default='average_containment_ani',
+                       choices=['containment', 'max_containment', 'jaccard', 'average_containment_ani', 'max_containment_ani'],
+                       help='column to use as distance measure')
+        p.add_argument('-t', '--threshold',  type=float, default=0.95, help="similarity threshold for clustering. Default: 95%% ANI (0.95)")
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
 
@@ -388,10 +388,10 @@ class Branchwater_Cluster(CommandLinePlugin):
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_cluster(args.pairwise_csv,
-                                                           args.output,
-                                                           args.cluster_sizes,
-                                                           args.similarity_column,
-                                                           args.threshold)
+                                                        args.output,
+                                                        args.cluster_sizes,
+                                                        args.similarity_column,
+                                                        args.threshold)
         if status == 0:
             notify(f"...clustering is done! results in '{args.output}'")
             notify(f"                       cluster counts in '{args.cluster_sizes}'")
