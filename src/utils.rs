@@ -262,8 +262,8 @@ fn process_reads_csv(
             .get(1)
             .ok_or_else(|| anyhow!("Missing 'read1' field"))?;
         read1_count += 1;
-        let read2 = record.get(2); // No error if missing
         let mut paths = vec![PathBuf::from(read1)];
+        // allow missing read2
         let read2 = record
             .get(2)
             .and_then(|r2| if r2.is_empty() { None } else { Some(r2) });
