@@ -8,6 +8,7 @@ use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use glob::glob;
+// use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
@@ -151,10 +152,11 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
         && headers.get(2).unwrap() == "read2"
     {
         CSVType::Reads
-    } else if headers.len() == 3
+    } else if headers.len() == 4
         && headers.get(0).unwrap() == "name"
         && headers.get(1).unwrap() == "moltype"
         && headers.get(2).unwrap() == "prefix"
+        && headers.get(3).unwrap() == "exclude"
     {
         CSVType::Prefix
     } else {
@@ -326,24 +328,65 @@ fn process_prefix_csv(
             .ok_or_else(|| anyhow!("Missing 'moltype' field"))?
             .to_string();
 
-        let prefix = record
-            .get(2)
-            .ok_or_else(|| anyhow!("Missing 'prefix' field"))?
-            .to_string();
-
         // Validate moltype
         match moltype.as_str() {
             "protein" | "dna" | "DNA" => (),
             _ => return Err(anyhow!("Invalid 'moltype' field value: {}", moltype)),
         }
 
+        let prefix = record
+            .get(2)
+            .ok_or_else(|| anyhow!("Missing 'prefix' field"))?
+            .to_string();
+
+        // optional exclude pattern
+        let exclude_pattern = record.get(3);
+
+        // let prefix_regex = Regex::new(&format!("^{}", prefix.replace("*", ".*")))?;
+        // let exclude_regex = if let Some(pattern) = exclude_pattern {
+        //     Some(Regex::new(&pattern.replace("*", ".*"))?)
+        // } else {
+        //     None
+        // };
+
+        // let paths: Vec<PathBuf> = glob("")?
+        //     .filter_map(Result::ok)
+        //     .map(PathBuf::from_path_buf)
+        //     .filter_map(Result::ok)
+        //     .filter(|path| {
+        //         prefix_regex.is_match(path.as_str()) &&
+        //         exclude_regex.as_ref().map_or(true, |re| !re.is_match(path.as_str()))
+        //     })
+        //     .collect();
+
         // Use glob to find matching files
         let pattern = format!("{}*", prefix);
+        eprintln!("{}", pattern);
         let paths = glob(&pattern)
             .expect("Failed to read glob pattern")
             .filter_map(Result::ok) // Filter out Err values and unwrap Ok values
-            .map(|path_buf| PathBuf::from_path_buf(path_buf).expect("Path is not valid UTF-8"))
-            .collect::<Vec<PathBuf>>();
+            .map(|path| PathBuf::from_path_buf(path).expect("Path is not valid UTF-8"))
+            .filter(|utf8_path| {
+                // If exclude_pattern is specified, filter out paths that match
+                if let Some(exclude) = exclude_pattern {
+                    !utf8_path.as_str().contains(exclude)
+                } else {
+                    true
+                }
+            })
+            .collect::<Vec<camino::Utf8PathBuf>>();
+        // let paths = glob(&pattern)
+        //     .expect("Failed to read glob pattern")
+        //     .filter_map(Result::ok) // Filter out Err values and unwrap Ok values
+        //     .map(|path_buf| PathBuf::from_path_buf(path_buf).expect("Path is not valid UTF-8"))
+        //     .filter(|path| {
+        //         // If exclude_pattern is specified, filter out paths that match
+        //         if let Some(exclude) = exclude_pattern {
+        //             return path.into_string().map_or(false, |s| !s.contains(exclude));
+        //         }
+        //         true
+        //     })
+        //     .collect::<Vec<PathBuf>>();
 
         if !paths.is_empty() {
             match moltype.as_str() {
@@ -351,11 +394,12 @@ fn process_prefix_csv(
                 "protein" => protein_count += paths.len(),
                 _ => {} // should not get here b/c validated earlier
             }
-            results.push((name, paths, moltype)); // Use the moltype from the CSV
+            eprintln!("{},{:?},{}", name, paths, moltype);
+            results.push((name, paths, moltype));
         }
     }
 
-    println!("Found 'prefix' CSV; Using 'glob' to find files based on 'prefix' column.");
+    println!("Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column.");
     println!(
         "Loaded {} rows in total ({} with dna and {} with protein), {} duplicates skipped.",
         processed_rows.len(),

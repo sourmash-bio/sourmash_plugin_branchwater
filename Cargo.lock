@@ -1613,6 +1613,7 @@ dependencies = [
  "predicates",
  "pyo3",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "simple-error",

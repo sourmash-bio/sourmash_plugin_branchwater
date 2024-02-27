@@ -541,3 +541,59 @@ def test_manysketch_reads(runtmp, capfd):
             assert sig == sig1
         if sig.name == 'short3':
             assert sig == sig2
+
+
+def test_manysketch_prefix(runtmp, capfd):
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+    
+    fa_path = os.path.dirname(fa1)
+    dna_prefix = os.path.join(fa_path, "short*.fa") # need to avoid matching short-protein.fa
+    prot_prefix = os.path.join(fa_path, "protein.fa")
+
+    with open(fa_csv, 'wt') as fp:
+        fp.write("name,moltype,prefix,exclude\n")
+        fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # short.fa, short2.fa, short3.fa, short-protein.fa
+        fp.write(f"short_protein,protein,protein,\n")
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dna,k=31,scaled=1", '-p', "protein,k=10,scaled=1")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+    assert "Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column." in captured.out
+    assert "DONE. Processed 4 fasta files" in captured.err
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 2
+
+    # make same sigs with sourmash
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+    fa4 = get_test_data('short-protein.fa')
+    s1 = runtmp.output('short.sig')
+    runtmp.sourmash('sketch', 'dna', fa1, fa2, fa3, '-o', s1,
+                    '--param-str', "dna,k=31,scaled=1", '--name', 'short')
+    sig1 = sourmash.load_one_signature(s1)
+    s2 = runtmp.output('short-protein.sig')
+    runtmp.sourmash('sketch', 'protein', fa4, '-o', s2,
+                    '--param-str', "protein,k=10,scaled=1", '--name', 'short-protein')
+    sig2 = sourmash.load_one_signature(s2)
+
+    expected_signames = ['short', 'short-protein']
+    for sig in sigs:
+        assert sig.name in expected_signames
+        if sig.name == 'short':
+            assert sig,minhash.hashes == sig1.minhash.hashes
+        if sig.name == 'short-protein':
+            assert sig == sig2
+
