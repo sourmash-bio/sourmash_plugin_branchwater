@@ -119,13 +119,12 @@ pub fn manysketch(
     output: String,
     singleton: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let fileinfo = match load_fasta_fromfile(filelist) {
-        Ok(result) => result,
+    let (fileinfo, n_fastas) = match load_fasta_fromfile(filelist) {
+        Ok((file_info, n_fastas)) => (file_info, n_fastas),
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e),
     };
 
     // if no files to process, exit with error
-    let n_fastas = fileinfo.len();
     if n_fastas == 0 {
         bail!("No files to load, exiting.");
     }

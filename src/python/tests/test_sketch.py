@@ -12,7 +12,7 @@ def get_test_data(filename):
     return os.path.join(thisdir, 'test-data', filename)
 
 
-def make_file_csv(filename, genome_paths, protein_paths = []):
+def make_assembly_csv(filename, genome_paths, protein_paths = []):
     # equalize path lengths by adding "".
     names = [os.path.basename(x).split('.fa')[0] for x in genome_paths]
     if len(protein_paths) < len(genome_paths):
@@ -25,6 +25,14 @@ def make_file_csv(filename, genome_paths, protein_paths = []):
         fp.write("name,genome_filename,protein_filename\n")
         for name, genome_path, protein_path in zip(names, genome_paths, protein_paths):
             fp.write("{},{},{}\n".format(name, genome_path, protein_path))
+
+def make_reads_csv(filename, reads_tuples = []):
+    # reads tuples should be (name,read1,read2)
+    with open(filename, 'wt') as fp:
+        fp.write("name,read1,read2\n")
+        for (name, read1, read2) in reads_tuples:
+            print(f"{name},{read1},{read2}")
+            fp.write("{},{},{}\n".format(name, read1, read2))
 
 
 def test_installed(runtmp):
@@ -41,7 +49,7 @@ def test_manysketch_simple(runtmp):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -65,7 +73,7 @@ def test_manysketch_mult_k(runtmp):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -89,7 +97,7 @@ def test_manysketch_mult_k_2(runtmp):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -116,7 +124,7 @@ def test_manysketch_mult_moltype(runtmp):
     fa3 = get_test_data('short3.fa')
     protfa1 = get_test_data('short-protein.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
 
     output = runtmp.output('db.zip')
 
@@ -158,7 +166,7 @@ def test_manysketch_only_incompatible_fastas(runtmp, capfd):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -185,7 +193,7 @@ def test_manysketch_skip_incompatible_fastas(runtmp, capfd):
     fa3 = get_test_data('short3.fa')
     protfa1 = get_test_data('short-protein.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
 
     output = runtmp.output('db.zip')
 
@@ -235,7 +243,7 @@ def test_manysketch_bad_fa_csv(runtmp, capfd):
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    make_file_csv(siglist, [sig2, sig47, sig63])
+    make_assembly_csv(siglist, [sig2, sig47, sig63])
 
     output = runtmp.output('db.zip')
 
@@ -273,7 +281,7 @@ def test_manysketch_bad_fa_csv_3(runtmp, capfd):
     protfa1 = get_test_data('short-protein.fa')
 
     # make file csv but don't fill empty protein rows with ,""
-    make_file_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
     g_fa = [fa1, fa2, fa3]
     p_fa = [protfa1]
     with open(fa_csv, 'wt') as fp:
@@ -302,7 +310,7 @@ def test_manysketch_empty_fa_csv(runtmp, capfd):
     # test empty fa_csv file
     fa_csv = runtmp.output('fa.txt')
     output = runtmp.output('out.zip')
-    make_file_csv(fa_csv, []) # empty
+    make_assembly_csv(fa_csv, []) # empty
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'manysketch', fa_csv,
@@ -321,7 +329,7 @@ def test_manysketch_duplicated_rows(runtmp, capfd):
     fa3 = get_test_data('short3.fa')
     protfa1 = get_test_data('short-protein.fa')
 
-    make_file_csv(fa_csv, [fa1, fa1, fa1, fa3])
+    make_assembly_csv(fa_csv, [fa1, fa1, fa1, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -350,7 +358,7 @@ def test_manysketch_N_in_dna(runtmp):
         fp.write(">bad\n")
         fp.write("ACAGTN\n")
 
-    make_file_csv(fa_csv, [fa1])
+    make_assembly_csv(fa_csv, [fa1])
 
     output = runtmp.output('db.zip')
 
@@ -375,7 +383,7 @@ def test_zip_manifest(runtmp, capfd):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
     output = runtmp.output('db.zip')
 
     runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
@@ -414,7 +422,7 @@ def test_protein_zip_manifest(runtmp, capfd):
     fa1 = get_test_data('short.fa')
     fa2 = get_test_data('short-protein.fa')
 
-    make_file_csv(fa_csv, [fa1], [fa2])
+    make_assembly_csv(fa_csv, [fa1], [fa2])
     output = runtmp.output('db.zip')
 
     runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
@@ -458,7 +466,7 @@ def test_manysketch_singleton(runtmp):
     fa2 = get_test_data('short2.fa')
     fa3 = get_test_data('short3.fa')
 
-    make_file_csv(fa_csv, [fa1, fa2, fa3])
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
 
     output = runtmp.output('db.zip')
 
@@ -487,3 +495,49 @@ def test_manysketch_singleton(runtmp):
             assert sig == ss_sketch1
         if sig.name == 'other':
             assert sig == ss_sketch2
+
+
+def test_manysketch_reads(runtmp, capfd):
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+
+    make_reads_csv(fa_csv, [("short", fa1, fa2), ('short3', fa3, '')]) # make sure we can just do read1 alone
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dna,k=31,scaled=1")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+    assert "Found 'reads' CSV, assuming all files are DNA." in captured.out
+    assert "Starting file 3/3 (100%)" in captured.err
+    assert "DONE. Processed 3 fasta files" in captured.err
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 2
+    s1 = runtmp.output('short.sig')
+    runtmp.sourmash('sketch', 'dna', fa1, fa2, '-o', s1,
+                    '--param-str', "k=31,scaled=1", '--name', 'short')
+    sig1 = sourmash.load_one_signature(s1)
+    s3 = runtmp.output('short3.sig')
+    runtmp.sourmash('sketch', 'dna', fa3, '-o', s3,
+                    '--param-str', "k=31,scaled=1", '--name', 'short3')
+    sig2 = sourmash.load_one_signature(s3)
+
+    expected_signames = ['short', 'short3']
+    for sig in sigs:
+        assert sig.name in expected_signames
+        if sig.name == 'short':
+            assert sig == sig1
+        if sig.name == 'short3':
+            assert sig == sig2

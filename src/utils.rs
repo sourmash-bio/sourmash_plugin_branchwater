@@ -7,7 +7,6 @@ use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
-// use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
@@ -157,7 +156,7 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
 
 pub fn load_fasta_fromfile(
     sketchlist_filename: String,
-) -> Result<Vec<(String, Vec<PathBuf>, String)>> {
+) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
     // Check for right header
@@ -175,7 +174,7 @@ pub fn load_fasta_fromfile(
 
 fn process_assembly_csv(
     mut rdr: csv::Reader<std::fs::File>,
-) -> Result<Vec<(String, Vec<PathBuf>, String)>> {
+) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
     let mut results = Vec::new();
 
     let mut row_count = 0;
@@ -201,28 +200,27 @@ fn process_assembly_csv(
             .ok_or_else(|| anyhow!("Missing 'name' field"))?
             .to_string();
 
-        let genome_filename = record
-            .get(1)
-            .ok_or_else(|| anyhow!("Missing 'genome_filename' field"))?;
-        if !genome_filename.is_empty() {
-            results.push((
-                name.clone(),
-                // PathBuf::from(genome_filename),
-                vec![PathBuf::from(genome_filename)],
-                "dna".to_string(),
-            ));
-            genome_count += 1;
+        // Handle optional genome_filename
+        if let Some(genome_filename) = record.get(1) {
+            if !genome_filename.is_empty() {
+                results.push((
+                    name.clone(),
+                    vec![PathBuf::from(genome_filename)],
+                    "dna".to_string(),
+                ));
+                genome_count += 1;
+            }
         }
-        let protein_filename = record
-            .get(2)
-            .ok_or_else(|| anyhow!("Missing 'protein_filename' field"))?;
-        if !protein_filename.is_empty() {
-            results.push((
-                name,
-                vec![PathBuf::from(protein_filename)],
-                "protein".to_string(),
-            ));
-            protein_count += 1;
+        // Handle optional protein_filename
+        if let Some(protein_filename) = record.get(2) {
+            if !protein_filename.is_empty() {
+                results.push((
+                    name,
+                    vec![PathBuf::from(protein_filename)],
+                    "protein".to_string(),
+                ));
+                protein_count += 1;
+            }
         }
     }
     // Print warning if there were duplicated rows.
@@ -233,14 +231,18 @@ fn process_assembly_csv(
         "Loaded {} rows in total ({} genome and {} protein files)",
         row_count, genome_count, protein_count
     );
-    Ok(results)
+    let n_fastas = genome_count + protein_count;
+    Ok((results, n_fastas))
 }
 
 fn process_reads_csv(
     mut rdr: csv::Reader<std::fs::File>,
-) -> Result<Vec<(String, Vec<PathBuf>, String)>> {
+    // ) -> Result<Vec<(String, Vec<PathBuf>, String)>> {
+) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
     let mut results = Vec::new();
     let mut processed_rows = std::collections::HashSet::new();
+    let mut read1_count = 0;
+    let mut read2_count = 0;
     let mut duplicate_count = 0;
 
     for result in rdr.records() {
@@ -259,19 +261,31 @@ fn process_reads_csv(
         let read1 = record
             .get(1)
             .ok_or_else(|| anyhow!("Missing 'read1' field"))?;
+        read1_count += 1;
+        let read2 = record.get(2); // No error if missing
+        let mut paths = vec![PathBuf::from(read1)];
         let read2 = record
             .get(2)
-            .ok_or_else(|| anyhow!("Missing 'read2' field"))?;
-        let paths = vec![PathBuf::from(read1), PathBuf::from(read2)];
-        results.push((name, paths, "alternate".to_string()));
+            .and_then(|r2| if r2.is_empty() { None } else { Some(r2) });
+        if let Some(r2) = read2 {
+            paths.push(PathBuf::from(r2));
+            read2_count += 1;
+        }
+        results.push((name, paths, "dna".to_string()));
     }
 
-    if duplicate_count > 0 {
-        println!("Warning: {} duplicated rows were skipped.", duplicate_count);
-    }
-    println!("Loaded alternate CSV variant.");
+    println!("Found 'reads' CSV, assuming all files are DNA.");
+    println!(
+        "Loaded {} rows in total ({} with read1 and {} with read2), {} duplicates skipped.",
+        processed_rows.len(),
+        read1_count,
+        read2_count,
+        duplicate_count
+    );
 
-    Ok(results)
+    let n_fastas = read1_count + read2_count;
+
+    Ok((results, n_fastas))
 }
 
 // Load all compatible minhashes from a collection into memory
