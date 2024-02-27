@@ -95,8 +95,10 @@ The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped so
 To run `manysketch`, you need to build a text file list of FASTA/FASTQ files (see `manysketch.csv` example, below).
 
 The following formats are accepted:
-- 3 columns: `name,genome_filename,protein_filename`. `genome_filename` entries are considered DNA FASTA, `protein_filename` entries are considered protein FASTA.
-- 3 columns: `name,read1,read2`. All entries considered DNA FASTA, and both `read1` and `read2` files are used as input for a single sketch with name `name`.
+- 3 columns: `name,genome_filename,protein_filename`
+  >`genome_filename` entries are considered DNA FASTA, `protein_filename` entries are considered protein FASTA.
+- 3 columns: `name,read1,read2`
+  > All entries considered DNA FASTA, and both `read1` and `read2` files are used as input for a single sketch with name `name`.
 
 A simple way to build a manysketch input file for a directory is this command snippet:
 ```
@@ -127,7 +129,7 @@ See [the sourmash sketch docs](https://sourmash.readthedocs.io/en/latest/command
 
 #### singleton sketching
 
-`manysketch` also supports building sketches for each record in a FASTA file independently (`--singleton`).
+`manysketch` also supports building independent sketches for each record in a FASTA file (`--singleton`).
 
 You can run:
 
