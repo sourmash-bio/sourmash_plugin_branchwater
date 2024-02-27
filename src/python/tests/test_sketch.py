@@ -562,11 +562,14 @@ def test_manysketch_reads_singleton(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.out)
     print(captured.err)
-    
     assert "Found 'reads' CSV, assuming all files are DNA." in captured.out
     assert "Starting file 2/2 (100%)" in captured.err
     assert "DONE. Processed 2 fasta files" in captured.err
-    
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
     assert len(sigs) == 3
     s1 = runtmp.output('singleton.sig')
     runtmp.sourmash('sketch', 'dna', fa2, fa3, '-o', s1,
@@ -586,13 +589,13 @@ def test_manysketch_reads_singleton(runtmp, capfd):
             assert sig == ss_sketch2
         elif sig.name == 'other':
             assert sig == ss_sketch3
-                    
 
-    def test_manysketch_prefix(runtmp, capfd):
+
+def test_manysketch_prefix(runtmp, capfd):
     fa_csv = runtmp.output('db-fa.csv')
 
     fa1 = get_test_data('short.fa')
-    
+
     fa_path = os.path.dirname(fa1)
     dna_prefix = os.path.join(fa_path, "short*.fa") # need to avoid matching short-protein.fa
     prot_prefix = os.path.join(fa_path, "protein.fa")
@@ -601,8 +604,17 @@ def test_manysketch_reads_singleton(runtmp, capfd):
         fp.write("name,moltype,prefix,exclude\n")
         fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # short.fa, short2.fa, short3.fa, short-protein.fa
         fp.write(f"short_protein,protein,protein,\n")
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
                     '--param-str', "dna,k=31,scaled=1", '-p', "protein,k=10,scaled=1")
 
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
     assert "Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column." in captured.out
     assert "DONE. Processed 4 fasta files" in captured.err
 
