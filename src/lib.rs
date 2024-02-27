@@ -239,6 +239,7 @@ fn do_pairwise(
     scaled: usize,
     moltype: String,
     estimate_ani: bool,
+    write_all: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
@@ -249,6 +250,7 @@ fn do_pairwise(
         &selection,
         allow_failed_sigpaths,
         estimate_ani,
+        write_all,
         output_path,
     ) {
         Ok(_) => Ok(0),

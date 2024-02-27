@@ -12,6 +12,27 @@ def make_file_list(filename, paths):
         fp.write("\n".join(paths))
         fp.write("\n")
 
+
+def test_installed(runtmp):
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'cluster')
+
+    assert 'usage:  cluster' in runtmp.last_result.err
+
+
+def test_cluster_help(runtmp):
+    # test sourmash scripts cluster --help /-h
+    runtmp.sourmash('scripts', 'cluster', '-h')
+
+    print(runtmp.last_result.err)
+    out = runtmp.last_result.out
+    print(out)
+
+    assert "usage:  cluster" in out
+    assert "positional arguments:" in out
+    assert "options:" in out
+
+
 def test_cluster_containment(runtmp): 
     pairwise_csv = get_test_data('cluster.pairwise.csv')
     output = runtmp.output('clusters.csv')
@@ -475,16 +496,3 @@ def test_bad_file(runtmp, capfd):
     print(captured.err)
 
     assert "Error: Failed to build graph" in captured.err
-
-
-def test_cluster_help(runtmp):
-    # test sourmash scripts cluster --help /-h
-    runtmp.sourmash('scripts', 'cluster', '-h')
-
-    print(runtmp.last_result.err)
-    out = runtmp.last_result.out
-    print(out)
-
-    assert "usage:  cluster" in out
-    assert "positional arguments:" in out
-    assert "options:" in out

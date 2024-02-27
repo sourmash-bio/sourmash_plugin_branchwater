@@ -299,6 +299,10 @@ class Branchwater_Pairwise(CommandLinePlugin):
                        help='number of cores to use (default is all available)')
         p.add_argument('-a', '--ani', action='store_true',
                        help='estimate ANI from containment')
+        p.add_argument('--write-all', action="store_true",
+                       help="write self comparisons for sketches that would otherwise \
+                            not be represented in output (ensures all sketches are \
+                                represented in downstream clustering)")
 
     def main(self, args):
         print_version()
@@ -316,6 +320,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
                                                             args.scaled,
                                                             args.moltype,
                                                             args.ani,
+                                                            args.write_all,
                                                             args.output)
         if status == 0:
             notify(f"...pairwise is done! results in '{args.output}'")
