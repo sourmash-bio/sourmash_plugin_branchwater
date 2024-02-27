@@ -88,9 +88,15 @@ When using a fromfile for search, we load all signatures into memory at the star
 
 ### Running `manysketch`
 
-The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped sourmash signature collection (`zip`). `manysketch` uses one thread per input file, so it can (very) efficiently sketch many files at once; and, because sequence file parsing is entirely implemented in Rust, it is much, _much_ faster than `sourmash sketch` for large FASTQ files.
+The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped sourmash signature collection (`zip`). `manysketch` uses one thread per input file, so it can (very) efficiently sketch many files at once; and, because sequence file parsing is entirely implemented in Rust, it is much, _much_ faster than `sourmash sketch` for large FASTQ files. However, it does not currently support translation, i.e. protein signature generation from DNA FASTA.
 
-To run `manysketch`, you need to build a text file list of FASTA/FASTQ files, with one on each line (`manysketch.csv`, below).  A simple way to do this for a directory is this command snippet:
+To run `manysketch`, you need to build a text file list of FASTA/FASTQ files (see `manysketch.csv` example, below).
+
+The following formats are accepted:
+- 3 columns: `name,genome_filename,protein_filename`. `genome_filename` entries considered DNA FASTA, `protein_filename` entries are considered protein FASTA.
+- 3 columns: `name,read1,read2`. All entries considered DNA FASTA, and both `read1` and `read2` files are used as input for a single sketch with name `name`.
+
+A simple way to build a manysketch input file for a directory is this command snippet:
 ```
 echo name,genome_filename,protein_filename > manysketch.csv
 for i in *.fa.gz
@@ -116,6 +122,22 @@ To modify sketching parameters, use `--param-str` or `-p` and provide valid para
 sourmash scripts manysketch fa.csv -o fa.zip -p k=21,k=31,k=51,scaled=1000,abund -p protein,k=10,scaled=200
 ```
 See [the sourmash sketch docs](https://sourmash.readthedocs.io/en/latest/command-line.html#sourmash-sketch-make-sourmash-signatures-from-sequence-data) for more information on param strings.
+
+`manysketch` also supports building sketches for each record in a FASTA file independently (`--singleton`).
+
+You can run:
+
+```
+sourmash scripts manysketch manysketch.csv -o fa.zip --singleton
+```
+The output will be written to `fa.zip`
+
+You can check if all signatures were written properly with
+```
+sourmash sig summarize fa.zip
+```
+> Here, the number of sketches per parameter combination should equal the total number of records in all input FASTA.
+> The `name` column will not be used. Instead, each sketch will be named from the FASTA record name.
 
 ### Running `multisearch`
 
