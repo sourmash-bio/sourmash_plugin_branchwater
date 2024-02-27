@@ -136,8 +136,8 @@ You can check if all signatures were written properly with
 ```
 sourmash sig summarize fa.zip
 ```
-> Here, the number of sketches per parameter combination should equal the total number of records in all input FASTA.
-> The `name` column will not be used. Instead, each sketch will be named from the FASTA record name.
+The number of sketches per parameter combination should equal the total number of records in all input FASTA.
+The `name` column will not be used. Instead, each sketch will be named from the FASTA record name.
 
 ### Running `multisearch`
 
