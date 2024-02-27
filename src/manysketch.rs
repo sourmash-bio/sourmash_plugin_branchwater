@@ -165,7 +165,10 @@ pub fn manysketch(
 
     let send_result = fileinfo
         .par_iter()
-        .filter_map(|(name, filenames, moltype)| {
+        .filter_map(|fastadata| {
+            let name = &fastadata.name;
+            let filenames = &fastadata.paths;
+            let moltype = &fastadata.input_type;
             let mut allsigs = Vec::new();
             // build sig templates for these sketches from params, check if there are sigs to build
             let sig_templates = build_siginfo(&params_vec, moltype);
