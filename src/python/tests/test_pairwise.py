@@ -589,3 +589,38 @@ def test_simple_below_threshold_write_all(runtmp):
             assert float(row['jaccard']) == 1.0
             assert row['query_name'] == row['match_name']
             assert row['query_md5'] == row['match_md5']
+
+
+def test_simple_below_threshold_write_all_no_ani(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'pairwise', query_list,
+                    '-o', output, '--threshold', '0.5',
+                    '--write-all')
+    assert os.path.exists(output)
+
+    with open(output, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = list(reader)
+        print(rows)
+        assert len(rows) == 3
+        for row in rows:
+            assert 'query_containment_ani' not in row.keys()
+            assert 'match_containment_ani' not in row.keys()
+            assert 'average_containment_ani' not in row.keys()
+            assert 'max_containment_ani' not in row.keys()
+            assert float(row['containment']) == 1.0
+            assert float(row['max_containment']) == 1.0
+            assert float(row['jaccard']) == 1.0
+            assert row['query_name'] == row['match_name']
+            assert row['query_md5'] == row['match_md5']

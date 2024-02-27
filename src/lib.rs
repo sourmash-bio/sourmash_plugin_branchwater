@@ -201,6 +201,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 fn do_multisearch(
     querylist_path: String,
     siglist_path: String,
@@ -232,6 +233,7 @@ fn do_multisearch(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 fn do_pairwise(
     siglist_path: String,
     threshold: f64,

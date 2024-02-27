@@ -105,6 +105,18 @@ pub fn pairwise(
             }
         }
         if write_all & !has_written_comparison {
+            let mut query_containment_ani = None;
+            let mut match_containment_ani = None;
+            let mut average_containment_ani = None;
+            let mut max_containment_ani = None;
+
+            if estimate_ani {
+                query_containment_ani = Some(1.0);
+                match_containment_ani = Some(1.0);
+                average_containment_ani = Some(1.0);
+                max_containment_ani = Some(1.0);
+            }
+
             send.send(MultiSearchResult {
                 query_name: query.name.clone(),
                 query_md5: query.md5sum.clone(),
@@ -114,10 +126,10 @@ pub fn pairwise(
                 max_containment: 1.0,
                 jaccard: 1.0,
                 intersect_hashes: query.minhash.size() as f64,
-                query_containment_ani: Some(1.0),
-                match_containment_ani: Some(1.0),
-                average_containment_ani: Some(1.0),
-                max_containment_ani: Some(1.0),
+                query_containment_ani,
+                match_containment_ani,
+                average_containment_ani,
+                max_containment_ani,
             })
             .unwrap();
         }
