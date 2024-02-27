@@ -182,7 +182,6 @@ pub fn manysketch(
             // if merging multiple files, sourmash sets filename as last filename
             let last_filename = filenames.last().unwrap();
 
-            // to do: consider changing reporting to per-sig, no matter how many fastas? but singleton...
             for filename in filenames {
                 // increment processed_fastas counter; make 1-based for % reporting
                 let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);

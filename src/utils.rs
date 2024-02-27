@@ -275,7 +275,8 @@ fn process_reads_csv(
         read1_count += 1;
 
         let mut paths = vec![PathBuf::from(read1)];
-        // if empty read2, do not add to paths
+        // allow missing read2
+
         let read2 = record
             .get(2)
             .and_then(|r2| if r2.is_empty() { None } else { Some(r2) });
