@@ -541,3 +541,51 @@ def test_manysketch_reads(runtmp, capfd):
             assert sig == sig1
         if sig.name == 'short3':
             assert sig == sig2
+
+
+def test_manysketch_reads_singleton(runtmp, capfd):
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+
+    make_reads_csv(fa_csv, [("short", fa2, fa3), ])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dna,k=31,scaled=1", '--singleton')
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+    assert "Found 'reads' CSV, assuming all files are DNA." in captured.out
+    assert "Starting file 2/2 (100%)" in captured.err
+    assert "DONE. Processed 2 fasta files" in captured.err
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 3
+    s1 = runtmp.output('singleton.sig')
+    runtmp.sourmash('sketch', 'dna', fa2, fa3, '-o', s1,
+                    '--param-str', "k=31,scaled=1", '--singleton')
+    ss = sourmash.load_signatures(s1)
+
+    ss_sketch1 = next(ss)
+    ss_sketch2 = next(ss)
+    ss_sketch3 = next(ss)
+
+    expected_signames = ['tr1 4', 'firstname', 'other']
+    for sig in sigs:
+        assert sig.name in expected_signames
+        if sig.name == 'tr1 4':
+            assert sig == ss_sketch1
+        elif sig.name == 'firstname':
+            assert sig == ss_sketch2
+        elif sig.name == 'other':
+            assert sig == ss_sketch3
