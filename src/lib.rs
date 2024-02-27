@@ -262,8 +262,13 @@ fn do_pairwise(
 }
 
 #[pyfunction]
-fn do_manysketch(filelist: String, param_str: String, output: String) -> anyhow::Result<u8> {
-    match manysketch::manysketch(filelist, param_str, output) {
+fn do_manysketch(
+    filelist: String,
+    param_str: String,
+    output: String,
+    singleton: bool,
+) -> anyhow::Result<u8> {
+    match manysketch::manysketch(filelist, param_str, output, singleton) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

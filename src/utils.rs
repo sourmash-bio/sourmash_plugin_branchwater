@@ -7,7 +7,6 @@ use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
-use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
@@ -131,22 +130,51 @@ pub fn write_prefetch(
     Ok(())
 }
 
-pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<Vec<(String, PathBuf, String)>> {
+enum CSVType {
+    Assembly,
+    Reads,
+    Unknown,
+}
+
+fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
+    if headers.len() == 3
+        && headers.get(0).unwrap() == "name"
+        && headers.get(1).unwrap() == "genome_filename"
+        && headers.get(2).unwrap() == "protein_filename"
+    {
+        CSVType::Assembly
+    } else if headers.len() == 3
+        && headers.get(0).unwrap() == "name"
+        && headers.get(1).unwrap() == "read1"
+        && headers.get(2).unwrap() == "read2"
+    {
+        CSVType::Reads
+    } else {
+        CSVType::Unknown
+    }
+}
+
+pub fn load_fasta_fromfile(
+    sketchlist_filename: String,
+) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
     // Check for right header
     let headers = rdr.headers()?;
-    if headers.len() != 3
-        || headers.get(0).unwrap() != "name"
-        || headers.get(1).unwrap() != "genome_filename"
-        || headers.get(2).unwrap() != "protein_filename"
-    {
-        return Err(anyhow!(
-            "Invalid header. Expected 'name,genome_filename,protein_filename', but got '{}'",
-            headers.iter().collect::<Vec<_>>().join(",")
-        ));
-    }
 
+    match detect_csv_type(&headers) {
+        CSVType::Assembly => process_assembly_csv(rdr),
+        CSVType::Reads => process_reads_csv(rdr),
+        CSVType::Unknown => Err(anyhow!(
+            "Invalid header. Expected 'name,genome_filename,protein_filename' or 'name,read1,read2', but got '{}'",
+            headers.iter().collect::<Vec<_>>().join(",")
+        )),
+    }
+}
+
+fn process_assembly_csv(
+    mut rdr: csv::Reader<std::fs::File>,
+) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
     let mut results = Vec::new();
 
     let mut row_count = 0;
@@ -172,24 +200,27 @@ pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<Vec<(String, P
             .ok_or_else(|| anyhow!("Missing 'name' field"))?
             .to_string();
 
-        let genome_filename = record
-            .get(1)
-            .ok_or_else(|| anyhow!("Missing 'genome_filename' field"))?;
-        if !genome_filename.is_empty() {
-            results.push((
-                name.clone(),
-                PathBuf::from(genome_filename),
-                "dna".to_string(),
-            ));
-            genome_count += 1;
+        // Handle optional genome_filename
+        if let Some(genome_filename) = record.get(1) {
+            if !genome_filename.is_empty() {
+                results.push((
+                    name.clone(),
+                    vec![PathBuf::from(genome_filename)],
+                    "dna".to_string(),
+                ));
+                genome_count += 1;
+            }
         }
-
-        let protein_filename = record
-            .get(2)
-            .ok_or_else(|| anyhow!("Missing 'protein_filename' field"))?;
-        if !protein_filename.is_empty() {
-            results.push((name, PathBuf::from(protein_filename), "protein".to_string()));
-            protein_count += 1;
+        // Handle optional protein_filename
+        if let Some(protein_filename) = record.get(2) {
+            if !protein_filename.is_empty() {
+                results.push((
+                    name,
+                    vec![PathBuf::from(protein_filename)],
+                    "protein".to_string(),
+                ));
+                protein_count += 1;
+            }
         }
     }
     // Print warning if there were duplicated rows.
@@ -200,7 +231,61 @@ pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<Vec<(String, P
         "Loaded {} rows in total ({} genome and {} protein files)",
         row_count, genome_count, protein_count
     );
-    Ok(results)
+    let n_fastas = genome_count + protein_count;
+    Ok((results, n_fastas))
+}
+
+fn process_reads_csv(
+    mut rdr: csv::Reader<std::fs::File>,
+    // ) -> Result<Vec<(String, Vec<PathBuf>, String)>> {
+) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
+    let mut results = Vec::new();
+    let mut processed_rows = std::collections::HashSet::new();
+    let mut read1_count = 0;
+    let mut read2_count = 0;
+    let mut duplicate_count = 0;
+
+    for result in rdr.records() {
+        let record = result?;
+        let row_string = record.iter().collect::<Vec<_>>().join(",");
+        if processed_rows.contains(&row_string) {
+            duplicate_count += 1;
+            continue;
+        }
+        processed_rows.insert(row_string.clone());
+
+        let name = record
+            .get(0)
+            .ok_or_else(|| anyhow!("Missing 'name' field"))?
+            .to_string();
+        let read1 = record
+            .get(1)
+            .ok_or_else(|| anyhow!("Missing 'read1' field"))?;
+        read1_count += 1;
+        let mut paths = vec![PathBuf::from(read1)];
+        // allow missing read2
+        let read2 = record
+            .get(2)
+            .and_then(|r2| if r2.is_empty() { None } else { Some(r2) });
+        if let Some(r2) = read2 {
+            paths.push(PathBuf::from(r2));
+            read2_count += 1;
+        }
+        results.push((name, paths, "dna".to_string()));
+    }
+
+    println!("Found 'reads' CSV, assuming all files are DNA.");
+    println!(
+        "Loaded {} rows in total ({} with read1 and {} with read2), {} duplicates skipped.",
+        processed_rows.len(),
+        read1_count,
+        read2_count,
+        duplicate_count
+    );
+
+    let n_fastas = read1_count + read2_count;
+
+    Ok((results, n_fastas))
 }
 
 // Load all compatible minhashes from a collection into memory
@@ -769,36 +854,6 @@ pub struct MultiSearchResult {
     pub average_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
-}
-
-#[derive(Serialize)]
-pub struct ManifestRow {
-    pub md5: String,
-    pub md5short: String,
-    pub ksize: u32,
-    pub moltype: String,
-    pub num: u32,
-    pub scaled: u64,
-    pub n_hashes: usize,
-    pub with_abundance: BoolPython,
-    pub name: String,
-    pub filename: String,
-    pub internal_location: String,
-}
-
-// A wrapper type for booleans to customize serialization
-pub struct BoolPython(bool);
-
-impl Serialize for BoolPython {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self.0 {
-            true => serializer.serialize_str("True"),
-            false => serializer.serialize_str("False"),
-        }
-    }
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
