@@ -362,12 +362,12 @@ class Branchwater_Manysketch(CommandLinePlugin):
 
 class Branchwater_Cluster(CommandLinePlugin):
     command = 'cluster'
-    description = 'cluster from "pairwise" results'
+    description = 'cluster from "pairwise" or "multisearch" results'
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('pairwise_csv', help="a csv file containing distance information. \
-                        Currently, only a branchwater 'pairwise' file will work")
+        p.add_argument('pairwise_csv', help="a csv file containing similarity information. \
+                        Currently, only a branchwater 'pairwise' or 'multisearch' file will work")
         p.add_argument('-o', '--output', required=True,
                        help='output csv file for the clusters')
         p.add_argument('--cluster-sizes', default=None,
