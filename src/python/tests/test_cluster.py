@@ -152,6 +152,66 @@ def test_cluster_jaccard(runtmp):
     assert rows_as_tuples == expected
 
 
+def test_cluster_default_similarity(runtmp):
+    pairwise_csv = get_test_data('cluster.pairwise.csv')
+    output = runtmp.output('clusters.csv')
+    sizes = runtmp.output('sizes.csv')
+    threshold = '0.9'
+
+    runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
+                    '--threshold', threshold)
+
+    assert os.path.exists(output)
+
+    # check cluster output
+    with open(output, mode='r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = [row for row in reader]
+        assert reader.fieldnames == ['cluster','nodes']
+    assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
+    assert rows[0]['cluster'] == 'Component_1'
+    expected_node_sets = [
+    set("n1;n2;n3;n4;n5".split(';')),
+    set("n6;n7".split(';'))
+    ]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
+
+    # check cluster size histogram
+    assert not os.path.exists(sizes)
+
+
+def test_cluster_default_threshold(runtmp):
+    # test default threshold (0.95)
+    pairwise_csv = get_test_data('cluster.pairwise.csv')
+    output = runtmp.output('clusters.csv')
+    sizes = runtmp.output('sizes.csv')
+
+    runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output)
+
+    assert os.path.exists(output)
+
+    # check cluster output
+    with open(output, mode='r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = [row for row in reader]
+        assert reader.fieldnames == ['cluster','nodes']
+    assert len(rows) == 5, f"Expected 5 data rows but found {len(rows)}"
+    assert rows[0]['cluster'] == 'Component_1'
+    expected_node_sets = [
+    set("n1".split(';')),
+    set("n2;n3;n4".split(';')),
+    set("n5".split(';')),
+    set("n6".split(';')),
+    set("n7".split(';'))
+    ]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
+
+    # check cluster size histogram
+    assert not os.path.exists(sizes)
+
+
 def test_cluster_ani(runtmp):
     pairwise_csv = get_test_data('cluster.pairwise.csv')
     output = runtmp.output('clusters.csv')
@@ -175,7 +235,6 @@ def test_cluster_ani(runtmp):
     set("n1;n2;n3;n4;n5".split(';')),
     set("n6;n7".split(';'))
     ]
-    expected_node_sets = [set("n1;n2;n3;n4;n5".split(';')), set("n6;n7".split(';'))]
     for row in rows:
         assert set(row['nodes'].split(';')) in expected_node_sets
 
@@ -416,3 +475,16 @@ def test_bad_file(runtmp, capfd):
     print(captured.err)
 
     assert "Error: Failed to build graph" in captured.err
+
+
+def test_cluster_help(runtmp):
+    # test sourmash scripts cluster --help /-h
+    runtmp.sourmash('scripts', 'cluster', '-h')
+
+    print(runtmp.last_result.err)
+    out = runtmp.last_result.out
+    print(out)
+
+    assert "usage:  cluster" in out
+    assert "positional arguments:" in out
+    assert "options:" in out

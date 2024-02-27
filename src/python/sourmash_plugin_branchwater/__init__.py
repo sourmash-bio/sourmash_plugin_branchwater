@@ -370,7 +370,7 @@ class Branchwater_Cluster(CommandLinePlugin):
                         Currently, only a branchwater 'pairwise' file will work")
         p.add_argument('-o', '--output', required=True,
                        help='output csv file for the clusters')
-        p.add_argument('--cluster-sizes', required=True,
+        p.add_argument('--cluster-sizes', default=None,
                        help='output file for the cluster size histogram')
         p.add_argument('--similarity-column', type=str, default='average_containment_ani',
                        choices=['containment', 'max_containment', 'jaccard', 'average_containment_ani', 'max_containment_ani'],
@@ -389,9 +389,9 @@ class Branchwater_Cluster(CommandLinePlugin):
         super().main(args)
         status = sourmash_plugin_branchwater.do_cluster(args.pairwise_csv,
                                                         args.output,
-                                                        args.cluster_sizes,
                                                         args.similarity_column,
-                                                        args.threshold)
+                                                        args.threshold,
+                                                        args.cluster_sizes)
         if status == 0:
             notify(f"...clustering is done! results in '{args.output}'")
             notify(f"                       cluster counts in '{args.cluster_sizes}'")

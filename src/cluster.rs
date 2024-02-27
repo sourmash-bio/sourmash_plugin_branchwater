@@ -82,9 +82,9 @@ fn build_graph(
 pub fn cluster(
     pairwise_csv: String,
     output_clusters: String,
-    cluster_sizes: String,
     similarity_column: String,
     similarity_threshold: f64,
+    cluster_sizes: Option<String>,
 ) -> Result<()> {
     let (graph, name_to_node) =
         match build_graph(&pairwise_csv, &similarity_column, similarity_threshold) {
@@ -134,13 +134,15 @@ pub fn cluster(
     }
 
     // write the sizes and counts
-    let mut cluster_size_file =
-        File::create(cluster_sizes).context("Failed to create cluster size file")?;
-    writeln!(cluster_size_file, "cluster_size,count")
-        .context("Failed to write header to cluster size file")?;
-    for (size, count) in size_counts {
-        writeln!(cluster_size_file, "{},{}", size, count)
-            .context("Failed to write size count to cluster size file")?;
+    if let Some(sizes_file) = cluster_sizes {
+        let mut cluster_size_file =
+            File::create(sizes_file).context("Failed to create cluster size file")?;
+        writeln!(cluster_size_file, "cluster_size,count")
+            .context("Failed to write header to cluster size file")?;
+        for (size, count) in size_counts {
+            writeln!(cluster_size_file, "{},{}", size, count)
+                .context("Failed to write size count to cluster size file")?;
+        }
     }
 
     Ok(())
