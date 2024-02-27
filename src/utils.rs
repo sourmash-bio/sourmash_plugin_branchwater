@@ -130,6 +130,12 @@ pub fn write_prefetch(
     Ok(())
 }
 
+pub struct FastaData {
+    pub name: String,
+    pub paths: Vec<PathBuf>,
+    pub input_type: String, // to do - this could use moltype enum?
+}
+
 enum CSVType {
     Assembly,
     Reads,
@@ -154,15 +160,13 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
     }
 }
 
-pub fn load_fasta_fromfile(
-    sketchlist_filename: String,
-) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
+pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<(Vec<FastaData>, usize)> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
     // Check for right header
     let headers = rdr.headers()?;
 
-    match detect_csv_type(&headers) {
+    match detect_csv_type(headers) {
         CSVType::Assembly => process_assembly_csv(rdr),
         CSVType::Reads => process_reads_csv(rdr),
         CSVType::Unknown => Err(anyhow!(
@@ -172,9 +176,7 @@ pub fn load_fasta_fromfile(
     }
 }
 
-fn process_assembly_csv(
-    mut rdr: csv::Reader<std::fs::File>,
-) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
+fn process_assembly_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaData>, usize)> {
     let mut results = Vec::new();
 
     let mut row_count = 0;
@@ -203,22 +205,22 @@ fn process_assembly_csv(
         // Handle optional genome_filename
         if let Some(genome_filename) = record.get(1) {
             if !genome_filename.is_empty() {
-                results.push((
-                    name.clone(),
-                    vec![PathBuf::from(genome_filename)],
-                    "dna".to_string(),
-                ));
+                results.push(FastaData {
+                    name: name.clone(),
+                    paths: vec![PathBuf::from(genome_filename)],
+                    input_type: "dna".to_string(),
+                });
                 genome_count += 1;
             }
         }
         // Handle optional protein_filename
         if let Some(protein_filename) = record.get(2) {
             if !protein_filename.is_empty() {
-                results.push((
-                    name,
-                    vec![PathBuf::from(protein_filename)],
-                    "protein".to_string(),
-                ));
+                results.push(FastaData {
+                    name: name.clone(),
+                    paths: vec![PathBuf::from(protein_filename)],
+                    input_type: "protein".to_string(),
+                });
                 protein_count += 1;
             }
         }
@@ -235,10 +237,7 @@ fn process_assembly_csv(
     Ok((results, n_fastas))
 }
 
-fn process_reads_csv(
-    mut rdr: csv::Reader<std::fs::File>,
-    // ) -> Result<Vec<(String, Vec<PathBuf>, String)>> {
-) -> Result<(Vec<(String, Vec<PathBuf>, String)>, usize)> {
+fn process_reads_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaData>, usize)> {
     let mut results = Vec::new();
     let mut processed_rows = std::collections::HashSet::new();
     let mut read1_count = 0;
@@ -271,7 +270,11 @@ fn process_reads_csv(
             paths.push(PathBuf::from(r2));
             read2_count += 1;
         }
-        results.push((name, paths, "dna".to_string()));
+        results.push(FastaData {
+            name: name.clone(),
+            paths,
+            input_type: "dna".to_string(),
+        });
     }
 
     println!("Found 'reads' CSV, assuming all files are DNA.");
