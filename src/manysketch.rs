@@ -271,7 +271,7 @@ pub fn manysketch(
                 .unwrap()
                 .send(ZipMessage::SignatureData(filled_sigs))
                 .map_err(|e| anyhow!(e))
-        });
+        })?;
 
     // After the parallel work, send the WriteManifest message
     manager_shared
