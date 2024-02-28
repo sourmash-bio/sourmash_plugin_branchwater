@@ -1,6 +1,7 @@
 # sourmash_plugin_branchwater
 
 [![PyPI](https://img.shields.io/pypi/v/sourmash_plugin_branchwater)](https://pypi.org/project/sourmash_plugin_branchwater/)
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/sourmash_plugin_branchwater.svg)](https://anaconda.org/conda-forge/sourmash_plugin_branchwater)
 
 tl;dr Do faster and lower-memory sourmash functions via this plugin.
 
