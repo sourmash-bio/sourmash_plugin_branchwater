@@ -100,20 +100,24 @@ pub fn pairwise(
                     average_containment_ani = Some((qani + mani) / 2.);
                     max_containment_ani = Some(f64::max(qani, mani));
                 }
-                manager_clone.lock().unwrap().send(MultiSearchResult {
-                    query_name: query.name.clone(),
-                    query_md5: query.md5sum.clone(),
-                    match_name: against.name.clone(),
-                    match_md5: against.md5sum.clone(),
-                    containment: containment_q1_in_q2,
-                    max_containment,
-                    jaccard,
-                    intersect_hashes: overlap,
-                    query_containment_ani,
-                    match_containment_ani,
-                    average_containment_ani,
-                    max_containment_ani,
-                })
+                manager_clone
+                    .lock()
+                    .unwrap()
+                    .send(MultiSearchResult {
+                        query_name: query.name.clone(),
+                        query_md5: query.md5sum.clone(),
+                        match_name: against.name.clone(),
+                        match_md5: against.md5sum.clone(),
+                        containment: containment_q1_in_q2,
+                        max_containment,
+                        jaccard,
+                        intersect_hashes: overlap,
+                        query_containment_ani,
+                        match_containment_ani,
+                        average_containment_ani,
+                        max_containment_ani,
+                    })
+                    .unwrap()
             }
 
             let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
@@ -134,20 +138,24 @@ pub fn pairwise(
                 max_containment_ani = Some(1.0);
             }
 
-            manager_clone.lock().unwrap().send(MultiSearchResult {
-                query_name: query.name.clone(),
-                query_md5: query.md5sum.clone(),
-                match_name: query.name.clone(),
-                match_md5: query.md5sum.clone(),
-                containment: 1.0,
-                max_containment: 1.0,
-                jaccard: 1.0,
-                intersect_hashes: query.minhash.size() as f64,
-                query_containment_ani,
-                match_containment_ani,
-                average_containment_ani,
-                max_containment_ani,
-            })
+            manager_clone
+                .lock()
+                .unwrap()
+                .send(MultiSearchResult {
+                    query_name: query.name.clone(),
+                    query_md5: query.md5sum.clone(),
+                    match_name: query.name.clone(),
+                    match_md5: query.md5sum.clone(),
+                    containment: 1.0,
+                    max_containment: 1.0,
+                    jaccard: 1.0,
+                    intersect_hashes: query.minhash.size() as f64,
+                    query_containment_ani,
+                    match_containment_ani,
+                    average_containment_ani,
+                    max_containment_ani,
+                })
+                .unwrap()
         }
     });
 

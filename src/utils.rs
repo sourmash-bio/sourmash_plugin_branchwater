@@ -15,7 +15,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
-use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::{SendError, SyncSender};
 use std::sync::Arc;
 
 use sourmash::collection::Collection;
@@ -54,12 +54,11 @@ impl<T: Serialize + Send + 'static> ThreadManager<T> {
         }
     }
 
-    pub fn send(&self, result: T) {
+    pub fn send(&self, result: T) -> Result<(), SendError<T>> {
         if let Some(ref sender) = self.sender {
-            sender.send(result).expect("Failed to send data");
+            sender.send(result)
         } else {
-            // Handle the case where sender is None. This could be a no-op or log an error.
-            eprintln!("Attempted to send data, but sender is closed.");
+            Err(SendError(result)) // send custom error instead?
         }
     }
 
