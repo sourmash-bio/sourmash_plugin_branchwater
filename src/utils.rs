@@ -40,7 +40,7 @@ impl<T: Send + 'static> ThreadManager<T> {
         if std::env::var("PYTEST_RUNNING").is_err() {
             // Only register the Ctrl-C handler if not running with pytest
             ctrlc::set_handler(move || {
-                eprintln!("Ctrl-C received, signaling shutdown...");
+                println!("Ctrl-C received, signaling shutdown...");
                 interrupted_clone.store(true, atomic::Ordering::SeqCst);
                 // Any additional shutdown logic can go here
             })
@@ -73,8 +73,6 @@ impl<T: Send + 'static> ThreadManager<T> {
                 Err(e) => eprintln!("Error joining CSV writer thread: {:?}", e),
             }
         }
-
-        println!("Cleanup complete.");
     }
 }
 
