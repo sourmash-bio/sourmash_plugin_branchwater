@@ -224,6 +224,7 @@ pub fn manysketch(
                         .interrupted
                         .load(Ordering::SeqCst)
                     {
+                        println!("Ctrl-C received, signaling shutdown...");
                         return None; // Early exit if interrupted
                     }
                     match record_result {

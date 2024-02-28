@@ -73,6 +73,7 @@ pub fn pairwise(
                 .interrupted
                 .load(atomic::Ordering::SeqCst)
             {
+                println!("Ctrl-C received, signaling shutdown...");
                 return; // Early return to stop processing further
             }
             let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;

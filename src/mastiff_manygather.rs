@@ -71,6 +71,7 @@ pub fn mastiff_manygather(
                 .interrupted
                 .load(Ordering::SeqCst)
             {
+                println!("Ctrl-C received, signaling shutdown...");
                 return None; // Early exit if interrupted
             }
 
