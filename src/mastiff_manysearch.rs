@@ -2,11 +2,13 @@
 use anyhow::Result;
 use camino::Utf8PathBuf as PathBuf;
 use rayon::prelude::*;
+use std::sync::atomic;
+use std::sync::atomic::AtomicUsize;
+
+use sourmash::ani_utils::ani_from_containment;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
-use std::sync::atomic;
-use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
@@ -74,6 +76,11 @@ pub fn mastiff_manysearch(
                         for (path, overlap) in matches {
                             let containment = overlap as f64 / query_size as f64;
                             if containment >= minimum_containment {
+                                let query_containment_ani = Some(ani_from_containment(
+                                    containment,
+                                    query_mh.ksize() as f64,
+                                ));
+
                                 results.push(SearchResult {
                                     query_name: query_sig.name(),
                                     query_md5: query_sig.md5sum(),
@@ -83,6 +90,10 @@ pub fn mastiff_manysearch(
                                     match_md5: None,
                                     jaccard: None,
                                     max_containment: None,
+                                    query_containment_ani,
+                                    match_containment_ani: None,
+                                    average_containment_ani: None,
+                                    max_containment_ani: None,
                                 });
                             }
                         }
