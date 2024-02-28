@@ -14,7 +14,9 @@ use std::fs::{create_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::mpsc::SyncSender;
+use std::sync::Arc;
 
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
@@ -22,8 +24,63 @@ use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
-/// Track a name/minhash.
 
+pub struct ThreadManager<T: Serialize + Send + 'static> {
+    pub sender: Option<SyncSender<T>>,
+    pub writer_thread: Option<std::thread::JoinHandle<()>>,
+    pub interrupted: Arc<AtomicBool>,
+}
+
+impl<T: Serialize + Send + 'static> ThreadManager<T> {
+    pub fn new(sender: SyncSender<T>, writer_thread: std::thread::JoinHandle<()>) -> Self {
+        let interrupted = Arc::new(AtomicBool::new(false));
+        let interrupted_clone = interrupted.clone();
+
+        // Set up Ctrl-C handling
+        if std::env::var("PYTEST_RUNNING").is_err() {
+            // Only register the Ctrl-C handler if not running with pytest
+            ctrlc::set_handler(move || {
+                eprintln!("Ctrl-C received, signaling shutdown...");
+                interrupted_clone.store(true, atomic::Ordering::SeqCst);
+                // Any additional shutdown logic can go here
+            })
+            .expect("Error setting Ctrl-C handler");
+        }
+
+        ThreadManager {
+            sender: Some(sender),
+            writer_thread: Some(writer_thread),
+            interrupted,
+        }
+    }
+
+    pub fn send(&self, result: T) {
+        if let Some(ref sender) = self.sender {
+            sender.send(result).expect("Failed to send data");
+        } else {
+            // Handle the case where sender is None. This could be a no-op or log an error.
+            eprintln!("Attempted to send data, but sender is closed.");
+        }
+    }
+
+    pub fn perform_cleanup(&mut self) {
+        if let Some(sender) = self.sender.take() {
+            drop(sender); // Close the channel
+            eprintln!("Channel closed.");
+        }
+
+        if let Some(thread) = self.writer_thread.take() {
+            match thread.join() {
+                Ok(_) => println!("CSV writer thread successfully joined."),
+                Err(e) => eprintln!("Error joining CSV writer thread: {:?}", e),
+            }
+        }
+
+        println!("Cleanup complete.");
+    }
+}
+
+/// Track a name/minhash.
 pub struct SmallSignature {
     pub location: String,
     pub name: String,
@@ -859,6 +916,30 @@ pub struct MultiSearchResult {
     pub max_containment_ani: Option<f64>,
 }
 
+// define trait that can work on all SearchResult structs
+// really only using this to generalize ThreadManager
+// to do: make these more useful/descriptive?
+pub trait SearchResultTrait {
+    fn describe(&self) -> String;
+}
+
+impl SearchResultTrait for SearchResult {
+    fn describe(&self) -> String {
+        format!("Query: {}, Match: {}", self.query_name, self.match_name)
+    }
+}
+
+impl SearchResultTrait for BranchwaterGatherResult {
+    fn describe(&self) -> String {
+        format!("Query: {}, Match: {}", self.query_name, self.match_name)
+    }
+}
+impl SearchResultTrait for MultiSearchResult {
+    fn describe(&self) -> String {
+        format!("Query: {}, Match: {}", self.query_name, self.match_name)
+    }
+}
+
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
     // if output is a file, use open_output_file
     if let Some(path) = output {
@@ -961,7 +1042,7 @@ pub fn sigwriter(
     })
 }
 
-pub fn csvwriter_thread<T: Serialize + Send + 'static>(
+pub fn csvwriter_thread<T: Serialize + Send + SearchResultTrait + 'static>(
     recv: std::sync::mpsc::Receiver<T>,
     output: Option<String>,
 ) -> std::thread::JoinHandle<()> {
@@ -972,7 +1053,7 @@ pub fn csvwriter_thread<T: Serialize + Send + 'static>(
         let mut writer = Writer::from_writer(out);
 
         for res in recv.iter() {
-            if let Err(e) = writer.serialize(res) {
+            if let Err(e) = writer.serialize(&res) {
                 eprintln!("Error writing item: {:?}", e);
             }
         }
