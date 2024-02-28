@@ -70,7 +70,6 @@ pub fn multisearch(
     against
         .par_iter()
         .filter_map(|against| {
-            // let manager_clone = manager_shared.clone();
             let mut results = vec![];
             // search for matches & save containment.
             for query in queries.iter() {
@@ -137,8 +136,7 @@ pub fn multisearch(
             }
         })
         .flatten()
-        // .try_for_each_with(send, |s, m| s.send(m));
-        .try_for_each_with(qmanager_shared.clone(), |manager, result| {
+        .try_for_each_with(manager_shared.clone(), |manager, result| {
             manager.lock().unwrap().send(result)
         })?;
 
