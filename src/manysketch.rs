@@ -193,6 +193,15 @@ pub fn manysketch(
             let last_filename = filenames.last().unwrap();
 
             for filename in filenames {
+                if manager_shared
+                    .lock()
+                    .unwrap()
+                    .interrupted
+                    .load(Ordering::SeqCst)
+                {
+                    println!("Ctrl-C received, signaling shutdown...");
+                    return None; // Early exit if interrupted
+                }
                 // increment processed_fastas counter; make 1-based for % reporting
                 let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
                 // progress report at threshold
@@ -218,15 +227,6 @@ pub fn manysketch(
 
                 // parse fasta and add to signature
                 while let Some(record_result) = reader.next() {
-                    if manager_shared
-                        .lock()
-                        .unwrap()
-                        .interrupted
-                        .load(Ordering::SeqCst)
-                    {
-                        println!("Ctrl-C received, signaling shutdown...");
-                        return None; // Early exit if interrupted
-                    }
                     match record_result {
                         Ok(record) => {
                             // do we need to normalize to make sure all the bases are consistently capitalized?
