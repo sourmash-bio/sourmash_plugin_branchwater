@@ -88,7 +88,7 @@ pub fn manysearch(
                                 return None; // Early exit if interrupted
                             }
                             let overlap =
-                                query.minhash.count_common(against_mh, false).unwrap() as f64;
+                                query.minhash.count_common(against_mh, true).unwrap() as f64;
                             let query_size = query.minhash.size() as f64;
                             let target_size = against_mh.size() as f64;
                             let containment_query_in_target = overlap / query_size;

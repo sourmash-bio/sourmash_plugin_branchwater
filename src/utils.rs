@@ -65,12 +65,11 @@ impl<T: Send + 'static> ThreadManager<T> {
     pub fn perform_cleanup(&mut self) {
         if let Some(sender) = self.sender.take() {
             drop(sender); // Close the channel
-            eprintln!("Channel closed.");
         }
 
         if let Some(thread) = self.writer_thread.take() {
             match thread.join() {
-                Ok(_) => println!("CSV writer thread successfully joined."),
+                Ok(_) => {}
                 Err(e) => eprintln!("Error joining CSV writer thread: {:?}", e),
             }
         }
