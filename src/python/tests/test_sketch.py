@@ -703,3 +703,82 @@ def test_manysketch_prefix2(runtmp, capfd):
             assert sig,minhash.hashes == sig1.minhash.hashes
         if sig.name == 'short_protein':
             assert sig == sig2
+
+
+def test_manysketch_prefix_duplicated_fail(runtmp, capfd):
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+
+    fa_path = os.path.dirname(fa1)
+    # test without '*'
+    dna_prefix = os.path.join(fa_path, "short") # need to avoid matching short-protein.fa
+    prot_prefix = os.path.join(fa_path, "*protein")
+    zip_exclude = os.path.join(fa_path, "*zip")
+
+    # make prefix input file
+    with open(fa_csv, 'wt') as fp:
+        fp.write("name,input_moltype,prefix,exclude\n")
+        fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # short.fa, short2.fa, short3.fa, short-protein.fa
+        fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # duplicate of row one -- this should just be skipped 
+        fp.write(f"short_protein,protein,{prot_prefix},{zip_exclude}\n") # short-protein.fa only
+        # ALSO short-protein.fa, but different name. should raise err without force
+        fp.write(f"second_protein,protein,{prot_prefix},{zip_exclude}\n")
+
+    output = runtmp.output('prefix.zip')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                        '--param-str', "dna,k=31,scaled=1", '-p', "protein,k=10,scaled=1")
+
+    assert not os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+    assert "Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column." in captured.out
+    assert "Found identical FASTA paths in more than one row!" in captured.err
+    assert 'Duplicated paths: ["/Users/ntward/dib-lab/sourmash_plugin_branchwater/src/python/tests/test-data/short-protein.fa"]' in captured.err
+    assert "Duplicated FASTA files found. Please use '--force' to enable this" in captured.err
+
+
+def test_manysketch_prefix_duplicated_force(runtmp, capfd):
+    fa_csv = runtmp.output('db-fa.csv')
+
+    fa1 = get_test_data('short.fa')
+
+    fa_path = os.path.dirname(fa1)
+    # test without '*'
+    dna_prefix = os.path.join(fa_path, "short") # need to avoid matching short-protein.fa
+    prot_prefix = os.path.join(fa_path, "*protein")
+    zip_exclude = os.path.join(fa_path, "*zip")
+
+    # make prefix input file
+    with open(fa_csv, 'wt') as fp:
+        fp.write("name,input_moltype,prefix,exclude\n")
+        fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # short.fa, short2.fa, short3.fa, short-protein.fa
+        fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # duplicate of row one -- this should just be skipped 
+        fp.write(f"short_protein,protein,{prot_prefix},{zip_exclude}\n") # short-protein.fa only
+        # ALSO short-protein.fa, but different name. should raise err without force
+        fp.write(f"second_protein,protein,{prot_prefix},{zip_exclude}\n")
+
+    output = runtmp.output('prefix.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dna,k=31,scaled=1", '-p', "protein,k=10,scaled=1",
+                    '--force')
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+    assert "Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column." in captured.out
+    assert "Found identical FASTA paths in more than one row!" in captured.err
+    assert 'Duplicated paths: ["/Users/ntward/dib-lab/sourmash_plugin_branchwater/src/python/tests/test-data/short-protein.fa"]' in captured.err
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 3

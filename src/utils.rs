@@ -23,7 +23,7 @@ use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -312,10 +312,10 @@ fn process_prefix_csv(
     let mut results = Vec::new();
     let mut dna_count = 0;
     let mut protein_count = 0;
-    let mut processed_rows = std::collections::HashSet::new();
+    let mut processed_rows = HashSet::new();
     let mut duplicate_count = 0;
     let mut all_paths = HashSet::new(); // track FASTA in use
-    let mut duplicate_paths_count = std::collections::HashMap::new();
+    let mut duplicate_paths_count = HashMap::new();
 
     for result in rdr.records() {
         let record = result?;
@@ -1062,8 +1062,7 @@ pub fn sigwriter(
         let mut zip = zip::ZipWriter::new(file_writer);
         let mut manifest_rows: Vec<Record> = Vec::new();
         // keep track of md5sum occurrences to prevent overwriting duplicates
-        let mut md5sum_occurrences: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
+        let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
 
         while let Ok(message) = recv.recv() {
             match message {

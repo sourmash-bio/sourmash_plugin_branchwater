@@ -365,7 +365,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
         status = sourmash_plugin_branchwater.do_manysketch(args.fromfile_csv,
                                                            args.param_string,
                                                            args.output,
-                                                           args.singleton)
+                                                           args.singleton,
+                                                           args.force)
         if status == 0:
             notify(f"...manysketch is done! results in '{args.output}'")
         return status
