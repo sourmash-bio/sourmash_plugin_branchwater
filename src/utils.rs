@@ -8,7 +8,6 @@ use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use glob::glob;
-// use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
@@ -24,6 +23,7 @@ use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
+use std::collections::HashSet;
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -154,9 +154,9 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
         CSVType::Reads
     } else if headers.len() == 4
         && headers.get(0).unwrap() == "name"
-        && headers.get(1).unwrap() == "moltype"
+        && headers.get(1).unwrap() == "input_moltype"
         && headers.get(2).unwrap() == "prefix"
-        && headers.get(3).unwrap() == "exclude"
+        && headers.get(3).unwrap() == "exclude_prefix"
     {
         CSVType::Prefix
     } else {
@@ -326,13 +326,13 @@ fn process_prefix_csv(
 
         let moltype = record
             .get(1)
-            .ok_or_else(|| anyhow!("Missing 'moltype' field"))?
+            .ok_or_else(|| anyhow!("Missing 'input_moltype' field"))?
             .to_string();
 
         // Validate moltype
         match moltype.as_str() {
             "protein" | "dna" | "DNA" => (),
-            _ => return Err(anyhow!("Invalid 'moltype' field value: {}", moltype)),
+            _ => return Err(anyhow!("Invalid 'input_moltype' field value: {}", moltype)),
         }
 
         let prefix = record
@@ -341,62 +341,44 @@ fn process_prefix_csv(
             .to_string();
 
         // optional exclude pattern
-        let exclude_pattern = record.get(3);
+        let exclude_prefix = record.get(3);
 
-        // let prefix_regex = Regex::new(&format!("^{}", prefix.replace("*", ".*")))?;
-        // let exclude_regex = if let Some(pattern) = exclude_pattern {
-        //     Some(Regex::new(&pattern.replace("*", ".*"))?)
-        // } else {
-        //     None
-        // };
+        // Use glob to find and collect all paths that match the prefix
+        let included_paths = glob(&prefix)
+            .expect("Failed to read glob pattern for included paths")
+            .filter_map(Result::ok)
+            .map(|path| PathBuf::from(path.to_str().expect("Path is not valid UTF-8")))
+            .collect::<HashSet<PathBuf>>();
 
-        // let paths: Vec<PathBuf> = glob("")?
-        //     .filter_map(Result::ok)
-        //     .map(PathBuf::from_path_buf)
-        //     .filter_map(Result::ok)
-        //     .filter(|path| {
-        //         prefix_regex.is_match(path.as_str()) &&
-        //         exclude_regex.as_ref().map_or(true, |re| !re.is_match(path.as_str()))
-        //     })
-        //     .collect();
+        // Use glob to find and collect all paths that match the exclude_prefix, if any
+        let excluded_paths = if let Some(exclude_pattern) = exclude_prefix {
+            glob(exclude_pattern)
+                .expect("Failed to read glob pattern for excluded paths")
+                .filter_map(Result::ok)
+                .map(|path| PathBuf::from(path.to_str().expect("Path is not valid UTF-8")))
+                .collect::<HashSet<PathBuf>>()
+        } else {
+            HashSet::new()
+        };
 
-        // Use glob to find matching files
-        let pattern = format!("{}*", prefix);
-        eprintln!("{}", pattern);
-        let paths = glob(&pattern)
-            .expect("Failed to read glob pattern")
-            .filter_map(Result::ok) // Filter out Err values and unwrap Ok values
-            .map(|path| PathBuf::from_path_buf(path).expect("Path is not valid UTF-8"))
-            .filter(|utf8_path| {
-                // If exclude_pattern is specified, filter out paths that match
-                if let Some(exclude) = exclude_pattern {
-                    !utf8_path.as_str().contains(exclude)
-                } else {
-                    true
-                }
-            })
-            .collect::<Vec<camino::Utf8PathBuf>>();
-        // let paths = glob(&pattern)
-        //     .expect("Failed to read glob pattern")
-        //     .filter_map(Result::ok) // Filter out Err values and unwrap Ok values
-        //     .map(|path_buf| PathBuf::from_path_buf(path_buf).expect("Path is not valid UTF-8"))
-        //     .filter(|path| {
-        //         // If exclude_pattern is specified, filter out paths that match
-        //         if let Some(exclude) = exclude_pattern {
-        //             return path.into_string().map_or(false, |s| !s.contains(exclude));
-        //         }
-        //         true
-        //     })
-        //     .collect::<Vec<PathBuf>>();
+        // Exclude the excluded_paths from included_paths
+        let filtered_paths = included_paths
+            .difference(&excluded_paths)
+            .collect::<Vec<&PathBuf>>();
 
-        if !paths.is_empty() {
+        // Debugging: Print the paths
+        for path in filtered_paths {
+            println!("{}", path);
+        }
+
+        if !filtered_paths.is_empty() {
             match moltype.as_str() {
-                "dna" | "DNA" => dna_count += paths.len(),
-                "protein" => protein_count += paths.len(),
+                "dna" | "DNA" => dna_count += filtered_paths.len(),
+                "protein" => protein_count += filtered_paths.len(),
                 _ => {} // should not get here b/c validated earlier
             }
-            eprintln!("{},{:?},{}", name, paths, moltype);
-            results.push((name, paths, moltype));
+            eprintln!("{},{:?},{}", name, filtered_paths, moltype);
+            results.push((name, filtered_paths, moltype));
         }
     }
 
