@@ -366,18 +366,12 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
             .cloned()
             .collect();
 
-        // Debugging: Print the paths
-        for path in &filtered_paths {
-            println!("{}", path);
-        }
-
         if !filtered_paths.is_empty() {
             match moltype.as_str() {
                 "dna" | "DNA" => dna_count += filtered_paths.len(),
                 "protein" => protein_count += filtered_paths.len(),
                 _ => {} // should not get here b/c validated earlier
             }
-            eprintln!("{},{:?},{}", name, filtered_paths, moltype);
             results.push(FastaData {
                 name: name.clone(),
                 paths: filtered_paths.iter().cloned().collect(),

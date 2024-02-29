@@ -102,7 +102,7 @@ The following formats are accepted:
 - 3 columns: `name,read1,read2`
   > All entries considered DNA FASTA, and both `read1` and `read2` files are used as input for a single sketch with name `name`.
 - 4 columns: `name,input_moltype,prefix,exclude`
-  > This filetype uses `glob` to find files that match `prefix` but do not match `exclude` prefix. As such, `*` are ok in the `prefix` and `exclude` columns. Since we are dealing with "prefixes" here, we automatically search with `*` on the end of the `prefix` entry.
+  > This filetype uses `glob` to find files that match `prefix` but do not match `exclude` prefix. As such, `*` are ok in the `prefix` and `exclude` columns.
 
 A simple way to build a manysketch input file for a directory is this command snippet:
 ```
