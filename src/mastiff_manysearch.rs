@@ -3,14 +3,12 @@ use anyhow::Result;
 use camino::Utf8PathBuf as PathBuf;
 use rayon::prelude::*;
 use std::sync::atomic;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
-use std::sync::atomic;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 
