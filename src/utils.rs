@@ -845,6 +845,14 @@ pub struct SearchResult {
     pub match_md5: Option<String>,
     pub jaccard: Option<f64>,
     pub max_containment: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_containment_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_containment_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub average_containment_ani: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_containment_ani: Option<f64>,
 }
 
 #[derive(Serialize)]
