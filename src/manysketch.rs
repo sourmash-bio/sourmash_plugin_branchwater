@@ -120,7 +120,7 @@ pub fn manysketch(
     singleton: bool,
     force: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let (fileinfo, n_fastas) = match load_fasta_fromfile(filelist.force) {
+    let (fileinfo, n_fastas) = match load_fasta_fromfile(filelist, force) {
         Ok((file_info, n_fastas)) => (file_info, n_fastas),
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e),
     };

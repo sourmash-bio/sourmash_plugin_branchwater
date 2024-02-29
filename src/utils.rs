@@ -315,7 +315,7 @@ fn process_prefix_csv(
     let mut processed_rows = std::collections::HashSet::new();
     let mut duplicate_count = 0;
     let mut all_paths = HashSet::new(); // track FASTA in use
-    let mut duplicate_paths_count = HashMap::new();
+    let mut duplicate_paths_count = std::collections::HashMap::new();
 
     for result in rdr.records() {
         let record = result?;
