@@ -606,7 +606,7 @@ def test_manysketch_prefix(runtmp, capfd):
         fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # short.fa, short2.fa, short3.fa, short-protein.fa
         fp.write(f"short_protein,protein,{prot_prefix},\n") # short-protein.fa only
 
-    output = runtmp.output('db.zip')
+    output = runtmp.output('prefix.zip')
 
     runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
                     '--param-str', "dna,k=31,scaled=1", '-p', "protein,k=10,scaled=1")
@@ -635,13 +635,13 @@ def test_manysketch_prefix(runtmp, capfd):
     sig1 = sourmash.load_one_signature(s1)
     s2 = runtmp.output('short-protein.sig')
     runtmp.sourmash('sketch', 'protein', fa4, '-o', s2,
-                    '--param-str', "protein,k=10,scaled=1", '--name', 'short-protein')
+                    '--param-str', "protein,k=10,scaled=1", '--name', 'short_protein')
     sig2 = sourmash.load_one_signature(s2)
 
-    expected_signames = ['short', 'short-protein']
+    expected_signames = ['short', 'short_protein']
     for sig in sigs:
         assert sig.name in expected_signames
         if sig.name == 'short':
             assert sig,minhash.hashes == sig1.minhash.hashes
-        if sig.name == 'short-protein':
+        if sig.name == 'short_protein':
             assert sig == sig2

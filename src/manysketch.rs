@@ -85,7 +85,7 @@ fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
     for param in params.iter().cloned() {
         match moltype {
             // if dna, only build dna sigs. if protein, only build protein sigs
-            "dna" if !param.is_dna => continue,
+            "dna" | "DNA" if !param.is_dna => continue,
             "protein" if !param.is_protein => continue,
             _ => (),
         }

@@ -363,7 +363,7 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
         // Exclude the excluded_paths from included_paths
         let filtered_paths: Vec<PathBuf> = included_paths
             .difference(&excluded_paths)
-            .cloned() // Clone the Utf8PathBuf references to get owned Utf8PathBuf values
+            .cloned()
             .collect();
 
         // Debugging: Print the paths
@@ -388,7 +388,7 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
 
     println!("Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column.");
     println!(
-        "Loaded {} rows in total ({} with dna and {} with protein), {} duplicates skipped.",
+        "Loaded {} rows in total ({} DNA FASTA and {} protein FASTA), {} duplicates skipped.",
         processed_rows.len(),
         dna_count,
         protein_count,
