@@ -334,13 +334,15 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
             _ => return Err(anyhow!("Invalid 'input_moltype' field value: {}", moltype)),
         }
 
+        // For both prefix and exclude, automatically append wildcard for expected "prefix" matching
         let prefix = record
             .get(2)
             .ok_or_else(|| anyhow!("Missing 'prefix' field"))?
-            .to_string();
+            .to_string()
+            + "*";
 
         // optional exclude pattern
-        let exclude = record.get(3);
+        let exclude = record.get(3).map(|s| s.to_string() + "*");
 
         // Use glob to find and collect all paths that match the prefix
         let included_paths = glob(&prefix)
@@ -350,7 +352,7 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
             .collect::<HashSet<PathBuf>>();
 
         // Use glob to find and collect all paths that match the exclude_prefix, if any
-        let excluded_paths = if let Some(exclude_pattern) = exclude {
+        let excluded_paths = if let Some(ref exclude_pattern) = exclude {
             glob(exclude_pattern)
                 .expect("Failed to read glob pattern for excluded paths")
                 .filter_map(Result::ok)
@@ -374,7 +376,7 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
             }
             results.push(FastaData {
                 name: name.clone(),
-                paths: filtered_paths.iter().cloned().collect(),
+                paths: filtered_paths.to_vec(),
                 input_type: moltype.clone(),
             });
         }
