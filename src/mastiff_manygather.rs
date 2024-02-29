@@ -99,7 +99,7 @@ pub fn mastiff_manygather(
                                     ksize: ksize as usize,
                                     moltype: query_mh.hash_function().to_string(),
                                     scaled: query_mh.scaled() as usize,
-                                    query_n_hashes: query_mh.size() as usize,
+                                    query_n_hashes: query_mh.size(),
                                     query_abundance: query_mh.track_abundance(),
                                     query_containment_ani: match_.query_containment_ani(),
                                     match_containment_ani: match_.match_containment_ani(),

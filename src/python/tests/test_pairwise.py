@@ -64,8 +64,8 @@ def test_simple_no_ani(runtmp, zip_query):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        assert 'query_ani' not in row
-        assert 'match_ani' not in row
+        assert 'query_containment_ani' not in row
+        assert 'match_containment_ani' not in row
         assert 'average_containment_ani' not in row
         assert 'max_containment_ani' not in row
 
@@ -115,18 +115,18 @@ def test_simple_ani(runtmp, zip_query):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
+        q1_ani = float(row['query_containment_ani'])
+        q2_ani = float(row['match_containment_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
         maxcont = round(maxcont, 4)
-        q1_ani = round(q1_ani, 2)
-        q2_ani = round(q2_ani, 2)
-        avg_ani = round(avg_ani, 2)
-        max_ani = round(max_ani, 2)
+        q1_ani = round(q1_ani, 4)
+        q2_ani = round(q2_ani, 4)
+        avg_ani = round(avg_ani, 4)
+        max_ani = round(max_ani, 4)
         print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", f"{q1_ani:.04}", f"{q2_ani:.04}", f"{avg_ani:.04}", f"{max_ani:.04}")
 
         if q == 'NC_011665.1' and m == 'NC_009661.1':
@@ -134,10 +134,10 @@ def test_simple_ani(runtmp, zip_query):
             assert cont == 0.4828
             assert maxcont == 0.4885
             assert intersect_hashes == 2529
-            assert q1_ani == 97.68
-            assert q2_ani == 97.72
-            assert avg_ani == 97.7
-            assert max_ani == 97.72
+            assert q1_ani == 0.9768
+            assert q2_ani == 0.9772
+            assert avg_ani == 0.977
+            assert max_ani == 0.9772
 
 
 @pytest.mark.parametrize("zip_query", [False, True])
@@ -407,18 +407,18 @@ def test_simple_prot_ani(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
+        q1_ani = float(row['query_containment_ani'])
+        q2_ani = float(row['match_containment_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
         maxcont = round(maxcont, 4)
-        q1_ani = round(q1_ani, 2)
-        q2_ani = round(q2_ani, 2)
-        avg_ani = round(avg_ani, 2)
-        max_ani = round(max_ani, 2)
+        q1_ani = round(q1_ani, 4)
+        q2_ani = round(q2_ani, 4)
+        avg_ani = round(avg_ani, 4)
+        max_ani = round(max_ani, 4)
         print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes, f"{q1_ani:.04}", f"{q2_ani:.04}", f"{avg_ani:.04}", f"{max_ani:.04}")
 
         if q == 'GCA_001593925' and m == 'GCA_001593935':
@@ -426,10 +426,10 @@ def test_simple_prot_ani(runtmp):
             assert cont == 0.1003
             assert maxcont == 0.1003
             assert intersect_hashes == 342
-            assert q1_ani == 88.60
-            assert q2_ani == 87.02
-            assert avg_ani == 87.81
-            assert max_ani == 88.6
+            assert q1_ani == 0.8860
+            assert q2_ani == 0.8702
+            assert avg_ani == 0.8781
+            assert max_ani == 0.886
 
 
 def test_simple_dayhoff_ani(runtmp):
@@ -457,18 +457,18 @@ def test_simple_dayhoff_ani(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
+        q1_ani = float(row['query_containment_ani'])
+        q2_ani = float(row['match_containment_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
         maxcont = round(maxcont, 4)
-        q1_ani = round(q1_ani, 2)
-        q2_ani = round(q2_ani, 2)
-        avg_ani = round(avg_ani, 2)
-        max_ani = round(max_ani, 2)
+        q1_ani = round(q1_ani, 4)
+        q2_ani = round(q2_ani, 4)
+        avg_ani = round(avg_ani, 4)
+        max_ani = round(max_ani, 4)
         print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes, f"{q1_ani:.04}", f"{q2_ani:.04}", f"{avg_ani:.04}", f"{max_ani:.04}")
 
         if q == 'GCA_001593925' and m == 'GCA_001593935':
@@ -476,10 +476,10 @@ def test_simple_dayhoff_ani(runtmp):
             assert cont == 0.2815
             assert maxcont == 0.2815
             assert intersect_hashes == 930
-            assert q1_ani == 93.55
-            assert q2_ani == 91.89
-            assert avg_ani == 92.72
-            assert max_ani == 93.55
+            assert q1_ani == 0.9355
+            assert q2_ani == 0.9189
+            assert avg_ani == 0.9272
+            assert max_ani == 0.9355
 
 
 def test_simple_hp_ani(runtmp):
@@ -507,18 +507,18 @@ def test_simple_hp_ani(runtmp):
         jaccard = float(row['jaccard'])
         maxcont = float(row['max_containment'])
         intersect_hashes = int(row['intersect_hashes'])
-        q1_ani = float(row['query_ani'])
-        q2_ani = float(row['match_ani'])
+        q1_ani = float(row['query_containment_ani'])
+        q2_ani = float(row['match_containment_ani'])
         avg_ani = float(row['average_containment_ani'])
         max_ani = float(row['max_containment_ani'])
 
         jaccard = round(jaccard, 4)
         cont = round(cont, 4)
         maxcont = round(maxcont, 4)
-        q1_ani = round(q1_ani, 2)
-        q2_ani = round(q2_ani, 2)
-        avg_ani = round(avg_ani, 2)
-        max_ani = round(max_ani, 2)
+        q1_ani = round(q1_ani, 4)
+        q2_ani = round(q2_ani, 4)
+        avg_ani = round(avg_ani, 4)
+        max_ani = round(max_ani, 4)
         print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes, f"{q1_ani:.04}", f"{q2_ani:.04}", f"{avg_ani:.04}", f"{max_ani:.04}")
 
         if q == 'GCA_001593925' and m == 'GCA_001593935':
@@ -526,10 +526,10 @@ def test_simple_hp_ani(runtmp):
             assert cont == 0.747
             assert maxcont == 0.747
             assert intersect_hashes == 1724
-            assert q1_ani == 98.48
-            assert q2_ani == 97.34
-            assert avg_ani == 97.91
-            assert max_ani == 98.48
+            assert q1_ani == 0.9848
+            assert q2_ani == 0.9734
+            assert avg_ani == 0.9791
+            assert max_ani == 0.9848
 
 
 def test_simple_below_threshold(runtmp):
@@ -554,3 +554,73 @@ def test_simple_below_threshold(runtmp):
         rows = list(reader)
         print(rows)
         assert len(rows) == 0
+
+
+def test_simple_below_threshold_write_all(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'pairwise', query_list,
+                    '-o', output, '--ani', '--threshold', '0.5',
+                    '--write-all')
+    assert os.path.exists(output)
+
+    with open(output, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = list(reader)
+        print(rows)
+        assert len(rows) == 3
+        for row in rows:
+            assert float(row['query_containment_ani']) == 1.0
+            assert float(row['match_containment_ani']) == 1.0
+            assert float(row['average_containment_ani']) == 1.0
+            assert float(row['max_containment_ani']) == 1.0
+            assert float(row['containment']) == 1.0
+            assert float(row['max_containment']) == 1.0
+            assert float(row['jaccard']) == 1.0
+            assert row['query_name'] == row['match_name']
+            assert row['query_md5'] == row['match_md5']
+
+
+def test_simple_below_threshold_write_all_no_ani(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'pairwise', query_list,
+                    '-o', output, '--threshold', '0.5',
+                    '--write-all')
+    assert os.path.exists(output)
+
+    with open(output, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = list(reader)
+        print(rows)
+        assert len(rows) == 3
+        for row in rows:
+            assert 'query_containment_ani' not in row.keys()
+            assert 'match_containment_ani' not in row.keys()
+            assert 'average_containment_ani' not in row.keys()
+            assert 'max_containment_ani' not in row.keys()
+            assert float(row['containment']) == 1.0
+            assert float(row['max_containment']) == 1.0
+            assert float(row['jaccard']) == 1.0
+            assert row['query_name'] == row['match_name']
+            assert row['query_md5'] == row['match_md5']

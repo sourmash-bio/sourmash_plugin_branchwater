@@ -8,6 +8,7 @@ mod utils;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
+mod cluster;
 mod fastgather;
 mod fastmultigather;
 mod index;
@@ -200,6 +201,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 fn do_multisearch(
     querylist_path: String,
     siglist_path: String,
@@ -231,6 +233,7 @@ fn do_multisearch(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 fn do_pairwise(
     siglist_path: String,
     threshold: f64,
@@ -238,6 +241,7 @@ fn do_pairwise(
     scaled: usize,
     moltype: String,
     estimate_ani: bool,
+    write_all: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
@@ -248,6 +252,7 @@ fn do_pairwise(
         &selection,
         allow_failed_sigpaths,
         estimate_ani,
+        write_all,
         output_path,
     ) {
         Ok(_) => Ok(0),
@@ -274,6 +279,29 @@ fn do_manysketch(
     }
 }
 
+#[pyfunction]
+fn do_cluster(
+    pairwise_csv: String,
+    output_clusters: String,
+    similarity_column: String,
+    similarity_threshold: f64,
+    cluster_sizes: Option<String>,
+) -> anyhow::Result<u8> {
+    match cluster::cluster(
+        pairwise_csv,
+        output_clusters,
+        similarity_column,
+        similarity_threshold,
+        cluster_sizes,
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
@@ -285,5 +313,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(set_global_thread_pool, m)?)?;
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
+    m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     Ok(())
 }

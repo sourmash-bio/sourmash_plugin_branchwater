@@ -21,6 +21,7 @@ pub fn pairwise(
     selection: &Selection,
     allow_failed_sigpaths: bool,
     estimate_ani: bool,
+    write_all: bool,
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
@@ -54,6 +55,7 @@ pub fn pairwise(
     let ksize = selection.ksize().unwrap() as f64;
 
     sketches.par_iter().enumerate().for_each(|(idx, query)| {
+        let mut has_written_comparison = false;
         for against in sketches.iter().skip(idx + 1) {
             let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
             let query1_size = query.minhash.size() as f64;
@@ -63,19 +65,20 @@ pub fn pairwise(
             let containment_q2_in_q1 = overlap / query2_size;
 
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
+                has_written_comparison = true;
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
                 let jaccard = overlap / (query1_size + query2_size - overlap);
-                let mut query_ani = None;
-                let mut match_ani = None;
+                let mut query_containment_ani = None;
+                let mut match_containment_ani = None;
                 let mut average_containment_ani = None;
                 let mut max_containment_ani = None;
 
                 // estimate ANI values
                 if estimate_ani {
-                    let qani = ani_from_containment(containment_q1_in_q2, ksize) * 100.0;
-                    let mani = ani_from_containment(containment_q2_in_q1, ksize) * 100.0;
-                    query_ani = Some(qani);
-                    match_ani = Some(mani);
+                    let qani = ani_from_containment(containment_q1_in_q2, ksize);
+                    let mani = ani_from_containment(containment_q2_in_q1, ksize);
+                    query_containment_ani = Some(qani);
+                    match_containment_ani = Some(mani);
                     average_containment_ani = Some((qani + mani) / 2.);
                     max_containment_ani = Some(f64::max(qani, mani));
                 }
@@ -88,8 +91,8 @@ pub fn pairwise(
                     max_containment,
                     jaccard,
                     intersect_hashes: overlap,
-                    query_ani,
-                    match_ani,
+                    query_containment_ani,
+                    match_containment_ani,
                     average_containment_ani,
                     max_containment_ani,
                 })
@@ -100,6 +103,35 @@ pub fn pairwise(
             if i % 100000 == 0 {
                 eprintln!("Processed {} comparisons", i);
             }
+        }
+        if write_all & !has_written_comparison {
+            let mut query_containment_ani = None;
+            let mut match_containment_ani = None;
+            let mut average_containment_ani = None;
+            let mut max_containment_ani = None;
+
+            if estimate_ani {
+                query_containment_ani = Some(1.0);
+                match_containment_ani = Some(1.0);
+                average_containment_ani = Some(1.0);
+                max_containment_ani = Some(1.0);
+            }
+
+            send.send(MultiSearchResult {
+                query_name: query.name.clone(),
+                query_md5: query.md5sum.clone(),
+                match_name: query.name.clone(),
+                match_md5: query.md5sum.clone(),
+                containment: 1.0,
+                max_containment: 1.0,
+                jaccard: 1.0,
+                intersect_hashes: query.minhash.size() as f64,
+                query_containment_ani,
+                match_containment_ani,
+                average_containment_ani,
+                max_containment_ani,
+            })
+            .unwrap();
         }
     });
 
