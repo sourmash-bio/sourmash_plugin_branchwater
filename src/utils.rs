@@ -402,11 +402,16 @@ fn process_prefix_csv(
     println!("Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column.");
     if total_duplicate_paths > 0 {
         eprintln!("Found identical FASTA paths in more than one row!");
-        eprintln!("Duplicated paths: {:?}", duplicate_paths_count.keys());
+        eprintln!("Duplicated paths:");
+        for path in duplicate_paths_count.keys() {
+            eprintln!("{:?}", path);
+        }
         if !force {
             return Err(anyhow!(
-                "Duplicated FASTA files found. Please use '--force' to enable this"
+                "Duplicated FASTA files found. Please use --force to bypass this check."
             ));
+        } else {
+            eprintln!("--force is set. Continuing...")
         }
     }
     println!(

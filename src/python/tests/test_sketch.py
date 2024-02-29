@@ -738,8 +738,9 @@ def test_manysketch_prefix_duplicated_fail(runtmp, capfd):
     print(captured.err)
     assert "Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column." in captured.out
     assert "Found identical FASTA paths in more than one row!" in captured.err
-    assert 'Duplicated paths: ["/Users/ntward/dib-lab/sourmash_plugin_branchwater/src/python/tests/test-data/short-protein.fa"]' in captured.err
-    assert "Duplicated FASTA files found. Please use '--force' to enable this" in captured.err
+    assert "Duplicated paths:" in captured.err
+    assert "/Users/ntward/dib-lab/sourmash_plugin_branchwater/src/python/tests/test-data/short-protein.fa" in captured.err
+    assert "Duplicated FASTA files found. Please use --force to bypass this check" in captured.err
 
 
 def test_manysketch_prefix_duplicated_force(runtmp, capfd):
@@ -775,7 +776,9 @@ def test_manysketch_prefix_duplicated_force(runtmp, capfd):
     print(captured.err)
     assert "Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column." in captured.out
     assert "Found identical FASTA paths in more than one row!" in captured.err
-    assert 'Duplicated paths: ["/Users/ntward/dib-lab/sourmash_plugin_branchwater/src/python/tests/test-data/short-protein.fa"]' in captured.err
+    assert "Duplicated paths:" in captured.err
+    assert "/Users/ntward/dib-lab/sourmash_plugin_branchwater/src/python/tests/test-data/short-protein.fa" in captured.err
+    assert "--force is set. Continuing..." in captured.err
 
     idx = sourmash.load_file_as_index(output)
     sigs = list(idx.signatures())
