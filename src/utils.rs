@@ -170,7 +170,10 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
     }
 }
 
-pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<(Vec<FastaData>, usize)> {
+pub fn load_fasta_fromfile(
+    sketchlist_filename: String,
+    force: bool,
+) -> Result<(Vec<FastaData>, usize)> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
     // Check for right header
@@ -179,7 +182,7 @@ pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<(Vec<FastaData
     match detect_csv_type(headers) {
         CSVType::Assembly => process_assembly_csv(rdr),
         CSVType::Reads => process_reads_csv(rdr),
-        CSVType::Prefix => process_prefix_csv(rdr),
+        CSVType::Prefix => process_prefix_csv(rdr, force),
         CSVType::Unknown => Err(anyhow!(
             "Invalid header. Expected 'name,genome_filename,protein_filename', 'name,read1,read2', or 'name,input_moltype,prefix,exclude', but got '{}'",
             headers.iter().collect::<Vec<_>>().join(",")
@@ -302,12 +305,17 @@ fn process_reads_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaDa
     Ok((results, n_fastas))
 }
 
-fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaData>, usize)> {
+fn process_prefix_csv(
+    mut rdr: csv::Reader<std::fs::File>,
+    force: bool,
+) -> Result<(Vec<FastaData>, usize)> {
     let mut results = Vec::new();
     let mut dna_count = 0;
     let mut protein_count = 0;
     let mut processed_rows = std::collections::HashSet::new();
     let mut duplicate_count = 0;
+    let mut all_paths = HashSet::new(); // track FASTA in use
+    let mut duplicate_paths_count = HashMap::new();
 
     for result in rdr.records() {
         let record = result?;
@@ -368,6 +376,13 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
             .cloned()
             .collect();
 
+        // Track duplicates among filtered paths
+        for path in &filtered_paths {
+            if !all_paths.insert(path.clone()) {
+                *duplicate_paths_count.entry(path.clone()).or_insert(0) += 1;
+            }
+        }
+
         if !filtered_paths.is_empty() {
             match moltype.as_str() {
                 "dna" | "DNA" => dna_count += filtered_paths.len(),
@@ -382,13 +397,24 @@ fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaD
         }
     }
 
+    let total_duplicate_paths: usize = duplicate_paths_count.values().sum();
+
     println!("Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column.");
+    if total_duplicate_paths > 0 {
+        eprintln!("Found identical FASTA paths in more than one row!");
+        eprintln!("Duplicated paths: {:?}", duplicate_paths_count.keys());
+        if !force {
+            return Err(anyhow!(
+                "Duplicated FASTA files found. Please use '--force' to enable this"
+            ));
+        }
+    }
     println!(
-        "Loaded {} rows in total ({} DNA FASTA and {} protein FASTA), {} duplicates skipped.",
+        "Loaded {} rows in total ({} DNA FASTA and {} protein FASTA), {} duplicate rows skipped.",
         processed_rows.len(),
         dna_count,
         protein_count,
-        duplicate_count
+        duplicate_count,
     );
 
     let n_fastas = dna_count + protein_count;

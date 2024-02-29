@@ -343,6 +343,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
                        help='number of cores to use (default is all available)')
         p.add_argument('-s', '--singleton', action="store_true",
                        help='build one sketch per FASTA record, i.e. multiple sketches per FASTA file')
+        p.add_argument('-f', '--force', action="store_true",
+                       help='allow use of individual FASTA files in more than more sketch')
 
     def main(self, args):
         print_version()
