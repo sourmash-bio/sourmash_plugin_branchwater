@@ -598,12 +598,13 @@ def test_manysketch_prefix(runtmp, capfd):
 
     fa_path = os.path.dirname(fa1)
     dna_prefix = os.path.join(fa_path, "short*.fa") # need to avoid matching short-protein.fa
-    prot_prefix = os.path.join(fa_path, "protein.fa")
+    prot_prefix = os.path.join(fa_path, "*protein.fa")
 
+    # make prefix input file
     with open(fa_csv, 'wt') as fp:
-        fp.write("name,moltype,prefix,exclude\n")
+        fp.write("name,input_moltype,prefix,exclude\n")
         fp.write(f"short,DNA,{dna_prefix},{prot_prefix}\n") # short.fa, short2.fa, short3.fa, short-protein.fa
-        fp.write(f"short_protein,protein,protein,\n")
+        fp.write(f"short_protein,protein,{prot_prefix},\n") # short-protein.fa only
 
     output = runtmp.output('db.zip')
 

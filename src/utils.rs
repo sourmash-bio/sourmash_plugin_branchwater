@@ -162,7 +162,7 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
         && headers.get(0).unwrap() == "name"
         && headers.get(1).unwrap() == "input_moltype"
         && headers.get(2).unwrap() == "prefix"
-        && headers.get(3).unwrap() == "exclude_prefix"
+        && headers.get(3).unwrap() == "exclude"
     {
         CSVType::Prefix
     } else {
@@ -181,7 +181,7 @@ pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<(Vec<FastaData
         CSVType::Reads => process_reads_csv(rdr),
         CSVType::Prefix => process_prefix_csv(rdr),
         CSVType::Unknown => Err(anyhow!(
-            "Invalid header. Expected 'name,genome_filename,protein_filename' or 'name,read1,read2', but got '{}'",
+            "Invalid header. Expected 'name,genome_filename,protein_filename', 'name,read1,read2', or 'name,input_moltype,prefix,exclude', but got '{}'",
             headers.iter().collect::<Vec<_>>().join(",")
         )),
     }
@@ -302,9 +302,7 @@ fn process_reads_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaDa
     Ok((results, n_fastas))
 }
 
-fn process_prefix_csv(
-    mut rdr: csv::Reader<std::fs::File>,
- ) -> Result<(Vec<FastaData>, usize)> {
+fn process_prefix_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaData>, usize)> {
     let mut results = Vec::new();
     let mut dna_count = 0;
     let mut protein_count = 0;
@@ -342,7 +340,7 @@ fn process_prefix_csv(
             .to_string();
 
         // optional exclude pattern
-        let exclude_prefix = record.get(3);
+        let exclude = record.get(3);
 
         // Use glob to find and collect all paths that match the prefix
         let included_paths = glob(&prefix)
@@ -352,7 +350,7 @@ fn process_prefix_csv(
             .collect::<HashSet<PathBuf>>();
 
         // Use glob to find and collect all paths that match the exclude_prefix, if any
-        let excluded_paths = if let Some(exclude_pattern) = exclude_prefix {
+        let excluded_paths = if let Some(exclude_pattern) = exclude {
             glob(exclude_pattern)
                 .expect("Failed to read glob pattern for excluded paths")
                 .filter_map(Result::ok)
@@ -363,12 +361,13 @@ fn process_prefix_csv(
         };
 
         // Exclude the excluded_paths from included_paths
-        let filtered_paths = included_paths
+        let filtered_paths: Vec<PathBuf> = included_paths
             .difference(&excluded_paths)
-            .collect::<Vec<&PathBuf>>();
+            .cloned() // Clone the Utf8PathBuf references to get owned Utf8PathBuf values
+            .collect();
 
         // Debugging: Print the paths
-        for path in filtered_paths {
+        for path in &filtered_paths {
             println!("{}", path);
         }
 
