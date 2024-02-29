@@ -912,30 +912,6 @@ pub struct MultiSearchResult {
     pub max_containment_ani: Option<f64>,
 }
 
-// define trait that can work on all SearchResult structs
-// really only using this to generalize ThreadManager
-// to do: make these more useful/descriptive?
-pub trait SearchResultTrait {
-    fn describe(&self) -> String;
-}
-
-impl SearchResultTrait for SearchResult {
-    fn describe(&self) -> String {
-        format!("Query: {}, Match: {}", self.query_name, self.match_name)
-    }
-}
-
-impl SearchResultTrait for BranchwaterGatherResult {
-    fn describe(&self) -> String {
-        format!("Query: {}, Match: {}", self.query_name, self.match_name)
-    }
-}
-impl SearchResultTrait for MultiSearchResult {
-    fn describe(&self) -> String {
-        format!("Query: {}, Match: {}", self.query_name, self.match_name)
-    }
-}
-
 pub fn open_stdout_or_file(output: Option<String>) -> Result<Box<dyn Write + Send>> {
     // if output is a file, use open_output_file
     match output {
