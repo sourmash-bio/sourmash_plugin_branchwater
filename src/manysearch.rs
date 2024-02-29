@@ -9,6 +9,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{csvwriter_thread, load_collection, load_sketches, ReportType, SearchResult};
+use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 
@@ -70,14 +71,27 @@ pub fn manysearch(
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {
                             let overlap =
-                                query.minhash.count_common(against_mh, false).unwrap() as f64;
+                                query.minhash.count_common(against_mh, true).unwrap() as f64;
                             let query_size = query.minhash.size() as f64;
                             let target_size = against_mh.size() as f64;
                             let containment_query_in_target = overlap / query_size;
-                            let containment_in_target = overlap / target_size;
+                            let containment_target_in_query = overlap / target_size;
                             let max_containment =
-                                containment_query_in_target.max(containment_in_target);
+                                containment_query_in_target.max(containment_target_in_query);
                             let jaccard = overlap / (target_size + query_size - overlap);
+
+                            let qani = ani_from_containment(
+                                containment_query_in_target,
+                                against_mh.ksize() as f64,
+                            );
+                            let mani = ani_from_containment(
+                                containment_target_in_query,
+                                against_mh.ksize() as f64,
+                            );
+                            let query_containment_ani = Some(qani);
+                            let match_containment_ani = Some(mani);
+                            let average_containment_ani = Some((qani + mani) / 2.);
+                            let max_containment_ani = Some(f64::max(qani, mani));
 
                             if containment_query_in_target > threshold {
                                 results.push(SearchResult {
@@ -89,6 +103,10 @@ pub fn manysearch(
                                     match_md5: Some(against_sig.md5sum()),
                                     jaccard: Some(jaccard),
                                     max_containment: Some(max_containment),
+                                    query_containment_ani,
+                                    match_containment_ani,
+                                    average_containment_ani,
+                                    max_containment_ani,
                                 });
                             }
                         }
