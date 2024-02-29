@@ -71,7 +71,6 @@ def test_simple(runtmp, zip_against):
     p_output = runtmp.output('SRR606249.prefetch.csv')
     assert os.path.exists(p_output)
 
-    # check prefetch output (only non-indexed gather)
     df = pandas.read_csv(p_output)
     assert len(df) == 3
     keys = set(df.keys())
@@ -145,7 +144,6 @@ def test_simple_zip_query(runtmp):
     g_output = runtmp.output('SRR606249.gather.csv')
     p_output = runtmp.output('SRR606249.prefetch.csv')
 
-    # check prefetch output (only non-indexed gather)
     assert os.path.exists(p_output)
     df = pandas.read_csv(p_output)
     assert len(df) == 3
@@ -188,7 +186,6 @@ def test_simple_read_manifests(runtmp):
     g_output = runtmp.output('SRR606249.gather.csv')
     p_output = runtmp.output('SRR606249.prefetch.csv')
 
-    # check prefetch output (only non-indexed gather)
     assert os.path.exists(p_output)
     df = pandas.read_csv(p_output)
     assert len(df) == 3
@@ -229,12 +226,12 @@ def test_simple_indexed(runtmp, zip_query):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert  keys == expected_keys
 
@@ -262,12 +259,12 @@ def test_simple_indexed_query_manifest(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert  keys == expected_keys
 
@@ -339,7 +336,7 @@ def test_sig_query(runtmp, capfd, indexed):
     assert len(df) == 3
     keys = set(df.keys())
     if indexed:
-        assert {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match', 'intersect_bp'}.issubset(keys)
+        assert {'query_name', 'query_md5', 'name', 'md5', 'f_match', 'intersect_bp'}.issubset(keys)
     else:
         assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}.issubset(keys)
 
@@ -470,7 +467,6 @@ def test_sig_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    # check prefetch output (only non-indexed gather)
     assert os.path.exists(p_output)
     df = pandas.read_csv(p_output)
     assert len(df) == 1
@@ -608,7 +604,6 @@ def test_md5(runtmp, zip_query):
     g_output = runtmp.output('SRR606249.gather.csv')
     p_output = runtmp.output('SRR606249.prefetch.csv')
 
-    # check prefetch output (only non-indexed gather)
     assert os.path.exists(p_output)
     df = pandas.read_csv(p_output)
     assert len(df) == 3
@@ -620,7 +615,6 @@ def test_md5(runtmp, zip_query):
         for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
             assert ss.md5sum() in md5s
 
-    # check gather output (mostly same for indexed vs non-indexed version)
     assert os.path.exists(g_output)
     df = pandas.read_csv(g_output)
     assert len(df) == 3
@@ -661,16 +655,16 @@ def test_md5_indexed(runtmp, zip_query):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert keys == expected_keys
 
-    md5s = set(df['match_md5'])
+    md5s = set(df['md5'])
     for against_file in (sig2, sig47, sig63):
         for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
             assert ss.md5sum() in md5s
@@ -752,20 +746,18 @@ def test_csv_columns_vs_sourmash_gather_indexed(runtmp):
 
     gather_df = pandas.read_csv(g_output)
     g_keys = set(gather_df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert g_keys == expected_keys
 
     sourmash_gather_df = pandas.read_csv(sg_output)
     sg_keys = set(sourmash_gather_df.keys())
     print(sg_keys)
-    modified_keys = ["match_md5", "match_name", "match_filename"]
-    sg_keys.update(modified_keys) # fastmultigather is more explicit (match_md5 instead of md5, etc)
     print('g_keys - sg_keys:', g_keys - sg_keys)
     assert not g_keys - sg_keys, g_keys - sg_keys
 
@@ -861,18 +853,18 @@ def test_simple_protein_indexed(runtmp):
     df = pandas.read_csv(out_csv)
     assert len(df) == 2
     keys = set(df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert keys == expected_keys
     print(df)
     # since we're just matching to identical sigs, the md5s should be the same
-    assert df['query_md5'][0] == df['match_md5'][0]
-    assert df['query_md5'][1] == df['match_md5'][1]
+    assert df['query_md5'][0] == df['md5'][0]
+    assert df['query_md5'][1] == df['md5'][1]
 
 
 def test_simple_dayhoff_indexed(runtmp):
@@ -891,18 +883,18 @@ def test_simple_dayhoff_indexed(runtmp):
     df = pandas.read_csv(out_csv)
     assert len(df) == 2
     keys = set(df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert keys == expected_keys
     print(df)
     # since we're just matching to identical sigs, the md5s should be the same
-    assert df['query_md5'][0] == df['match_md5'][0]
-    assert df['query_md5'][1] == df['match_md5'][1]
+    assert df['query_md5'][0] == df['md5'][0]
+    assert df['query_md5'][1] == df['md5'][1]
 
 
 def test_simple_hp_indexed(runtmp):
@@ -921,18 +913,18 @@ def test_simple_hp_indexed(runtmp):
     df = pandas.read_csv(out_csv)
     assert len(df) == 2
     keys = set(df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert keys == expected_keys
     print(df)
     # since we're just matching to identical sigs, the md5s should be the same
-    assert df['query_md5'][0] == df['match_md5'][0]
-    assert df['query_md5'][1] == df['match_md5'][1]
+    assert df['query_md5'][0] == df['md5'][0]
+    assert df['query_md5'][1] == df['md5'][1]
 
 
 def test_indexed_full_output(runtmp):
@@ -959,12 +951,12 @@ def test_indexed_full_output(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+    expected_keys = {'name', 'query_filename', 'query_n_hashes', 'filename', 'f_match_orig',
             'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
             'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
             'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
             'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
-            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'md5', 'remaining_bp',
             'f_unique_weighted'}
     assert keys == expected_keys
     results = df.values.tolist()
