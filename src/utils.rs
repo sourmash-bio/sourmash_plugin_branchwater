@@ -14,9 +14,10 @@ use std::fs::{create_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
-use std::sync::mpsc::{SendError, SyncSender};
+use std::sync::atomic::AtomicUsize; //AtomicBool
+use std::sync::mpsc::{sync_channel, Receiver, SendError, SyncSender};
 use std::sync::Arc;
+use std::thread;
 
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
@@ -25,15 +26,91 @@ use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 
-pub struct ThreadManager<T: Send + 'static> {
-    pub sender: Option<SyncSender<T>>,
-    pub writer_thread: Option<std::thread::JoinHandle<Result<()>>>,
-    pub interrupted: Arc<AtomicBool>,
+use std::collections::HashMap;
+
+#[derive(PartialEq)]
+pub enum WriterType {
+    Search,
+    Prefetch,
+    Gather,
+    MultiSearch,
+    Sig,
 }
 
-impl<T: Send + 'static> ThreadManager<T> {
-    pub fn new(sender: SyncSender<T>, writer_thread: std::thread::JoinHandle<Result<()>>) -> Self {
-        let interrupted = Arc::new(AtomicBool::new(false));
+impl std::fmt::Display for WriterType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WriterType::Search => write!(f, "Search"),
+            WriterType::Prefetch => write!(f, "Prefetch"),
+            WriterType::Gather => write!(f, "Gather"),
+            WriterType::MultiSearch => write!(f, "MultiSearch"),
+            WriterType::Sig => write!(f, "Sig"),
+        }
+    }
+}
+
+pub struct WriterThread<T> {
+    pub writer_type: WriterType,
+    sender: SyncSender<T>,
+    writer_thread: std::thread::JoinHandle<Result<()>>,
+    output_path: Option<String>, // Optional: Full path to the output file or stdout
+}
+
+impl<T> WriterThread<T> {
+    pub fn new_csv(output_path: Option<String>) -> Result<Self, String>
+    where
+        T: Serialize + Send + 'static,
+    {
+        let (send, recv) = sync_channel::<T>(rayon::current_num_threads());
+        let thrd = thread::spawn(move || csvwriter_thread::<T>(recv, output_path));
+        Ok(WriterThread {
+            writer_type: WriterType::Csv,
+            sender: send,
+            writer_thread: thrd,
+            output_path,
+        })
+    }
+
+    pub fn new_sig(output_path: Option<String>) -> Result<Self, String> {
+        if output_path.is_none() {
+            return Err("Output path is required for Sig writer type".to_string());
+        }
+        let (send, recv) = sync_channel::<ZipMessage>(rayon::current_num_threads());
+        let thrd = thread::spawn(move || sigwriter(recv, output_path.unwrap()));
+        Ok(WriterThread {
+            writer_type: WriterType::Sig,
+            sender: send,
+            writer_thread: thrd,
+            output_path,
+        })
+    }
+
+    pub fn close(&mut self) -> Result<(), String> {
+        if let Some(writer_thread) = self.writer_thread.take() {
+            match writer_thread.join() {
+                Ok(_) => Ok(()),
+                Err(e) => Err(format!(
+                    "Error joining writer thread {}: {:?}",
+                    self.writer_type, e
+                )),
+            }
+        } else {
+            Err(format!(
+                "Writer thread {} is already closed",
+                self.writer_type
+            ))
+        }
+    }
+}
+
+pub struct ThreadManager {
+    writer_threads: HashMap<WriterType, WriterThread<Box<dyn Send>>>,
+    interrupted: Arc<atomic::AtomicBool>,
+}
+
+impl ThreadManager {
+    pub fn new() -> Self {
+        let interrupted = Arc::new(atomic::AtomicBool::new(false));
         let interrupted_clone = interrupted.clone();
 
         // Set up Ctrl-C handling
@@ -42,39 +119,101 @@ impl<T: Send + 'static> ThreadManager<T> {
             ctrlc::set_handler(move || {
                 println!("Ctrl-C received, signaling shutdown...");
                 interrupted_clone.store(true, atomic::Ordering::SeqCst);
-                // Any additional shutdown logic can go here
             })
             .expect("Error setting Ctrl-C handler");
         }
 
         ThreadManager {
-            sender: Some(sender),
-            writer_thread: Some(writer_thread),
+            writer_threads: HashMap::new(),
             interrupted,
         }
     }
 
-    pub fn send(&self, result: T) -> Result<(), SendError<T>> {
-        if let Some(ref sender) = self.sender {
-            sender.send(result)
+    pub fn check_for_interrupt(&self) -> bool {
+        self.interrupted.load(atomic::Ordering::SeqCst)
+    }
+
+    pub fn add_writer_thread(
+        &mut self,
+        writer_type: WriterType,
+        output_path: Option<String>,
+    ) -> Result<(), String> {
+        let writer_thread = WriterThread::new(writer_type, output_path)?;
+        self.writer_threads.insert(writer_type, writer_thread);
+        Ok(())
+    }
+
+    pub fn close_writer_thread(&mut self, writer_type: WriterType) -> Result<(), String> {
+        if let Some(writer_thread) = self.writer_threads.remove(&writer_type) {
+            writer_thread.close()?;
+            Ok(())
         } else {
-            Err(SendError(result)) // send custom error instead?
+            Err(format!("No writer thread found for {:?}", writer_type))
         }
     }
 
-    pub fn perform_cleanup(&mut self) {
-        if let Some(sender) = self.sender.take() {
-            drop(sender); // Close the channel
-        }
-
-        if let Some(thread) = self.writer_thread.take() {
-            match thread.join() {
-                Ok(_) => {}
-                Err(e) => eprintln!("Error joining CSV writer thread: {:?}", e),
-            }
+    pub fn send<T>(&self, writer_type: WriterType, data: T) -> Result<(), SendError<T>>
+    where
+        T: Send + 'static,
+    {
+        if let Some(writer_thread) = self.writer_threads.get(&writer_type) {
+            writer_thread.send(data)
+        } else {
+            Err(SendError(data))
         }
     }
 }
+
+// pub struct ThreadManager<T: Send + 'static> {
+//     pub sender: Option<SyncSender<T>>,
+//     pub writer_thread: Option<std::thread::JoinHandle<Result<()>>>,
+//     pub interrupted: Arc<AtomicBool>,
+// }
+
+// impl<T: Send + 'static> ThreadManager<T> {
+//     pub fn new(sender: SyncSender<T>, writer_thread: std::thread::JoinHandle<Result<()>>) -> Self {
+//         let interrupted = Arc::new(AtomicBool::new(false));
+//         let interrupted_clone = interrupted.clone();
+
+//         // Set up Ctrl-C handling
+//         if std::env::var("PYTEST_RUNNING").is_err() {
+//             // Only register the Ctrl-C handler if not running with pytest
+//             ctrlc::set_handler(move || {
+//                 println!("Ctrl-C received, signaling shutdown...");
+//                 interrupted_clone.store(true, atomic::Ordering::SeqCst);
+//                 // Any additional shutdown logic can go here
+//             })
+//             .expect("Error setting Ctrl-C handler");
+//         }
+
+//         ThreadManager {
+//             sender: Some(sender),
+//             writer_thread: Some(writer_thread),
+//             interrupted,
+//         }
+//     }
+
+//     pub fn send(&self, result: T) -> Result<(), SendError<T>> {
+//         if let Some(ref sender) = self.sender {
+//             sender.send(result)
+//         } else {
+//             Err(SendError(result)) // send custom error instead?
+//         }
+//     }
+
+//     pub fn perform_cleanup(&mut self) {
+//         if let Some(sender) = self.sender.take() {
+//             drop(sender); // Close the channel
+//         }
+
+//         if let Some(thread) = self.writer_thread.take() {
+//             match thread.join() {
+//                 Ok(_) => {}
+//                 Err(e) => eprintln!("Error joining CSV writer thread: {:?}", e),
+//             }
+//         }
+//     }
+// }
 
 /// Track a name/minhash.
 pub struct SmallSignature {
@@ -971,7 +1110,7 @@ pub enum ZipMessage {
 }
 
 pub fn sigwriter(
-    recv: std::sync::mpsc::Receiver<ZipMessage>,
+    recv: Receiver<ZipMessage>,
     output: String,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
@@ -1026,7 +1165,7 @@ pub fn sigwriter(
 }
 
 pub fn csvwriter_thread<T: Serialize + Send + 'static>(
-    recv: std::sync::mpsc::Receiver<T>,
+    recv: Receiver<T>,
     output: Option<String>,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
