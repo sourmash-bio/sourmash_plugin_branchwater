@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
+use glob::glob;
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
@@ -22,6 +23,7 @@ use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
+use std::collections::{HashMap, HashSet};
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -139,6 +141,7 @@ pub struct FastaData {
 enum CSVType {
     Assembly,
     Reads,
+    Prefix,
     Unknown,
 }
 
@@ -155,12 +158,22 @@ fn detect_csv_type(headers: &csv::StringRecord) -> CSVType {
         && headers.get(2).unwrap() == "read2"
     {
         CSVType::Reads
+    } else if headers.len() == 4
+        && headers.get(0).unwrap() == "name"
+        && headers.get(1).unwrap() == "input_moltype"
+        && headers.get(2).unwrap() == "prefix"
+        && headers.get(3).unwrap() == "exclude"
+    {
+        CSVType::Prefix
     } else {
         CSVType::Unknown
     }
 }
 
-pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<(Vec<FastaData>, usize)> {
+pub fn load_fasta_fromfile(
+    sketchlist_filename: String,
+    force: bool,
+) -> Result<(Vec<FastaData>, usize)> {
     let mut rdr = csv::Reader::from_path(sketchlist_filename)?;
 
     // Check for right header
@@ -169,8 +182,9 @@ pub fn load_fasta_fromfile(sketchlist_filename: String) -> Result<(Vec<FastaData
     match detect_csv_type(headers) {
         CSVType::Assembly => process_assembly_csv(rdr),
         CSVType::Reads => process_reads_csv(rdr),
+        CSVType::Prefix => process_prefix_csv(rdr, force),
         CSVType::Unknown => Err(anyhow!(
-            "Invalid header. Expected 'name,genome_filename,protein_filename' or 'name,read1,read2', but got '{}'",
+            "Invalid header. Expected 'name,genome_filename,protein_filename', 'name,read1,read2', or 'name,input_moltype,prefix,exclude', but got '{}'",
             headers.iter().collect::<Vec<_>>().join(",")
         )),
     }
@@ -287,6 +301,128 @@ fn process_reads_csv(mut rdr: csv::Reader<std::fs::File>) -> Result<(Vec<FastaDa
     );
 
     let n_fastas = read1_count + read2_count;
+
+    Ok((results, n_fastas))
+}
+
+fn process_prefix_csv(
+    mut rdr: csv::Reader<std::fs::File>,
+    force: bool,
+) -> Result<(Vec<FastaData>, usize)> {
+    let mut results = Vec::new();
+    let mut dna_count = 0;
+    let mut protein_count = 0;
+    let mut processed_rows = HashSet::new();
+    let mut duplicate_count = 0;
+    let mut all_paths = HashSet::new(); // track FASTA in use
+    let mut duplicate_paths_count = HashMap::new();
+
+    for result in rdr.records() {
+        let record = result?;
+        let row_string = record.iter().collect::<Vec<_>>().join(",");
+        if processed_rows.contains(&row_string) {
+            duplicate_count += 1;
+            continue;
+        }
+        processed_rows.insert(row_string.clone());
+
+        let name = record
+            .get(0)
+            .ok_or_else(|| anyhow!("Missing 'name' field"))?
+            .to_string();
+
+        let moltype = record
+            .get(1)
+            .ok_or_else(|| anyhow!("Missing 'input_moltype' field"))?
+            .to_string();
+
+        // Validate moltype
+        match moltype.as_str() {
+            "protein" | "dna" | "DNA" => (),
+            _ => return Err(anyhow!("Invalid 'input_moltype' field value: {}", moltype)),
+        }
+
+        // For both prefix and exclude, automatically append wildcard for expected "prefix" matching
+        let prefix = record
+            .get(2)
+            .ok_or_else(|| anyhow!("Missing 'prefix' field"))?
+            .to_string()
+            + "*";
+
+        // optional exclude pattern
+        let exclude = record.get(3).map(|s| s.to_string() + "*");
+
+        // Use glob to find and collect all paths that match the prefix
+        let included_paths = glob(&prefix)
+            .expect("Failed to read glob pattern for included paths")
+            .filter_map(Result::ok)
+            .map(|path| PathBuf::from(path.to_str().expect("Path is not valid UTF-8")))
+            .collect::<HashSet<PathBuf>>();
+
+        // Use glob to find and collect all paths that match the exclude_prefix, if any
+        let excluded_paths = if let Some(ref exclude_pattern) = exclude {
+            glob(exclude_pattern)
+                .expect("Failed to read glob pattern for excluded paths")
+                .filter_map(Result::ok)
+                .map(|path| PathBuf::from(path.to_str().expect("Path is not valid UTF-8")))
+                .collect::<HashSet<PathBuf>>()
+        } else {
+            HashSet::new()
+        };
+
+        // Exclude the excluded_paths from included_paths
+        let filtered_paths: Vec<PathBuf> = included_paths
+            .difference(&excluded_paths)
+            .cloned()
+            .collect();
+
+        // Track duplicates among filtered paths
+        for path in &filtered_paths {
+            if !all_paths.insert(path.clone()) {
+                *duplicate_paths_count.entry(path.clone()).or_insert(0) += 1;
+            }
+        }
+
+        if !filtered_paths.is_empty() {
+            match moltype.as_str() {
+                "dna" | "DNA" => dna_count += filtered_paths.len(),
+                "protein" => protein_count += filtered_paths.len(),
+                _ => {} // should not get here b/c validated earlier
+            }
+            results.push(FastaData {
+                name: name.clone(),
+                paths: filtered_paths.to_vec(),
+                input_type: moltype.clone(),
+            });
+        }
+    }
+
+    let total_duplicate_paths: usize = duplicate_paths_count.values().sum();
+
+    println!("Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column.");
+    if total_duplicate_paths > 0 {
+        eprintln!("Found identical FASTA paths in more than one row!");
+        eprintln!("Duplicated paths:");
+        for path in duplicate_paths_count.keys() {
+            eprintln!("{:?}", path);
+        }
+        if !force {
+            return Err(anyhow!(
+                "Duplicated FASTA files found. Please use --force to bypass this check."
+            ));
+        } else {
+            eprintln!("--force is set. Continuing...")
+        }
+    }
+    println!(
+        "Loaded {} rows in total ({} DNA FASTA and {} protein FASTA), {} duplicate rows skipped.",
+        processed_rows.len(),
+        dna_count,
+        protein_count,
+        duplicate_count,
+    );
+
+    let n_fastas = dna_count + protein_count;
 
     Ok((results, n_fastas))
 }
@@ -931,8 +1067,7 @@ pub fn sigwriter(
         let mut zip = zip::ZipWriter::new(file_writer);
         let mut manifest_rows: Vec<Record> = Vec::new();
         // keep track of md5sum occurrences to prevent overwriting duplicates
-        let mut md5sum_occurrences: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
+        let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
 
         while let Ok(message) = recv.recv() {
             match message {
