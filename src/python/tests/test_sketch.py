@@ -775,6 +775,7 @@ def test_manysketch_prefix_duplicated_force(runtmp, capfd):
     print(captured.out)
     print(captured.err)
     assert "Found 'prefix' CSV. Using 'glob' to find files based on 'prefix' column." in captured.out
+    assert "Loaded 3 rows in total (3 DNA FASTA and 2 protein FASTA), 1 duplicate rows skipped." in captured.out
     assert "Found identical FASTA paths in more than one row!" in captured.err
     assert "Duplicated paths:" in captured.err
     assert "short-protein.fa" in captured.err
