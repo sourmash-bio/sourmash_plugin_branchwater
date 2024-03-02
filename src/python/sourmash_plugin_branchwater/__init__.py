@@ -345,6 +345,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
                        help='build one sketch per FASTA record, i.e. multiple sketches per FASTA file')
         p.add_argument('-f', '--force', action="store_true",
                        help='allow use of individual FASTA files in more than more sketch')
+        p.add_argument('-b', '--use-bincode', action="store_true",
+                       help='serialize signatures using bincode.')
 
     def main(self, args):
         print_version()
@@ -366,7 +368,8 @@ class Branchwater_Manysketch(CommandLinePlugin):
                                                            args.param_string,
                                                            args.output,
                                                            args.singleton,
-                                                           args.force)
+                                                           args.force,
+                                                           args.use_bincode)
         if status == 0:
             notify(f"...manysketch is done! results in '{args.output}'")
         return status

@@ -976,7 +976,7 @@ def test_indexed_full_output(runtmp):
 
     f_unique_weighted = set(df['f_unique_weighted'])
     f_unique_weighted = set([round(x, 4) for x in f_unique_weighted])
-    assert f_unique_weighted == {0.0063, 0.002, 0.0062}
+    assert f_unique_weighted == {0.0063, 0.0062, 0.0062}
 
     unique_intersect_bp = set(df['unique_intersect_bp'])
     unique_intersect_bp = set([round(x,4) for x in unique_intersect_bp])

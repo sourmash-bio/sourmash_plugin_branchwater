@@ -119,6 +119,7 @@ pub fn manysketch(
     output: String,
     singleton: bool,
     force: bool,
+    use_bincode: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (fileinfo, n_fastas) = match load_fasta_fromfile(filelist, force) {
         Ok((file_info, n_fastas)) => (file_info, n_fastas),
@@ -144,7 +145,7 @@ pub fn manysketch(
     let send = std::sync::Arc::new(send);
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sigwriter(recv, output);
+    let thrd = sigwriter(recv, output, use_bincode);
 
     // parse param string into params_vec, print error if fail
     let param_result = parse_params_str(param_str);

@@ -270,8 +270,9 @@ fn do_manysketch(
     output: String,
     singleton: bool,
     force: bool,
+    use_bincode: bool,
 ) -> anyhow::Result<u8> {
-    match manysketch::manysketch(filelist, param_str, output, singleton, force) {
+    match manysketch::manysketch(filelist, param_str, output, singleton, force, use_bincode) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

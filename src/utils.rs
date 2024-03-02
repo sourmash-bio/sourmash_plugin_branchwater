@@ -17,6 +17,7 @@ use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use bincode::{deserialize_from, serialize_into, Error};
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
@@ -24,6 +25,7 @@ use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use std::collections::{HashMap, HashSet};
+
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -1054,6 +1056,7 @@ pub enum ZipMessage {
 pub fn sigwriter(
     recv: std::sync::mpsc::Receiver<ZipMessage>,
     output: String,
+    use_bincode: bool,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
         // cast output as pathbuf
@@ -1081,7 +1084,13 @@ pub fn sigwriter(
                         } else {
                             format!("signatures/{}.sig.gz", md5sum_str)
                         };
-                        write_signature(sig, &mut zip, options, &sig_filename);
+                        if use_bincode {
+                            serialize_signature(sig, &mut zip, options, &sig_filename)
+                                .context("failed to serialize signature.");
+                            eprintln!("SERIALIZING USING BINCODE")
+                        } else {
+                            write_signature(sig, &mut zip, options, &sig_filename);
+                        }
                         let records: Vec<Record> = Record::from_sig(sig, sig_filename.as_str());
                         manifest_rows.extend(records);
                     }
@@ -1149,3 +1158,32 @@ pub fn write_signature(
     zip.start_file(sig_filename, zip_options).unwrap();
     zip.write_all(&gzipped_buffer).unwrap();
 }
+
+fn serialize_signature(
+    sig: &Signature,
+    zip: &mut zip::ZipWriter<BufWriter<File>>,
+    zip_options: zip::write::FileOptions,
+    sig_filename: &str,
+) -> Result<()> {
+    // Serialize the signature using Bincode
+    let mut buffer = Vec::new();
+    bincode::serialize_into(&mut buffer, &sig)?;
+
+    // Write the serialized data to the zip file
+    zip.start_file(sig_filename, zip_options)?;
+    zip.write_all(&buffer)?;
+
+    Ok(())
+}
+// fn write_manifest_to_zip(
+//     manifest_rows: &[Record],
+//     zip: &mut zip::ZipWriter<BufWriter<File>>,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     // Write manifest rows to CSV format
+//     for record in manifest_rows {
+//         let csv_row = record.to_csv_row();
+//         zip.write_all(csv_row.as_bytes())?;
+//     }
+
+//     Ok(())
+// }

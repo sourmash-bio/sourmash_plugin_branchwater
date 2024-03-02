@@ -786,3 +786,27 @@ def test_manysketch_prefix_duplicated_force(runtmp, capfd):
     print(sigs)
 
     assert len(sigs) == 3
+
+
+def test_manysketch_simple_bincode(runtmp):
+    fa_csv = runtmp.output('db-fa.txt')
+
+    fa1 = get_test_data('short.fa')
+    fa2 = get_test_data('short2.fa')
+    fa3 = get_test_data('short3.fa')
+
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dna,k=31,scaled=1", '--use-bincode')
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 3
