@@ -127,7 +127,7 @@ pub fn fastmultigather(
     });
 
     println!(
-        "Processed {} queries total.",
+        "DONE. Processed {} queries total.",
         processed_queries.into_inner()
     );
 

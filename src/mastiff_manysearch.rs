@@ -58,7 +58,7 @@ pub fn mastiff_manysearch(
         .par_iter()
         .filter_map(|(_idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-            if i % 1000 == 0 {
+            if i % 1000 == 0 && i > 0 {
                 eprintln!("Processed {} search sigs", i);
             }
 
