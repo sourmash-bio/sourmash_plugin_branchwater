@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType, ThreadManager,
+    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType, ThreadManager, WriterType
 };
 use sourmash::ani_utils::ani_from_containment;
 
@@ -46,19 +46,26 @@ pub fn multisearch(
     )?;
     let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
-    // set up a multi-producer, single-consumer channel.
-    let (send, recv) =
-        std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
+    // // set up a multi-producer, single-consumer channel.
+    // let (send, recv) =
+    //     std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
 
-    // // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = csvwriter_thread(recv, output);
+    // // // & spawn a thread that is dedicated to printing to a buffered output
+    // let thrd = csvwriter_thread(recv, output);
 
-    // set up manager to allow for ctrl-c handling
-    let manager = ThreadManager::new(send, thrd);
+    // // set up manager to allow for ctrl-c handling
+    // let manager = ThreadManager::new(send, thrd);
 
-    // Wrap ThreadManager in Arc<Mutex> for safe sharing across threads
-    let manager_shared = Arc::new(Mutex::new(manager));
-    //
+    // // Wrap ThreadManager in Arc<Mutex> for safe sharing across threads
+    // let manager_shared = Arc::new(Mutex::new(manager));
+     // set up manager to allow for ctrl-c handling
+     let mut manager = ThreadManager::new();
+     // start writer thread
+     manager.add_writer_thread(WriterType::MultiSearch, output)?;
+     // // Wrap ThreadManager in Arc<Mutex> for safe sharing across threads
+     let manager_shared = Arc::new(Mutex::new(manager));
+
+    // //
     // Main loop: iterate (in parallel) over all search signature paths,
     // loading them individually and searching them. Stuff results into
     // the writer thread above.
@@ -138,7 +145,7 @@ pub fn multisearch(
         })
         .flatten()
         .try_for_each_with(manager_shared.clone(), |manager, result| {
-            manager.lock().unwrap().send(result)
+            manager.lock().unwrap().send(result, WriterType::MultiSearch)
         })?;
 
     // do some cleanup and error handling -

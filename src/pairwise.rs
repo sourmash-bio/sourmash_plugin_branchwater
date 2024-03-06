@@ -49,23 +49,31 @@ pub fn pairwise(
     // // // & spawn a thread that is dedicated to printing to a buffered output
     // let thrd = csvwriter_thread(recv, output);
 
-    // // set up manager to allow for ctrl-c handling
     // let manager = ThreadManager::new(send, thrd);
-
+    // set up manager to allow for ctrl-c handling
+    let mut manager = ThreadManager::new();
+    // start writer thread
+    manager.add_writer_thread(WriterType::MultiSearch, output)?;
     // // Wrap ThreadManager in Arc<Mutex> for safe sharing across threads
-    // let manager_shared = Arc::new(Mutex::new(manager));
+    let manager_shared = Arc::new(Mutex::new(manager));
 
     // Create a new ThreadManager instance
-    let thread_manager = ThreadManager::new();
+    // let thread_manager = ThreadManager::new();
 
     // Wrap the ThreadManager instance in a Mutex to make it thread-safe
-    let mutex_thread_manager = Mutex::new(thread_manager);
+    // let mutex_thread_manager = Mutex::new(thread_manager);
 
     // Wrap the Mutex in an Arc to make it shareable across threads
-    let arc_mutex_thread_manager = Arc::new(mutex_thread_manager);
+    // let arc_mutex_thread_manager = Arc::new(mutex_thread_manager);
+
+    // Create a new instance of ThreadManager wrapped in an Arc and Mutex
+    // let manager = Arc::new(Mutex::new(ThreadManager::new()));
+    // let manager_clone = Arc::clone(&manager);
+
 
     // Lock the Mutex to acquire a guard, then unwrap
-    let manager_shared = arc_mutex_thread_manager.lock().unwrap().unwrap();
+    // let manager_shared = arc_mutex_thread_manager.lock().unwrap();
+    // let manager_shared = manager.lock().unwrap();
 
     // let thread_manager = Arc::new(Mutex::new(ThreadManager::new()));
     // let mut manager_shared = thread_manager.lock().unwrap().unwrap();
@@ -81,12 +89,13 @@ pub fn pairwise(
     sketches.par_iter().enumerate().for_each(|(idx, query)| {
         // Clone the Arc to get a new reference for this thread
         // let manager_clone = manager_shared.clone();
-        let manager_clone = Arc::clone(&arc_mutex_thread_manager);
+        // let manager_clone = Arc::clone(&arc_mutex_thread_manager);
+        let manager_clone = Arc::clone(&manager_shared);
         let mut has_written_comparison = false;
         for against in sketches.iter().skip(idx + 1) {
-            if manager_shared.check_for_interrupt() {
-                manager_shared.perform_cleanup();
-                return; // Early return to stop processing further
+            // don't need to acquire lock to check for interrupt
+            if manager.check_for_interrupt() {
+                return; // Early return to stop processing further. This should end the loop and move to cleanup.
             }
 
             let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
@@ -189,7 +198,7 @@ pub fn pairwise(
     });
 
     // do some cleanup and error handling -
-    manager_shared.perform_cleanup();
+    manager.perform_cleanup();
 
     // done!
     let i: usize = processed_cmp.load(atomic::Ordering::SeqCst);
