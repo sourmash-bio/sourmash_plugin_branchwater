@@ -161,8 +161,28 @@ def test_index_empty_siglist(runtmp, capfd):
     assert "Error: Signatures failed to load. Exiting." in captured.err
 
 
-def test_index_nomatch_sig_in_siglist(runtmp, capfd):
+def test_index_nomatch(runtmp, capfd):
     # test index with a siglist file that has (only) a non-matching ksize sig
+    siglist = runtmp.output('against.txt')
+    db = runtmp.output('db.rdb')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    make_file_list(siglist, [sig1])
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'index', siglist,
+                        '-o', db)
+
+    captured = capfd.readouterr()
+    print(runtmp.last_result.out)
+    print(runtmp.last_result.err)
+    print(captured.out)
+    print(captured.err)
+    assert not os.path.exists(db)
+
+
+def test_index_nomatch_sig_in_siglist(runtmp, capfd):
+    # test index with a siglist file that has both matching and non-matching sigs
     siglist = runtmp.output('against.txt')
     db = runtmp.output('db.rdb')
 
@@ -174,10 +194,11 @@ def test_index_nomatch_sig_in_siglist(runtmp, capfd):
                         '-o', db)
 
     captured = capfd.readouterr()
-    assert os.path.exists(db) # currently empty file
     print(runtmp.last_result.out)
     print(runtmp.last_result.err)
+    print(captured.out)
     print(captured.err)
+    assert os.path.exists(db)
 
 
 def test_index_zipfile(runtmp, capfd):

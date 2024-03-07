@@ -20,6 +20,13 @@ pub fn index<P: AsRef<Path>>(
         allow_failed_sigpaths,
     )?;
 
+    if collection.len() == 0 {
+        bail!(
+            "No sketches matching parameters, check input: '{}'",
+            &siglist
+        )
+    }
+
     RevIndex::create(
         output.as_ref(),
         collection.select(selection)?.try_into()?,
