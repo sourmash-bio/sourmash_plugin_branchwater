@@ -152,7 +152,7 @@ pub fn pairwise(
             }
 
             let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
-            if i % 100000 == 0 {
+            if i % 100000 == 0 && i > 0 {
                 eprintln!("Processed {} comparisons", i);
             }
         }

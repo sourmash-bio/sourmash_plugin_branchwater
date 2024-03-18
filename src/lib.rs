@@ -269,8 +269,9 @@ fn do_manysketch(
     param_str: String,
     output: String,
     singleton: bool,
+    force: bool,
 ) -> anyhow::Result<u8> {
-    match manysketch::manysketch(filelist, param_str, output, singleton) {
+    match manysketch::manysketch(filelist, param_str, output, singleton, force) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
