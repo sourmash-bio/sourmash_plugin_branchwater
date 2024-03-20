@@ -421,7 +421,7 @@ def test_bad_against(runtmp, capfd):
 
 
 def test_empty_query(runtmp, capfd):
-    # test with an empty query list - fail gracefully
+    # test with an empty query list - fail with error
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -434,7 +434,8 @@ def test_empty_query(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                         '-o', output)
 
     print(runtmp.last_result.err)
