@@ -89,6 +89,12 @@ def test_manysketch_mult_k(runtmp):
 
     assert len(sigs) == 6
 
+    names = [sig.name for sig in sigs]
+    print(names)
+    assert names.count('short') == 2
+    assert names.count('short2') == 2
+    assert names.count('short3') == 2
+
 
 def test_manysketch_mult_k_2(runtmp):
     fa_csv = runtmp.output('db-fa.txt')
@@ -114,6 +120,12 @@ def test_manysketch_mult_k_2(runtmp):
     print(sigs)
 
     assert len(sigs) == 6
+
+    names = [sig.name for sig in sigs]
+    print(names)
+    assert names.count('short') == 2
+    assert names.count('short2') == 2
+    assert names.count('short3') == 2
 
 
 def test_manysketch_mult_moltype(runtmp):
@@ -148,10 +160,12 @@ def test_manysketch_mult_moltype(runtmp):
                 assert sig.minhash.scaled == 1
                 assert sig.md5sum() == "1474578c5c46dd09da4c2df29cf86621"
             else:
+                assert sig.name == 'short'
                 assert sig.minhash.ksize == 10
                 assert sig.minhash.scaled == 1
                 assert sig.md5sum() == "eb4467d11e0ecd2dbde4193bfc255310"
         else:
+            assert sig.name in ['short', 'short2', 'short3']
             assert sig.minhash.ksize == 21
             assert sig.minhash.scaled == 1
             assert sig.minhash.is_dna

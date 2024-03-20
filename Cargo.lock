@@ -1580,9 +1580,9 @@ dependencies = [
 
 [[package]]
 name = "rustworkx-core"
-version = "0.14.1"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dc64577832a6bcfd10fa6d452c3b5fe7a4ca228375d236f65a1ab0db953ba34"
+checksum = "529027dfaa8125aa61bb7736ae9484f41e8544f448af96918c8da6b1def7f57b"
 dependencies = [
  "ahash 0.8.10",
  "fixedbitset",
@@ -1753,7 +1753,7 @@ dependencies = [
 
 [[package]]
 name = "sourmash_plugin_branchwater"
-version = "0.9.2-dev"
+version = "0.9.3-dev"
 dependencies = [
  "anyhow",
  "assert_cmd",

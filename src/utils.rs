@@ -951,8 +951,7 @@ pub fn report_on_collection_loading(
 
     // Validate sketches
     if collection.is_empty() {
-        eprintln!("No {} signatures loaded, exiting.", report_type);
-        return Ok(());
+        bail!("No {} signatures loaded, exiting.", report_type);
     }
     eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);
     Ok(())
