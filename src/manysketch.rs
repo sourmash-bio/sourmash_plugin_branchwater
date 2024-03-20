@@ -226,7 +226,6 @@ pub fn manysketch(
                                     sig.set_name(name);
                                     // sourmash sets filename to last filename if merging fastas
                                     sig.set_filename(last_filename.as_str());
-                                    set_name = true;
                                 };
                                 if moltype == "protein" {
                                     sig.add_protein(&record.seq())
@@ -237,6 +236,9 @@ pub fn manysketch(
                                     // if not force, panics with 'N' in dna sequence
                                 }
                             });
+                            if !set_name {
+                                set_name = true;
+                            }
                         }
                         Err(err) => eprintln!("Error while processing record: {:?}", err),
                     }
