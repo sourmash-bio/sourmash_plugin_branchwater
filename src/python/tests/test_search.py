@@ -422,7 +422,8 @@ def test_nomatch_against(runtmp, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
     captured = capfd.readouterr()
@@ -470,7 +471,8 @@ def test_empty_query(runtmp, indexed, capfd):
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                         '-o', output)
 
     print(runtmp.last_result.err)
