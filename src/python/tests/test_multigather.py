@@ -543,7 +543,8 @@ def test_empty_against(runtmp, capfd):
     against_list = runtmp.output('against.txt')
     make_file_list(against_list, [])
 
-    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
                         '-s', '100000')
 
     captured = capfd.readouterr()
