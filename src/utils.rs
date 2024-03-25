@@ -26,7 +26,6 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use std::collections::{HashMap, HashSet};
 /// Track a name/minhash.
 
-#[derive(Clone)]
 pub struct SmallSignature {
     pub location: String,
     pub name: String,
