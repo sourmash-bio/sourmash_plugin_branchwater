@@ -26,6 +26,7 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use std::collections::{HashMap, HashSet};
 /// Track a name/minhash.
 
+#[derive(Clone)]
 pub struct SmallSignature {
     pub location: String,
     pub name: String,
@@ -434,25 +435,22 @@ pub fn load_sketches(
     selection: &Selection,
     report_type: ReportType,
 ) -> Result<Vec<SmallSignature>> {
-    let mut sketchinfo: Vec<SmallSignature> = Vec::new();
-    for (_idx, record) in collection.iter() {
-        if let Ok(sig) = collection.sig_from_record(record) {
-            if let Some(minhash) = sig.clone().select(selection)?.minhash().cloned() {
-                sketchinfo.push(SmallSignature {
-                    location: record.internal_location().to_string(),
-                    name: sig.name(),
-                    md5sum: sig.md5sum(),
-                    minhash,
-                })
-            }
-        } else {
-            bail!(
-                "Error: Failed to load {} record: {}",
-                report_type,
-                record.name()
-            );
-        }
-    }
+    let sketchinfo: Vec<SmallSignature> = collection
+        .par_iter()
+        .filter_map(|(_idx, record)| {
+            let sig = collection.sig_from_record(record).ok()?;
+            let selected_sig = sig.clone().select(selection).ok()?;
+            let minhash = selected_sig.minhash()?.clone();
+
+            Some(SmallSignature {
+                location: record.internal_location().to_string(),
+                name: sig.name(),
+                md5sum: sig.md5sum(),
+                minhash,
+            })
+        })
+        .collect();
+
     Ok(sketchinfo)
 }
 
