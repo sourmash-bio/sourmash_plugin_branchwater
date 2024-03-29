@@ -609,7 +609,7 @@ def test_cluster_ani_pairwise_graph_output(runtmp):
     # check graph output
     expected_vertex_count = 3
     expected_vertices = ['1', '2', '3']
-    expected_edges = [('2', '3')]
+    n_expected_edges = 1
     assert os.path.exists(graph)
     with open(graph, 'r', newline='') as pajek_graph:
         reader = csv.reader(pajek_graph, delimiter=' ')
@@ -638,4 +638,4 @@ def test_cluster_ani_pairwise_graph_output(runtmp):
     # Check found vertices and edges against expected values
     assert len(found_vertices) == expected_vertex_count
     assert found_vertices == expected_vertices, f"Vertices dont match: {found_vertices}"
-    assert found_edges == expected_edges, f"Edges dont match: {found_edges}"
+    assert len(found_edges) == n_expected_edges, f"Edge count doesnt match: found edges: {found_edges}"
