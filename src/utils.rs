@@ -794,6 +794,137 @@ pub fn report_on_collection_loading(
     Ok(())
 }
 
+//branchwater version that allows using SmallSignature
+#[allow(clippy::too_many_arguments)]
+pub fn branchwater_calculate_gather_stats(
+    orig_query: &KmerMinHash,
+    query: KmerMinHash,
+    // these are separate in PrefetchResult, so pass in like this i guess
+    match_mh: KmerMinHash,
+    match_name: String,
+    match_md5: String,
+    overlap: usize,
+    gather_result_rank: usize,
+    sum_weighted_found: usize,
+    total_weighted_hashes: usize,
+    calc_abund_stats: bool,
+    calc_ani_ci: bool,
+    confidence: Option<f64>,
+) -> Result<GatherResult> {
+    //bp remaining in subtracted query
+    let remaining_bp = (query.size() - match_size) * query.scaled() as usize;
+
+    // stats for this match vs original query
+    let (intersect_orig, _) = match_mh.intersection_size(orig_query).unwrap();
+    let intersect_bp = (match_mh.scaled() * intersect_orig) as usize;
+    let f_orig_query = intersect_orig as f64 / orig_query.size() as f64;
+    let f_match_orig = intersect_orig as f64 / match_mh.size() as f64;
+
+    // stats for this match vs current (subtracted) query
+    let f_match = match_size as f64 / match_mh.size() as f64;
+    let unique_intersect_bp = match_mh.scaled() as usize * match_size;
+    let f_unique_to_query = match_size as f64 / query.size() as f64;
+
+    // // get ANI values
+    let ksize = match_mh.ksize() as f64;
+    let query_containment_ani = ani_from_containment(f_unique_to_query, ksize);
+    let match_containment_ani = ani_from_containment(f_match, ksize);
+    let mut query_containment_ani_ci_low = None;
+    let mut query_containment_ani_ci_high = None;
+    let mut match_containment_ani_ci_low = None;
+    let mut match_containment_ani_ci_high = None;
+
+    if calc_ani_ci {
+        let n_unique_kmers = match_mh.n_unique_kmers();
+        let (qani_low, qani_high) = ani_ci_from_containment(
+            f_unique_to_query,
+            ksize,
+            match_mh.scaled(),
+            n_unique_kmers,
+            confidence,
+        )?;
+        query_containment_ani_ci_low = Some(qani_low);
+        query_containment_ani_ci_high = Some(qani_high);
+
+        let (mani_low, mani_high) = ani_ci_from_containment(
+            f_match,
+            ksize,
+            match_mh.scaled(),
+            n_unique_kmers,
+            confidence,
+        )?;
+        match_containment_ani_ci_low = Some(mani_low);
+        match_containment_ani_ci_high = Some(mani_high);
+    }
+
+    let average_containment_ani = (query_containment_ani + match_containment_ani) / 2.0;
+    let max_containment_ani = f64::max(query_containment_ani, match_containment_ani);
+
+    // set up non-abundance weighted values
+    let mut f_unique_weighted = f_unique_to_query;
+    let mut average_abund = 1.0;
+    let mut median_abund = 1.0;
+    let mut std_abund = 0.0;
+    // should these default to the unweighted numbers?
+    let mut n_unique_weighted_found = 0;
+    let mut sum_total_weighted_found = 0;
+
+    // If abundance, calculate abund-related metrics (vs current query)
+    if calc_abund_stats {
+        // take abunds from subtracted query
+        let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(&query) {
+            Ok((abunds, unique_weighted_found)) => (abunds, unique_weighted_found),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        n_unique_weighted_found = unique_weighted_found as usize;
+        sum_total_weighted_found = sum_weighted_found + n_unique_weighted_found;
+        f_unique_weighted = n_unique_weighted_found as f64 / total_weighted_hashes as f64;
+
+        average_abund = n_unique_weighted_found as f64 / abunds.len() as f64;
+
+        // todo: try to avoid clone for these?
+        median_abund = median(abunds.iter().cloned()).unwrap();
+        std_abund = stddev(abunds.iter().cloned());
+    }
+
+    let result = BranchwaterGatherResult::builder()
+            // FIXME
+        .intersect_bp(intersect_bp)
+        .f_orig_query(f_orig_query)
+        .f_match(f_match)
+        .f_unique_to_query(f_unique_to_query)
+        .f_unique_weighted(f_unique_weighted)
+        .average_abund(average_abund)
+        .median_abund(median_abund)
+        .std_abund(std_abund)
+        .filename(filename)
+        .name(match_name)
+        .md5(match_md5)
+        .match_mh(match_mh)
+        .f_match_orig(f_match_orig)
+        .unique_intersect_bp(unique_intersect_bp)
+        .gather_result_rank(gather_result_rank)
+        .remaining_bp(remaining_bp)
+        .n_unique_weighted_found(n_unique_weighted_found)
+        .query_containment_ani(query_containment_ani)
+        .query_containment_ani_ci_low(query_containment_ani_ci_low)
+        .query_containment_ani_ci_high(query_containment_ani_ci_high)
+        .match_containment_ani_ci_low(match_containment_ani_ci_low)
+        .match_containment_ani_ci_high(match_containment_ani_ci_high)
+        .match_containment_ani(match_containment_ani)
+        .average_containment_ani(average_containment_ani)
+        .max_containment_ani(max_containment_ani)
+        .sum_weighted_found(sum_total_weighted_found)
+        .total_weighted_hashes(total_weighted_hashes)
+        .build();
+    Ok(result)
+}
+
+
+
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
 /// removing matches in 'matchlist' from 'query'.
 
@@ -835,6 +966,14 @@ pub fn consume_query_by_gather(
     let orig_query_mh = query.minhash().unwrap();
     let mut query_mh = orig_query_mh.clone();
     let mut last_hashes = orig_query_mh.size();
+    // some tracking items
+    let gather_result_rank = 0;
+    let sum_weighted_found = 0;
+    let total_weighted_hashes = 0;
+    // set some bools
+    let calc_abund_stats = true;
+    let calc_ani_ci =  false;
+    let confidence = None;
 
     eprintln!(
         "{} iter {}: start: query hashes={} matches={}",
@@ -847,8 +986,70 @@ pub fn consume_query_by_gather(
     while !matching_sketches.is_empty() {
         let best_element = matching_sketches.peek().unwrap();
 
+        //clculate full gather stats here
+        _match = branchwater_calculate_gather_stats(orig_query_mh,
+                                                    query_mh,
+                                                    best_element.minhash, // don't even have smallsignature rn -- need to modify Prefetch??
+                                                    best_element.overlap,
+                                                    gather_result_rank,
+                                                    sum_weighted_found,
+                                                    total_weighted_hashes,
+                                                    calc_abund_stats,
+                                                    calc_ani_ci,
+                                                    confidence);
+
+// // here, build full gather result, then write
+        // let result =  BranchwaterGatherResult {
+        //     intersect_bp: match_.intersect_bp,
+        //     f_orig_query: match_.f_orig_query(),
+        //     f_match: match_.f_match(),
+        //     f_unique_to_query: match_.f_unique_to_query(),
+        //     f_unique_weighted: match_.f_unique_weighted(),
+        //     average_abund: match_.average_abund(),
+        //     median_abund: match_.median_abund(),
+        //     std_abund: match_.std_abund(),
+        //     match_filename: match_.filename().clone(),
+        //     match_name: match_.name().clone(),
+        //     match_md5: match_.md5().clone(),
+        //     f_match_orig: match_.f_match_orig(),
+        //     unique_intersect_bp: match_.unique_intersect_bp(),
+        //     gather_result_rank: match_.gather_result_rank(),
+        //     remaining_bp: match_.remaining_bp(),
+        //     query_filename: query_sig.filename(),
+        //     query_name: query_sig.name().clone(),
+        //     query_md5: query_sig.md5sum().clone(),
+        //     query_bp: query_mh.n_unique_kmers() as usize,
+        //     ksize: ksize as usize,
+        //     moltype: query_mh.hash_function().to_string(),
+        //     scaled: query_mh.scaled() as usize,
+        //     query_n_hashes: query_mh.size(),
+        //     query_abundance: query_mh.track_abundance(),
+        //     query_containment_ani: match_.query_containment_ani(),
+        //     match_containment_ani: match_.match_containment_ani(),
+        //     average_containment_ani: match_.average_containment_ani(),
+        //     max_containment_ani: match_.max_containment_ani(),
+        //     n_unique_weighted_found: match_.n_unique_weighted_found(),
+        //     sum_weighted_found: match_.sum_weighted_found(),
+        //     total_weighted_hashes: match_.total_weighted_hashes(),
+
+        //     query_containment_ani_ci_low: match_
+        //         .query_containment_ani_ci_low(),
+        //     query_containment_ani_ci_high: match_
+        //         .query_containment_ani_ci_high(),
+        //     match_containment_ani_ci_low: match_
+        //         .match_containment_ani_ci_low(),
+        //     match_containment_ani_ci_high: match_
+        //         .match_containment_ani_ci_high(),
+        // });
+
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
+        gather_result_rank +=1;
+
+
+        
+
+        
 
         writeln!(
             &mut writer,
