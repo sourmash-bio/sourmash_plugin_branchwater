@@ -17,12 +17,14 @@ use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
-use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::sketch::minhash::{KmerMinHash, KmerMinHashBTree};
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
+use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 /// Track a name/minhash.
 
@@ -794,23 +796,23 @@ pub fn report_on_collection_loading(
     Ok(())
 }
 
-//branchwater version that allows using SmallSignature
+//branchwater version that allows using PrefetchResult
 #[allow(clippy::too_many_arguments)]
 pub fn branchwater_calculate_gather_stats(
     orig_query: &KmerMinHash,
     query: KmerMinHash,
-    // these are separate in PrefetchResult, so pass in like this i guess
+    // these are separate in PrefetchResult, so just pass them separately in here
     match_mh: KmerMinHash,
     match_name: String,
     match_md5: String,
-    overlap: usize,
+    match_size: usize,
     gather_result_rank: usize,
     sum_weighted_found: usize,
     total_weighted_hashes: usize,
     calc_abund_stats: bool,
     calc_ani_ci: bool,
     confidence: Option<f64>,
-) -> Result<GatherResult> {
+) -> Result<InterimGatherResult> {
     //bp remaining in subtracted query
     let remaining_bp = (query.size() - match_size) * query.scaled() as usize;
 
@@ -874,9 +876,7 @@ pub fn branchwater_calculate_gather_stats(
         // take abunds from subtracted query
         let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(&query) {
             Ok((abunds, unique_weighted_found)) => (abunds, unique_weighted_found),
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => return Err(e.into()),
         };
 
         n_unique_weighted_found = unique_weighted_found as usize;
@@ -890,40 +890,37 @@ pub fn branchwater_calculate_gather_stats(
         std_abund = stddev(abunds.iter().cloned());
     }
 
-    let result = BranchwaterGatherResult::builder()
-            // FIXME
-        .intersect_bp(intersect_bp)
-        .f_orig_query(f_orig_query)
-        .f_match(f_match)
-        .f_unique_to_query(f_unique_to_query)
-        .f_unique_weighted(f_unique_weighted)
-        .average_abund(average_abund)
-        .median_abund(median_abund)
-        .std_abund(std_abund)
-        .filename(filename)
-        .name(match_name)
-        .md5(match_md5)
-        .match_mh(match_mh)
-        .f_match_orig(f_match_orig)
-        .unique_intersect_bp(unique_intersect_bp)
-        .gather_result_rank(gather_result_rank)
-        .remaining_bp(remaining_bp)
-        .n_unique_weighted_found(n_unique_weighted_found)
-        .query_containment_ani(query_containment_ani)
-        .query_containment_ani_ci_low(query_containment_ani_ci_low)
-        .query_containment_ani_ci_high(query_containment_ani_ci_high)
-        .match_containment_ani_ci_low(match_containment_ani_ci_low)
-        .match_containment_ani_ci_high(match_containment_ani_ci_high)
-        .match_containment_ani(match_containment_ani)
-        .average_containment_ani(average_containment_ani)
-        .max_containment_ani(max_containment_ani)
-        .sum_weighted_found(sum_total_weighted_found)
-        .total_weighted_hashes(total_weighted_hashes)
-        .build();
+    let result = InterimGatherResult {
+        intersect_bp,
+        f_orig_query,
+        f_match,
+        f_unique_to_query,
+        f_unique_weighted,
+        average_abund,
+        median_abund,
+        std_abund,
+        // match_filename,
+        match_filename: "".to_string(), // how to get match filename??
+        match_name,
+        match_md5,
+        f_match_orig,
+        unique_intersect_bp,
+        gather_result_rank,
+        remaining_bp,
+        n_unique_weighted_found,
+        query_containment_ani,
+        query_containment_ani_ci_low,
+        query_containment_ani_ci_high,
+        match_containment_ani_ci_low,
+        match_containment_ani_ci_high,
+        match_containment_ani,
+        average_containment_ani,
+        max_containment_ani,
+        sum_weighted_found: sum_total_weighted_found,
+        total_weighted_hashes,
+    };
     Ok(result)
 }
-
-
 
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
 /// removing matches in 'matchlist' from 'query'.
@@ -949,11 +946,14 @@ pub fn consume_query_by_gather(
         let file = File::create(output_path)?;
         writer = Box::new(BufWriter::new(file));
     }
-    writeln!(
-        &mut writer,
-        "query_filename,rank,query_name,query_md5,match_name,match_md5,intersect_bp"
-    )
-    .ok();
+    // create csv writer
+    let mut csv_writer = Writer::from_writer(writer);
+
+    // writeln!(
+    //     &mut writer,
+    //     "query_filename,rank,query_name,query_md5,match_name,match_md5,intersect_bp"
+    // )
+    // .ok();
 
     let mut matching_sketches = matchlist;
     let mut rank = 0;
@@ -965,15 +965,21 @@ pub fn consume_query_by_gather(
 
     let orig_query_mh = query.minhash().unwrap();
     let mut query_mh = orig_query_mh.clone();
+    let orig_query_ds = orig_query_mh.clone();
+    // to do == use this to subtract hashes instead
+    // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
+
     let mut last_hashes = orig_query_mh.size();
-    // some tracking items
-    let gather_result_rank = 0;
-    let sum_weighted_found = 0;
-    let total_weighted_hashes = 0;
+
+    // some items for full gather results
+    let mut gather_result_rank = 0;
+    let mut sum_weighted_found = 0;
+    let total_weighted_hashes = orig_query_mh.sum_abunds();
+    let ksize = orig_query_mh.ksize();
     // set some bools
-    let calc_abund_stats = true;
-    let calc_ani_ci =  false;
-    let confidence = None;
+    let calc_abund_stats = orig_query_mh.track_abundance();
+    let calc_ani_ci = false;
+    let ani_confidence_interval_fraction = None;
 
     eprintln!(
         "{} iter {}: start: query hashes={} matches={}",
@@ -987,82 +993,90 @@ pub fn consume_query_by_gather(
         let best_element = matching_sketches.peek().unwrap();
 
         //clculate full gather stats here
-        _match = branchwater_calculate_gather_stats(orig_query_mh,
-                                                    query_mh,
-                                                    best_element.minhash, // don't even have smallsignature rn -- need to modify Prefetch??
-                                                    best_element.overlap,
-                                                    gather_result_rank,
-                                                    sum_weighted_found,
-                                                    total_weighted_hashes,
-                                                    calc_abund_stats,
-                                                    calc_ani_ci,
-                                                    confidence);
+        let match_ = branchwater_calculate_gather_stats(
+            &orig_query_ds,
+            query_mh.clone(),
+            // KmerMinHash::from(query.clone()),
+            best_element.minhash.clone(),
+            best_element.name.clone(),
+            best_element.md5sum.clone(),
+            best_element.overlap.clone() as usize,
+            gather_result_rank,
+            sum_weighted_found,
+            total_weighted_hashes.try_into().unwrap(),
+            calc_abund_stats,
+            calc_ani_ci,
+            ani_confidence_interval_fraction,
+        )?;
 
-// // here, build full gather result, then write
-        // let result =  BranchwaterGatherResult {
-        //     intersect_bp: match_.intersect_bp,
-        //     f_orig_query: match_.f_orig_query(),
-        //     f_match: match_.f_match(),
-        //     f_unique_to_query: match_.f_unique_to_query(),
-        //     f_unique_weighted: match_.f_unique_weighted(),
-        //     average_abund: match_.average_abund(),
-        //     median_abund: match_.median_abund(),
-        //     std_abund: match_.std_abund(),
-        //     match_filename: match_.filename().clone(),
-        //     match_name: match_.name().clone(),
-        //     match_md5: match_.md5().clone(),
-        //     f_match_orig: match_.f_match_orig(),
-        //     unique_intersect_bp: match_.unique_intersect_bp(),
-        //     gather_result_rank: match_.gather_result_rank(),
-        //     remaining_bp: match_.remaining_bp(),
-        //     query_filename: query_sig.filename(),
-        //     query_name: query_sig.name().clone(),
-        //     query_md5: query_sig.md5sum().clone(),
-        //     query_bp: query_mh.n_unique_kmers() as usize,
-        //     ksize: ksize as usize,
-        //     moltype: query_mh.hash_function().to_string(),
-        //     scaled: query_mh.scaled() as usize,
-        //     query_n_hashes: query_mh.size(),
-        //     query_abundance: query_mh.track_abundance(),
-        //     query_containment_ani: match_.query_containment_ani(),
-        //     match_containment_ani: match_.match_containment_ani(),
-        //     average_containment_ani: match_.average_containment_ani(),
-        //     max_containment_ani: match_.max_containment_ani(),
-        //     n_unique_weighted_found: match_.n_unique_weighted_found(),
-        //     sum_weighted_found: match_.sum_weighted_found(),
-        //     total_weighted_hashes: match_.total_weighted_hashes(),
+        // here, build full gather result, then write
+        let gather_result = BranchwaterGatherResult {
+            intersect_bp: match_.intersect_bp,
+            f_orig_query: match_.f_orig_query,
+            f_match: match_.f_match,
+            f_unique_to_query: match_.f_unique_to_query,
+            f_unique_weighted: match_.f_unique_weighted,
+            average_abund: match_.average_abund,
+            median_abund: match_.median_abund,
+            std_abund: match_.std_abund,
+            match_filename: match_.match_filename.clone(), // to do: get match filename
+            match_name: match_.match_name.clone(),
+            match_md5: match_.match_md5.clone(),
+            f_match_orig: match_.f_match_orig,
+            unique_intersect_bp: match_.unique_intersect_bp,
+            gather_result_rank: match_.gather_result_rank,
+            remaining_bp: match_.remaining_bp,
+            query_filename: query.filename(),
+            //query_filename: "".to_string(), // to do -- get query filename
+            query_name: query.name().clone(),
+            query_md5: query.md5sum().clone(),
+            query_bp: query_mh.n_unique_kmers() as usize,
+            ksize: ksize as usize,
+            moltype: query_mh.hash_function().to_string(),
+            scaled: query_mh.scaled() as usize,
+            query_n_hashes: query_mh.size(),
+            query_abundance: query_mh.track_abundance(),
+            query_containment_ani: match_.query_containment_ani,
+            match_containment_ani: match_.match_containment_ani,
+            average_containment_ani: match_.average_containment_ani,
+            max_containment_ani: match_.max_containment_ani,
+            n_unique_weighted_found: match_.n_unique_weighted_found,
+            sum_weighted_found: match_.sum_weighted_found,
+            total_weighted_hashes: match_.total_weighted_hashes,
 
-        //     query_containment_ani_ci_low: match_
-        //         .query_containment_ani_ci_low(),
-        //     query_containment_ani_ci_high: match_
-        //         .query_containment_ani_ci_high(),
-        //     match_containment_ani_ci_low: match_
-        //         .match_containment_ani_ci_low(),
-        //     match_containment_ani_ci_high: match_
-        //         .match_containment_ani_ci_high(),
-        // });
+            query_containment_ani_ci_low: match_.query_containment_ani_ci_low,
+            query_containment_ani_ci_high: match_.query_containment_ani_ci_high,
+            match_containment_ani_ci_low: match_.match_containment_ani_ci_low,
+            match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
+        };
 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
-        gather_result_rank +=1;
+        // to do -- switch to KmerMinHashTree, for faster removal.
+        //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
 
+        // keep track of gather rank and sum weighted found
+        gather_result_rank += 1;
+        sum_weighted_found = gather_result.sum_weighted_found;
 
-        
+        // serialize result to file.
+        csv_writer.serialize(gather_result)?;
 
-        
-
-        writeln!(
-            &mut writer,
-            "{},{},\"{}\",{},\"{}\",{},{}",
-            location,
-            rank,
-            query.name(),
-            query.md5sum(),
-            best_element.name,
-            best_element.md5sum,
-            best_element.overlap
-        )
-        .ok();
+        // if let Err(e) = writer.serialize(res) {
+        //     eprintln!("Error writing item: {:?}", e);
+        // }
+        // writeln!(
+        //     &mut writer,
+        //     "{},{},\"{}\",{},\"{}\",{},{}",
+        //     location,
+        //     rank,
+        //     query.name(),
+        //     query.md5sum(),
+        //     best_element.name,
+        //     best_element.md5sum,
+        //     best_element.overlap
+        // )
+        // .ok();
 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
@@ -1136,6 +1150,35 @@ pub struct SearchResult {
     pub average_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
+}
+
+pub struct InterimGatherResult {
+    intersect_bp: usize,
+    f_orig_query: f64,
+    f_match: f64,
+    f_unique_to_query: f64,
+    f_unique_weighted: f64,
+    average_abund: f64,
+    median_abund: f64,
+    std_abund: f64,
+    match_filename: String,
+    match_name: String,
+    match_md5: String,
+    f_match_orig: f64,
+    unique_intersect_bp: usize,
+    gather_result_rank: usize,
+    remaining_bp: usize,
+    n_unique_weighted_found: usize,
+    total_weighted_hashes: usize,
+    sum_weighted_found: usize,
+    query_containment_ani: f64,
+    query_containment_ani_ci_low: Option<f64>,
+    query_containment_ani_ci_high: Option<f64>,
+    match_containment_ani: f64,
+    match_containment_ani_ci_low: Option<f64>,
+    match_containment_ani_ci_high: Option<f64>,
+    average_containment_ani: f64,
+    max_containment_ani: f64,
 }
 
 #[derive(Serialize)]
