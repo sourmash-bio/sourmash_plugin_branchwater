@@ -930,6 +930,7 @@ pub fn consume_query_by_gather(
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
     gather_output: Option<String>,
+    make_full_result: bool,
 ) -> Result<()> {
     // Define the writer to stdout by default
     let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
@@ -949,12 +950,6 @@ pub fn consume_query_by_gather(
     // create csv writer
     let mut csv_writer = Writer::from_writer(writer);
 
-    // writeln!(
-    //     &mut writer,
-    //     "query_filename,rank,query_name,query_md5,match_name,match_md5,intersect_bp"
-    // )
-    // .ok();
-
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
@@ -972,7 +967,7 @@ pub fn consume_query_by_gather(
     let mut last_hashes = orig_query_mh.size();
 
     // some items for full gather results
-    let mut gather_result_rank = 0;
+
     let mut sum_weighted_found = 0;
     let total_weighted_hashes = orig_query_mh.sum_abunds();
     let ksize = orig_query_mh.ksize();
@@ -992,91 +987,84 @@ pub fn consume_query_by_gather(
     while !matching_sketches.is_empty() {
         let best_element = matching_sketches.peek().unwrap();
 
-        //clculate full gather stats here
-        let match_ = branchwater_calculate_gather_stats(
-            &orig_query_ds,
-            query_mh.clone(),
-            // KmerMinHash::from(query.clone()),
-            best_element.minhash.clone(),
-            best_element.name.clone(),
-            best_element.md5sum.clone(),
-            best_element.overlap.clone() as usize,
-            gather_result_rank,
-            sum_weighted_found,
-            total_weighted_hashes.try_into().unwrap(),
-            calc_abund_stats,
-            calc_ani_ci,
-            ani_confidence_interval_fraction,
-        )?;
+        if make_full_result {
+            //calculate full gather stats here
+            let match_ = branchwater_calculate_gather_stats(
+                &orig_query_ds,
+                query_mh.clone(),
+                // KmerMinHash::from(query.clone()),
+                best_element.minhash.clone(),
+                best_element.name.clone(),
+                best_element.md5sum.clone(),
+                best_element.overlap.clone() as usize,
+                rank,
+                sum_weighted_found,
+                total_weighted_hashes.try_into().unwrap(),
+                calc_abund_stats,
+                calc_ani_ci,
+                ani_confidence_interval_fraction,
+            )?;
 
-        // here, build full gather result, then write
-        let gather_result = BranchwaterGatherResult {
-            intersect_bp: match_.intersect_bp,
-            f_orig_query: match_.f_orig_query,
-            f_match: match_.f_match,
-            f_unique_to_query: match_.f_unique_to_query,
-            f_unique_weighted: match_.f_unique_weighted,
-            average_abund: match_.average_abund,
-            median_abund: match_.median_abund,
-            std_abund: match_.std_abund,
-            match_filename: match_.match_filename.clone(), // to do: get match filename
-            match_name: match_.match_name.clone(),
-            match_md5: match_.match_md5.clone(),
-            f_match_orig: match_.f_match_orig,
-            unique_intersect_bp: match_.unique_intersect_bp,
-            gather_result_rank: match_.gather_result_rank,
-            remaining_bp: match_.remaining_bp,
-            query_filename: query.filename(),
-            //query_filename: "".to_string(), // to do -- get query filename
-            query_name: query.name().clone(),
-            query_md5: query.md5sum().clone(),
-            query_bp: query_mh.n_unique_kmers() as usize,
-            ksize: ksize as usize,
-            moltype: query_mh.hash_function().to_string(),
-            scaled: query_mh.scaled() as usize,
-            query_n_hashes: query_mh.size(),
-            query_abundance: query_mh.track_abundance(),
-            query_containment_ani: match_.query_containment_ani,
-            match_containment_ani: match_.match_containment_ani,
-            average_containment_ani: match_.average_containment_ani,
-            max_containment_ani: match_.max_containment_ani,
-            n_unique_weighted_found: match_.n_unique_weighted_found,
-            sum_weighted_found: match_.sum_weighted_found,
-            total_weighted_hashes: match_.total_weighted_hashes,
+            // here, build full gather result, then write
+            let gather_result = BranchwaterGatherResult {
+                intersect_bp: match_.intersect_bp,
+                f_orig_query: match_.f_orig_query,
+                f_match: match_.f_match,
+                f_unique_to_query: match_.f_unique_to_query,
+                f_unique_weighted: match_.f_unique_weighted,
+                average_abund: match_.average_abund,
+                median_abund: match_.median_abund,
+                std_abund: match_.std_abund,
+                match_filename: match_.match_filename.clone(), // to do: get match filename
+                match_name: match_.match_name.clone(),
+                match_md5: match_.match_md5.clone(),
+                f_match_orig: match_.f_match_orig,
+                unique_intersect_bp: match_.unique_intersect_bp,
+                gather_result_rank: match_.gather_result_rank,
+                remaining_bp: match_.remaining_bp,
+                query_filename: query.filename(),
+                query_name: query.name().clone(),
+                query_md5: query.md5sum().clone(),
+                query_bp: query_mh.n_unique_kmers() as usize,
+                ksize: ksize as usize,
+                moltype: query_mh.hash_function().to_string(),
+                scaled: query_mh.scaled() as usize,
+                query_n_hashes: query_mh.size(),
+                query_abundance: query_mh.track_abundance(),
+                query_containment_ani: match_.query_containment_ani,
+                match_containment_ani: match_.match_containment_ani,
+                average_containment_ani: match_.average_containment_ani,
+                max_containment_ani: match_.max_containment_ani,
+                n_unique_weighted_found: match_.n_unique_weighted_found,
+                sum_weighted_found: match_.sum_weighted_found,
+                total_weighted_hashes: match_.total_weighted_hashes,
 
-            query_containment_ani_ci_low: match_.query_containment_ani_ci_low,
-            query_containment_ani_ci_high: match_.query_containment_ani_ci_high,
-            match_containment_ani_ci_low: match_.match_containment_ani_ci_low,
-            match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
-        };
+                query_containment_ani_ci_low: match_.query_containment_ani_ci_low,
+                query_containment_ani_ci_high: match_.query_containment_ani_ci_high,
+                match_containment_ani_ci_low: match_.match_containment_ani_ci_low,
+                match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
+            };
+            sum_weighted_found = gather_result.sum_weighted_found;
+            // serialize result to file.
+            csv_writer.serialize(gather_result)?;
+        } else {
+            let gather_result = MinimalGatherResult {
+                query_filename: location.clone(),
+                rank: rank,
+                query_name: query.name(),
+                query_md5: query.md5sum(),
+                match_name: best_element.name.clone(),
+                match_md5: best_element.md5sum.clone(),
+                intersect_bp: best_element.overlap as usize, // to do : multiply by scaled to get actual intersect_bp
+            };
+            // serialize MinimalGatherResult to file.
+            csv_writer.serialize(gather_result)?;
+        }
 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
         // to do -- switch to KmerMinHashTree, for faster removal.
         //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
-
-        // keep track of gather rank and sum weighted found
-        gather_result_rank += 1;
-        sum_weighted_found = gather_result.sum_weighted_found;
-
-        // serialize result to file.
-        csv_writer.serialize(gather_result)?;
-
-        // if let Err(e) = writer.serialize(res) {
-        //     eprintln!("Error writing item: {:?}", e);
-        // }
-        // writeln!(
-        //     &mut writer,
-        //     "{},{},\"{}\",{},\"{}\",{},{}",
-        //     location,
-        //     rank,
-        //     query.name(),
-        //     query.md5sum(),
-        //     best_element.name,
-        //     best_element.md5sum,
-        //     best_element.overlap
-        // )
-        // .ok();
 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
@@ -1179,6 +1167,17 @@ pub struct InterimGatherResult {
     match_containment_ani_ci_high: Option<f64>,
     average_containment_ani: f64,
     max_containment_ani: f64,
+}
+
+#[derive(Serialize)]
+pub struct MinimalGatherResult {
+    query_filename: String,
+    rank: usize,
+    query_name: String,
+    query_md5: String,
+    match_name: String,
+    match_md5: String,
+    intersect_bp: usize,
 }
 
 #[derive(Serialize)]
