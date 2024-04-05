@@ -686,3 +686,45 @@ def test_simple_with_manifest_loading(runtmp):
     assert len(df) == 3
     keys = set(df.keys())
     assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}.issubset(keys)
+
+
+def test_simple_full_output(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '-s', '100000', '--full-results')
+    assert os.path.exists(g_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    print(keys)
+    print(df)
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
+    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+            'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
+            'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
+            'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
+            'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'f_unique_weighted'}
+    assert keys == expected_keys
+
+    md5s = set(df['match_md5'])
+    for against_file in (sig2, sig47, sig63):
+        for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
+            assert ss.md5sum() in md5s
+
+    for index, row in df.iterrows():
+        print(row.to_dict())

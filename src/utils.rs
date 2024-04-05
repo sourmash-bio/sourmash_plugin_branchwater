@@ -960,7 +960,7 @@ pub fn consume_query_by_gather(
 
     let orig_query_mh = query.minhash().unwrap();
     let mut query_mh = orig_query_mh.clone();
-    let orig_query_ds = orig_query_mh.clone();
+    let mut orig_query_ds = orig_query_mh.clone();
     // to do == use this to subtract hashes instead
     // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
 
@@ -986,6 +986,9 @@ pub fn consume_query_by_gather(
 
     while !matching_sketches.is_empty() {
         let best_element = matching_sketches.peek().unwrap();
+
+        query_mh = query_mh.downsample_scaled(best_element.minhash.scaled())?;
+        orig_query_ds = orig_query_ds.downsample_scaled(best_element.minhash.scaled())?;
 
         if make_full_result {
             //calculate full gather stats here
