@@ -787,9 +787,17 @@ def test_fullres_vs_sourmash_gather(runtmp):
     fmg_f_match =  set([round(x,4) for x in gather_df['f_match']])
     g_f_match =  set([round(x,4) for x in sourmash_gather_df['f_match']])
     assert fmg_f_match == g_f_match == set([0.439, 1.0])
-    fmg_unique_intersect_bp = set(gather_df['unique_intersect_bp']) # FIXME
+    fmg_unique_intersect_bp = set(gather_df['unique_intersect_bp'])
     g_unique_intersect_bp = set(sourmash_gather_df['unique_intersect_bp'])
-    # assert fmg_unique_intersect_bp == g_intersect_bp == set([4400000, 1800000, 2200000])
+    assert fmg_unique_intersect_bp == g_unique_intersect_bp == set([4400000, 1800000, 2200000])
+    fmg_remaining_bp = set(gather_df['remaining_bp'])
+    g_remaining_bp = set(sourmash_gather_df['remaining_bp'])
+    print(g_remaining_bp) #{4000000, 0, 1800000}
+    print(fmg_remaining_bp) # {415600000, 411600000, 413400000}
+    # assert fmg_remaining_bp == g_remaining_bp == set([73489]) # FIXME
+    fmg_total_weighted_hashes= set(gather_df['total_weighted_hashes'])
+    g_total_weighted_hashes = set(sourmash_gather_df['total_weighted_hashes'])
+    assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
 
 
 
