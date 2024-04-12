@@ -725,6 +725,49 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_query, zip_against):
     print(g_keys - sp_keys)
     assert not g_keys - sp_keys, g_keys - sp_keys
 
+def test_csv_columns_vs_sourmash_gather_fullresults(runtmp):
+    # the column names should be identical to sourmash gather cols
+    query = get_test_data('SRR606249.sig.gz')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+    against_list = runtmp.output('against.txt')
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('SRR606249.gather.csv')
+    runtmp.sourmash('scripts', 'fastmultigather', query_list,
+                    against_list, '-s', '100000', '-t', '0',
+                    '--full-results') # '-o', g_output,
+
+    assert os.path.exists(g_output)
+    # now run sourmash gather
+    sg_output = runtmp.output('.csv')
+    runtmp.sourmash('gather', query, against_list,
+                    '-o', sg_output, '--scaled', '100000')
+
+    gather_df = pandas.read_csv(g_output)
+    g_keys = set(gather_df.keys())
+    expected_keys = {'match_name', 'query_filename', 'query_n_hashes', 'match_filename', 'f_match_orig',
+            'query_bp', 'query_abundance', 'match_containment_ani', 'intersect_bp', 'total_weighted_hashes',
+            'n_unique_weighted_found', 'query_name', 'gather_result_rank', 'moltype',
+            'query_containment_ani', 'sum_weighted_found', 'f_orig_query', 'ksize', 'max_containment_ani',
+            'std_abund', 'scaled', 'average_containment_ani', 'f_match', 'f_unique_to_query',
+            'average_abund', 'unique_intersect_bp', 'median_abund', 'query_md5', 'match_md5', 'remaining_bp',
+            'f_unique_weighted'}
+    assert g_keys == expected_keys
+
+    sourmash_gather_df = pandas.read_csv(sg_output)
+    sg_keys = set(sourmash_gather_df.keys())
+    print(sg_keys)
+    modified_keys = ["match_md5", "match_name", "match_filename"]
+    sg_keys.update(modified_keys) # fastmultigather is more explicit (match_md5 instead of md5, etc)
+    print('g_keys - sg_keys:', g_keys - sg_keys)
+    assert not g_keys - sg_keys, g_keys - sg_keys
+
 
 def test_csv_columns_vs_sourmash_gather_indexed(runtmp):
     # the column names should be identical to sourmash gather cols
