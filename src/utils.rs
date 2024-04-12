@@ -476,15 +476,15 @@ pub fn load_sketches_above_threshold(
             // Load against into memory
             if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
                 if let Some(against_mh) = against_sig.minhash() {
-                    // if let Some(against_mh) = against_sig.select(&selection).unwrap().minhash() { // downsample via select
-                    // currently downsampling here to avoid changing md5sum
-                    if let Ok(overlap) = against_mh.count_common(query, true) {
-                        //downsample via count_common
+                    // downsample against_mh, but keep original md5sum
+                    let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
+                    if let Ok(overlap) = against_mh_ds.count_common(query, false) {
                         if overlap >= threshold_hashes {
                             let result = PrefetchResult {
                                 name: against_record.name().to_string(),
                                 md5sum: against_mh.md5sum(),
-                                minhash: against_mh.clone(),
+                                minhash: against_mh_ds.clone(),
+                                // filename: against_record.filename(),
                                 overlap,
                             };
                             results.push(result);
@@ -927,6 +927,7 @@ pub fn branchwater_calculate_gather_stats(
 
 pub fn consume_query_by_gather(
     query: SigStore,
+    scaled: u64,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
     gather_output: Option<String>,
@@ -960,7 +961,7 @@ pub fn consume_query_by_gather(
 
     let orig_query_mh = query.minhash().unwrap();
     let mut query_mh = orig_query_mh.clone();
-    let mut orig_query_ds = orig_query_mh.clone();
+    let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
     // to do == use this to subtract hashes instead
     // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
 

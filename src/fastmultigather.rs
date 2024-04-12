@@ -99,6 +99,7 @@ pub fn fastmultigather(
                         // Now, do the gather!
                         consume_query_by_gather(
                             query_sig.clone(),
+                            scaled as u64,
                             matchlist,
                             threshold_hashes,
                             Some(gather_output),

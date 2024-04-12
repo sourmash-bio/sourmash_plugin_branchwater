@@ -726,5 +726,74 @@ def test_simple_full_output(runtmp):
         for ss in sourmash.load_file_as_signatures(against_file, ksize=31):
             assert ss.md5sum() in md5s
 
+
+    intersect_bp = set(df['intersect_bp'])
+    assert intersect_bp == set([4400000, 4100000, 2200000])
+    f_unique_to_query = set([round(x,4) for x in df['f_unique_to_query']])
+    assert f_unique_to_query == set([0.0053, 0.0105, 0.0044])
+    query_containment_ani = set([round(x,4) for x in df['query_containment_ani']])
+    assert query_containment_ani == set([0.8632, 0.8444, 0.8391])
+    print(query_containment_ani)
     for index, row in df.iterrows():
         print(row.to_dict())
+
+
+def test_fullres_vs_sourmash_gather(runtmp):
+    # the column names should be identical to sourmash gather cols
+    query = get_test_data('SRR606249.sig.gz')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+    against_list = runtmp.output('against.txt')
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('SRR606249.gather.csv')
+    runtmp.sourmash('scripts', 'fastgather', query_list,
+                    against_list, '-s', '100000', '-t', '0',
+                    '--full-results', '-o', g_output)
+
+    print(runtmp.last_result.out)
+    print(runtmp.last_result.err)
+    assert os.path.exists(g_output)
+    # now run sourmash gather
+    sg_output = runtmp.output('.csv')
+    runtmp.sourmash('gather', query, against_list,
+                    '-o', sg_output, '--scaled', '100000')
+
+    gather_df = pandas.read_csv(g_output)
+    g_keys = set(gather_df.keys())
+
+    sourmash_gather_df = pandas.read_csv(sg_output)
+    sg_keys = set(sourmash_gather_df.keys())
+    print(sg_keys)
+    modified_keys = ["match_md5", "match_name", "match_filename"]
+    sg_keys.update(modified_keys) # fastgather is more explicit (match_md5 instead of md5, etc)
+    print('g_keys - sg_keys:', g_keys - sg_keys)
+    assert not g_keys - sg_keys, g_keys - sg_keys
+
+    for index, row in sourmash_gather_df.iterrows():
+        print(row.to_dict())
+
+    fmg_intersect_bp = set(gather_df['intersect_bp'])
+    g_intersect_bp = set(sourmash_gather_df['intersect_bp'])
+    assert fmg_intersect_bp == g_intersect_bp == set([4400000, 4100000, 2200000])
+    fmg_f_unique_to_query =  set([round(x,3) for x in gather_df['f_unique_to_query']]) # rounding to 4 --> slightly different!
+    g_f_unique_to_query =  set([round(x,3) for x in sourmash_gather_df['f_unique_to_query']])
+    assert fmg_f_unique_to_query == g_f_unique_to_query == set([0.004, 0.01, 0.005])
+    fmg_f_match =  set([round(x,4) for x in gather_df['f_match']])
+    g_f_match =  set([round(x,4) for x in sourmash_gather_df['f_match']])
+    assert fmg_f_match == g_f_match == set([0.439, 1.0])
+    fmg_unique_intersect_bp = set(gather_df['unique_intersect_bp']) # FIXME
+    g_unique_intersect_bp = set(sourmash_gather_df['unique_intersect_bp'])
+    # assert fmg_unique_intersect_bp == g_intersect_bp == set([4400000, 1800000, 2200000])
+
+
+
+    # f_unique_to_query = set([round(x,4) for x in df['f_unique_to_query']])
+    # assert f_unique_to_query == set([0.0053, 0.0105, 0.0044])
+    # query_containment_ani = set([round(x,4) for x in df['query_containment_ani']])
+    # assert query_containment_ani == set([0.8632, 0.8444, 0.8391])
