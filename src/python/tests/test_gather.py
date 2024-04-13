@@ -781,25 +781,67 @@ def test_fullres_vs_sourmash_gather(runtmp):
     fmg_intersect_bp = set(gather_df['intersect_bp'])
     g_intersect_bp = set(sourmash_gather_df['intersect_bp'])
     assert fmg_intersect_bp == g_intersect_bp == set([4400000, 4100000, 2200000])
+
+    fmg_f_orig_query =  set([round(x,4) for x in gather_df['f_orig_query']])
+    g_f_orig_query =  set([round(x,4) for x in sourmash_gather_df['f_orig_query']])
+    assert fmg_f_orig_query == g_f_orig_query == set([0.0098, 0.0105, 0.0052])
+
     fmg_f_unique_to_query =  set([round(x,3) for x in gather_df['f_unique_to_query']]) # rounding to 4 --> slightly different!
     g_f_unique_to_query =  set([round(x,3) for x in sourmash_gather_df['f_unique_to_query']])
     assert fmg_f_unique_to_query == g_f_unique_to_query == set([0.004, 0.01, 0.005])
+
+    fmg_f_unique_weighted =  set([round(x,4) for x in gather_df['f_unique_weighted']])
+    g_f_unique_weighted =  set([round(x,4) for x in sourmash_gather_df['f_unique_weighted']])
+    assert fmg_f_unique_weighted== g_f_unique_weighted == set([0.0063, 0.002, 0.0062])
+
+    fmg_average_abund =  set([round(x,4) for x in gather_df['average_abund']])
+    g_average_abund =  set([round(x,4) for x in sourmash_gather_df['average_abund']])
+    assert fmg_average_abund== g_average_abund == set([8.2222, 10.3864, 21.0455])
+
+    fmg_median_abund =  set([round(x,4) for x in gather_df['median_abund']])
+    g_median_abund =  set([round(x,4) for x in sourmash_gather_df['median_abund']])
+    assert fmg_median_abund== g_median_abund == set([8.0, 10.5, 21.5])
+
+    fmg_std_abund =  set([round(x,4) for x in gather_df['std_abund']])
+    g_std_abund =  set([round(x,4) for x in sourmash_gather_df['std_abund']])
+    assert fmg_std_abund== g_std_abund == set([3.172, 5.6446, 6.9322])
+
+    # we can't get match filename in FMG yet.
+    # fmg_match_filename =  set(gather_df['match_filename'])
+    # assert fmg_match_filename == [] all are nans rn..{nan, nan, nan}
+    g_match_filename =  sourmash_gather_df['filename']
+    g_match_filename_basename = [os.path.basename(filename) for filename in sourmash_gather_df['filename']]
+    assert all([x in g_match_filename_basename for x in ['2.fa.sig.gz', '63.fa.sig.gz', '47.fa.sig.gz']])
+
+    assert list(sourmash_gather_df['name']) == list(gather_df['match_name'])
+    assert list(sourmash_gather_df['md5']) == list(gather_df['match_md5'])
+
+    fmg_f_match_orig =  set([round(x,4) for x in gather_df['f_match_orig']])
+    g_f_match_orig =  set([round(x,4) for x in sourmash_gather_df['f_match_orig']])
+    assert fmg_f_match_orig == g_f_match_orig == set([1.0])
+
     fmg_f_match =  set([round(x,4) for x in gather_df['f_match']])
     g_f_match =  set([round(x,4) for x in sourmash_gather_df['f_match']])
     assert fmg_f_match == g_f_match == set([0.439, 1.0])
+
     fmg_unique_intersect_bp = set(gather_df['unique_intersect_bp'])
     g_unique_intersect_bp = set(sourmash_gather_df['unique_intersect_bp'])
     assert fmg_unique_intersect_bp == g_unique_intersect_bp == set([4400000, 1800000, 2200000])
-    fmg_remaining_bp = set(gather_df['remaining_bp'])
-    g_remaining_bp = set(sourmash_gather_df['remaining_bp'])
-    print(g_remaining_bp) #{4000000, 0, 1800000}
-    print(fmg_remaining_bp) # {415600000, 411600000, 413400000}
-    # assert fmg_remaining_bp == g_remaining_bp == set([73489]) # FIXME
+
     fmg_total_weighted_hashes= set(gather_df['total_weighted_hashes'])
     g_total_weighted_hashes = set(sourmash_gather_df['total_weighted_hashes'])
     assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
 
+    fmg_gather_result_rank= set(gather_df['gather_result_rank'])
+    g_gather_result_rank = set(sourmash_gather_df['gather_result_rank'])
+    assert fmg_gather_result_rank == g_gather_result_rank == set([0,1,2])
 
+    # FIX remaining_bp
+    fmg_remaining_bp = set(gather_df['remaining_bp'])
+    g_remaining_bp = set(sourmash_gather_df['remaining_bp'])
+    print(g_remaining_bp) #{4000000, 0, 1800000}
+    print(fmg_remaining_bp) # {415600000, 411600000, 413400000}
+    # assert fmg_remaining_bp == g_remaining_bp == set([])
 
     # f_unique_to_query = set([round(x,4) for x in df['f_unique_to_query']])
     # assert f_unique_to_query == set([0.0053, 0.0105, 0.0044])
