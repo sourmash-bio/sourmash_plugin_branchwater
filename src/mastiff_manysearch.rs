@@ -91,9 +91,9 @@ pub fn mastiff_manysearch(
                                     jaccard: None,
                                     max_containment: None,
                                     // can't calculate from here -- need to get these from w/in sourmash
-                                    average_abund:1.0,
-                                    median_abund:1.0,
-                                    std_abund:0.0,
+                                    average_abund: 1.0,
+                                    median_abund: 1.0,
+                                    std_abund: 0.0,
                                     query_containment_ani,
                                     match_containment_ani: None,
                                     average_containment_ani: None,
