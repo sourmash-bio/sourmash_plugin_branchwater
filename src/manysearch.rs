@@ -7,6 +7,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
+use stats::{median, stddev};
 
 use crate::utils::{csvwriter_thread, load_collection, load_sketches, ReportType, SearchResult};
 use sourmash::ani_utils::ani_from_containment;
@@ -70,8 +71,12 @@ pub fn manysearch(
                 Ok(against_sig) => {
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {
+                            // to do - let user choose?
+                            let calc_abund_stats = query.minhash.track_abundance();
+
+                            let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).unwrap();
                             let overlap =
-                                query.minhash.count_common(against_mh, true).unwrap() as f64;
+                                query.minhash.count_common(&against_mh_ds, false).unwrap() as f64;
                             let query_size = query.minhash.size() as f64;
                             let target_size = against_mh.size() as f64;
                             let containment_query_in_target = overlap / query_size;
@@ -93,6 +98,23 @@ pub fn manysearch(
                             let average_containment_ani = Some((qani + mani) / 2.);
                             let max_containment_ani = Some(f64::max(qani, mani));
 
+                            let (average_abund, median_abund, std_abund) = if calc_abund_stats {
+                                match against_mh_ds.inflated_abundances(&query.minhash) {
+                                    Ok((abunds, sum_weighted_overlap)) => {
+                                        let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
+                                        let median_abund = median(abunds.iter().cloned()).unwrap();
+                                        let std_abund = stddev(abunds.iter().cloned());
+                                        (average_abund, median_abund, std_abund)
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
+                                        continue;
+                                    }
+                                }
+                            } else {
+                                (1.0, 1.0, 0.0)
+                            };
+
                             if containment_query_in_target > threshold {
                                 results.push(SearchResult {
                                     query_name: query.name.clone(),
@@ -103,6 +125,9 @@ pub fn manysearch(
                                     match_md5: Some(against_sig.md5sum()),
                                     jaccard: Some(jaccard),
                                     max_containment: Some(max_containment),
+                                    average_abund,
+                                    median_abund,
+                                    std_abund,
                                     query_containment_ani,
                                     match_containment_ani,
                                     average_containment_ani,

@@ -1745,6 +1745,7 @@ dependencies = [
  "serde_json",
  "simple-error",
  "sourmash",
+ "streaming-stats",
  "tempfile",
  "zip",
 ]
