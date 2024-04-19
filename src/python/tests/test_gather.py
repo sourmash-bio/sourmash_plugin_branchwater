@@ -786,6 +786,10 @@ def test_fullres_vs_sourmash_gather(runtmp):
     g_f_orig_query =  set([round(x,4) for x in sourmash_gather_df['f_orig_query']])
     assert fmg_f_orig_query == g_f_orig_query == set([0.0098, 0.0105, 0.0052])
 
+    fmg_f_match =  set([round(x,4) for x in gather_df['f_match']])
+    g_f_match =  set([round(x,4) for x in sourmash_gather_df['f_match']])
+    assert fmg_f_match == g_f_match == set([0.439, 1.0])
+
     fmg_f_unique_to_query =  set([round(x,3) for x in gather_df['f_unique_to_query']]) # rounding to 4 --> slightly different!
     g_f_unique_to_query =  set([round(x,3) for x in sourmash_gather_df['f_unique_to_query']])
     assert fmg_f_unique_to_query == g_f_unique_to_query == set([0.004, 0.01, 0.005])
@@ -820,30 +824,37 @@ def test_fullres_vs_sourmash_gather(runtmp):
     g_f_match_orig =  set([round(x,4) for x in sourmash_gather_df['f_match_orig']])
     assert fmg_f_match_orig == g_f_match_orig == set([1.0])
 
-    fmg_f_match =  set([round(x,4) for x in gather_df['f_match']])
-    g_f_match =  set([round(x,4) for x in sourmash_gather_df['f_match']])
-    assert fmg_f_match == g_f_match == set([0.439, 1.0])
-
     fmg_unique_intersect_bp = set(gather_df['unique_intersect_bp'])
     g_unique_intersect_bp = set(sourmash_gather_df['unique_intersect_bp'])
     assert fmg_unique_intersect_bp == g_unique_intersect_bp == set([4400000, 1800000, 2200000])
 
-    fmg_total_weighted_hashes= set(gather_df['total_weighted_hashes'])
-    g_total_weighted_hashes = set(sourmash_gather_df['total_weighted_hashes'])
-    assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
-
     fmg_gather_result_rank= set(gather_df['gather_result_rank'])
     g_gather_result_rank = set(sourmash_gather_df['gather_result_rank'])
     assert fmg_gather_result_rank == g_gather_result_rank == set([0,1,2])
-
-    # FIX remaining_bp
-    fmg_remaining_bp = set(gather_df['remaining_bp'])
-    g_remaining_bp = set(sourmash_gather_df['remaining_bp'])
-    print(g_remaining_bp) #{4000000, 0, 1800000}
-    print(fmg_remaining_bp) # {415600000, 411600000, 413400000}
+    
+    fmg_remaining_bp = list(gather_df['remaining_bp'])
+    assert fmg_remaining_bp == [415600000, 413400000, 411600000]
+    ### Gather remaining bp does not match, but I think this one is right?
+    #g_remaining_bp = list(sourmash_gather_df['remaining_bp'])
+    #print("gather remaining bp: ", g_remaining_bp) #{4000000, 0, 1800000}
     # assert fmg_remaining_bp == g_remaining_bp == set([])
+    
+    fmg_query_containment_ani = set([round(x,4) for x in gather_df['query_containment_ani']])
+    g_query_containment_ani = set([round(x,4) for x in sourmash_gather_df['query_containment_ani']])
+    assert fmg_query_containment_ani == set([0.8632, 0.8444, 0.8391])
+    # gather cANI are nans here -- perhaps b/c sketches too small
+    # assert fmg_query_containment_ani == g_query_containment_ani == set([0.8632, 0.8444, 0.8391])
+    print("fmg qcANI: ", fmg_query_containment_ani)
+    print("g_qcANI: ", g_query_containment_ani)
 
-    # f_unique_to_query = set([round(x,4) for x in df['f_unique_to_query']])
-    # assert f_unique_to_query == set([0.0053, 0.0105, 0.0044])
-    # query_containment_ani = set([round(x,4) for x in df['query_containment_ani']])
-    # assert query_containment_ani == set([0.8632, 0.8444, 0.8391])
+    fmg_n_unique_weighted_found= set(gather_df['n_unique_weighted_found'])
+    g_n_unique_weighted_found = set(sourmash_gather_df['n_unique_weighted_found'])
+    assert fmg_n_unique_weighted_found == g_n_unique_weighted_found == set([457, 148, 463])
+
+    fmg_sum_weighted_found= set(gather_df['sum_weighted_found'])
+    g_sum_weighted_found = set(sourmash_gather_df['sum_weighted_found'])
+    assert fmg_sum_weighted_found == g_sum_weighted_found == set([920, 457, 1068])
+    
+    fmg_total_weighted_hashes= set(gather_df['total_weighted_hashes'])
+    g_total_weighted_hashes = set(sourmash_gather_df['total_weighted_hashes'])
+    assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])

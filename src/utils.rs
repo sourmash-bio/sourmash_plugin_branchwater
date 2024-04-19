@@ -956,8 +956,7 @@ pub fn consume_query_by_gather(
 
     let mut last_matches = matching_sketches.len();
 
-    // let location = query.location;
-    let location = query.filename(); // this is different (original fasta filename) than query.location was (sig name)!!
+    let location = query.filename();
 
     let orig_query_mh = query.minhash().unwrap();
     let mut query_mh = orig_query_mh.clone();
