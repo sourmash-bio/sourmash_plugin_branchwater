@@ -105,10 +105,8 @@ pub fn manysearch(
                                 let (average_abund, median_abund, std_abund) = if calc_abund_stats {
                                     match against_mh_ds.inflated_abundances(&query.minhash) {
                                         Ok((abunds, sum_weighted_overlap)) => {
-                                            eprintln!("sum: {}, abunds: {:?}", sum_weighted_overlap, abunds);
                                             let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
                                             let median_abund = median(abunds.iter().cloned()).unwrap();
-                                            // getting err: pyo3_runtime.PanicException: called `Option::unwrap()` on a `None` value
                                             let std_abund = stddev(abunds.iter().cloned());
                                             (average_abund, median_abund, std_abund)
                                         }
