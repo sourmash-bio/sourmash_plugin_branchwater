@@ -1025,3 +1025,124 @@ def test_indexed_full_output(runtmp):
     unique_intersect_bp = set(df['unique_intersect_bp'])
     unique_intersect_bp = set([round(x,4) for x in unique_intersect_bp])
     assert unique_intersect_bp == {44000, 18000, 22000}
+
+
+def test_nonindexed_full_vs_sourmash_gather(runtmp):
+    query = get_test_data('SRR606249.sig.gz')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+    against_list = runtmp.output('against.txt')
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('SRR606249.gather.csv')
+    runtmp.sourmash('scripts', 'fastmultigather', query_list,
+                    against_list, '-s', '100000', '-t', '0',
+                    '--full-results')
+
+    print(runtmp.last_result.out)
+    print(runtmp.last_result.err)
+    assert os.path.exists(g_output)
+    # now run sourmash gather
+    sg_output = runtmp.output('.csv')
+    runtmp.sourmash('gather', query, against_list,
+                    '-o', sg_output, '--scaled', '100000')
+
+    gather_df = pandas.read_csv(g_output)
+    g_keys = set(gather_df.keys())
+
+    sourmash_gather_df = pandas.read_csv(sg_output)
+    sg_keys = set(sourmash_gather_df.keys())
+    print(sg_keys)
+    modified_keys = ["match_md5", "match_name", "match_filename"]
+    sg_keys.update(modified_keys) # fastmultigather is more explicit (match_md5 instead of md5, etc)
+    print('g_keys - sg_keys:', g_keys - sg_keys)
+    assert not g_keys - sg_keys, g_keys - sg_keys
+
+    for index, row in sourmash_gather_df.iterrows():
+        print(row.to_dict())
+
+    fmg_intersect_bp = set(gather_df['intersect_bp'])
+    g_intersect_bp = set(sourmash_gather_df['intersect_bp'])
+    assert fmg_intersect_bp == g_intersect_bp == set([4400000, 4100000, 2200000])
+
+    fmg_f_orig_query =  set([round(x,4) for x in gather_df['f_orig_query']])
+    g_f_orig_query =  set([round(x,4) for x in sourmash_gather_df['f_orig_query']])
+    assert fmg_f_orig_query == g_f_orig_query == set([0.0098, 0.0105, 0.0052])
+
+    fmg_f_match =  set([round(x,4) for x in gather_df['f_match']])
+    g_f_match =  set([round(x,4) for x in sourmash_gather_df['f_match']])
+    assert fmg_f_match == g_f_match == set([0.439, 1.0])
+
+    fmg_f_unique_to_query =  set([round(x,3) for x in gather_df['f_unique_to_query']]) # rounding to 4 --> slightly different!
+    g_f_unique_to_query =  set([round(x,3) for x in sourmash_gather_df['f_unique_to_query']])
+    assert fmg_f_unique_to_query == g_f_unique_to_query == set([0.004, 0.01, 0.005])
+
+    fmg_f_unique_weighted =  set([round(x,4) for x in gather_df['f_unique_weighted']])
+    g_f_unique_weighted =  set([round(x,4) for x in sourmash_gather_df['f_unique_weighted']])
+    assert fmg_f_unique_weighted== g_f_unique_weighted == set([0.0063, 0.002, 0.0062])
+
+    fmg_average_abund =  set([round(x,4) for x in gather_df['average_abund']])
+    g_average_abund =  set([round(x,4) for x in sourmash_gather_df['average_abund']])
+    assert fmg_average_abund== g_average_abund == set([8.2222, 10.3864, 21.0455])
+
+    fmg_median_abund =  set([round(x,4) for x in gather_df['median_abund']])
+    g_median_abund =  set([round(x,4) for x in sourmash_gather_df['median_abund']])
+    assert fmg_median_abund== g_median_abund == set([8.0, 10.5, 21.5])
+
+    fmg_std_abund =  set([round(x,4) for x in gather_df['std_abund']])
+    g_std_abund =  set([round(x,4) for x in sourmash_gather_df['std_abund']])
+    assert fmg_std_abund== g_std_abund == set([3.172, 5.6446, 6.9322])
+
+    # we can't get match filename in FMG yet.
+    # fmg_match_filename =  set(gather_df['match_filename'])
+    # assert fmg_match_filename == [] all are nans rn..{nan, nan, nan}
+    g_match_filename =  sourmash_gather_df['filename']
+    g_match_filename_basename = [os.path.basename(filename) for filename in sourmash_gather_df['filename']]
+    assert all([x in g_match_filename_basename for x in ['2.fa.sig.gz', '63.fa.sig.gz', '47.fa.sig.gz']])
+
+    assert list(sourmash_gather_df['name']) == list(gather_df['match_name'])
+    assert list(sourmash_gather_df['md5']) == list(gather_df['match_md5'])
+
+    fmg_f_match_orig =  set([round(x,4) for x in gather_df['f_match_orig']])
+    g_f_match_orig =  set([round(x,4) for x in sourmash_gather_df['f_match_orig']])
+    assert fmg_f_match_orig == g_f_match_orig == set([1.0])
+
+    fmg_unique_intersect_bp = set(gather_df['unique_intersect_bp'])
+    g_unique_intersect_bp = set(sourmash_gather_df['unique_intersect_bp'])
+    assert fmg_unique_intersect_bp == g_unique_intersect_bp == set([4400000, 1800000, 2200000])
+
+    fmg_gather_result_rank= set(gather_df['gather_result_rank'])
+    g_gather_result_rank = set(sourmash_gather_df['gather_result_rank'])
+    assert fmg_gather_result_rank == g_gather_result_rank == set([0,1,2])
+
+    fmg_remaining_bp = list(gather_df['remaining_bp'])
+    assert fmg_remaining_bp == [415600000, 413400000, 411600000]
+    ### Gather remaining bp does not match, but I think this one is right?
+    #g_remaining_bp = list(sourmash_gather_df['remaining_bp'])
+    #print("gather remaining bp: ", g_remaining_bp) #{4000000, 0, 1800000}
+    # assert fmg_remaining_bp == g_remaining_bp == set([])
+
+    fmg_query_containment_ani = set([round(x,4) for x in gather_df['query_containment_ani']])
+    g_query_containment_ani = set([round(x,4) for x in sourmash_gather_df['query_containment_ani']])
+    assert fmg_query_containment_ani == set([0.8632, 0.8444, 0.8391])
+    # gather cANI are nans here -- perhaps b/c sketches too small
+    # assert fmg_query_containment_ani == g_query_containment_ani == set([0.8632, 0.8444, 0.8391])
+    print("fmg qcANI: ", fmg_query_containment_ani)
+    print("g_qcANI: ", g_query_containment_ani)
+
+    fmg_n_unique_weighted_found= set(gather_df['n_unique_weighted_found'])
+    g_n_unique_weighted_found = set(sourmash_gather_df['n_unique_weighted_found'])
+    assert fmg_n_unique_weighted_found == g_n_unique_weighted_found == set([457, 148, 463])
+
+    fmg_sum_weighted_found= set(gather_df['sum_weighted_found'])
+    g_sum_weighted_found = set(sourmash_gather_df['sum_weighted_found'])
+    assert fmg_sum_weighted_found == g_sum_weighted_found == set([920, 457, 1068])
+
+    fmg_total_weighted_hashes= set(gather_df['total_weighted_hashes'])
+    g_total_weighted_hashes = set(sourmash_gather_df['total_weighted_hashes'])
+    assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
