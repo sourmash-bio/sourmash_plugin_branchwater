@@ -81,6 +81,7 @@ pub fn fastmultigather(
                                         name: against.name.clone(),
                                         md5sum: against.md5sum.clone(),
                                         minhash: against.minhash.clone(),
+                                        filename: against.location.clone(),
                                         overlap,
                                     };
                                     mm = Some(result);

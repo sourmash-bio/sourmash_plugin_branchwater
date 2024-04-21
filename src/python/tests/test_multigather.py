@@ -1098,12 +1098,10 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
     g_std_abund =  set([round(x,4) for x in sourmash_gather_df['std_abund']])
     assert fmg_std_abund== g_std_abund == set([3.172, 5.6446, 6.9322])
 
-    # we can't get match filename in FMG yet.
-    # fmg_match_filename =  set(gather_df['match_filename'])
-    # assert fmg_match_filename == [] all are nans rn..{nan, nan, nan}
-    g_match_filename =  sourmash_gather_df['filename']
     g_match_filename_basename = [os.path.basename(filename) for filename in sourmash_gather_df['filename']]
-    assert all([x in g_match_filename_basename for x in ['2.fa.sig.gz', '63.fa.sig.gz', '47.fa.sig.gz']])
+    fmg_match_filename_basename = [os.path.basename(filename) for filename in gather_df['match_filename']]
+    assert all([x in fmg_match_filename_basename for x in ['2.fa.sig.gz', '63.fa.sig.gz', '47.fa.sig.gz']])
+    assert fmg_match_filename_basename == g_match_filename_basename
 
     assert list(sourmash_gather_df['name']) == list(gather_df['match_name'])
     assert list(sourmash_gather_df['md5']) == list(gather_df['match_md5'])
