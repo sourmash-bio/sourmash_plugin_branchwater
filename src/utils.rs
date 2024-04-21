@@ -39,7 +39,7 @@ pub struct SmallSignature {
 pub struct PrefetchResult {
     pub name: String,
     pub md5sum: String,
-    pub filename: String,
+    pub location: String,
     pub minhash: KmerMinHash,
     pub overlap: u64,
 }
@@ -482,8 +482,7 @@ pub fn load_sketches_above_threshold(
                                 name: against_record.name().to_string(),
                                 md5sum: against_mh.md5sum(),
                                 minhash: against_mh_ds.clone(),
-                                // this turns out to be the FASTA filename, not the sig filename...
-                                filename: against_record.filename().to_string(),
+                                location: against_record.internal_location().to_string(),
                                 overlap,
                             };
                             results.push(result);
@@ -1000,7 +999,7 @@ pub fn consume_query_by_gather(
                 best_element.name.clone(),
                 best_element.md5sum.clone(),
                 best_element.overlap.clone() as usize,
-                best_element.filename.clone(),
+                best_element.location.clone(),
                 rank,
                 sum_weighted_found,
                 total_weighted_hashes.try_into().unwrap(),

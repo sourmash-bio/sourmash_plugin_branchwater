@@ -810,18 +810,10 @@ def test_fullres_vs_sourmash_gather(runtmp):
     g_std_abund =  set([round(x,4) for x in sourmash_gather_df['std_abund']])
     assert fg_std_abund== g_std_abund == set([3.172, 5.6446, 6.9322])
 
-    # record.filename() is actually the fasta filename, not the sig filename...
-    fg_match_filename =  set(gather_df['match_filename'])
-    print(f"match_filename: {fg_match_filename}")
-#   fg_match_filename: {'podar-ref/47.fa', 'podar-ref/63.fa', 'podar-ref/2.fa'}
-    g_match_filename =  sourmash_gather_df['filename']
     g_match_filename_basename = [os.path.basename(filename) for filename in sourmash_gather_df['filename']]
-    assert all([x in g_match_filename_basename for x in ['2.fa.sig.gz', '63.fa.sig.gz', '47.fa.sig.gz']])
-
-    # g_match_filename_basename = [os.path.basename(filename) for filename in sourmash_gather_df['filename']]
-    # fg_match_filename_basename = [os.path.basename(filename) for filename in gather_df['match_filename']]
-    # assert all([x in fg_match_filename_basename for x in ['2.fa.sig.gz', '63.fa.sig.gz', '47.fa.sig.gz']])
-    # assert fg_match_filename_basename == g_match_filename_basename
+    fg_match_filename_basename = [os.path.basename(filename) for filename in gather_df['match_filename']]
+    assert all([x in fg_match_filename_basename for x in ['2.fa.sig.gz', '63.fa.sig.gz', '47.fa.sig.gz']])
+    assert fg_match_filename_basename == g_match_filename_basename
 
     assert list(sourmash_gather_df['name']) == list(gather_df['match_name'])
     assert list(sourmash_gather_df['md5']) == list(gather_df['match_md5'])
