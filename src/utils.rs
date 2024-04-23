@@ -899,7 +899,6 @@ pub fn branchwater_calculate_gather_stats(
         median_abund,
         std_abund,
         match_filename,
-        // match_filename: "".to_string(), // how to get match filename??
         match_name,
         match_md5,
         f_match_orig,
