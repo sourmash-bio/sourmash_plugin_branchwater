@@ -85,6 +85,7 @@ pub fn cluster(
     similarity_column: String,
     similarity_threshold: f64,
     cluster_sizes: Option<String>,
+    output_graph: Option<String>,
 ) -> Result<()> {
     let (graph, name_to_node) =
         match build_graph(&pairwise_csv, &similarity_column, similarity_threshold) {
@@ -133,7 +134,7 @@ pub fn cluster(
         *count += 1;
     }
 
-    // write the sizes and counts
+    // Optionally, write the sizes and counts
     if let Some(sizes_file) = cluster_sizes {
         let mut cluster_size_file =
             File::create(sizes_file).context("Failed to create cluster size file")?;
@@ -142,6 +143,30 @@ pub fn cluster(
         for (size, count) in size_counts {
             writeln!(cluster_size_file, "{},{}", size, count)
                 .context("Failed to write size count to cluster size file")?;
+        }
+    }
+
+    // Optionally, write graph file in Pajek format. Note that '.net' is typical extension
+    if let Some(graph_file) = output_graph {
+        let mut out_graph_file =
+            File::create(graph_file).context("Failed to create graph output file")?;
+
+        // Write the network header
+        writeln!(out_graph_file, "*Vertices {}", graph.node_count())?;
+        for node in 0..graph.node_count() {
+            writeln!(out_graph_file, "{}", node + 1)?; // Pajek uses 1-based indexing
+        }
+        writeln!(out_graph_file, "*Edges")?;
+
+        // Write the edges
+        for edge in graph.edge_indices() {
+            let (source, target) = graph.edge_endpoints(edge).unwrap();
+            writeln!(
+                out_graph_file,
+                "{} {}",
+                source.index() + 1,
+                target.index() + 1
+            )?; // Pajek uses 1-based indexing
         }
     }
 

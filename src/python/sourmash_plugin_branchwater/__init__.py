@@ -382,7 +382,9 @@ class Branchwater_Cluster(CommandLinePlugin):
         p.add_argument('-o', '--output', required=True,
                        help='output csv file for the clusters')
         p.add_argument('--cluster-sizes', default=None,
-                       help='output file for the cluster size histogram')
+                       help='Optionally, output cluster size histogram to this file')
+        p.add_argument('--graph-output', default=None,
+                       help='Optionally, output graph in Pajek format to this file (recommended file extension: ".net")')
         p.add_argument('--similarity-column', type=str, default='average_containment_ani',
                        choices=['containment', 'max_containment', 'jaccard', 'average_containment_ani', 'max_containment_ani'],
                        help='column to use as similarity measure')
@@ -402,8 +404,13 @@ class Branchwater_Cluster(CommandLinePlugin):
                                                         args.output,
                                                         args.similarity_column,
                                                         args.threshold,
-                                                        args.cluster_sizes)
+                                                        args.cluster_sizes,
+                                                        args.graph_output)
         if status == 0:
             notify(f"...clustering is done! results in '{args.output}'")
-            notify(f"                       cluster counts in '{args.cluster_sizes}'")
+            if args.cluster_sizes:
+                notify(f"                       cluster counts in '{args.cluster_sizes}'")
+            if args.graph_output:
+                notify(f"                       Pajek-format graph output in '{args.graph_output}'")
+
         return status
