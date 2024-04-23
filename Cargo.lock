@@ -627,9 +627,9 @@ checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "histogram"
-version = "0.10.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4d3bddd75a32b17e75762f128ffc7a33158b933b6eb27424da9be4a58f30eb9"
+checksum = "4b634390eb8a63662e127836d4e2f26d7ae930600d4e05ee0fd85a009eeb1175"
 dependencies = [
  "thiserror",
 ]
@@ -1677,7 +1677,8 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.13.1"
-source = "git+https://github.com/sourmash-bio/sourmash?branch=latest#c205057deb67cc8730a72ce2d58f442a6e70edfd"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "084cf7e17f32408757d20fea1b6c09ed3dafdac4b894302e29906b51e0eac739"
 dependencies = [
  "az",
  "byteorder",
