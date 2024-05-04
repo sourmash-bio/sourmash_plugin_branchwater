@@ -432,7 +432,7 @@ fn process_prefix_csv(
 pub fn load_sketches(
     collection: Collection,
     selection: &Selection,
-    report_type: ReportType,
+    _report_type: ReportType,
 ) -> Result<Vec<SmallSignature>> {
     let sketchinfo: Vec<SmallSignature> = collection
         .par_iter()
