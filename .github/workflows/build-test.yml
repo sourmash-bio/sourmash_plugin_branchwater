@@ -12,14 +12,13 @@ jobs:
         fetch-depth: 0
 
     - name: Install latest stable rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain
       with:
          toolchain: stable
          override: true
          components: rustfmt, clippy
 
     - name: Run cargo fmt
-      uses: actions-rs/cargo@v1
       with:
         command: fmt
         args: --all -- --check
