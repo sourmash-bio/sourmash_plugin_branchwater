@@ -12,7 +12,7 @@ jobs:
         fetch-depth: 0
 
     - name: Install latest stable rust
-      uses: dtolnay/rust-toolchain
+      uses: dtolnay/rust-toolchain@stable
       with:
          toolchain: stable
          override: true
