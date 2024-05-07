@@ -19,7 +19,7 @@ jobs:
          components: rustfmt, clippy
 
     - name: Run cargo fmt
-      run: cargo fmt --all -- --check --verbose --message-format=human
+      run: cargo fmt --all -- --check --verbose
 
     - name: cache rust
       uses: Swatinem/rust-cache@v2
