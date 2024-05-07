@@ -35,5 +35,5 @@ tempfile = "3.10.0"
 
 [profile.release]
 #target-cpu=native
-lto = "thin"
+#lto = "thin"
 opt-level = 3
