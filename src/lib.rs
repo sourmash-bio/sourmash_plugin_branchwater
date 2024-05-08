@@ -134,6 +134,9 @@ fn do_fastmultigather(
             }
         }
     } else {
+        if let Some(_) = output_path {
+            bail!("output path specified, but not running fastmultigather against a rocksdb. See issue #239");
+        }
         match fastmultigather::fastmultigather(
             query_filenames,
             siglist_path,
