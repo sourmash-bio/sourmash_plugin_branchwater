@@ -24,10 +24,10 @@ jobs:
       uses: Swatinem/rust-cache@v2
 
     - name: setup conda
-      uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca
+      uses: conda-incubator/setup-miniconda@3
       with:
         auto-update-conda: true
-        python-version: 3.11
+        python-version: 3.12
         channels: conda-forge,bioconda
         miniforge-variant: Mambaforge
         miniforge-version: latest
