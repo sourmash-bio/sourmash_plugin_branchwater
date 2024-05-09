@@ -35,7 +35,7 @@ jobs:
         mamba-version: "*"
         activate-environment: sourmash_dev
         auto-activate-base: false
-        use-only-tar-bz2: true
+#        use-only-tar-bz2: true
 
     - run: conda info
     - run: conda list
