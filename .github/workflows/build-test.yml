@@ -37,6 +37,12 @@ jobs:
         auto-activate-base: false
         use-only-tar-bz2: true
 
+    - run: conda info
+    - run: conda list
+    - run: conda config --show
+
+    - run: mamba search rust
+
     - name: install dependencies
       shell: bash -l {0}
       run: mamba install rust==1.75.0
