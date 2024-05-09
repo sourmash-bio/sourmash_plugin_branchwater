@@ -172,7 +172,7 @@ def test_simple_read_manifests(runtmp):
 
     make_file_list(against_list, [sig2, sig47, sig63])
 
-    runtmp.sourmash("sig","manifest", query, "-o", query_mf)
+    runtmp.sourmash("sig", "manifest", query, "-o", query_mf)
     runtmp.sourmash("sig", "manifest", against_list, "-o", against_mf)
 
     cwd = os.getcwd()
@@ -316,12 +316,14 @@ def test_sig_query(runtmp, capfd, indexed):
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
         g_output = runtmp.output('out.csv')
+        output_params = ['-o', g_output]
     else:
         g_output = runtmp.output('SRR606249.gather.csv')
         p_output = runtmp.output('SRR606249.prefetch.csv')
+        output_params = []
 
     runtmp.sourmash('scripts', 'fastmultigather', query, against_list,
-                        '-s', '100000', '-o', g_output)
+                        '-s', '100000', *output_params)
 
     captured = capfd.readouterr()
     print(captured.err)
@@ -361,14 +363,11 @@ def test_bad_query(runtmp, capfd, indexed):
 
     make_file_list(against_list, [sig2, sig47, sig63])
 
-    output = runtmp.output('out.csv')
-
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastmultigather', query_zip, against_list,
-                        '-o', output)
+        runtmp.sourmash('scripts', 'fastmultigather', query_zip, against_list)
 
     captured = capfd.readouterr()
     print(captured.err)
@@ -520,13 +519,12 @@ def test_bad_against_2(runtmp, capfd, zip_query):
         with open(sig2, 'rb') as fp2:
             fp.write(fp2.read())
 
-    output = runtmp.output('out.csv')
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'fastmultigather', query_list, against_zip,
-                        '-s', '100000', '-o', output)
+                        '-s', '100000')
 
     captured = capfd.readouterr()
     print(captured.err)
