@@ -22,7 +22,7 @@ use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
-use sourmash::sketch::minhash::{KmerMinHash, KmerMinHashBTree};
+use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
@@ -995,7 +995,7 @@ pub fn consume_query_by_gather(
             best_element.minhash.clone(),
             best_element.name.clone(),
             best_element.md5sum.clone(),
-            best_element.overlap.clone() as usize,
+            best_element.overlap as usize,
             best_element.location.clone(),
             rank,
             sum_weighted_found,
@@ -1026,7 +1026,7 @@ pub fn consume_query_by_gather(
             query_name: query.name().clone(),
             query_md5: query.md5sum().clone(),
             query_bp: query_mh.n_unique_kmers() as usize,
-            ksize: ksize as usize,
+            ksize,
             moltype: query_mh.hash_function().to_string(),
             scaled: query_mh.scaled() as usize,
             query_n_hashes: query_mh.size(),
@@ -1154,17 +1154,6 @@ pub struct InterimGatherResult {
     match_containment_ani_ci_high: Option<f64>,
     average_containment_ani: f64,
     max_containment_ani: f64,
-}
-
-#[derive(Serialize)]
-pub struct MinimalGatherResult {
-    query_filename: String,
-    rank: usize,
-    query_name: String,
-    query_md5: String,
-    match_name: String,
-    match_md5: String,
-    intersect_bp: usize,
 }
 
 #[derive(Serialize)]
