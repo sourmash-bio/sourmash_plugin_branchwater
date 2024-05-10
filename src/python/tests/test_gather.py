@@ -464,7 +464,6 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_against):
     print(g_keys - sp_keys)
     diff_keys = g_keys - sp_keys
     assert diff_keys == set(['unique_intersect_bp', 'median_abund', 'f_match_orig', 'std_abund', 'average_abund', 'f_unique_to_query', 'remaining_bp', 'f_unique_weighted', 'sum_weighted_found', 'total_weighted_hashes', 'n_unique_weighted_found', 'f_orig_query', 'f_match'])
-    # assert not g_keys - sp_keys, g_keys - sp_keys
 
 
 @pytest.mark.parametrize('zip_against', [False, True])

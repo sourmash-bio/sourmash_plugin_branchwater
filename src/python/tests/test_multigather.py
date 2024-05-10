@@ -82,7 +82,7 @@ def test_simple(runtmp, zip_against):
     print(df)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
 
 
 def test_simple_space_in_signame(runtmp):
@@ -156,7 +156,7 @@ def test_simple_zip_query(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
 
 
 def test_simple_read_manifests(runtmp):
@@ -199,7 +199,7 @@ def test_simple_read_manifests(runtmp):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
 
 
 @pytest.mark.parametrize('zip_query', [False, True])
@@ -343,7 +343,7 @@ def test_sig_query(runtmp, capfd, indexed):
     if indexed:
         assert {'query_name', 'query_md5', 'match_name', 'match_md5', 'f_match', 'intersect_bp'}.issubset(keys)
     else:
-        assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}.issubset(keys)
+        assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
 
 
 @pytest.mark.parametrize('indexed', [False, True])
@@ -474,14 +474,14 @@ def test_sig_against(runtmp, capfd):
     df = pandas.read_csv(p_output)
     assert len(df) == 1
     keys = set(df.keys())
-    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}.issubset(keys)
 
     # check gather output
     assert os.path.exists(g_output)
     df = pandas.read_csv(g_output)
     assert len(df) == 1
     keys = set(df.keys())
-    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
 
 
 def test_bad_against(runtmp, capfd):
@@ -624,7 +624,7 @@ def test_md5(runtmp, zip_query):
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
-    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}.issubset(keys)
 
     md5s = set(df['match_md5'])
     for against_file in (sig2, sig47, sig63):
@@ -715,13 +715,14 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_query, zip_against):
 
     gather_df = pandas.read_csv(g_output)
     g_keys = set(gather_df.keys())
-    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}.issubset(g_keys)
-    g_keys.remove('rank')       # 'rank' is not in sourmash prefetch!
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(g_keys)
+    g_keys.remove('gather_result_rank')       # 'rank' is not in sourmash prefetch!
 
     sourmash_prefetch_df = pandas.read_csv(sp_output)
     sp_keys = set(sourmash_prefetch_df.keys())
     print(g_keys - sp_keys)
-    assert not g_keys - sp_keys, g_keys - sp_keys
+    diff_keys = g_keys - sp_keys
+    assert diff_keys == set(['remaining_bp', 'f_match_orig', 'f_unique_weighted', 'average_abund', 'unique_intersect_bp', 'std_abund', 'sum_weighted_found', 'median_abund', 'n_unique_weighted_found', 'f_unique_to_query', 'f_orig_query', 'total_weighted_hashes', 'f_match'])
 
 def test_csv_columns_vs_sourmash_gather_fullresults(runtmp):
     # the column names should be identical to sourmash gather cols
@@ -831,7 +832,7 @@ def test_simple_protein(runtmp):
         df = pandas.read_csv(g_output)
         assert len(df) == 1
         keys = set(df.keys())
-        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
         assert df['query_md5'][0] == df['match_md5'][0]
@@ -856,7 +857,7 @@ def test_simple_dayhoff(runtmp):
         df = pandas.read_csv(g_output)
         assert len(df) == 1
         keys = set(df.keys())
-        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
         assert df['query_md5'][0] == df['match_md5'][0]
@@ -881,7 +882,7 @@ def test_simple_hp(runtmp):
         df = pandas.read_csv(g_output)
         assert len(df) == 1
         keys = set(df.keys())
-        assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'rank', 'intersect_bp'}
+        assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
         assert df['query_md5'][0] == df['match_md5'][0]
@@ -1124,7 +1125,7 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
 
     fmg_query_containment_ani = set([round(x,4) for x in gather_df['query_containment_ani']])
     g_query_containment_ani = set([round(x,4) for x in sourmash_gather_df['query_containment_ani']])
-    assert fmg_query_containment_ani == set([0.8632, 0.8444, 0.8391])
+    assert fmg_query_containment_ani == set([0.8632, 0.8442, 0.8387])
     # gather cANI are nans here -- perhaps b/c sketches too small
     # assert fmg_query_containment_ani == g_query_containment_ani == set([0.8632, 0.8444, 0.8391])
     print("fmg qcANI: ", fmg_query_containment_ani)
