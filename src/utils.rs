@@ -836,7 +836,7 @@ pub fn branchwater_calculate_gather_stats(
     let mut match_containment_ani_ci_high = None;
 
     if calc_ani_ci {
-        let n_unique_kmers = match_mh.n_unique_kmers();
+        let n_unique_kmers = match_mh.size() as u64 * match_mh.scaled(); // match_mh.n_unique_kmers()
         let (qani_low, qani_high) = ani_ci_from_containment(
             f_unique_to_query,
             ksize,
@@ -957,10 +957,10 @@ pub fn consume_query_by_gather(
     let location = query.filename();
 
     let orig_query_mh = query.minhash().unwrap();
-    let mut query_mh = orig_query_mh.clone();
+    // let mut query_mh = orig_query_mh.clone();
     let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
     // to do == use this to subtract hashes instead
-    // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
+    let mut query_mh = KmerMinHashBTree::from(orig_query_mh.clone());
 
     let mut last_hashes = orig_query_mh.size();
 
@@ -992,8 +992,8 @@ pub fn consume_query_by_gather(
             //calculate full gather stats here
             let match_ = branchwater_calculate_gather_stats(
                 &orig_query_ds,
-                query_mh.clone(),
-                // KmerMinHash::from(query.clone()),
+                // query_mh.clone(),
+                KmerMinHash::from(query_mh.clone()),
                 best_element.minhash.clone(),
                 best_element.name.clone(),
                 best_element.md5sum.clone(),
@@ -1027,7 +1027,7 @@ pub fn consume_query_by_gather(
                 query_filename: query.filename(),
                 query_name: query.name().clone(),
                 query_md5: query.md5sum().clone(),
-                query_bp: query_mh.n_unique_kmers() as usize,
+                query_bp: (query_mh.size() as u64 * query_mh.scaled()) as usize, //query_mh.n_unique_kmers() as usize,
                 ksize: ksize as usize,
                 moltype: query_mh.hash_function().to_string(),
                 scaled: query_mh.scaled() as usize,
@@ -1064,13 +1064,17 @@ pub fn consume_query_by_gather(
         }
 
         // remove!
-        query_mh.remove_from(&best_element.minhash)?;
+        // query_mh.remove_from(&best_element.minhash)?;
         // to do -- switch to KmerMinHashTree, for faster removal.
-        //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
+        query_mh.remove_many(best_element.minhash.iter_mins().copied())?; // from sourmash core
 
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
-        matching_sketches = prefetch(&query_mh, matching_sketches, threshold_hashes);
+        matching_sketches = prefetch(
+            &(KmerMinHash::from(query_mh.clone())),
+            matching_sketches,
+            threshold_hashes,
+        );
         rank += 1;
 
         let sub_hashes = last_hashes - query_mh.size();
