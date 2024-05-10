@@ -739,7 +739,7 @@ def test_csv_columns_vs_sourmash_gather_fullresults(runtmp):
     g_output = runtmp.output('SRR606249.gather.csv')
     runtmp.sourmash('scripts', 'fastmultigather', query_list,
                     against_list, '-s', '100000', '-t', '0',
-                    '--full-results') # '-o', g_output,
+                    ) # '-o', g_output,
 
     assert os.path.exists(g_output)
     # now run sourmash gather
@@ -1039,8 +1039,7 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
 
     g_output = runtmp.output('SRR606249.gather.csv')
     runtmp.sourmash('scripts', 'fastmultigather', query_list,
-                    against_list, '-s', '100000', '-t', '0',
-                    '--full-results')
+                    against_list, '-s', '100000', '-t', '0')
 
     print(runtmp.last_result.out)
     print(runtmp.last_result.err)

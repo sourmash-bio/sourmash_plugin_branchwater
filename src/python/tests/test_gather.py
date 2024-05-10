@@ -703,7 +703,7 @@ def test_simple_full_output(runtmp):
     p_output = runtmp.output('prefetch.csv')
 
     runtmp.sourmash('scripts', 'fastgather', query, against_list,
-                    '-o', g_output, '-s', '100000', '--full-results')
+                    '-o', g_output, '-s', '100000')
     assert os.path.exists(g_output)
 
     df = pandas.read_csv(g_output)
@@ -754,7 +754,7 @@ def test_fullres_vs_sourmash_gather(runtmp):
     g_output = runtmp.output('SRR606249.gather.csv')
     runtmp.sourmash('scripts', 'fastgather', query_list,
                     against_list, '-s', '100000', '-t', '0',
-                    '--full-results', '-o', g_output)
+                    '-o', g_output)
 
     print(runtmp.last_result.out)
     print(runtmp.last_result.err)

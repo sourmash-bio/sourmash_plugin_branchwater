@@ -23,7 +23,6 @@ pub fn fastmultigather(
     scaled: usize,
     selection: &Selection,
     allow_failed_sigpaths: bool,
-    make_full_result: bool,
 ) -> Result<()> {
     // load query collection
     let query_collection = load_collection(
@@ -104,7 +103,6 @@ pub fn fastmultigather(
                             matchlist,
                             threshold_hashes,
                             Some(gather_output),
-                            make_full_result,
                         )
                         .ok();
                     } else {

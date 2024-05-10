@@ -79,7 +79,6 @@ fn do_fastgather(
     ksize: u8,
     scaled: usize,
     moltype: String,
-    make_full_result: bool,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
@@ -95,7 +94,6 @@ fn do_fastgather(
         output_path_prefetch,
         output_path_gather,
         allow_failed_sigpaths,
-        make_full_result,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
@@ -113,7 +111,6 @@ fn do_fastmultigather(
     ksize: u8,
     scaled: usize,
     moltype: String,
-    make_full_result: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
@@ -147,7 +144,6 @@ fn do_fastmultigather(
             scaled,
             &selection,
             allow_failed_sigpaths,
-            make_full_result,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
