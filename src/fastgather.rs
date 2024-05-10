@@ -18,7 +18,6 @@ pub fn fastgather(
     gather_output: Option<String>,
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
-    make_full_result: bool,
 ) -> Result<()> {
     let query_collection = load_collection(
         &query_filepath,
@@ -100,7 +99,6 @@ pub fn fastgather(
         matchlist,
         threshold_hashes,
         gather_output,
-        make_full_result,
     )
     .ok();
     Ok(())

@@ -101,7 +101,6 @@ class Branchwater_Fastgather(CommandLinePlugin):
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
-        p.add_argument('--full-results', action='store_true', default=False, help = 'produce full gather results')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
 
@@ -122,7 +121,6 @@ class Branchwater_Fastgather(CommandLinePlugin):
                                                            args.ksize,
                                                            args.scaled,
                                                            args.moltype,
-                                                           args.full_results,
                                                            args.output_gather,
                                                            args.output_prefetch)
         if status == 0:
@@ -149,7 +147,6 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                        help='scaled factor at which to do comparisons (default: 1000)')
         p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
-        p.add_argument('--full-results', action='store_true', default=False, help = 'produce full gather results')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
         p.add_argument('-o', '--output', help='CSV output file for matches')
@@ -170,7 +167,6 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                                                                 args.ksize,
                                                                 args.scaled,
                                                                 args.moltype,
-                                                                args.full_results,
                                                                 args.output)
         if status == 0:
             notify(f"...fastmultigather is done!")
