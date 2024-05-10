@@ -93,6 +93,13 @@ pub fn fastgather(
     }
 
     // run the gather!
-    consume_query_by_gather(query_sig, matchlist, threshold_hashes, gather_output).ok();
+    consume_query_by_gather(
+        query_sig,
+        scaled as u64,
+        matchlist,
+        threshold_hashes,
+        gather_output,
+    )
+    .ok();
     Ok(())
 }
