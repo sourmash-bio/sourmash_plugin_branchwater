@@ -4,7 +4,7 @@ on:
   push:
     branches: [latest]
 jobs:
-  mamba:
+  "tests on linux":
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
