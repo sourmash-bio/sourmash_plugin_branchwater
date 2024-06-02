@@ -171,6 +171,47 @@ def test_manysketch_mult_moltype(runtmp):
             assert sig.minhash.is_dna
             assert sig.md5sum() in ["4efeebd26644278e36b9553e018a851a","f85747ac4f473c4a71c1740d009f512b"]
 
+def test_manysketch_mult_moltype_protein(runtmp):
+    fa_csv = runtmp.output('db-fa.csv')
+
+    protfa1 = get_test_data('short-protein.fa')
+
+    make_assembly_csv(fa_csv, [], [protfa1])
+
+    output = runtmp.output('db.zip')
+
+    runtmp.sourmash('scripts', 'manysketch', fa_csv, '-o', output,
+                    '--param-str', "dayhoff,k=10,scaled=1",
+                    '--param-str', "hp,k=24,scaled=1")
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 2
+    # check moltypes, etc!
+    for sig in sigs:
+        if sig.name == 'short':
+            if sig.minhash.is_dna:
+                assert sig.minhash.ksize == 21
+                assert sig.minhash.scaled == 1
+                assert sig.md5sum() == "1474578c5c46dd09da4c2df29cf86621"
+            else:
+                assert sig.name == 'short'
+                assert sig.minhash.ksize == 10
+                assert sig.minhash.scaled == 1
+                assert sig.md5sum() == "eb4467d11e0ecd2dbde4193bfc255310"
+        else:
+            assert sig.name in ['short', 'short2', 'short3']
+            assert sig.minhash.ksize == 21
+            assert sig.minhash.scaled == 1
+            assert sig.minhash.is_dna
+            assert sig.md5sum() in ["4efeebd26644278e36b9553e018a851a","f85747ac4f473c4a71c1740d009f512b"]
+
+
 
 def test_manysketch_only_incompatible_fastas(runtmp, capfd):
     # provide dna, protein fastas, but only sketch protein (skip protein fastas!)
