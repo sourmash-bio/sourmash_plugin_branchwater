@@ -24,6 +24,8 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
         let mut seed = 42;
         let mut is_protein = false;
         let mut is_dna = true;
+        let mut hp = false;
+        let mut dayhoff = false;
 
         for item in items.iter() {
             match *item {
@@ -53,10 +55,26 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
                 "protein" => {
                     is_protein = true;
                     is_dna = false;
+                    hp = false;
+                    dayhoff = false;
                 }
                 "dna" => {
                     is_protein = false;
                     is_dna = true;
+                    hp = false;
+                    dayhoff = false;
+                }
+                "hp" => {
+                    is_protein = true;
+                    is_dna = false;
+                    hp = true;
+                    dayhoff = false;
+                }
+                "dayhoff" => {
+                    is_protein = true;
+                    is_dna = false;
+                    hp = false;
+                    dayhoff = true;
                 }
                 _ => return Err(format!("unknown component '{}' in params string", item)),
             }
@@ -71,6 +89,8 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
                 seed,
                 is_protein,
                 is_dna,
+                dayhoff,
+                hp,
             };
             unique_params.insert(param);
         }
@@ -87,6 +107,8 @@ fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
             // if dna, only build dna sigs. if protein, only build protein sigs
             "dna" | "DNA" if !param.is_dna => continue,
             "protein" if !param.is_protein => continue,
+            "dayhoff" if !param.dayhoff => continue,
+            "hp" if !param.hp => continue,
             _ => (),
         }
 
