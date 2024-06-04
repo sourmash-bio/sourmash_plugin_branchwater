@@ -6,8 +6,8 @@
 | `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link](#Running-fastgather)
 | `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link](#Running-fastmultigather)
 | `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
-| `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch)
-| `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch)
+| `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
+| `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
 
 This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
@@ -149,7 +149,7 @@ sourmash sig summarize fa.zip
 The number of sketches per parameter combination should equal the total number of records in all input FASTA.
 The `name` column will not be used. Instead, each sketch will be named from the FASTA record name.
 
-### Running `multisearch`
+### Running `multisearch` and `pairwise`
 
 The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading all genomes into memory.
 
@@ -162,7 +162,7 @@ sourmash scripts multisearch query.sig.gz database.zip -o results.csv
 The results file `results.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
 The `pairwise` command does the same comparisons as `multisearch` but takes
-only a single collection of sketches, for which it calculates all the pairwise comparisons. Since the comparisons are symmetric, it approximately
+only a single collection of sketches, for which it calculates all the pairwise comparisons. Since the comparisons are symmetric, it is approximately
 twice as fast as `multisearch`.
 
 ### Running `fastgather`

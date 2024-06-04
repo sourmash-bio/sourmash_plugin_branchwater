@@ -62,6 +62,7 @@ pub fn mastiff_manygather(
                 Ok(query_sig) => {
                     let mut results = vec![];
                     if let Some(query_mh) = query_sig.minhash() {
+                        let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
                             db.prepare_gather_counters(query_mh);

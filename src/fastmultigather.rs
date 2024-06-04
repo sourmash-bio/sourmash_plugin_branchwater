@@ -80,6 +80,7 @@ pub fn fastmultigather(
                                         name: against.name.clone(),
                                         md5sum: against.md5sum.clone(),
                                         minhash: against.minhash.clone(),
+                                        location: against.location.clone(),
                                         overlap,
                                     };
                                     mm = Some(result);
@@ -98,6 +99,7 @@ pub fn fastmultigather(
                         // Now, do the gather!
                         consume_query_by_gather(
                             query_sig.clone(),
+                            scaled as u64,
                             matchlist,
                             threshold_hashes,
                             Some(gather_output),
