@@ -1686,7 +1686,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.13.1"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=debug_rust_gather#70853eba80d1eb8a608076d97302dcfc5cd1998e"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=debug_rust_gather#74eecb24bbc8541c768255b3d524c9a0ac3faa50"
 dependencies = [
  "az",
  "byteorder",
