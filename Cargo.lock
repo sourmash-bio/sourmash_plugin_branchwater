@@ -766,7 +766,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c2a198fb6b0eada2a8df47933734e6d35d350665a33a3593d7164fa52c75c19"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.4",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -1686,7 +1686,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.14.0"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=debug_rust_gather#231a134b585c82a78bb944a95201cf69e6522b26"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=latest#8c6b58c44ea126a38df2c7012ed4bb492e5ccdf5"
 dependencies = [
  "az",
  "byteorder",
