@@ -8,7 +8,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     ]
-dependencies = ["sourmash>=4.8.5,<5"]
+dependencies = ["sourmash>=4.8.9,<5"]
 
 authors = [
   { name="N. Tessa Pierce-Ward", orcid="0000-0002-2942-5331" },
