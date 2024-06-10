@@ -956,6 +956,8 @@ pub fn consume_query_by_gather(
     let location = query.filename();
 
     let orig_query_mh = query.minhash().unwrap();
+    let query_bp = orig_query_mh.n_unique_kmers() as usize;
+
     let mut query_mh = orig_query_mh.clone();
     let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
     // to do == use this to subtract hashes instead
@@ -1025,7 +1027,7 @@ pub fn consume_query_by_gather(
             query_filename: query.filename(),
             query_name: query.name().clone(),
             query_md5: query.md5sum().clone(),
-            query_bp: query_mh.n_unique_kmers() as usize,
+            query_bp: query_bp,
             ksize,
             moltype: query_mh.hash_function().to_string(),
             scaled: query_mh.scaled() as usize,
