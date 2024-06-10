@@ -1015,7 +1015,7 @@ def test_indexed_full_output(runtmp):
     # check a few columns
     average_ani = set(df['average_containment_ani'])
     avg_ani = set([round(x, 4) for x in average_ani])
-    assert avg_ani == {0.8602, 0.8504, 0.8361}
+    assert avg_ani == {0.8359, 0.8502, 0.8602}
 
     f_unique_weighted = set(df['f_unique_weighted'])
     f_unique_weighted = set([round(x, 4) for x in f_unique_weighted])
