@@ -958,7 +958,7 @@ pub fn consume_query_by_gather(
     let orig_query_mh = query.minhash().unwrap();
     let query_bp = orig_query_mh.n_unique_kmers() as usize;
     let query_n_hashes = orig_query_mh.size();
-    let mut query_moltype =  orig_query_mh.hash_function().to_string();
+    let mut query_moltype = orig_query_mh.hash_function().to_string();
     if query_moltype.to_lowercase() == "dna" {
         query_moltype = query_moltype.to_uppercase();
     }
