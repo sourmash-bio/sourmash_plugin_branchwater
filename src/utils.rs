@@ -957,6 +957,14 @@ pub fn consume_query_by_gather(
 
     let orig_query_mh = query.minhash().unwrap();
     let query_bp = orig_query_mh.n_unique_kmers() as usize;
+    let query_n_hashes = orig_query_mh.size();
+    let mut query_moltype =  orig_query_mh.hash_function().to_string();
+    if query_moltype.to_lowercase() == "dna" {
+        query_moltype = query_moltype.to_uppercase();
+    }
+    let query_md5sum: String = orig_query_mh.md5sum().clone();
+    let query_name = query.name().clone();
+    let query_scaled = orig_query_mh.scaled().clone() as usize; //query_mh.scaled() as usize
 
     let mut query_mh = orig_query_mh.clone();
     let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
@@ -1025,13 +1033,13 @@ pub fn consume_query_by_gather(
             gather_result_rank: match_.gather_result_rank,
             remaining_bp: match_.remaining_bp,
             query_filename: query.filename(),
-            query_name: query.name().clone(),
-            query_md5: query.md5sum().clone(),
-            query_bp: query_bp,
+            query_name: query_name.clone(),
+            query_md5: query_md5sum.clone(),
+            query_bp: query_bp.clone(),
             ksize,
-            moltype: query_mh.hash_function().to_string(),
-            scaled: query_mh.scaled() as usize,
-            query_n_hashes: query_mh.size(),
+            moltype: query_moltype.clone(),
+            scaled: query_scaled.clone(),
+            query_n_hashes: query_n_hashes,
             query_abundance: query_mh.track_abundance(),
             query_containment_ani: match_.query_containment_ani,
             match_containment_ani: match_.match_containment_ani,
