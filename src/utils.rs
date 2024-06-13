@@ -595,6 +595,8 @@ fn collection_from_pathlist(
         })
         .collect();
 
+    let mut last_error = None;
+
     // load sketches from paths in parallel.
     let n_failed = AtomicUsize::new(0);
     let records: Vec<Record> = lines
@@ -634,6 +636,19 @@ fn collection_from_pathlist(
                 .build(),
         ),
     );
+    let collection = collection.or_else(
+        lines.par_iter().filter_map(|line| Some(PathBuf::from(line).extension() == "zip")) {
+            match collection_from_zipfile(&PathBuf::from(line), &report_type) {
+                Ok(coll) => Some((coll, 0)),
+                Err(e) => {
+                    last_error = Some(e);
+                    None
+                }
+            }
+            eprintln!("Matched zipfiles")
+        }
+    ); 
+
     let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
     Ok((collection, n_failed))
