@@ -305,6 +305,24 @@ def test_manysketch_bad_fa_csv(runtmp, capfd):
 
 
 def test_manysketch_bad_fa_csv_2(runtmp, capfd):
+    # bad file within filelist
+    siglist = runtmp.output('bad.txt')
+
+    # fa_file = runtmp.output("bad.fa")
+    make_assembly_csv(siglist, ["bad2.fa"])
+
+    output = runtmp.output('db.zip')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'manysketch', siglist, '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Could not load fasta files: no signatures created." in captured.err
+    assert "Error opening file bad2.fa: ParseError" in captured.err
+
+
+def test_manysketch_bad_fa_csv_3(runtmp, capfd):
     # test sketch with fasta provided instead of fa_csv
     output = runtmp.output('out.zip')
     fa1 = get_test_data('short.fa')
