@@ -68,6 +68,13 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
             }
         }
 
+        if !is_dna && !is_protein && !is_dayhoff && !is_hp {
+            return Err(format!("No moltype provided in params string {}", p_str));
+        }
+        if ksizes.is_empty() {
+            return Err(format!("No ksizes provided in params string {}", p_str));
+        }
+
         for &k in &ksizes {
             let param = Params {
                 ksize: k,
