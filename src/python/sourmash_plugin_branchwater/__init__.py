@@ -349,7 +349,7 @@ class Branchwater_Manysketch(CommandLinePlugin):
     def main(self, args):
         print_version()
         if not args.param_string:
-            args.param_string = ["k=31,scaled=1000"]
+            args.param_string = ["dna,k=31,scaled=1000"]
         notify(f"params: {args.param_string}")
 
         # convert to a single string for easier rust handling

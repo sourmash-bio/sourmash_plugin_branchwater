@@ -26,6 +26,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -1247,10 +1248,10 @@ pub struct Params {
     pub scaled: u64,
     pub seed: u32,
     pub is_protein: bool,
+    pub is_dayhoff: bool,
+    pub is_hp: bool,
     pub is_dna: bool,
 }
-use std::hash::Hash;
-use std::hash::Hasher;
 
 impl Hash for Params {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -1260,6 +1261,8 @@ impl Hash for Params {
         self.scaled.hash(state);
         self.seed.hash(state);
         self.is_protein.hash(state);
+        self.is_dayhoff.hash(state);
+        self.is_hp.hash(state);
         self.is_dna.hash(state);
     }
 }
