@@ -529,7 +529,7 @@ impl std::fmt::Display for ReportType {
         let description = match self {
             ReportType::Query => "query",
             ReportType::Against => "search",
-            ReportType::General => "signature",
+            ReportType::General => "analysis",
         };
         write!(f, "{}", description)
     }
