@@ -221,7 +221,7 @@ def test_bad_query(runtmp, capfd):
     print(captured.err)
 
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
-    assert "WARNING: 1 signature paths failed to load. See error messages above." in captured.err
+    assert "WARNING: 1 analysis paths failed to load. See error messages above." in captured.err
 
 
 def test_bad_query_2(runtmp, capfd):
@@ -314,7 +314,7 @@ def test_nomatch_query(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert 'WARNING: skipped 1 signature paths - no compatible signatures' in captured.err
+    assert 'WARNING: skipped 1 analysis paths - no compatible signatures' in captured.err
 
 
 @pytest.mark.parametrize("zip_db", [False, True])
