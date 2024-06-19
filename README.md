@@ -54,9 +54,9 @@ Tne
 supplies a number of commands that work with branchwater output. In
 particular,
 
-* `mds2` and `tsne2` generates MDS and tSNE plots from `pairwise`
+* `mds2` and `tsne2` generate MDS and tSNE plots from `pairwise`
   output;
-* `clustermap1` generates seaborn 
+* `clustermap1` generates [seaborn clustermaps](https://seaborn.pydata.org/generated/seaborn.clustermap.html) from `pairwise` and `multisearch` output;
 * `clusters_to_categories` uses the output of the `cluster` command
   to generate categories for coloring and labeling plots;
 * `pairwise_to_matrix` converts the output of `pairwise` to a sourmash

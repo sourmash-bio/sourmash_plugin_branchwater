@@ -14,6 +14,8 @@ This repository implements multithreaded plugins for [sourmash](https://sourmash
 
 The main *drawback* to these plugin commands is that their inputs and outputs are different (and sometimes not as rich as) the native sourmash commands. In particular, this means that your input files may need to be prepared differently, and the output may need to be processed differently.
 
+**Note:** As of v0.9.5, the outputs of `fastgather` and `fastmultigather` almost completely match the output of `sourmash gather`; see below for details.
+
 ## Input file formats
 
 sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.9).
