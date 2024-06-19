@@ -732,7 +732,7 @@ def test_simple_full_output(runtmp):
     f_unique_to_query = set([round(x,4) for x in df['f_unique_to_query']])
     assert f_unique_to_query == set([0.0052, 0.0105, 0.0043])
     query_containment_ani = set([round(x,4) for x in df['query_containment_ani']])
-    assert query_containment_ani == set([0.8632, 0.8442, 0.8387])
+    assert query_containment_ani == { 0.8442, 0.8613, 0.8632 }
     print(query_containment_ani)
     for index, row in df.iterrows():
         print(row.to_dict())
@@ -839,7 +839,7 @@ def test_fullres_vs_sourmash_gather(runtmp):
     
     fg_query_containment_ani = set([round(x,3) for x in gather_df['query_containment_ani']])
     g_query_containment_ani = set([round(x,3) for x in sourmash_gather_df['query_containment_ani']])
-    assert fg_query_containment_ani == set([0.863, 0.844, 0.839])
+    assert fg_query_containment_ani == {0.844, 0.861, 0.863}
     # gather cANI are nans here -- perhaps b/c sketches too small?
     # assert fg_query_containment_ani == g_query_containment_ani == set([0.8632, 0.8444, 0.8391])
     print("fg qcANI: ", fg_query_containment_ani)

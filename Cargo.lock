@@ -1696,7 +1696,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.14.0"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=adjust_ani_calc_gather#65ae23d3e59dba64e71ceb271f7c8796eb82c363"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=adjust_ani_calc_gather#b5064a5aa851e77065b4bae788cc6bf3fbb0b66c"
 dependencies = [
  "az",
  "byteorder",
@@ -1706,7 +1706,6 @@ dependencies = [
  "counter",
  "csv",
  "enum_dispatch",
- "env_logger",
  "fixedbitset",
  "getrandom",
  "getset",
