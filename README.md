@@ -49,7 +49,7 @@ There is a quickstart below, as well as
 [more user documentation here](doc/README.md). Nascent
 [developer docs](doc/developer.md) are also available!
 
-Tne
+The
 [betterplot plugin](https://github.com/sourmash-bio/sourmash_plugin_betterplot/)
 supplies a number of commands that work with branchwater output. In
 particular,
