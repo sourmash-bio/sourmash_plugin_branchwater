@@ -197,7 +197,7 @@ sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4
 ```
 <!-- We suggest using a manifest CSV for the queries. CTB -->
 
-The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that you only load the database files once with `fastmultigather`, which can be a significant time savings for large databases!
+The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that `fastmultigather` only needs to load the database once for all queries, unlike with `fastgather`; this can be a significant time savings for large databases!
 
 #### Output files for `fastmultigather`
 
