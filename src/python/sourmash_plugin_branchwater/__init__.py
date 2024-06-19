@@ -300,9 +300,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
         p.add_argument('-a', '--ani', action='store_true',
                        help='estimate ANI from containment')
         p.add_argument('--write-all', action="store_true",
-                       help="write self comparisons for sketches that would otherwise \
-                            not be represented in output (ensures all sketches are \
-                            represented in downstream clustering)")
+                       help="write self comparisons for all sketches")
 
     def main(self, args):
         print_version()

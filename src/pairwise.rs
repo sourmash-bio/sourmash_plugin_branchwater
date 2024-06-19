@@ -55,7 +55,6 @@ pub fn pairwise(
     let ksize = selection.ksize().unwrap() as f64;
 
     sketches.par_iter().enumerate().for_each(|(idx, query)| {
-        let mut has_written_comparison = false;
         for against in sketches.iter().skip(idx + 1) {
             let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
             let query1_size = query.minhash.size() as f64;
@@ -65,7 +64,6 @@ pub fn pairwise(
             let containment_q2_in_q1 = overlap / query2_size;
 
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
-                has_written_comparison = true;
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
                 let jaccard = overlap / (query1_size + query2_size - overlap);
                 let mut query_containment_ani = None;
@@ -104,7 +102,7 @@ pub fn pairwise(
                 eprintln!("Processed {} comparisons", i);
             }
         }
-        if write_all & !has_written_comparison {
+        if write_all {
             let mut query_containment_ani = None;
             let mut match_containment_ani = None;
             let mut average_containment_ani = None;
