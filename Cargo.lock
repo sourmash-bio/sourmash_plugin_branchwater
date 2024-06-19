@@ -1695,8 +1695,9 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 
 [[package]]
 name = "sourmash"
-version = "0.14.0"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=adjust_ani_calc_gather#b5064a5aa851e77065b4bae788cc6bf3fbb0b66c"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f217cb77fa00caf85439aafa5ad4c6fa41cbff81a23149fa60a74a0268bd02f5"
 dependencies = [
  "az",
  "byteorder",
