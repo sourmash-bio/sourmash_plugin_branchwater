@@ -25,11 +25,11 @@ sourmash supports a variety of different storage formats for sketches (see [sour
 | command | query input | database format |
 | -------- | -------- | -------- |
 | `manysketch`     | CSV with input fasta/fastq paths (details below)    | _produces_ Zip database |
-| `gather`     | Single metagenome in sig, zip, manifest CSV, or fromfile     | Zip, manifest CSV, or fromfile |
-| `fastmultigather` | Multiple metagenomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
-| `manysearch` | Multiple genomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
-| `multisearch` | Multiple sketches in sig, zip, manifest CSV, or fromfile | Multiple sketches in sig, zip, manifest CSV, or fromfile |
-| `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A |
+| `gather`     | Single metagenome in sig, zip, or fromfile     | Zip or fromfile |
+| `fastmultigather` | Multiple metagenomes in sig, zip, or fromfile | Zip, fromfile, or rocksdb index |
+| `manysearch` | Multiple genomes in sig, zip, or fromfile | Zip, fromfile, or rocksdb index |
+| `multisearch` | Multiple sketches in sig, zip, or fromfile | Multiple sketches in sig, zip, or fromfile |
+| `pairwise` | Multiple sketches in sig, zip, or fromfile | N/A |
 | `cluster`| Output from `pairwise` or `multisearch`| N/A |
 
 ### Using zipfiles
