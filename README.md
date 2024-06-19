@@ -49,6 +49,23 @@ There is a quickstart below, as well as
 [more user documentation here](doc/README.md). Nascent
 [developer docs](doc/developer.md) are also available!
 
+Tne
+[betterplot plugin](https://github.com/sourmash-bio/sourmash_plugin_betterplot/)
+supplies a number of commands that work with branchwater output. In
+particular,
+
+* `mds2` and `tsne2` generates MDS and tSNE plots from `pairwise`
+  output;
+* `clustermap1` generates seaborn 
+* `clusters_to_categories` uses the output of the `cluster` command
+  to generate categories for coloring and labeling plots;
+* `pairwise_to_matrix` converts the output of `pairwise` to a sourmash
+  comparison matrix;
+
+See
+[the betterplot README](https://github.com/sourmash-bio/sourmash_plugin_betterplot/)
+for example figures and commands!
+
 ## Quickstart demonstrating `multisearch`.
 
 This quickstart demonstrates `multisearch` using
