@@ -50,6 +50,7 @@ def main():
 
     fail = False
     num_matching = 0
+    num_missing = 0
     num_ident = 0
     num_nomatch = 0
     for row in rows2:
@@ -58,8 +59,11 @@ def main():
         val2 = float(row[colname])
 
         val1 = d1[q].get(m, -1)
-        
-        if round(val1, args.round_to) != round(val2, args.round_to):
+
+        if val1 == -1:
+            num_missing += 1
+            fail = True
+        elif round(val1, args.round_to) != round(val2, args.round_to):
             notify(f"MISMATCH: '{q}' vs '{m}', {val1} != {val2}")
             fail = True
             num_nomatch += 1
@@ -69,9 +73,10 @@ def main():
             else:
                 num_matching += 1
 
-    print(f"100%: {num_ident}")
+    print(f"values at 100%: {num_ident}")
     print(f"matching: {num_matching}")
     print(f"non-matching: {num_nomatch}")
+    print(f"num missing: {num_missing}")
 
     if fail:
         notify("differences detected! failing!")
