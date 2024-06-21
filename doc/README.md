@@ -12,22 +12,24 @@
 
 This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
 
-The main *drawback* to these plugin commands is that their inputs and outputs are not as rich as the native sourmash commands. This means that your input files may need to be prepared differently, and the output may in some cases be most useful as a prefilter in conjunction with regular sourmash commands - see the instructions below for using `fastgather` to create picklists for sourmash.
+The main *drawback* to these plugin commands is that their inputs and outputs are different (and sometimes not as rich as) the native sourmash commands. In particular, this means that your input files may need to be prepared differently, and the output may need to be processed differently.
+
+**Note:** As of v0.9.5, the outputs of `fastgather` and `fastmultigather` almost completely match the output of `sourmash gather`; see below for details.
 
 ## Input file formats
 
-sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.6).
+sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.9).
 
-**As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.**
+<!-- **As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.** CTB -->
 
 | command | query input | database format |
 | -------- | -------- | -------- |
 | `manysketch`     | CSV with input fasta/fastq paths (details below)    | _produces_ Zip database |
-| `gather`     | Single metagenome in sig, zip, manifest CSV, or fromfile     | Zip, manifest CSV, or fromfile |
-| `fastmultigather` | Multiple metagenomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
-| `manysearch` | Multiple genomes in sig, zip, manifest CSV, or fromfile | Zip, manifest CSV, fromfile, or rocksdb index |
-| `multisearch` | Multiple sketches in sig, zip, manifest CSV, or fromfile | Multiple sketches in sig, zip, manifest CSV, or fromfile |
-| `pairwise` | Multiple sketches in sig, zip, manifest CSV, or fromfile | N/A |
+| `gather`     | Single metagenome in sig, zip, or fromfile     | Zip or fromfile |
+| `fastmultigather` | Multiple metagenomes in sig, zip, or fromfile | Zip, fromfile, or rocksdb index |
+| `manysearch` | Multiple genomes in sig, zip, or fromfile | Zip, fromfile, or rocksdb index |
+| `multisearch` | Multiple sketches in sig, zip, or fromfile | Multiple sketches in sig, zip, or fromfile |
+| `pairwise` | Multiple sketches in sig, zip, or fromfile | N/A |
 | `cluster`| Output from `pairwise` or `multisearch`| N/A |
 
 ### Using zipfiles
@@ -46,6 +48,9 @@ You can create zipfiles with sourmash like so:
 ```
 sourmash sig cat <list of sketches> -o sigs.zip
 ```
+
+<!--
+CTB
 
 ### Using manifests instead of zip files - why and when?
 
@@ -68,6 +73,7 @@ The branchwater plugin supports manifest CSVs.  These can be created from lists 
 sourmash sig manifest <from file> -o manifest.csv
 ```
 will create a manifest CSV from a list of sketches.
+-->
 
 ### Using RocksDB inverted indexes
 
@@ -77,14 +83,17 @@ Some commands - `fastmultigather` and `manysearch` - support using these RocksDB
 
 ### Using "fromfiles"
 
-**Note: We no longer recommend using "fromfiles". Use zip files or manifests instead.**
+<!-- **Note: We no longer recommend using "fromfiles". Use zip files or manifests instead.** CTB -->
 
 You can make a fromfile by listing a collection of .sig.gz files like so:
 ```
 find /path/to/directory/ -name "*.sig.gz" -type f > directory.txt
 ```
 
-When using a fromfile for search, we load all signatures into memory at the start in order to generate a manifest. To avoid memory issues, the signatures are not kept in memory, but instead re-loaded as described below for each command (see: Notes on concurrency and efficiency). This makes using fromfiles less efficient than `zip` files or manifests (as of v0.9.0).
+When using a fromfile for search, we load all signatures into memory at the start in order to generate a manifest. To avoid memory issues, the signatures are not kept in memory, but instead re-loaded as described below for each command (see: Notes on concurrency and efficiency). This makes using fromfiles less efficient than `zip` files (as of v0.9.0).
+
+
+<!-- or manifests... CTB -->
 
 ## Running the commands
 
@@ -174,28 +183,11 @@ The `fastgather` command is a much faster version of `sourmash gather`.
 sourmash scripts fastgather query.sig.gz database.zip -o results.csv --cores 4
 ```
 
-#### Using `fastgather` to create a picklist for `sourmash gather`
-
-One handy use case for `fastgather` is to create a picklist that can be used by `sourmash gather`. This makes full use of the speed of `fastgather` while producing a complete set of `gather` outputs.
-
-For example, if you run a complete `gather` against GTDB rs214,
-
-```
-sourmash scripts fastgather SRR606249.trim.sig.gz \
-    gdtb-rs214-k21.zip -o SRR606249.fastgather.csv -k 21
-```
-
-The resulting CSV file can then be used as a picklist for `sourmash gather` like so:
-
-```
-sourmash gather SRR606249.trim.sig.gz gtdb-rs214-k21.zip \
-    --picklist SRR606249.fastgather.csv:match_name:ident \
-    -o SRR606249.gather.csv
-```
-
-#### Example of picklist usage
-
-A complete example Snakefile implementing the above workflow is available [in the sourmash-slainte Snakefile](https://github.com/dib-lab/sourmash-slainte/blob/main/Snakefile).
+As of v0.9.5, `fastgather` outputs the same columns as `sourmash gather`, with only a few exceptions:
+* `match_name` is output instead of `name`;
+* `match_md5` is output instead of `md5`;
+* `match_filename` is output instead of `filename`, and the value is different;
+* `potential_false_negative` is not present in `fastgather` output;
 
 ### Running `fastmultigather`
 
@@ -203,15 +195,19 @@ A complete example Snakefile implementing the above workflow is available [in th
 ```
 sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4
 ```
-We suggest using a manifest CSV for the queries.
+<!-- We suggest using a manifest CSV for the queries. CTB -->
 
-The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that you only load the database files once with `fastmultigather`, which can be a significant time savings for large databases!
+The main advantage that `fastmultigather` has over running `fastgather` on multiple queries is that `fastmultigather` only needs to load the database once for all queries, unlike with `fastgather`; this can be a significant time savings for large databases!
 
 #### Output files for `fastmultigather`
 
-`fastmultigather` will output two CSV files for each query, a `prefetch` file containing all overlapping matches between that query and the database, and a `gather` file containing the minimum metagenome cover for that query in the database.
+On a database of sketches (but not on RocksDB indexes) `fastmultigather` will output two CSV files for each query, a `prefetch` file containing all overlapping matches between that query and the database, and a `gather` file containing the minimum metagenome cover for that query in the database.
 
 The prefetch CSV will be named `{signame}.prefetch.csv`, and the gather CSV will be named `{signame}.gather.csv`.  Here, `{signame}` is the name of your sourmash signature.
+
+When searching against a RocksDB index, `fastmultigather` will output a single file containing all gather results, specified with `-o/--output`. No prefetch results will be output.
+
+`fastmultigather` gather CSVs provide the same columns as `fastgather`, above.
 
 **Warning:** At the moment, if two different queries have the same `{signame}`, the CSVs for one of the queries will be overwritten by the other query. The behavior here is undefined in practice, because of multithreading: we don't know what queries will be executed when or files will be written first.
 
@@ -223,7 +219,7 @@ The `manysearch` command compares one or more collections of query sketches, and
 ```
 sourmash scripts manysearch queries.zip metagenomes.manifest.csv -o results.csv
 ```
-We suggest using a manifest CSV for the metagenome collection.
+<!-- We suggest using a manifest CSV for the metagenome collection. -->
 
 The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
 
@@ -258,13 +254,13 @@ Each command does things slightly differently, with implications for CPU and dis
 
 `manysketch` loads one sequence file from disk per thread and sketches it using all signature params simultaneously.
 
-`manysearch` loads all the queries at the beginning, and then loads one database sketch from disk per thread. The compute-per-database-sketch is dominated by I/O. So your number of threads should be chosen with care for disk load. We typically limit it to `-c 32` for shared disks. We suggest using a manifest CSV file for the database sketches.
+`manysearch` loads all the queries at the beginning, and then loads one database sketch from disk per thread. The compute-per-database-sketch is dominated by I/O. So your number of threads should be chosen with care for disk load. We typically limit it to `-c 32` for shared disks. <!-- We suggest using a manifest CSV file for the database sketches. CTB -->
 
-`multisearch` loads all the queries and database sketches once, at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! Zipfiles and manifests should work well.
+`multisearch` loads all the queries and database sketches once, at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! Zipfiles <!-- and manifests CTB --> should work well.
 
 `pairwise` acts just like `multisearch`, but only loads one file (and then does all comparisons between all pairs within that file).
 
-Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! We suggest using zipfile or manifests for the database.
+Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! We suggest using zipfiles <!-- or manifests CTB --> for the database.
 
 `fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
 

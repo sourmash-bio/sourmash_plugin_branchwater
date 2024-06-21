@@ -43,9 +43,9 @@ class Branchwater_Manysearch(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('query_paths',
-                       help="a text file containing paths to .sig/.sig.gz files")
+                       help="input file of sketches")
         p.add_argument('against_paths',
-                       help="a text file containing paths to .sig/.sig.gz files")
+                       help="input file of sketches")
         p.add_argument('-o', '--output', required=True,
                        help='CSV output file for matches')
         p.add_argument('-t', '--threshold', default=0.01, type=float,
@@ -87,8 +87,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('query_sig', help="metagenome sketch")
-        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files \
-                       OR a branchwater indexed database generated with 'sourmash scripts index'")
+        p.add_argument('against_paths', help="input file of sketches")
         p.add_argument('-o', '--output-gather', required=True,
                        help="save gather output (minimum metagenome cover) to this file")
         p.add_argument('--output-prefetch',
@@ -136,8 +135,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('query_paths', help="a text file containing paths to .sig/.sig.gz files to query")
-        p.add_argument('against_paths', help="a text file containing paths to .sig/.sig.gz files to search against \
+        p.add_argument('query_paths', help="input file of sketches to query")
+        p.add_argument('against_paths', help="input file of sketches to search against \
                        OR a branchwater indexed database generated with 'sourmash scripts index'")
         p.add_argument('-t', '--threshold-bp', default=50000, type=float,
                        help='threshold in estimated base pairs, for reporting matches (default: 50kb)')
@@ -180,7 +179,7 @@ class Branchwater_Index(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('siglist',
-                       help="a text file containing paths to .sig/.sig.gz files")
+                       help="input file of sketches")
         p.add_argument('-o', '--output', required=True,
                        help='output file for the index')
         p.add_argument('-k', '--ksize', default=31, type=int,
@@ -237,9 +236,9 @@ class Branchwater_Multisearch(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('query_paths',
-                       help="a text file containing paths to .sig/.sig.gz files")
+                       help="input file of sketches")
         p.add_argument('against_paths',
-                       help="a text file containing paths to .sig/.sig.gz files")
+                       help="input file of sketches")
         p.add_argument('-o', '--output', required=True,
                        help='CSV output file for matches')
         p.add_argument('-t', '--threshold', default=0.01, type=float,
@@ -284,7 +283,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('sig_paths',
-                       help="a text file containing paths to .sig/.sig.gz files")
+                       help="input file of sketches")
         p.add_argument('-o', '--output', required=True,
                        help='CSV output file for matches')
         p.add_argument('-t', '--threshold', default=0.01, type=float,
@@ -300,9 +299,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
         p.add_argument('-a', '--ani', action='store_true',
                        help='estimate ANI from containment')
         p.add_argument('--write-all', action="store_true",
-                       help="write self comparisons for sketches that would otherwise \
-                            not be represented in output (ensures all sketches are \
-                            represented in downstream clustering)")
+                       help="write self comparisons for all sketches")
 
     def main(self, args):
         print_version()
