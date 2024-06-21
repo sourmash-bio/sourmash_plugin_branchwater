@@ -1,6 +1,6 @@
 [package]
 name = "sourmash_plugin_branchwater"
-version = "0.9.3"
+version = "0.9.6-dev"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.21.2", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
 serde = { version = "1.0.203", features = ["derive"] }
-sourmash = { version = "0.13.1", features = ["branchwater"] }
+sourmash = { version = "0.14.1", features = ["branchwater"] }
 serde_json = "1.0.117"
 niffler = "2.4.0"
 log = "0.4.14"
