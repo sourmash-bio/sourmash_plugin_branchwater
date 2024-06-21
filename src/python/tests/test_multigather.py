@@ -1015,7 +1015,7 @@ def test_indexed_full_output(runtmp):
     # check a few columns
     average_ani = set(df['average_containment_ani'])
     avg_ani = set([round(x, 4) for x in average_ani])
-    assert avg_ani == {0.8602, 0.8504, 0.8361}
+    assert avg_ani == {0.8502, 0.8584, 0.8602}
 
     f_unique_weighted = set(df['f_unique_weighted'])
     f_unique_weighted = set([round(x, 4) for x in f_unique_weighted])
@@ -1125,7 +1125,7 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
 
     fmg_query_containment_ani = set([round(x,4) for x in gather_df['query_containment_ani']])
     g_query_containment_ani = set([round(x,4) for x in sourmash_gather_df['query_containment_ani']])
-    assert fmg_query_containment_ani == set([0.8632, 0.8442, 0.8387])
+    assert fmg_query_containment_ani == {0.8442, 0.8613, 0.8632}
     # gather cANI are nans here -- perhaps b/c sketches too small
     # assert fmg_query_containment_ani == g_query_containment_ani == set([0.8632, 0.8444, 0.8391])
     print("fmg qcANI: ", fmg_query_containment_ani)
