@@ -542,6 +542,46 @@ pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Resu
     }
 }
 
+// Make a collection from anything except a pathlist, as this is called
+// from collection_from_pathlist
+fn collection_from_zipfile_or_signature_or_manifest(
+    sigpath: &Path,
+    report_type: &ReportType,
+) -> Result<Option<Collection>, Option<anyhow::Error>> {
+// returns collection and number of failures
+    let mut last_error = None;
+    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+        match collection_from_zipfile(&sigpath, &report_type) {
+            Ok(coll) => Some(coll),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let collection =
+        collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
+            Ok(coll) => Some(coll),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+    let collection =
+        collection.or_else(|| match collection_from_signature(&sigpath, &report_type) {
+            Ok(coll) => Some(coll),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+    Ok(collection)
+}
+
 fn collection_from_manifest(
     sigpath: &Path,
     report_type: &ReportType,
@@ -585,69 +625,29 @@ fn collection_from_pathlist(
         )
     })?;
     let reader = BufReader::new(file);
+    let mut last_error: std::option::Option<anyhow::Error> = None;
 
     // load list of paths
     let lines: Vec<_> = reader
         .lines()
         .filter_map(|line| match line {
-            Ok(path) => Some(path),
+            Ok(path) => Some(PathBuf::from(path)),
             Err(_err) => None,
         })
         .collect();
 
-    let mut last_error = None;
-
     // load sketches from paths in parallel.
     let n_failed = AtomicUsize::new(0);
-    let records: Vec<Record> = lines
+    let collection = lines
         .par_iter()
-        .filter_map(|path| match Signature::from_path(path) {
-            Ok(signatures) => {
-                let recs: Vec<Record> = signatures
-                    .into_iter()
-                    .flat_map(|v| Record::from_sig(&v, path))
-                    .collect();
-                Some(recs)
-            }
+        .filter_map(|path| match collection_from_zipfile_or_signature_or_manifest(&path, &report_type) {
+            Ok(collection) => Some(collection),
             Err(err) => {
-                eprintln!("Sketch loading error: {}", err);
                 eprintln!("WARNING: could not load sketches from path '{}'", path);
                 let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
-        })
-        .flatten()
-        .collect();
-
-    if records.is_empty() {
-        eprintln!(
-            "No valid signatures found in {} pathlist '{}'",
-            report_type, sigpath
-        );
-    }
-
-    let manifest: Manifest = records.into();
-    let collection = Collection::new(
-        manifest,
-        InnerStorage::new(
-            FSStorage::builder()
-                .fullpath("".into())
-                .subdir("".into())
-                .build(),
-        ),
-    );
-    let collection = collection.or_else(
-        lines.par_iter().filter_map(|line| Some(PathBuf::from(line).extension() == "zip")) {
-            match collection_from_zipfile(&PathBuf::from(line), &report_type) {
-                Ok(coll) => Some((coll, 0)),
-                Err(e) => {
-                    last_error = Some(e);
-                    None
-                }
-            }
-            eprintln!("Matched zipfiles")
-        }
-    ); 
+        }).flatten().collect::<Vec<Collection>>();
 
     let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
