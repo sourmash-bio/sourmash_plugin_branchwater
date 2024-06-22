@@ -638,20 +638,48 @@ fn collection_from_pathlist(
 
     // load sketches from paths in parallel.
     let n_failed = AtomicUsize::new(0);
-    let collection = lines
+
+    // Load all entries as collections
+    let record_paths = lines
         .par_iter()
         .filter_map(|path| match collection_from_zipfile_or_signature_or_manifest(&path, &report_type) {
-            Ok(collection) => Some(collection),
+            Ok(collection) => {
+                Some(collection
+                    .unwrap()
+                    .manifest()
+                    .iter()
+                    .filter_map(|record| match record.internal_location(){
+                        PathBuf => Some(location)
+                        
+                    })
+                    .collect())
+            },
             Err(err) => {
                 eprintln!("WARNING: could not load sketches from path '{}'", path);
                 let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
-        }).flatten().collect::<Vec<Collection>>();
+        }).flatten().collect::<Vec<PathBuf>>();
+    
+    // // For each record in the collection, get its path filename
+    // let record_paths = collections
+    //     .par_iter()
+    //     .filter_map(|coll| match coll.iter() {
+    //         Ok(location) => Some(location),
+    //         Err(err) => {
+    //             eprintln!("WARNING: could not get filepath for record '{}'", record);
+    //             let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+    //             None
+
+    //         }
+    //     }).flatten().collect();
+
+    // Now load the path filenames as one big collection
+    let collection = Collection::from_paths(&record_paths);
 
     let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
-    Ok((collection, n_failed))
+    Ok((collection?, n_failed))
 }
 
 fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
