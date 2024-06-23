@@ -644,6 +644,7 @@ fn collection_from_pathlist(
         .par_iter()
         .filter_map(|path| match collection_from_zipfile_or_signature_or_manifest(&path, &report_type) {
             Ok(collection) => {
+                // For each record in the collection, get its path filename
                 Some(collection
                     .unwrap()
                     .manifest()
@@ -660,19 +661,7 @@ fn collection_from_pathlist(
                 None
             }
         }).flatten().collect::<Vec<PathBuf>>();
-    
-    // // For each record in the collection, get its path filename
-    // let record_paths = collections
-    //     .par_iter()
-    //     .filter_map(|coll| match coll.iter() {
-    //         Ok(location) => Some(location),
-    //         Err(err) => {
-    //             eprintln!("WARNING: could not get filepath for record '{}'", record);
-    //             let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
-    //             None
 
-    //         }
-    //     }).flatten().collect();
 
     // Now load the path filenames as one big collection
     let collection = Collection::from_paths(&record_paths);
