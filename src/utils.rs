@@ -649,10 +649,7 @@ fn collection_from_pathlist(
                     .unwrap()
                     .manifest()
                     .iter()
-                    .filter_map(|record| match record.internal_location(){
-                        PathBuf => Some(location)
-                        
-                    })
+                    .map(|record| record.internal_location())
                     .collect())
             },
             Err(err) => {
