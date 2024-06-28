@@ -640,25 +640,28 @@ fn collection_from_pathlist(
     let n_failed = AtomicUsize::new(0);
 
     // Load all entries as collections
-    let record_paths = lines
+    let collections = lines
         .par_iter()
         .filter_map(|path| match collection_from_zipfile_or_signature_or_manifest(&path, &report_type) {
-            Ok(collection) => {
-                // For each record in the collection, get its path filename
-                Some(collection
-                    .unwrap()
-                    .manifest()
-                    .iter()
-                    .map(|record| record.internal_location())
-                    .collect())
-            },
+            Ok(collection) => Some(collection),
             Err(err) => {
                 eprintln!("WARNING: could not load sketches from path '{}'", path);
                 let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
-        }).flatten().collect::<Vec<PathBuf>>();
+        }).flatten().collect::<Vec<Collection>>();
 
+
+    let record_paths = collections
+        .par_iter()
+        .filter_map(|collection| match collection_to_pathlist(&collection) {       
+            Ok(pathlist) => Some(pathlist),
+            Err(err) => {
+                eprintln!("WARNING: could not get paths for collection ");
+                None
+            }
+        })
+        .flatten();
 
     // Now load the path filenames as one big collection
     let collection = Collection::from_paths(&record_paths);
@@ -666,6 +669,23 @@ fn collection_from_pathlist(
     let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
     Ok((collection?, n_failed))
+}
+
+// Convert a collection into a list of paths that can then be read to create a collection
+fn collection_to_pathlist(collection: &Collection) -> Result<Vec<PathBuf>, anyhow::Error> {
+    // For each record in the collection, get its path filename
+    let filenames: Vec<String> = collection
+        .manifest()
+        .iter()
+        .map(|record| record.filename())
+        .flatten();
+
+    let pathlist = &filenames
+        .iter()
+        .map(|filename| PathBuf::from(&filename))
+        .flatten();
+
+    Ok(pathlist)
 }
 
 fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
