@@ -147,6 +147,7 @@ def test_index_multiple_manifests(runtmp, capfd):
     print(captured.err)
     print(runtmp.last_result.err)
     assert 'index is done' in runtmp.last_result.err
+    assert False
 
 
 def test_index_bad_siglist_2(runtmp, capfd):
