@@ -20,11 +20,11 @@ use std::sync::atomic::AtomicUsize;
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
+use sourmash::prelude::Storage;
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
-use sourmash::prelude::Storage;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 /// Track a name/minhash.
@@ -549,7 +549,7 @@ fn collection_from_zipfile_or_signature_or_manifest(
     sigpath: &Path,
     report_type: &ReportType,
 ) -> Result<Option<Collection>, Option<anyhow::Error>> {
-// returns collection and number of failures
+    // returns collection and number of failures
     let mut last_error = None;
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
         match collection_from_zipfile(&sigpath, &report_type) {
@@ -643,27 +643,31 @@ fn collection_from_pathlist(
     // Load all entries as collections
     let collections = path_bufs
         .par_iter()
-        .filter_map(|path| match collection_from_zipfile_or_signature_or_manifest(&path, &report_type) {
-            Ok(collection) => Some(collection),
-            Err(err) => {
-                eprintln!("WARNING: could not load sketches from path '{}'", path);
-                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
-                None
+        .filter_map(|path| {
+            match collection_from_zipfile_or_signature_or_manifest(&path, &report_type) {
+                Ok(collection) => Some(collection),
+                Err(err) => {
+                    eprintln!("WARNING: could not load sketches from path '{}'", path);
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
+                }
             }
-        }).flatten().collect::<Vec<Collection>>();
-
+        })
+        .flatten()
+        .collect::<Vec<Collection>>();
 
     // get all the signatures from each collection
     let flattened_signatures = collections
         .par_iter()
-        .filter_map(|collection| match collection_to_signatures(&collection) {       
+        .filter_map(|collection| match collection_to_signatures(&collection) {
             Ok(pathlist) => Some(pathlist),
             Err(err) => {
                 eprintln!("WARNING: could not get signatures for collection ");
                 None
             }
         })
-        .flatten().collect::<Vec<Signature>>();
+        .flatten()
+        .collect::<Vec<Signature>>();
 
     // // Now load the path filenames as one big collection
     let collection = Collection::from_sigs(flattened_signatures);
@@ -674,35 +678,37 @@ fn collection_from_pathlist(
 }
 
 // Convert a collection into a list of paths that can then be read to create a collection
-fn collection_to_signatures(collection: &Collection) -> Result<Vec<Signature>, anyhow::Error> 
-{
+fn collection_to_signatures(collection: &Collection) -> Result<Vec<Signature>, anyhow::Error> {
     // For each record in the collection, get its path filename
     let signatures: Vec<Signature> = collection
         .manifest()
         .iter()
         .filter_map(|record| match collection.sig_from_record(&record) {
             Ok(sigstore) => {
-                eprintln!("Hello we are in collection_to_signatures, internal_location {}", record.internal_location());
+                eprintln!(
+                    "Hello we are in collection_to_signatures, internal_location {}",
+                    record.internal_location()
+                );
                 // sig_from_record produces a SigStore, not a Signature
-                // Star (*) is a dereferencing operator, which will let us access the Signature 
+                // Star (*) is a dereferencing operator, which will let us access the Signature
                 // stored in the SigStore directly
-                let raw = collection.storage().load(
-                    &<PathBuf as Clone>::clone(
-                        &record
-                            .internal_location()
-                        )
+                let raw = collection
+                    .storage()
+                    .load(
+                        &<PathBuf as Clone>::clone(&record.internal_location())
                             .into_os_string()
                             .into_string()
-                            .unwrap()
-                ).unwrap();
+                            .unwrap(),
+                    )
+                    .unwrap();
                 let sig = Signature::from_reader(&mut &raw[..])
                     .unwrap()
                     // TODO: select the right sig?
                     .swap_remove(0);
                 Some(sig)
-            },
+            }
             Err(_err) => None,
-        //    record.filename()
+            //    record.filename()
         })
         // .map(|record| record.filename());
         // internal_location should create Vec<Vec<PathBuf>>
