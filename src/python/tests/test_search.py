@@ -77,6 +77,9 @@ def test_simple(runtmp, zip_query, zip_against):
             assert float(row['match_containment_ani'] == 1.0)
             assert float(row['average_containment_ani'] == 1.0)
             assert float(row['max_containment_ani'] == 1.0)
+            assert float(row['average_abund'] == 1.0)
+            assert float(row['median_abund'] == 1.0)
+            assert float(row['std_abund'] == 0.0)
 
         else:
             # confirm hand-checked numbers
@@ -90,6 +93,9 @@ def test_simple(runtmp, zip_query, zip_against):
             match_ani = float(row['match_containment_ani'])
             average_ani = float(row['average_containment_ani'])
             max_ani = float(row['max_containment_ani'])
+            average_abund = float(row['average_abund'])
+            median_abund = float(row['median_abund'])
+            std_abund = float(row['std_abund'])
 
             jaccard = round(jaccard, 4)
             cont = round(cont, 4)
@@ -98,7 +104,12 @@ def test_simple(runtmp, zip_query, zip_against):
             match_ani = round(match_ani, 4)
             average_ani = round(average_ani, 4)
             max_ani = round(max_ani, 4)
-            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", f"{query_ani:.04}", f"{match_ani:.04}", f"{average_ani:.04}", f"{max_ani:.04}")
+            avg_abund = round(average_abund, 4)
+            med_abund = round(median_abund, 4)
+            std_abund = round(std_abund, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}",
+                        f"{query_ani:.04}", f"{match_ani:.04}", f"{average_ani:.04}", f"{max_ani:.04}",
+                        f"{avg_abund:.04}", f"{med_abund:.04}", f"{std_abund:.04}")
 
             if q == 'NC_011665.1' and m == 'NC_009661.1':
                 assert jaccard == 0.3207
@@ -109,6 +120,9 @@ def test_simple(runtmp, zip_query, zip_against):
                 assert match_ani == 0.9772
                 assert average_ani == 0.977
                 assert max_ani == 0.9772
+                assert avg_abund == 1.0
+                assert med_abund == 1.0
+                assert std_abund == 0.0
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
                 assert jaccard == 0.3207
@@ -119,6 +133,77 @@ def test_simple(runtmp, zip_query, zip_against):
                 assert match_ani == 0.9768
                 assert average_ani == 0.977
                 assert max_ani == 0.9772
+                assert avg_abund == 1.0
+                assert med_abund == 1.0
+                assert std_abund == 0.0
+
+
+def test_simple_abund(runtmp):
+    # test with abund sig
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query, against_list,
+                        '-o', output, '--scaled', '100000', '-k', '31')
+
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 1
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # confirm hand-checked numbers
+        q = row['query_name'].split()[0]
+        assert q == "SRR606249"
+        m = row['match_name'].split()[0]
+        assert "NC_011665.1" in m
+        cont = float(row['containment'])
+        jaccard = float(row['jaccard'])
+        maxcont = float(row['max_containment'])
+        intersect_hashes = int(row['intersect_hashes'])
+        query_ani = float(row['query_containment_ani'])
+        match_ani = float(row['match_containment_ani'])
+        average_ani = float(row['average_containment_ani'])
+        max_ani = float(row['max_containment_ani'])
+        average_abund = float(row['average_abund'])
+        median_abund = float(row['median_abund'])
+        std_abund = float(row['std_abund'])
+
+        jaccard = round(jaccard, 4)
+        cont = round(cont, 4)
+        maxcont = round(maxcont, 4)
+        query_ani = round(query_ani, 4)
+        match_ani = round(match_ani, 4)
+        average_ani = round(average_ani, 4)
+        max_ani = round(max_ani, 4)
+        avg_abund = round(average_abund, 4)
+        med_abund = round(median_abund, 4)
+        std_abund = round(std_abund, 4)
+        print(q, m, f"{jaccard}", f"{cont}", f"{maxcont}",
+                    f"{query_ani}", f"{match_ani}", f"{average_ani}", f"{max_ani}",
+                    f"{avg_abund}", f"{med_abund}", f"{std_abund}")
+
+        assert jaccard == 0.0047
+        assert cont == 0.0105
+        assert maxcont == 0.0105
+        assert intersect_hashes == 44
+        assert query_ani == 0.8632
+        assert match_ani == 0.8571
+        assert average_ani == 0.8602
+        assert max_ani == 0.8632
+        assert avg_abund == 10.3864
+        assert med_abund == 10.5
+        assert std_abund == 6.9322
 
 
 @pytest.mark.parametrize("zip_query", [False, True])
