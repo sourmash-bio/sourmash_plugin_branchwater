@@ -123,8 +123,8 @@ def test_index_manifest(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
 
 
-def test_index_multiple_manifests(runtmp, capfd):
-    # test index with text file of multiple manifests
+def test_index_manifest_zip_files(runtmp, capfd):
+    # test index with text file of multiple zip files
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
