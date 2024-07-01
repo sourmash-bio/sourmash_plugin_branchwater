@@ -22,8 +22,10 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
         let mut num = 0;
         let mut scaled = 1000;
         let mut seed = 42;
+        let mut is_dna = false;
         let mut is_protein = false;
-        let mut is_dna = true;
+        let mut is_dayhoff = false;
+        let mut is_hp = false;
 
         for item in items.iter() {
             match *item {
@@ -52,14 +54,25 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
                 }
                 "protein" => {
                     is_protein = true;
-                    is_dna = false;
                 }
                 "dna" => {
-                    is_protein = false;
                     is_dna = true;
+                }
+                "dayhoff" => {
+                    is_dayhoff = true;
+                }
+                "hp" => {
+                    is_hp = true;
                 }
                 _ => return Err(format!("unknown component '{}' in params string", item)),
             }
+        }
+
+        if !is_dna && !is_protein && !is_dayhoff && !is_hp {
+            return Err(format!("No moltype provided in params string {}", p_str));
+        }
+        if ksizes.is_empty() {
+            return Err(format!("No ksizes provided in params string {}", p_str));
         }
 
         for &k in &ksizes {
@@ -71,6 +84,8 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
                 seed,
                 is_protein,
                 is_dna,
+                is_dayhoff,
+                is_hp,
             };
             unique_params.insert(param);
         }
@@ -79,19 +94,19 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
     Ok(unique_params.into_iter().collect())
 }
 
-fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
+fn build_siginfo(params: &[Params], input_moltype: &str) -> Vec<Signature> {
     let mut sigs = Vec::new();
 
     for param in params.iter().cloned() {
-        match moltype {
-            // if dna, only build dna sigs. if protein, only build protein sigs
+        match input_moltype {
+            // if dna, only build dna sigs. if protein, only build protein sigs, etc
             "dna" | "DNA" if !param.is_dna => continue,
-            "protein" if !param.is_protein => continue,
+            "protein" if !param.is_protein && !param.is_dayhoff && !param.is_hp => continue,
             _ => (),
         }
 
         // Adjust ksize value based on the is_protein flag
-        let adjusted_ksize = if param.is_protein {
+        let adjusted_ksize = if param.is_protein || param.is_dayhoff || param.is_hp {
             param.ksize * 3
         } else {
             param.ksize
@@ -102,6 +117,8 @@ fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
             .scaled(param.scaled)
             .protein(param.is_protein)
             .dna(param.is_dna)
+            .dayhoff(param.is_dayhoff)
+            .hp(param.is_hp)
             .num_hashes(param.num)
             .track_abundance(param.track_abundance)
             .build();
