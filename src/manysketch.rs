@@ -251,7 +251,7 @@ pub fn manysketch(
                     }
                 }
             }
-            // singletons have already been written -> avoid writing empty templates
+            // if singleton sketches, they have already been written; only write aggregate sketches
             if singleton {
                 None
             } else {
