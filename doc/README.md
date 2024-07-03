@@ -221,7 +221,9 @@ sourmash scripts manysearch queries.zip metagenomes.manifest.csv -o results.csv
 ```
 <!-- We suggest using a manifest CSV for the metagenome collection. -->
 
-The results file here, `query.x.gtdb-reps.csv`, will have 8 columns: `query` and `query_md5`, `match` and `match_md5`, and `containment`, `jaccard`, `max_containment`, and `intersect_hashes`.
+The results file here, `query.x.gtdb-reps.csv`, will have the following columns: `query`, `query_md5`, `match_name`, `match_md5`, `containment`, `jaccard`, `max_containment`, `intersect_hashes`, `query_containment_ani`.
+
+If you run `manysearch` _without_ using a rocksdb database, the results file will also have the following columns: `average_abund`, `median_abund`, `std_abund`, `match_containment_ani`, `average_containment_ani`, `max_containment_ani`. If the query sketches were not built with abundance tracking enabled, `average_abund` and `median_abund` will default to `1.0`; `std_abund` will default to `0.0`.
 
 
 ### Running `cluster`
