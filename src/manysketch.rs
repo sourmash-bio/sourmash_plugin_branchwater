@@ -187,7 +187,6 @@ pub fn manysketch(
             let name = &fastadata.name;
             let filenames = &fastadata.paths;
             let moltype = &fastadata.input_type;
-            let mut allsigs = Vec::new();
             // build sig templates for these sketches from params, check if there are sigs to build
             let sig_templates = build_siginfo(&params_vec, moltype);
             // if no sigs to build, skip this iteration
@@ -260,20 +259,26 @@ pub fn manysketch(
                         Err(err) => eprintln!("Error while processing record: {:?}", err),
                     }
                     if singleton {
-                        allsigs.append(&mut sigs);
+                        // write sigs immediately to avoid memory issues
+                        if let Err(e) = send.send(ZipMessage::SignatureData(sigs.clone())) {
+                            eprintln!("Unable to send internal data: {:?}", e);
+                            return None;
+                        }
                         sigs = sig_templates.clone();
                     }
                 }
             }
-            if !singleton {
-                allsigs.append(&mut sigs);
+            // if singleton sketches, they have already been written; only write aggregate sketches
+            if singleton {
+                None
+            } else {
+                Some(sigs)
             }
-            Some(allsigs)
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, filled_sigs| {
-                if let Err(e) = s.send(ZipMessage::SignatureData(filled_sigs)) {
+            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, sigs| {
+                if let Err(e) = s.send(ZipMessage::SignatureData(sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {
                     Ok(())
