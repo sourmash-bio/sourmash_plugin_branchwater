@@ -164,6 +164,14 @@ The `name` column will not be used. Instead, each sketch will be named from the 
 
 `manysketch` does not translate DNA to protein, sorry. You'll need to do that ahead of time.
 
+If you have a `proteins.csv` file which looks like:
+
+```
+name,genome_filename,protein_filename
+protein1,,protein1.fa
+protein2,,protein2.fa
+```
+
 You can run:
 
 ```
