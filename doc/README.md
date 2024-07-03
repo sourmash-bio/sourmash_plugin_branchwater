@@ -158,6 +158,27 @@ sourmash sig summarize fa.zip
 The number of sketches per parameter combination should equal the total number of records in all input FASTA.
 The `name` column will not be used. Instead, each sketch will be named from the FASTA record name.
 
+#### Protein sketching: hp and dayhoff moltypes
+
+`manysketch` supports all sourmash moltypes: `protein`, `hp`, and `dayhoff`. See also [`sourmash` protein encoding documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) and [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
+
+`manysketch` does not translate DNA to protein, sorry. You'll need to do that ahead of time.
+
+You can run:
+
+```
+sourmash scripts manysketch proteins.csv -o proteins.zip -p dayhoff,k=16 -p protein,k=10 -p hp,k=42
+```
+The output will be written to `proteins.zip`
+
+You can check if all signatures were written properly with
+
+```
+sourmash sig summarize proteins.zip
+```
+
+In this case, three sketches of `protein`, `dayhoff`, and `hp` moltypes were made in `proteins.zip`.
+
 ### Running `multisearch` and `pairwise`
 
 The `multisearch` command compares one or more query genomes, and one or more subject genomes. It differs from `manysearch` by loading all genomes into memory.
