@@ -685,7 +685,7 @@ fn collection_from_pathlist(
             ) {
                 Ok(collection) => Some(collection),
                 Err(err) => {
-                    eprintln!("WARNING: could not load sketches from path '{}'", path);
+                    // eprintln!("collection_from_any_zipfile_or_signature_or_manifest WARNING: could not load sketches from path '{}'", path);
                     let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                     None
                 }
@@ -719,7 +719,6 @@ fn collection_from_pathlist(
 
     let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
-    // How to get number of failed?
     Ok((collection?, n_failed))
 }
 
