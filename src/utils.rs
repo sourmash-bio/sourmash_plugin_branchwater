@@ -545,10 +545,12 @@ pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Resu
 
 // Make a collection from anything except a pathlist, as this is called
 // from collection_from_pathlist
-fn collection_from_zipfile_or_signature_or_manifest(
+fn collection_from_any_zipfile_or_signature_or_manifest(
     sigpath: &Path,
     report_type: &ReportType,
+    allow_failed: bool,
 ) -> Result<Option<Collection>, Option<anyhow::Error>> {
+
     // returns collection and number of failures
     let mut last_error = None;
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
@@ -618,6 +620,7 @@ fn collection_from_manifest(
 fn collection_from_pathlist(
     sigpath: &Path,
     report_type: &ReportType,
+    allow_failed: bool,
 ) -> Result<(Collection, usize), anyhow::Error> {
     let file = File::open(sigpath).with_context(|| {
         format!(
@@ -633,7 +636,9 @@ fn collection_from_pathlist(
         .lines()
         .filter_map(|line| match line {
             Ok(path) => Some(PathBuf::from(path)),
-            Err(_err) => None,
+            Err(err) => {
+                None
+            },
         })
         .collect();
 
@@ -644,7 +649,7 @@ fn collection_from_pathlist(
     let collections = path_bufs
         .par_iter()
         .filter_map(|path| {
-            match collection_from_zipfile_or_signature_or_manifest(&path, &report_type) {
+            match collection_from_any_zipfile_or_signature_or_manifest(&path, &report_type, allow_failed) {
                 Ok(collection) => Some(collection),
                 Err(err) => {
                     eprintln!("WARNING: could not load sketches from path '{}'", path);
@@ -663,6 +668,7 @@ fn collection_from_pathlist(
             Ok(pathlist) => Some(pathlist),
             Err(err) => {
                 eprintln!("WARNING: could not get signatures for collection ");
+                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
         })
@@ -670,11 +676,18 @@ fn collection_from_pathlist(
         .collect::<Vec<Signature>>();
 
     // // Now load the path filenames as one big collection
-    let collection = Collection::from_sigs(flattened_signatures);
 
-    // let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+    let collection = Collection::from_sigs(flattened_signatures).with_context(|| {
+        format!(
+            "Loaded {} signatures but failed to load as collection: '{}'",
+            report_type, sigpath
+        )
+    });
 
-    Ok((collection?, 0))
+    let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
+    // How to get number of failed?
+    Ok((collection?, n_failed))
 }
 
 // Convert a collection into a list of paths that can then be read to create a collection
@@ -689,22 +702,7 @@ fn collection_to_signatures(collection: &Collection) -> Result<Vec<Signature>, a
                     "Hello we are in collection_to_signatures, internal_location {}",
                     record.internal_location()
                 );
-                // sig_from_record produces a SigStore, not a Signature
-                // Star (*) is a dereferencing operator, which will let us access the Signature
-                // stored in the SigStore directly
-                let raw = collection
-                    .storage()
-                    .load(
-                        &<PathBuf as Clone>::clone(&record.internal_location())
-                            .into_os_string()
-                            .into_string()
-                            .unwrap(),
-                    )
-                    .unwrap();
-                let sig = Signature::from_reader(&mut &raw[..])
-                    .unwrap()
-                    // TODO: select the right sig?
-                    .swap_remove(0);
+                let sig = Signature::from(sigstore);
                 Some(sig)
             }
             Err(_err) => None,
@@ -796,7 +794,7 @@ pub fn load_collection(
         });
 
     let collection =
-        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type) {
+        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type, allow_failed) {
             Ok((coll, n_failed)) => Some((coll, n_failed)),
             Err(e) => {
                 last_error = Some(e);
