@@ -582,20 +582,15 @@ fn collection_from_any_zipfile_or_signature_or_manifest(
             }
         });
 
-
     match collection {
-        Some(collection) => {
-            Ok(Some(collection))
-        }
+        Some(collection) => Ok(Some(collection)),
         None => {
             if let Some(e) = last_error {
                 eprintln!("WARNING: could not load sketches from path '{}'", sigpath);
                 Err(Some(e))
             } else {
                 // Should never get here
-                Err(anyhow!(
-                    "Unable to load the collection for an unknown reason."
-                ).into())
+                Err(anyhow!("Unable to load the collection for an unknown reason.").into())
             }
         }
     }
@@ -730,6 +725,10 @@ fn collection_to_signatures(collection: &Collection) -> Result<Vec<Signature>, a
         .iter()
         .filter_map(|record| match collection.sig_from_record(&record) {
             Ok(sigstore) => {
+                eprintln!(
+                    "Hello in collection_to_signatures, reading {}",
+                    record.filename()
+                );
                 let sig = Signature::from(sigstore);
                 Some(sig)
             }
