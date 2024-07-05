@@ -661,7 +661,7 @@ fn collection_from_pathlist(
                 match path_buf.exists() {
                     true => Some(path_buf),
                     false => {
-                        eprintln!("WARNING: path '{}' does not exist", l);
+                        eprintln!("WARNING: path '{}' does not exist in '{}'", l, sigpath);
                         let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                         None
                     }
