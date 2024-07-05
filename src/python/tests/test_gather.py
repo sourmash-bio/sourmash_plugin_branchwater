@@ -307,7 +307,7 @@ def test_against_multisigfile(runtmp, zip_against):
         print(df)
     else:
         print(df)
-        assert len(df) == 1
+        assert len(df) == 3
     # @CTB this is a bug :(. It should load multiple sketches properly!
 
 
