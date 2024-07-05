@@ -550,7 +550,6 @@ fn collection_from_any_zipfile_or_signature_or_manifest(
     report_type: &ReportType,
     allow_failed: bool,
 ) -> Result<Option<Collection>, Option<anyhow::Error>> {
-
     // returns collection and number of failures
     let mut last_error = None;
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
@@ -622,12 +621,17 @@ fn collection_from_pathlist(
     report_type: &ReportType,
     allow_failed: bool,
 ) -> Result<(Collection, usize), anyhow::Error> {
+    // load sketches from paths in parallel.
+    let n_failed = AtomicUsize::new(0);
+
     let file = File::open(sigpath).with_context(|| {
+        let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
         format!(
             "Failed to open {} pathlist file: '{}'",
             report_type, sigpath
         )
     })?;
+
     let reader_new = BufReader::new(file);
     let mut last_error: std::option::Option<anyhow::Error> = None;
 
@@ -635,21 +639,33 @@ fn collection_from_pathlist(
     let path_bufs: Vec<_> = reader_new
         .lines()
         .filter_map(|line| match line {
-            Ok(path) => Some(PathBuf::from(path)),
+            Ok(l) => {
+                let path_buf = PathBuf::from(l.clone());
+                match path_buf.exists() {
+                    true => Some(path_buf),
+                    false => {
+                        eprintln!("WARNING: path '{}' does not exist", l);
+                        let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                        None
+                    }
+                }
+            }
             Err(err) => {
+                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                 None
-            },
+            }
         })
         .collect();
-
-    // load sketches from paths in parallel.
-    let n_failed = AtomicUsize::new(0);
 
     // Load all entries as collections
     let collections = path_bufs
         .par_iter()
         .filter_map(|path| {
-            match collection_from_any_zipfile_or_signature_or_manifest(&path, &report_type, allow_failed) {
+            match collection_from_any_zipfile_or_signature_or_manifest(
+                &path,
+                &report_type,
+                allow_failed,
+            ) {
                 Ok(collection) => Some(collection),
                 Err(err) => {
                     eprintln!("WARNING: could not load sketches from path '{}'", path);
@@ -789,14 +805,15 @@ pub fn load_collection(
             }
         });
 
-    let collection =
-        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type, allow_failed) {
+    let collection = collection.or_else(|| {
+        match collection_from_pathlist(&sigpath, &report_type, allow_failed) {
             Ok((coll, n_failed)) => Some((coll, n_failed)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        });
+        }
+    });
 
     match collection {
         Some((coll, n_failed)) => {
