@@ -166,7 +166,7 @@ def test_index_bad_siglist_2(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert "WARNING: path 'no-exist' does not exist" in captured.err
 
 
 def test_index_empty_siglist(runtmp, capfd):
