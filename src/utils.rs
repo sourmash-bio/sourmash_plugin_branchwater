@@ -698,10 +698,6 @@ fn collection_to_signatures(collection: &Collection) -> Result<Vec<Signature>, a
         .iter()
         .filter_map(|record| match collection.sig_from_record(&record) {
             Ok(sigstore) => {
-                eprintln!(
-                    "Hello we are in collection_to_signatures, internal_location {}",
-                    record.internal_location()
-                );
                 let sig = Signature::from(sigstore);
                 Some(sig)
             }
