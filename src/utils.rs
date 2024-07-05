@@ -581,7 +581,24 @@ fn collection_from_any_zipfile_or_signature_or_manifest(
                 None
             }
         });
-    Ok(collection)
+
+
+    match collection {
+        Some(collection) => {
+            Ok(Some(collection))
+        }
+        None => {
+            if let Some(e) = last_error {
+                eprintln!("WARNING: could not load sketches from path '{}'", sigpath);
+                Err(Some(e))
+            } else {
+                // Should never get here
+                Err(anyhow!(
+                    "Unable to load the collection for an unknown reason."
+                ).into())
+            }
+        }
+    }
 }
 
 fn collection_from_manifest(
