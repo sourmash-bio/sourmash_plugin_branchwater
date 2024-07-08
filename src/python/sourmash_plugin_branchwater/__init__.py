@@ -217,7 +217,7 @@ class Branchwater_Check(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('index',
-                       help='index file')
+                       help="RocksDB index file created with 'index'")
         p.add_argument('--quick', action='store_true')
 
     def main(self, args):

@@ -344,3 +344,24 @@ def test_index_check_quick(runtmp):
     print(runtmp.last_result.err)
 
     assert 'index is ok' in runtmp.last_result.err
+
+
+def test_index_subdir(runtmp):
+    # test basic index!
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    os.mkdir(runtmp.output('subdir'))
+    output = runtmp.output('subdir/db.rdb')
+
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    runtmp.sourmash('scripts', 'check', output)

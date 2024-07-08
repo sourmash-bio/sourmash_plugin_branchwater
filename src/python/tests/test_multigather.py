@@ -347,6 +347,35 @@ def test_sig_query(runtmp, capfd, indexed):
 
 
 @pytest.mark.parametrize('indexed', [False, True])
+def test_sig_query_subdir(runtmp, capfd, indexed):
+    # sig file is now fine as a query
+    query = get_test_data('SRR606249.sig.gz')
+
+    os.mkdir(runtmp.output('subdir'))
+    against_list = runtmp.output('subdir/against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('subdir/db'))
+        g_output = runtmp.output('out.csv')
+        output_params = ['-o', g_output]
+    else:
+        g_output = runtmp.output('SRR606249.gather.csv')
+        p_output = runtmp.output('SRR606249.prefetch.csv')
+        output_params = []
+
+    runtmp.sourmash('scripts', 'fastmultigather', query, against_list,
+                        '-s', '100000', *output_params)
+
+    assert os.path.exists(g_output)
+
+
+@pytest.mark.parametrize('indexed', [False, True])
 def test_bad_query(runtmp, capfd, indexed):
     # test with a bad query (a .sig.gz file renamed as zip file)
     against_list = runtmp.output('against.txt')
