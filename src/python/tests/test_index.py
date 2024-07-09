@@ -227,6 +227,38 @@ def test_index_zipfile(runtmp, capfd):
     print(captured.err)
 
 
+def test_index_zipfile_subdir(runtmp, capfd):
+    # test basic index from sourmash zipfile
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+    os.mkdir(runtmp.output('subdir'))
+
+    zipf = runtmp.output('subdir/sigs.zip')
+
+    runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
+
+    output = runtmp.output('subdir/db.rdb')
+
+    runtmp.sourmash('scripts', 'index', zipf,
+                    '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert 'index is done' in runtmp.last_result.err
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    runtmp.sourmash('scripts', 'check', 'db.rdb',
+                    in_directory=runtmp.output('subdir'))
+    runtmp.sourmash('scripts', 'check', 'subdir/db.rdb',
+                    in_directory=runtmp.output(''))
+
+
 def test_index_zipfile_repeated_md5sums(runtmp, capfd):
     # test that we're reading all files, including repeated md5sums
     siglist = runtmp.output('db-sigs.txt')
