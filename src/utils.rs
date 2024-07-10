@@ -16,6 +16,8 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
+use zip::write::{FileOptions, ZipWriter};
+use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::collection::Collection;
@@ -1274,32 +1276,30 @@ impl Hash for Params {
     }
 }
 
-pub enum ZipMessage {
-    SignatureData(Vec<Signature>),
-    WriteManifest,
-}
-
 pub fn sigwriter(
-    recv: std::sync::mpsc::Receiver<ZipMessage>,
+    // recv: std::sync::mpsc::Receiver<Vec<Signature>>,
+    recv: std::sync::mpsc::Receiver<Option<Vec<Signature>>>,
     output: String,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
-        // cast output as pathbuf
+        // Cast output as PathBuf
         let outpath: PathBuf = output.into();
 
         let file_writer = open_output_file(&outpath);
 
-        let options = zip::write::FileOptions::default()
-            .compression_method(zip::CompressionMethod::Stored)
+        let options = FileOptions::default()
+            .compression_method(CompressionMethod::Stored)
             .large_file(true);
-        let mut zip = zip::ZipWriter::new(file_writer);
+
+        let mut zip = ZipWriter::new(file_writer);
         let mut manifest_rows: Vec<Record> = Vec::new();
-        // keep track of md5sum occurrences to prevent overwriting duplicates
+        // Keep track of MD5 sum occurrences to prevent overwriting duplicates
         let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
 
+        // Process all incoming signatures
         while let Ok(message) = recv.recv() {
             match message {
-                ZipMessage::SignatureData(sigs) => {
+                Some(sigs) => {
                     for sig in sigs.iter() {
                         let md5sum_str = sig.md5sum();
                         let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
@@ -1309,22 +1309,19 @@ pub fn sigwriter(
                         } else {
                             format!("signatures/{}.sig.gz", md5sum_str)
                         };
-                        write_signature(sig, &mut zip, options, &sig_filename);
+                        write_signature(sig, &mut zip, options.clone(), &sig_filename);
                         let records: Vec<Record> = Record::from_sig(sig, sig_filename.as_str());
                         manifest_rows.extend(records);
                     }
                 }
-                ZipMessage::WriteManifest => {
+                None => {
+                    // Write the manifest and finish the ZIP file
                     println!("Writing manifest");
-                    // Start the CSV file inside the zip
-                    zip.start_file("SOURMASH-MANIFEST.csv", options).unwrap();
+                    zip.start_file("SOURMASH-MANIFEST.csv", options)?;
                     let manifest: Manifest = manifest_rows.clone().into();
                     manifest.to_writer(&mut zip)?;
-
-                    // Properly finish writing to the ZIP file
-                    if let Err(e) = zip.finish() {
-                        eprintln!("Error finalizing ZIP file: {:?}", e);
-                    }
+                    zip.finish()?;
+                    break;
                 }
             }
         }
@@ -1354,7 +1351,7 @@ pub fn csvwriter_thread<T: Serialize + Send + 'static>(
 pub fn write_signature(
     sig: &Signature,
     zip: &mut zip::ZipWriter<BufWriter<File>>,
-    zip_options: zip::write::FileOptions,
+    zip_options: zip::write::FileOptions<()>,
     sig_filename: &str,
 ) {
     let wrapped_sig = vec![sig];
