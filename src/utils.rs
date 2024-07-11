@@ -16,7 +16,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use zip::write::{FileOptions, ZipWriter};
+use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
@@ -1291,6 +1291,7 @@ pub fn sigwriter(
 
         let options = FileOptions::default()
             .compression_method(CompressionMethod::Deflated)
+            .clear_extra_data()
             .large_file(true);
 
         let mut zip = ZipWriter::new(file_writer);
@@ -1353,7 +1354,7 @@ pub fn csvwriter_thread<T: Serialize + Send + 'static>(
 pub fn write_signature(
     sig: &Signature,
     zip: &mut zip::ZipWriter<BufWriter<File>>,
-    zip_options: zip::write::FileOptions<()>,
+    zip_options: zip::write::FileOptions<ExtendedFileOptions>,
     sig_filename: &str,
 ) {
     let wrapped_sig = vec![sig];
