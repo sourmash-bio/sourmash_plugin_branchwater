@@ -1290,8 +1290,8 @@ pub fn sigwriter(
         let file_writer = open_output_file(&outpath);
 
         let options = FileOptions::default()
-            .compression_method(CompressionMethod::Deflated)
-            .clear_extra_data()
+            .compression_method(CompressionMethod::Stored)
+            .unix_permissions(0o644)
             .large_file(true);
 
         let mut zip = ZipWriter::new(file_writer);
