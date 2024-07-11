@@ -1277,12 +1277,11 @@ impl Hash for Params {
 }
 
 pub fn sigwriter(
-    // recv: std::sync::mpsc::Receiver<Vec<Signature>>,
     recv: std::sync::mpsc::Receiver<Option<Vec<Signature>>>,
     output: String,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
-        // Cast output as PathBuf
+        // cast output as PathBuf
         let outpath: PathBuf = output.into();
 
         let file_writer = open_output_file(&outpath);
@@ -1293,7 +1292,7 @@ pub fn sigwriter(
 
         let mut zip = ZipWriter::new(file_writer);
         let mut manifest_rows: Vec<Record> = Vec::new();
-        // Keep track of MD5 sum occurrences to prevent overwriting duplicates
+        // keep track of MD5 sum occurrences to prevent overwriting duplicates
         let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
 
         // Process all incoming signatures
