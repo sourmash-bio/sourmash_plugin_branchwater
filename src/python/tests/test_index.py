@@ -2,6 +2,7 @@ import os
 import pytest
 import pandas
 import sourmash
+import shutil
 
 from . import sourmash_tst_utils as utils
 
@@ -34,7 +35,7 @@ def test_index(runtmp):
 
     make_file_list(siglist, [sig2, sig47, sig63])
 
-    output = runtmp.output('db.rdb')
+    output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', output)
@@ -132,7 +133,7 @@ def test_index_bad_siglist_2(runtmp, capfd):
     sig63 = get_test_data('63.fa.sig.gz')
     make_file_list(against_list, [sig2, "no-exist"])
 
-    db = runtmp.output('db.rdb')
+    db = runtmp.output('db.rocksdb')
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'index', against_list,
@@ -164,7 +165,7 @@ def test_index_empty_siglist(runtmp, capfd):
 def test_index_nomatch(runtmp, capfd):
     # test index with a siglist file that has (only) a non-matching ksize sig
     siglist = runtmp.output('against.txt')
-    db = runtmp.output('db.rdb')
+    db = runtmp.output('db.rocksdb')
 
     sig1 = get_test_data('1.fa.k21.sig.gz')
     make_file_list(siglist, [sig1])
@@ -184,7 +185,7 @@ def test_index_nomatch(runtmp, capfd):
 def test_index_nomatch_sig_in_siglist(runtmp, capfd):
     # test index with a siglist file that has both matching and non-matching sigs
     siglist = runtmp.output('against.txt')
-    db = runtmp.output('db.rdb')
+    db = runtmp.output('db.rocksdb')
 
     sig2 = get_test_data('2.fa.sig.gz')
     sig1 = get_test_data('1.fa.k21.sig.gz')
@@ -215,7 +216,7 @@ def test_index_zipfile(runtmp, capfd):
 
     runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
 
-    output = runtmp.output('db.rdb')
+    output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
                     '-o', output)
@@ -228,24 +229,34 @@ def test_index_zipfile(runtmp, capfd):
 
 
 def test_index_zipfile_subdir(runtmp, capfd):
-    # test basic index from sourmash zipfile
+    # test index from sourmash zipfile in different directory.
+
+    # this was a tough test to get to fail!! have to:
+    # * use non-abspath for zip file creation
+    # * use non-abspath to zip file for indexing
+    # so that the relative path gets things wrong.
+
     siglist = runtmp.output('db-sigs.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
-    make_file_list(siglist, [sig2, sig47, sig63])
+    shutil.copyfile(sig2, runtmp.output('2.fa.sig.gz'))
+    shutil.copyfile(sig47, runtmp.output('47.fa.sig.gz'))
+    shutil.copyfile(sig63, runtmp.output('63.fa.sig.gz'))
+
     os.mkdir(runtmp.output('subdir'))
 
-    zipf = runtmp.output('subdir/sigs.zip')
+    zipf = 'sigs.zip'
 
-    runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
+    runtmp.sourmash('sig', 'cat', '2.fa.sig.gz', '47.fa.sig.gz',
+                    '63.fa.sig.gz', '-o', zipf)
 
-    output = runtmp.output('subdir/db.rdb')
+    output = runtmp.output('subdir/db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
-                    '-o', output)
+                    '-o', output, in_directory=runtmp.output(''))
     assert os.path.exists(output)
     print(runtmp.last_result.err)
 
@@ -253,9 +264,9 @@ def test_index_zipfile_subdir(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    runtmp.sourmash('scripts', 'check', 'db.rdb',
+    runtmp.sourmash('scripts', 'check', 'db.rocksdb',
                     in_directory=runtmp.output('subdir'))
-    runtmp.sourmash('scripts', 'check', 'subdir/db.rdb',
+    runtmp.sourmash('scripts', 'check', 'subdir/db.rocksdb',
                     in_directory=runtmp.output(''))
 
 
@@ -274,7 +285,7 @@ def test_index_zipfile_repeated_md5sums(runtmp, capfd):
     zipf = runtmp.output('sigs.zip')
     runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
 
-    output = runtmp.output('db.rdb')
+    output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
                     '-o', output)
@@ -304,7 +315,7 @@ def test_index_zipfile_multiparam(runtmp, capfd):
 
     runtmp.sourmash('sig', 'cat', siglist, '-o', zipf)
 
-    output = runtmp.output('db.rdb')
+    output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
                     '-o', output)
@@ -347,7 +358,7 @@ def test_index_check(runtmp):
 
     make_file_list(siglist, [sig2, sig47])
 
-    output = runtmp.output('db.rdb')
+    output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', output)
@@ -367,7 +378,7 @@ def test_index_check_quick(runtmp):
 
     make_file_list(siglist, [sig2, sig47])
 
-    output = runtmp.output('db.rdb')
+    output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', output)
@@ -389,7 +400,7 @@ def test_index_subdir(runtmp):
     make_file_list(siglist, [sig2, sig47, sig63])
 
     os.mkdir(runtmp.output('subdir'))
-    output = runtmp.output('subdir/db.rdb')
+    output = runtmp.output('subdir/db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', output)
