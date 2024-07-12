@@ -104,7 +104,7 @@ pub fn manysearch(
                                     let max_containment_ani = Some(f64::max(qani, mani));
 
                                     let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
-                                        match against_mh_ds.inflated_abundances(&query.minhash) {
+                                        match query.minhash.inflated_abundances(&against_mh_ds) {
                                             Ok((abunds, sum_weighted_overlap)) => {
                                                 let sum_all_abunds = against_mh_ds.sum_abunds() as usize;
                                                 let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
