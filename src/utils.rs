@@ -1,5 +1,6 @@
 /// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
+use pyo3::Python;
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
 
@@ -926,6 +927,7 @@ pub fn branchwater_calculate_gather_stats(
 /// removing matches in 'matchlist' from 'query'.
 
 pub fn consume_query_by_gather(
+    py: Python,
     query: SigStore,
     scaled: u64,
     matchlist: BinaryHeap<PrefetchResult>,
@@ -994,6 +996,7 @@ pub fn consume_query_by_gather(
     );
 
     while !matching_sketches.is_empty() {
+        py.check_signals()?;
         let best_element = matching_sketches.peek().unwrap();
 
         query_mh = query_mh.downsample_scaled(best_element.minhash.scaled())?;

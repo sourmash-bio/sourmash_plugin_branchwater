@@ -23,6 +23,7 @@ use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
 fn do_manysearch(
+    py: Python,
     querylist_path: String,
     siglist_path: String,
     threshold: f64,
@@ -73,6 +74,7 @@ fn do_manysearch(
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn do_fastgather(
+    py: Python,
     query_filename: String,
     siglist_path: String,
     threshold_bp: usize,
@@ -86,6 +88,7 @@ fn do_fastgather(
     let allow_failed_sigpaths = true;
 
     match fastgather::fastgather(
+        py,
         query_filename,
         siglist_path,
         threshold_bp,
@@ -105,6 +108,7 @@ fn do_fastgather(
 
 #[pyfunction]
 fn do_fastmultigather(
+    py: Python,
     query_filenames: String,
     siglist_path: String,
     threshold_bp: usize,
@@ -138,6 +142,7 @@ fn do_fastmultigather(
             bail!("output path specified, but not running fastmultigather against a rocksdb. See issue #239");
         }
         match fastmultigather::fastmultigather(
+            py,
             query_filenames,
             siglist_path,
             threshold_bp,
@@ -173,6 +178,7 @@ fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
 
 #[pyfunction]
 fn do_index(
+    py: Python,
     siglist: String,
     ksize: u8,
     scaled: usize,
@@ -206,6 +212,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn do_multisearch(
+    py: Python,
     querylist_path: String,
     siglist_path: String,
     threshold: f64,
@@ -238,6 +245,7 @@ fn do_multisearch(
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn do_pairwise(
+    py: Python,
     siglist_path: String,
     threshold: f64,
     ksize: u8,
@@ -268,6 +276,7 @@ fn do_pairwise(
 
 #[pyfunction]
 fn do_manysketch(
+    py: Python,
     filelist: String,
     param_str: String,
     output: String,
@@ -285,6 +294,7 @@ fn do_manysketch(
 
 #[pyfunction]
 fn do_cluster(
+    py: Python,
     pairwise_csv: String,
     output_clusters: String,
     similarity_column: String,

@@ -1,6 +1,7 @@
 /// fastmultigather: Run gather for multiple queries against a list of files.
 use anyhow::Result;
 use rayon::prelude::*;
+use pyo3::Python;
 
 use sourmash::selection::Selection;
 
@@ -17,6 +18,7 @@ use crate::utils::{
 };
 
 pub fn fastmultigather(
+    py: Python,
     query_filepath: String,
     against_filepath: String,
     threshold_bp: usize,
@@ -98,6 +100,7 @@ pub fn fastmultigather(
 
                         // Now, do the gather!
                         consume_query_by_gather(
+                            py,
                             query_sig.clone(),
                             scaled as u64,
                             matchlist,

@@ -1,4 +1,5 @@
 /// fastgather: Run gather with a query against a list of files.
+use pyo3::Python;
 use anyhow::Result;
 use sourmash::prelude::Select;
 use sourmash::selection::Selection;
@@ -10,6 +11,7 @@ use crate::utils::{
 
 #[allow(clippy::too_many_arguments)]
 pub fn fastgather(
+    py: Python,
     query_filepath: String,
     against_filepath: String,
     threshold_bp: usize,
@@ -94,6 +96,7 @@ pub fn fastgather(
 
     // run the gather!
     consume_query_by_gather(
+        py,
         query_sig,
         scaled as u64,
         matchlist,
