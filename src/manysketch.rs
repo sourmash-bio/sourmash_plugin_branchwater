@@ -2,7 +2,7 @@
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
-use crate::utils::{load_fasta_fromfile, sigwriter, Params, ZipMessage};
+use crate::utils::{load_fasta_fromfile, sigwriter, Params};
 use camino::Utf8Path as Path;
 use needletail::parse_fastx_file;
 use sourmash::cmd::ComputeParameters;
@@ -139,9 +139,10 @@ pub fn manysketch(
     }
 
     // set up a multi-producer, single-consumer channel that receives Signature
-    let (send, recv) = std::sync::mpsc::sync_channel::<ZipMessage>(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<Option<Vec<Signature>>>(rayon::current_num_threads());
     // need to use Arc so we can write the manifest after all sigs have written
-    let send = std::sync::Arc::new(send);
+    // let send = std::sync::Arc::new(send);
 
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = sigwriter(recv, output);
@@ -243,7 +244,7 @@ pub fn manysketch(
                     }
                     if singleton {
                         // write sigs immediately to avoid memory issues
-                        if let Err(e) = send.send(ZipMessage::SignatureData(sigs.clone())) {
+                        if let Err(e) = send.send(Some(sigs.clone())) {
                             eprintln!("Unable to send internal data: {:?}", e);
                             return None;
                         }
@@ -260,8 +261,8 @@ pub fn manysketch(
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>, sigs| {
-                if let Err(e) = s.send(ZipMessage::SignatureData(sigs)) {
+            |s: &mut std::sync::mpsc::SyncSender<Option<Vec<Signature>>>, sigs| {
+                if let Err(e) = s.send(Some(sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {
                     Ok(())
@@ -269,12 +270,10 @@ pub fn manysketch(
             },
         );
 
-    // After the parallel work, send the WriteManifest message
-    std::sync::Arc::try_unwrap(send)
-        .unwrap()
-        .send(ZipMessage::WriteManifest)
-        .unwrap();
-
+    // Send None to sigwriter to signal completion + write manifest
+    if let Err(e) = send.send(None) {
+        eprintln!("Unable to send completion signal: {:?}", e);
+    }
     // do some cleanup and error handling -
     if let Err(e) = send_result {
         eprintln!("Error during parallel processing: {}", e);
