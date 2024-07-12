@@ -1176,6 +1176,8 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
 
 @pytest.mark.parametrize('index_from_zip', [False, True])
 def test_rocksdb_in_subdir(runtmp, index_from_zip):
+    # this test will eventually test subdirectory stuff.
+    # for now, it is being used to explore other errors. CTB.
     query = get_test_data('SRR606249.sig.gz')
 
     sig2 = get_test_data('2.fa.sig.gz')
