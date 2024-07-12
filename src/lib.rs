@@ -197,7 +197,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
     match check::check(idx, quick) {
         Ok(_) => Ok(0),
         Err(e) => {
-            eprintln!("Error: {e:?}");
+            eprintln!("Error: {e:?}"); // @CTB fix me
             Ok(1)
         }
     }
