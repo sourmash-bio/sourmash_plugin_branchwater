@@ -103,13 +103,13 @@ pub fn manysearch(
                                     let average_containment_ani = Some((qani + mani) / 2.);
                                     let max_containment_ani = Some(f64::max(qani, mani));
 
-                                    let (average_abund, median_abund, std_abund) = if calc_abund_stats {
+                                    let (n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
                                         match against_mh_ds.inflated_abundances(&query.minhash) {
                                             Ok((abunds, sum_weighted_overlap)) => {
                                                 let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
                                                 let median_abund = median(abunds.iter().cloned()).unwrap();
                                                 let std_abund = stddev(abunds.iter().cloned());
-                                                (average_abund, median_abund, std_abund)
+                                                (sum_weighted_overlap as usize, average_abund, median_abund, std_abund)
                                             }
                                             Err(e) => {
                                                 eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
@@ -117,7 +117,7 @@ pub fn manysearch(
                                             }
                                         }
                                     } else {
-                                        (1.0, 1.0, 0.0)
+                                        (overlap as usize, 1.0, 1.0, 0.0)
                                     };
 
                                     results.push(SearchResult {
@@ -136,6 +136,7 @@ pub fn manysearch(
                                         match_containment_ani,
                                         average_containment_ani,
                                         max_containment_ani,
+                                        n_weighted_found,
                                     });
                                 }
                             }
