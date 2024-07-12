@@ -307,7 +307,7 @@ fn do_cluster(
 }
 
 #[pymodule]
-fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
+fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastgather, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastmultigather, m)?)?;
