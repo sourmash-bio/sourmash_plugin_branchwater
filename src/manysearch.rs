@@ -103,13 +103,14 @@ pub fn manysearch(
                                     let average_containment_ani = Some((qani + mani) / 2.);
                                     let max_containment_ani = Some(f64::max(qani, mani));
 
-                                    let (n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
+                                    let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
                                         match against_mh_ds.inflated_abundances(&query.minhash) {
                                             Ok((abunds, sum_weighted_overlap)) => {
+                                                let sum_all_abunds = against_mh_ds.sum_abunds() as usize;
                                                 let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
                                                 let median_abund = median(abunds.iter().cloned()).unwrap();
                                                 let std_abund = stddev(abunds.iter().cloned());
-                                                (sum_weighted_overlap as usize, average_abund, median_abund, std_abund)
+                                                (Some(sum_all_abunds), sum_weighted_overlap as usize, average_abund, median_abund, std_abund)
                                             }
                                             Err(e) => {
                                                 eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
@@ -117,7 +118,7 @@ pub fn manysearch(
                                             }
                                         }
                                     } else {
-                                        (overlap as usize, 1.0, 1.0, 0.0)
+                                        (None, overlap as usize, 1.0, 1.0, 0.0)
                                     };
 
                                     results.push(SearchResult {
@@ -137,6 +138,7 @@ pub fn manysearch(
                                         average_containment_ani,
                                         max_containment_ani,
                                         n_weighted_found,
+                                        total_weighted_hashes,
                                     });
                                 }
                             }

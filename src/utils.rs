@@ -1141,6 +1141,8 @@ pub struct SearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
     pub n_weighted_found: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_weighted_hashes: Option<usize>,
 }
 
 pub struct InterimGatherResult {

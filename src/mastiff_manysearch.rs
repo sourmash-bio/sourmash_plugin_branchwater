@@ -99,6 +99,7 @@ pub fn mastiff_manysearch(
                                     average_containment_ani: None,
                                     max_containment_ani: None,
                                     n_weighted_found: overlap,
+                                    total_weighted_hashes: None,
                                 });
                             }
                         }
