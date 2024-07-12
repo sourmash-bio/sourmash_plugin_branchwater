@@ -110,7 +110,7 @@ pub fn manysearch(
                                                 let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
                                                 let median_abund = median(abunds.iter().cloned()).unwrap();
                                                 let std_abund = stddev(abunds.iter().cloned());
-                                                (Some(sum_all_abunds), sum_weighted_overlap as usize, average_abund, median_abund, std_abund)
+                                                (Some(sum_all_abunds), Some(sum_weighted_overlap as usize), average_abund, median_abund, std_abund)
                                             }
                                             Err(e) => {
                                                 eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
@@ -118,7 +118,7 @@ pub fn manysearch(
                                             }
                                         }
                                     } else {
-                                        (None, overlap as usize, 1.0, 1.0, 0.0)
+                                        (None, None, 1.0, 1.0, 0.0)
                                     };
 
                                     results.push(SearchResult {
