@@ -1174,6 +1174,55 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
     assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
 
 
+
+
+def test_rocksdb_no_sigs(runtmp, capfd):
+    # make sure fastmultigather error-exits if a gather fails.
+    query = get_test_data('SRR606249.sig.gz')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    shutil.copyfile(sig2, runtmp.output('2.fa.sig.gz'))
+    shutil.copyfile(sig47, runtmp.output('47.fa.sig.gz'))
+    shutil.copyfile(sig63, runtmp.output('63.fa.sig.gz'))
+
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+    against_list = runtmp.output('against.txt')
+    make_file_list(against_list, ["2.fa.sig.gz",
+                                  "47.fa.sig.gz",
+                                  "63.fa.sig.gz"])
+
+    # index!
+    runtmp.sourmash('scripts', 'index', against_list,
+                    '-o', 'subdir/against.rocksdb')
+
+    # remove the external storage out from under the rocksdb.
+    # this will make gather fail.
+    os.unlink(runtmp.output('2.fa.sig.gz'))
+    os.unlink(runtmp.output('47.fa.sig.gz'))
+    os.unlink(runtmp.output('63.fa.sig.gz'))
+
+    g_output = runtmp.output('zzz.csv')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastmultigather', query_list,
+                        'subdir/against.rocksdb', '-s', '100000', '-t', '0',
+                        '-o', g_output,
+                        in_location=runtmp.output(''))
+
+    print(runtmp.last_result.out)
+    print(runtmp.last_result.err)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert "Error gathering matches:" in captured.err
+    assert "ERROR: 1 failed gathers. See error messages above." in captured.err
+    assert "Unresolvable errors found; results cannot be trusted. Quitting." in captured.err
+
+
 @pytest.mark.parametrize('index_from_zip', [False, True])
 def test_rocksdb_in_subdir(runtmp, index_from_zip):
     # this test will eventually test subdirectory stuff.
@@ -1215,8 +1264,8 @@ def test_rocksdb_in_subdir(runtmp, index_from_zip):
         os.unlink(runtmp.output('63.fa.sig.gz'))
 
     g_output = runtmp.output('zzz.csv')
-    # if using rocksdb from ZipStorage/.zip file (index_from_zip = True),
-    # this will fail b/c rocksdb can't be opened.
+
+    # this will fail b/c externally stored sketches cannot be accessed.
     runtmp.sourmash('scripts', 'fastmultigather', query_list,
                     'subdir/against.rocksdb', '-s', '100000', '-t', '0',
                     '-o', g_output,
@@ -1226,7 +1275,5 @@ def test_rocksdb_in_subdir(runtmp, index_from_zip):
     print(runtmp.last_result.err)
     assert os.path.exists(g_output)
 
-    # if using rocksdb from FSStorage/sig.gz files (index_from_zip = False),
-    # this will fail b/c g_output is empty.
     df = pandas.read_csv(g_output)
     assert len(df) == 3
