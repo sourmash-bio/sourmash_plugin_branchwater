@@ -1691,7 +1691,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.14.1"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=debug_rocksdb_open#adbad2c68369fd260bedf343ffe1b636616a5b7f"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=debug_rocksdb_open#38a334dc2f30cc3e82a929688b7dfa0aefc64b20"
 dependencies = [
  "az",
  "byteorder",
