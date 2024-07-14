@@ -72,7 +72,7 @@ pub fn manysearch(
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {
                             // to do - let user choose?
-                            let calc_abund_stats = query.minhash.track_abundance();
+                            let calc_abund_stats = against_mh.track_abundance();
 
                             let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).unwrap();
                             let overlap =
@@ -81,45 +81,46 @@ pub fn manysearch(
                             // only calculate results if we have shared hashes
                             if overlap > 0.0 {
                                 let query_size = query.minhash.size() as f64;
-                                let target_size = against_mh.size() as f64;
                                 let containment_query_in_target = overlap / query_size;
-                                let containment_target_in_query = overlap / target_size;
-
-                                let max_containment =
-                                    containment_query_in_target.max(containment_target_in_query);
-                                let jaccard = overlap / (target_size + query_size - overlap);
-
-                                let qani = ani_from_containment(
-                                    containment_query_in_target,
-                                    against_mh.ksize() as f64,
-                                );
-                                let mani = ani_from_containment(
-                                    containment_target_in_query,
-                                    against_mh.ksize() as f64,
-                                );
-                                let query_containment_ani = Some(qani);
-                                let match_containment_ani = Some(mani);
-                                let average_containment_ani = Some((qani + mani) / 2.);
-                                let max_containment_ani = Some(f64::max(qani, mani));
-
-                                let (average_abund, median_abund, std_abund) = if calc_abund_stats {
-                                    match against_mh_ds.inflated_abundances(&query.minhash) {
-                                        Ok((abunds, sum_weighted_overlap)) => {
-                                            let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
-                                            let median_abund = median(abunds.iter().cloned()).unwrap();
-                                            let std_abund = stddev(abunds.iter().cloned());
-                                            (average_abund, median_abund, std_abund)
-                                        }
-                                        Err(e) => {
-                                            eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
-                                            continue;
-                                        }
-                                    }
-                                } else {
-                                    (1.0, 1.0, 0.0)
-                                };
-
                                 if containment_query_in_target > threshold {
+                                    let target_size = against_mh.size() as f64;
+                                    let containment_target_in_query = overlap / target_size;
+
+                                    let max_containment =
+                                        containment_query_in_target.max(containment_target_in_query);
+                                    let jaccard = overlap / (target_size + query_size - overlap);
+
+                                    let qani = ani_from_containment(
+                                        containment_query_in_target,
+                                        against_mh.ksize() as f64,
+                                    );
+                                    let mani = ani_from_containment(
+                                        containment_target_in_query,
+                                        against_mh.ksize() as f64,
+                                    );
+                                    let query_containment_ani = Some(qani);
+                                    let match_containment_ani = Some(mani);
+                                    let average_containment_ani = Some((qani + mani) / 2.);
+                                    let max_containment_ani = Some(f64::max(qani, mani));
+
+                                    let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
+                                        match query.minhash.inflated_abundances(&against_mh_ds) {
+                                            Ok((abunds, sum_weighted_overlap)) => {
+                                                let sum_all_abunds = against_mh_ds.sum_abunds() as usize;
+                                                let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
+                                                let median_abund = median(abunds.iter().cloned()).unwrap();
+                                                let std_abund = stddev(abunds.iter().cloned());
+                                                (Some(sum_all_abunds), Some(sum_weighted_overlap as usize), average_abund, median_abund, std_abund)
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
+                                                continue;
+                                            }
+                                        }
+                                    } else {
+                                        (None, None, 1.0, 1.0, 0.0)
+                                    };
+
                                     results.push(SearchResult {
                                         query_name: query.name.clone(),
                                         query_md5: query.md5sum.clone(),
@@ -136,6 +137,8 @@ pub fn manysearch(
                                         match_containment_ani,
                                         average_containment_ani,
                                         max_containment_ani,
+                                        n_weighted_found,
+                                        total_weighted_hashes,
                                     });
                                 }
                             }

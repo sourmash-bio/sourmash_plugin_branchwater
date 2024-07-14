@@ -98,6 +98,8 @@ pub fn mastiff_manysearch(
                                     match_containment_ani: None,
                                     average_containment_ani: None,
                                     max_containment_ani: None,
+                                    n_weighted_found: None,
+                                    total_weighted_hashes: None,
                                 });
                             }
                         }
