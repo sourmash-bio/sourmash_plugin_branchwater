@@ -50,6 +50,7 @@ pub fn mastiff_manygather(
     let processed_sigs = AtomicUsize::new(0);
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
+    let failed_gathers = AtomicUsize::new(0);
 
     let send = query_collection
         .par_iter()
@@ -122,6 +123,7 @@ pub fn mastiff_manygather(
                             }
                         } else {
                             eprintln!("Error gathering matches: {:?}", matches.err());
+                            let _ = failed_gathers.fetch_add(1, atomic::Ordering::SeqCst);
                         }
                     } else {
                         eprintln!(
@@ -147,13 +149,17 @@ pub fn mastiff_manygather(
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));
 
+    let mut do_fail = false;
+
     // do some cleanup and error handling -
     if let Err(e) = send {
         eprintln!("Unable to send internal data: {:?}", e);
+        do_fail = true;
     }
 
     if let Err(e) = thrd.join() {
         eprintln!("Unable to join internal thread: {:?}", e);
+        do_fail = true;
     }
 
     // done!
@@ -162,6 +168,7 @@ pub fn mastiff_manygather(
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+    let failed_gathers = failed_gathers.load(atomic::Ordering::SeqCst);
 
     if skipped_paths > 0 {
         eprintln!(
@@ -174,6 +181,17 @@ pub fn mastiff_manygather(
             "WARNING: {} query paths failed to load. See error messages above.",
             failed_paths
         );
+    }
+    if failed_gathers > 0 {
+        eprintln!(
+            "ERROR: {} failed gathers. See error messages above.",
+            failed_gathers
+        );
+        do_fail = true;
+    }
+
+    if do_fail {
+        bail!("Unresolvable errors found; results cannot be trusted. Quitting.");
     }
 
     Ok(())
