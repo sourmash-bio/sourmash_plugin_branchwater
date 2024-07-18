@@ -404,3 +404,41 @@ class Branchwater_Cluster(CommandLinePlugin):
             notify(f"...clustering is done! results in '{args.output}'")
             notify(f"                       cluster counts in '{args.cluster_sizes}'")
         return status
+
+
+class Branchwater_SigCat(CommandLinePlugin):
+    command = 'sigcat'
+    description = 'cat signatures from multiple zipfiles'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('--signatures', nargs='+', help="sourmash signature files")
+        p.add_argument('-o', '--output', required=True,
+                       help='output zip file for final signatures')
+        p.add_argument('-k', '--ksize', default=31, type=int,
+                       help='k-mer size at which to select sketches')
+        p.add_argument('-s', '--scaled', default=1000, type=int,
+                       help='scaled factor at which to do comparisons')
+        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
+
+    def main(self, args):
+        print_version()
+
+        if len(args.signatures) < 2:
+            notify(f"fewer than 2 signature zips found, aborting.")
+            sys.exit(-1)
+
+        allsigs = ",".join(args.signatures) # so can pass string into rust instead of pylist
+        notify(f"concatenating signatures in '{allsigs}'")
+        args.moltype = args.moltype.lower()
+
+        super().main(args)
+        status = sourmash_plugin_branchwater.do_sigcat(allsigs,
+                                                        args.ksize,
+                                                        args.scaled,
+                                                        args.moltype,
+                                                        args.output)
+        if status == 0:
+            notify(f"...cat is done! results in '{args.output}'")
+        return status

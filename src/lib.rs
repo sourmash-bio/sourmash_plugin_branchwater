@@ -18,6 +18,7 @@ mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
+mod sigcat;
 
 use camino::Utf8PathBuf as PathBuf;
 
@@ -306,6 +307,26 @@ fn do_cluster(
     }
 }
 
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn do_sigcat(
+    sigfiles: String,
+    ksize: u8,
+    scaled: usize,
+    moltype: String,
+    output_path: String,
+) -> anyhow::Result<u8> {
+    let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
+    match sigcat::sig_cat(sigfiles, &selection, allow_failed_sigpaths, output_path) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
@@ -318,5 +339,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
+    m.add_function(wrap_pyfunction!(do_sigcat, m)?)?;
     Ok(())
 }
