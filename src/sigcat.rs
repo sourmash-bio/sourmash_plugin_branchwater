@@ -24,11 +24,12 @@ pub fn sig_cat(
         return Err(anyhow::anyhow!("Output file must end with '.zip'"));
     }
 
-    // split input_sigs into list
+    // split input_sigs string into list
     let sig_inputs: Vec<&str> = input_sigs.split(',').collect();
 
     let mut collection_list: Vec<Collection> = Vec::new();
     // read each input collection
+    // NOTE, as of v0.9.6, this fails if ANY collection is empty (no sigs to select)
     for sigs in sig_inputs {
         let collection = load_collection(
             &sigs.to_string(),
@@ -56,8 +57,8 @@ pub fn sig_cat(
 
     for collection in collection_list {
         collection.iter().for_each(|(_idx, record)| {
-            // count the number we're adding? or count failures?
-            // let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
+            // todo: count the number we're adding? or count failures?
+            // let _i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             let sig = collection.sig_from_record(record).unwrap();
             let md5sum_str = sig.md5sum();
             // should we keep track of full duplicates and avoid writing them??
