@@ -202,7 +202,7 @@ def test_sigcat_bad_input_type(runtmp, capfd):
 
 
 def test_sigcat_multk_multsc_multmol(runtmp, capfd):
-    # test cat with multiple ksizes, scaled vals
+    # test cat with multiple types of sigs
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -228,7 +228,7 @@ def test_sigcat_multk_multsc_multmol(runtmp, capfd):
 
 
 def test_sigcat_multk_multsc_multmol_selectk_fail(runtmp, capfd):
-    # test cat with multiple ksizes, scaled vals
+    # test cat with multiple types of sigs -- select on ksize
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -251,7 +251,7 @@ def test_sigcat_multk_multsc_multmol_selectk_fail(runtmp, capfd):
 
 
 def test_sigcat_multk_multsc_multmol_selectk_force(runtmp, capfd):
-    # test cat with multiple ksizes, scaled vals
+    # test cat with multiple types of sigs -- select on ksize
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -274,3 +274,101 @@ def test_sigcat_multk_multsc_multmol_selectk_force(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.out)
     assert f"Concatenated 1 signatures into '{output}'." in captured.out
+
+
+def test_sigcat_multk_multsc_multmol_selectmoltype_fail(runtmp, capfd):
+    # test cat with multiple types of sigs -- select on moltype
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig_hp = get_test_data('hp.zip')
+    sig_sc100k = get_test_data('SRR606249.sig.gz')
+
+    output = runtmp.output('out.zip')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'sigcat', sig1, sig2, sig_hp, sig_sc100k, '-m', 'hp','-o', output)
+
+    assert not runtmp.last_result.out # stdout should be empty
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "WARNING: skipped 1 analysis paths - no compatible signatures." in captured.err
+    assert "Error: No analysis signatures loaded, exiting" in captured.err
+
+
+def test_sigcat_multk_multsc_multmol_selectmoltype_force(runtmp, capfd):
+    # test cat with multiple types of sigs -- select on moltype
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig_hp = get_test_data('hp.zip')
+    sig_sc100k = get_test_data('SRR606249.sig.gz')
+
+    output = runtmp.output('out.zip')
+
+    runtmp.sourmash('scripts', 'sigcat', sig1, sig2, sig_hp, sig_sc100k, '-m', 'hp','-o', output, '--force')
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 2
+    captured = capfd.readouterr()
+    print(captured.out)
+    assert f"Concatenated 2 signatures into '{output}'." in captured.out
+
+
+def test_sigcat_multk_multsc_multmol_selectscaled_fail(runtmp, capfd):
+    # test cat with multiple types of sigs -- select on scaled
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig_hp = get_test_data('hp.zip')
+    sig_sc100k = get_test_data('SRR606249.sig.gz')
+
+    output = runtmp.output('out.zip')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'sigcat', sig1, sig2, sig_hp, sig_sc100k, '--scaled', '100','-o', output)
+
+    assert not runtmp.last_result.out # stdout should be empty
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "WARNING: skipped 1 analysis paths - no compatible signatures." in captured.err
+    assert "Error: No analysis signatures loaded, exiting" in captured.err
+
+
+def test_sigcat_multk_multsc_multmol_selectscaled_force(runtmp, capfd):
+    # test cat with multiple types of sigs -- select on scaled
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig_hp = get_test_data('hp.zip')
+    sig_sc100k = get_test_data('SRR606249.sig.gz')
+
+    output = runtmp.output('out.zip')
+
+    runtmp.sourmash('scripts', 'sigcat', sig1, sig2, sig_hp, sig_sc100k, '--scaled', '100','-o', output, '--force')
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 2
+    captured = capfd.readouterr()
+    print(captured.out)
+    assert f"Concatenated 2 signatures into '{output}'." in captured.out
