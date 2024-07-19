@@ -17,6 +17,7 @@ pub fn sig_cat(
     selection: &Selection,
     allow_failed_sigpaths: bool,
     output_path: String,
+    allow_empty_collection: bool,
 ) -> Result<()> {
     // Check if output_path ends with ".zip"
     if !output_path.ends_with(".zip") {
@@ -28,13 +29,13 @@ pub fn sig_cat(
 
     let mut collection_list: Vec<Collection> = Vec::new();
     // read each input collection
-    // NOTE, as of v0.9.6, this fails if ANY collection is empty (no sigs to select)
     for sigs in sig_inputs {
         let collection = load_collection(
             &sigs.to_string(),
             selection,
             ReportType::General,
             allow_failed_sigpaths,
+            allow_empty_collection,
         )?;
         collection_list.push(collection);
     }

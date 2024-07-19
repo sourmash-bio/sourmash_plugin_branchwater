@@ -415,12 +415,14 @@ class Branchwater_SigCat(CommandLinePlugin):
         p.add_argument('signatures', nargs='+', help="sourmash signature files")
         p.add_argument('-o', '--output', required=True,
                        help='output zip file for final signatures')
-        p.add_argument('-k', '--ksize', default=31, type=int,
-                       help='k-mer size at which to select sketches')
-        p.add_argument('-s', '--scaled', default=1000, type=int,
-                       help='scaled factor at which to do comparisons')
-        p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
-                       help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
+        p.add_argument('-k', '--ksize', type=int,
+                       help='k-mer size at which to select sketches; no default')
+        p.add_argument('-s', '--scaled', type=int,
+                       help='scaled factor at which to do comparisons; no default')
+        p.add_argument('-m', '--moltype', choices = ["DNA", "protein", "dayhoff", "hp"],
+                       help = 'molecule type (DNA, protein, dayhoff, or hp; no default)')
+        p.add_argument('-f', '--force', action='store_true',
+                       help='force: allow input sig files to contain no signatures or only incompatible signatures')
 
     def main(self, args):
         print_version()
@@ -431,14 +433,16 @@ class Branchwater_SigCat(CommandLinePlugin):
 
         allsigs = ",".join(args.signatures) # so can pass string into rust instead of pylist
         notify(f"concatenating signatures in '{allsigs}'")
-        args.moltype = args.moltype.lower()
+        if args.moltype:
+            args.moltype = args.moltype.lower()
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_sigcat(allsigs,
-                                                        args.ksize,
-                                                        args.scaled,
-                                                        args.moltype,
-                                                        args.output)
+                                                       args.output,
+                                                       args.force,
+                                                       args.ksize,
+                                                       args.scaled,
+                                                       args.moltype)
         if status == 0:
             notify(f"...cat is done! results in '{args.output}'")
         return status
