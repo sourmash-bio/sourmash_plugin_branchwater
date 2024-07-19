@@ -26,7 +26,7 @@ pub fn sig_cat(
     }
 
     // split input_sigs string into list
-    let sig_inputs: Vec<&str> = input_sigs.split(',').collect();
+    let sig_inputs: Vec<&str> = input_sigs.split(' ').collect();
 
     let mut collection_list: Vec<Collection> = Vec::new();
     // read each input collection
@@ -66,13 +66,11 @@ pub fn sig_cat(
         collection.iter().for_each(|(_idx, record)| {
             // todo: count the number we're adding? or count failures?
             let _i = collected_sigs.fetch_add(1, Ordering::SeqCst);
-            let orig_sig = collection.sig_from_record(record).unwrap();
             // if scaled doesn't match sig scaled, we need to downsample.
-            let sig = orig_sig.select(selection).unwrap(); // downsample if needed
+            let sig = collection.sig_from_record(record).expect("failed to get sig from record").select(selection).unwrap();
 
             let md5sum_str = sig.md5sum(); // this is now the downsampled md5sum -- okay?
 
-            // should we keep track of full duplicates and avoid writing them??
             let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
             *count += 1;
             let sig_filename = if *count > 1 {

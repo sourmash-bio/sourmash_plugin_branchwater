@@ -427,7 +427,7 @@ class Branchwater_SigCat(CommandLinePlugin):
     def main(self, args):
         print_version()
 
-        allsigs = ",".join(args.signatures) # so can pass string into rust instead of pylist
+        allsigs = " ".join(args.signatures) # so can pass string into rust instead of pylist
         notify(f"concatenating signatures in '{allsigs}'")
         if args.moltype:
             args.moltype = args.moltype.lower()
