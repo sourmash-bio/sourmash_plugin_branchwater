@@ -426,7 +426,7 @@ class Branchwater_SigCat(CommandLinePlugin):
         print_version()
 
         if len(args.signatures) < 2:
-            notify(f"fewer than 2 signature zips found, aborting.")
+            notify(f"fewer than 2 signature files found, aborting.")
             sys.exit(-1)
 
         allsigs = ",".join(args.signatures) # so can pass string into rust instead of pylist

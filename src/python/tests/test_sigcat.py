@@ -134,6 +134,21 @@ def test_sigcat_missing_sigfile(runtmp, capfd):
     assert "Error: No such file or directory:" in captured.err
 
 
+def test_sigcat_output_not_zipfile(runtmp, capfd):
+    # test output not zipfile
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    output = runtmp.output('out.sig')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'sigcat', '--signatures', sig47, sig63, '-o', output)
+
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Error: Output file must end with '.zip'" in captured.err
+
+
 def test_sigcat_incompatible_sigfiles(runtmp, capfd):
     # test incompatible sig files
 
@@ -150,3 +165,28 @@ def test_sigcat_incompatible_sigfiles(runtmp, capfd):
     print(captured.err)
     assert "WARNING: skipped 1 analysis paths - no compatible signatures." in captured.err
     assert "Error: No analysis signatures loaded, exiting" in captured.err
+
+
+def test_sigcat_oneinput(runtmp):
+    fa1 = get_test_data('short.fa')
+    output = runtmp.output('out.zip')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'sigcat', '--signatures', fa1, '-o', output)
+
+    print(runtmp.last_result.err)
+    assert "fewer than 2 signature files found, aborting." in runtmp.last_result.err
+
+
+def test_sigcat_fastafile(runtmp, capfd):
+    # test using bad input (fasta file instead of sig)
+    sig47 = get_test_data('47.fa.sig.gz')
+    fa1 = get_test_data('short.fa')
+    output = runtmp.output('out.zip')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'sigcat', '--signatures', sig47, fa1, '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Error: No analysis signatures loaded, exiting." in captured.err
