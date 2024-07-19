@@ -26,7 +26,7 @@ def zip_siglist(runtmp, siglist, db):
     return db
 
 
-def test_simple_sigcat(runtmp):
+def test_simple_sigcat(runtmp, capfd):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -50,9 +50,12 @@ def test_simple_sigcat(runtmp):
     print(sigs)
 
     assert len(sigs) == 3
+    captured = capfd.readouterr()
+    print(captured.out)
+    assert f"Concatenated 3 signatures into '{output}'." in captured.out
 
 
-def test_simple_sigcat_with_zip(runtmp):
+def test_simple_sigcat_with_zip(runtmp, capfd):
     # test basic execution with a zip involved
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -78,9 +81,12 @@ def test_simple_sigcat_with_zip(runtmp):
     print(sigs)
 
     assert len(sigs) == 3
+    captured = capfd.readouterr()
+    print(captured.out)
+    assert f"Concatenated 3 signatures into '{output}'." in captured.out
 
 
-def test_output_manifest(runtmp):
+def test_output_manifest(runtmp, capfd):
     # test basic manifest-generating functionality.
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -115,6 +121,9 @@ def test_output_manifest(runtmp):
         assert sig.minhash.ksize == 31
         assert sig.minhash.moltype == 'DNA'
         assert sig.minhash.scaled == 1000
+    captured = capfd.readouterr()
+    print(captured.out)
+    assert f"Concatenated 3 signatures into '{output}'." in captured.out
 
 
 def test_sigcat_missing_sigfile(runtmp, capfd):

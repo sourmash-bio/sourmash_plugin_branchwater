@@ -2,9 +2,8 @@
 use anyhow::Result;
 use sourmash::{collection::Collection, selection::Selection};
 
-// use std::sync::atomic;
-// use std::sync::atomic::AtomicUsize;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use camino::Utf8PathBuf as PathBuf;
 use sourmash::manifest::{Manifest, Record};
@@ -39,6 +38,7 @@ pub fn sig_cat(
         )?;
         collection_list.push(collection);
     }
+    let collected_sigs = AtomicUsize::new(0);
 
     // open new zipfile and write all sigs
     let outpath: PathBuf = output_path.into();
@@ -58,7 +58,7 @@ pub fn sig_cat(
     for collection in collection_list {
         collection.iter().for_each(|(_idx, record)| {
             // todo: count the number we're adding? or count failures?
-            // let _i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
+            let _i = collected_sigs.fetch_add(1, Ordering::SeqCst);
             let sig = collection.sig_from_record(record).unwrap();
             let md5sum_str = sig.md5sum();
             // should we keep track of full duplicates and avoid writing them??
@@ -81,5 +81,10 @@ pub fn sig_cat(
     let manifest: Manifest = manifest_rows.clone().into();
     manifest.to_writer(&mut zip)?;
     zip.finish()?;
+
+    // report
+    let i: usize = collected_sigs.load(Ordering::SeqCst);
+    println!("Concatenated {} signatures into '{}'.", i, outpath);
+
     Ok(())
 }
