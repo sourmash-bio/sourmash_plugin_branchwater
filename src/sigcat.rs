@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use camino::Utf8PathBuf as PathBuf;
 use sourmash::manifest::{Manifest, Record};
+use sourmash::prelude::Select;
 use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
@@ -65,8 +66,12 @@ pub fn sig_cat(
         collection.iter().for_each(|(_idx, record)| {
             // todo: count the number we're adding? or count failures?
             let _i = collected_sigs.fetch_add(1, Ordering::SeqCst);
-            let sig = collection.sig_from_record(record).unwrap();
-            let md5sum_str = sig.md5sum();
+            let orig_sig = collection.sig_from_record(record).unwrap();
+            // if scaled doesn't match sig scaled, we need to downsample.
+            let sig = orig_sig.select(selection).unwrap(); // downsample if needed
+
+            let md5sum_str = sig.md5sum(); // this is now the downsampled md5sum -- okay?
+
             // should we keep track of full duplicates and avoid writing them??
             let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
             *count += 1;

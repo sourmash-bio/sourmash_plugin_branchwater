@@ -389,7 +389,7 @@ def test_sigcat_multk_multsc_multmol_selectscaled_force(runtmp, capfd):
 
     output = runtmp.output('out.zip')
 
-    runtmp.sourmash('scripts', 'sigcat', sig1, sig2, sig_hp, sig_sc100k, '--scaled', '100','-o', output, '--force')
+    runtmp.sourmash('scripts', 'sigcat', sig1, sig2, sig_hp, sig_sc100k, '--scaled', '150','-o', output, '--force')
     assert os.path.exists(output)
     assert not runtmp.last_result.out # stdout should be empty
 
@@ -398,6 +398,8 @@ def test_sigcat_multk_multsc_multmol_selectscaled_force(runtmp, capfd):
     print(sigs)
 
     assert len(sigs) == 2
+    for sig in sigs:
+        assert sig.minhash.scaled == 150
     captured = capfd.readouterr()
     print(captured.out)
     assert f"Concatenated 2 signatures into '{output}'." in captured.out
