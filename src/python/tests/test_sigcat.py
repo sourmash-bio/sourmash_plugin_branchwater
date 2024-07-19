@@ -40,7 +40,7 @@ def test_simple_sigcat(runtmp, capfd):
 
     output = runtmp.output('out.zip')
 
-    runtmp.sourmash('scripts', 'sigcat', '--signatures', query_list, against_list,
+    runtmp.sourmash('scripts', 'sigcat', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
     assert not runtmp.last_result.out # stdout should be empty
@@ -71,7 +71,7 @@ def test_simple_sigcat_with_zip(runtmp, capfd):
     # zip the against_list
     against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
 
-    runtmp.sourmash('scripts', 'sigcat', '--signatures', query_list, against_list,
+    runtmp.sourmash('scripts', 'sigcat', query_list, against_list,
                     '-o', output)
     assert os.path.exists(output)
     assert not runtmp.last_result.out # stdout should be empty
@@ -95,7 +95,7 @@ def test_output_manifest(runtmp, capfd):
 
     output = runtmp.output('db.zip')
 
-    runtmp.sourmash('scripts', 'sigcat', '--signatures', sig2, sig47, sig63, '-o', output)
+    runtmp.sourmash('scripts', 'sigcat', sig2, sig47, sig63, '-o', output)
 
     loader = sourmash.load_file_as_index(output)
 
@@ -135,7 +135,7 @@ def test_sigcat_missing_sigfile(runtmp, capfd):
     output = runtmp.output('out.zip')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'sigcat', '--signatures', sig47, sigf, sig63, '-o', output)
+        runtmp.sourmash('scripts', 'sigcat', sig47, sigf, sig63, '-o', output)
 
 
     captured = capfd.readouterr()
@@ -150,7 +150,7 @@ def test_sigcat_output_not_zipfile(runtmp, capfd):
     output = runtmp.output('out.sig')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'sigcat', '--signatures', sig47, sig63, '-o', output)
+        runtmp.sourmash('scripts', 'sigcat', sig47, sig63, '-o', output)
 
 
     captured = capfd.readouterr()
@@ -166,7 +166,7 @@ def test_sigcat_incompatible_sigfiles(runtmp, capfd):
     output = runtmp.output('out.zip')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'sigcat', '--signatures', sig47, \
+        runtmp.sourmash('scripts', 'sigcat', sig47, \
                         sig63, '-o', output, '-k', '9')
 
 
@@ -181,7 +181,7 @@ def test_sigcat_oneinput(runtmp):
     output = runtmp.output('out.zip')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'sigcat', '--signatures', fa1, '-o', output)
+        runtmp.sourmash('scripts', 'sigcat', fa1, '-o', output)
 
     print(runtmp.last_result.err)
     assert "fewer than 2 signature files found, aborting." in runtmp.last_result.err
@@ -194,7 +194,7 @@ def test_sigcat_fastafile(runtmp, capfd):
     output = runtmp.output('out.zip')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'sigcat', '--signatures', sig47, fa1, '-o', output)
+        runtmp.sourmash('scripts', 'sigcat', sig47, fa1, '-o', output)
 
     captured = capfd.readouterr()
     print(captured.err)

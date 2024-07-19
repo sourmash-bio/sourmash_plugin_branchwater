@@ -412,7 +412,7 @@ class Branchwater_SigCat(CommandLinePlugin):
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('--signatures', nargs='+', help="sourmash signature files")
+        p.add_argument('signatures', nargs='+', help="sourmash signature files")
         p.add_argument('-o', '--output', required=True,
                        help='output zip file for final signatures')
         p.add_argument('-k', '--ksize', default=31, type=int,
