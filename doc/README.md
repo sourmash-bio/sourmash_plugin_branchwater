@@ -9,6 +9,7 @@
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
+| `sigcat` | concatenate signatures to a zipfile | [link](#Running-sigcat) |
 
 This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
 
@@ -249,6 +250,20 @@ cluster_size,count
 ```
 
 `cluster` takes a `--similarity_column` argument to specify which of the similarity columns, with the following choices: `containment`, `max_containment`, `jaccard`, `average_containment_ani`, `maximum_containment_ani`. All values should be input as fractions (e.g. 0.9 for 90%)
+
+
+### Running `sigcat`
+
+The `sigcat` command combines signatures into a single sourmash Zipfile. It's equivalent `sourmash` command is `sourmash sig cat`.
+
+For example:
+```
+sourmash scripts sigcat file1.sig file2.sig -o all.zip
+```
+will combine all signatures in `file1.sig` and `file2.sig` and put them in the file `all.zip`.
+
+`sigcat` can be used to select out specific signatures as well, by `ksize`, `moltype`, and `scaled`, where signatures will be downsampled to the desired scaled.
+
 
 ## Notes on concurrency and efficiency
 
