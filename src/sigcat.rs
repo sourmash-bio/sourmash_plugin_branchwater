@@ -67,7 +67,11 @@ pub fn sig_cat(
             // todo: count the number we're adding? or count failures?
             let _i = collected_sigs.fetch_add(1, Ordering::SeqCst);
             // if scaled doesn't match sig scaled, we need to downsample.
-            let sig = collection.sig_from_record(record).expect("failed to get sig from record").select(selection).unwrap();
+            let sig = collection
+                .sig_from_record(record)
+                .expect("failed to get sig from record")
+                .select(selection)
+                .unwrap();
 
             let md5sum_str = sig.md5sum(); // this is now the downsampled md5sum -- okay?
 
