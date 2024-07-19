@@ -176,15 +176,44 @@ def test_sigcat_incompatible_sigfiles(runtmp, capfd):
     assert "Error: No analysis signatures loaded, exiting" in captured.err
 
 
-def test_sigcat_bad_oneinput(runtmp):
-    fa1 = get_test_data('short.fa')
+def test_sigcat_incompatible_sigfiles_force(runtmp, capfd):
+    # test incompatible sig files
+
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    sighp = get_test_data('hp.zip')
+    output = runtmp.output('out.zip')
+
+    # with pytest.raises(utils.SourmashCommandFailed):
+    runtmp.sourmash('scripts', 'sigcat', sig47, sig63, sighp, \
+                    '-o', output, '-m', 'hp', '--force')
+
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "WARNING: skipped 1 analysis paths - no compatible signatures." in captured.err
+    assert "Error: No analysis signatures loaded, exiting" not in captured.err
+    print(captured.out)
+    assert f"Concatenated 2 signatures into '{output}'." in captured.out
+
+
+def test_sigcat_incompatible_sigfiles_force_fail(runtmp, capfd):
+    # test incompatible sig files -- not recoverable
+
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
     output = runtmp.output('out.zip')
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'sigcat', fa1, '-o', output)
+        runtmp.sourmash('scripts', 'sigcat', sig47, sig63, \
+                    '-o', output, '-m', 'hp', '--force')
 
-    print(runtmp.last_result.err)
-    assert "fewer than 2 signature files found, aborting." in runtmp.last_result.err
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "WARNING: skipped 1 analysis paths - no compatible signatures." in captured.err
+    assert "Error: No analysis signatures loaded, exiting" not in captured.err
+    assert "Error: No signatures to concatenate, exiting" in captured.err
 
 
 def test_sigcat_bad_input_type(runtmp, capfd):

@@ -37,7 +37,12 @@ pub fn sig_cat(
             allow_failed_sigpaths,
             allow_empty_collection,
         )?;
-        collection_list.push(collection);
+        if !collection.is_empty() {
+            collection_list.push(collection);
+        }
+    }
+    if collection_list.is_empty() {
+        bail!("No signatures to concatenate, exiting")
     }
     let collected_sigs = AtomicUsize::new(0);
 

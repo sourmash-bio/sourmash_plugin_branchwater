@@ -427,10 +427,6 @@ class Branchwater_SigCat(CommandLinePlugin):
     def main(self, args):
         print_version()
 
-        if len(args.signatures) < 2:
-            notify(f"fewer than 2 signature files found, aborting.")
-            sys.exit(-1)
-
         allsigs = ",".join(args.signatures) # so can pass string into rust instead of pylist
         notify(f"concatenating signatures in '{allsigs}'")
         if args.moltype:
