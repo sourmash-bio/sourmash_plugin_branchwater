@@ -408,7 +408,7 @@ class Branchwater_Cluster(CommandLinePlugin):
 
 class Branchwater_SigCat(CommandLinePlugin):
     command = 'sigcat'
-    description = 'cat signatures from multiple zipfiles'
+    description = 'concatenate signatures into a single sourmash zip file'
 
     def __init__(self, p):
         super().__init__(p)

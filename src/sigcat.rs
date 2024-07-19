@@ -1,4 +1,4 @@
-/// fastmultigather: Run gather for multiple queries against a list of files.
+/// sigcat: concatenate signatures into a single sourmash zip file
 use anyhow::Result;
 use sourmash::{collection::Collection, selection::Selection};
 
