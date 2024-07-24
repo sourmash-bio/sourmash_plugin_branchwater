@@ -12,12 +12,14 @@ pub fn index<P: AsRef<Path>>(
     allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
+    let allow_empty_collection = false;
 
     let collection = load_collection(
         &siglist,
         selection,
         ReportType::General,
         allow_failed_sigpaths,
+        allow_empty_collection,
     )?;
 
     RevIndex::create(
