@@ -129,7 +129,7 @@ pub fn fastmultigather(
                         // Save matching hashes to .sig file if save_matches is true
                         if save_matches {
                             if let Some(hashes) = matching_hashes {
-                                let sig_filename = format!("{}_saved_matches.sig", name);
+                                let sig_filename = format!("{}.matches.sig", name);
                                 if let Ok(mut file) = File::create(&sig_filename) {
                                     let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
                                     let mut new_mh = KmerMinHash::new(
