@@ -1227,8 +1227,7 @@ def test_save_matches(runtmp):
     
     # check prefetch output (only non-indexed gather)
     df = pandas.read_csv(p_output)
-    df.to_csv('/Users/mabuelanin/dev/branchwater/sourmash_plugin_branchwater_save_matches/XX_test_prefetch.csv', index=False)
-    
+        
     assert len(df) == 3
     keys = set(df.keys())
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
