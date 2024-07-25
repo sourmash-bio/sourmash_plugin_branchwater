@@ -137,7 +137,7 @@ pub fn fastmultigather(
                                     false,
                                     query_mh.num(),
                                 );
-                                new_mh.add_many(&unique_hashes.into_iter().collect::<Vec<_>>());
+                                let _ = new_mh.add_many(&unique_hashes.into_iter().collect::<Vec<_>>());
                                 let mut signature = Signature::default();
                                 signature.push(Sketch::MinHash(new_mh));
                                 signature.set_filename(&name);
