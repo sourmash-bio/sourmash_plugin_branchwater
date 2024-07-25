@@ -14,7 +14,6 @@ use camino::Utf8Path as PathBuf;
 
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::Write;
 
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
@@ -78,20 +77,18 @@ pub fn fastmultigather(
                 let name = query_sig.name();
                 let prefix = name.split(' ').next().unwrap_or_default().to_string();
                 let location = PathBuf::new(&prefix).file_name().unwrap();
-
                 if let Some(query_mh) = query_sig.minhash() {
-                    let mut local_hashes = HashSet::new();
+                    let mut matching_hashes = Vec::new();
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
                         .filter_map(|against| {
                             let mut mm: Option<PrefetchResult> = None;
                             if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
-                                    let extracted_overlap_list =
-                                        against.minhash.intersection(query_mh).unwrap().0;
-
-                                    local_hashes.extend(extracted_overlap_list);
-
+                                    if let Ok(intersection) = against.minhash.intersection(query_mh)
+                                    {
+                                        matching_hashes.extend(intersection.0);
+                                    }
                                     let result = PrefetchResult {
                                         name: against.name.clone(),
                                         md5sum: against.md5sum.clone(),
@@ -122,11 +119,10 @@ pub fn fastmultigather(
                         )
                         .ok();
 
-                        // Write unique hashes to a file
-                        let filename = format!("{}.matches.sig", name);
-                        if let Ok(mut file) = File::create(&filename) {
-                            let unique_hashes: Vec<u64> = local_hashes.into_iter().collect();
-
+                        // Save matching hashes to .sig file
+                        let sig_filename = format!("{}.matches.sig", name);
+                        if let Ok(mut file) = File::create(&sig_filename) {
+                            let unique_hashes: HashSet<u64> = matching_hashes.into_iter().collect();
                             let mut new_mh = KmerMinHash::new(
                                 query_mh.scaled().try_into().unwrap(),
                                 query_mh.ksize().try_into().unwrap(),
@@ -135,8 +131,7 @@ pub fn fastmultigather(
                                 false,
                                 query_mh.num(),
                             );
-
-                            new_mh.add_many(&unique_hashes);
+                            new_mh.add_many(&unique_hashes.into_iter().collect::<Vec<_>>());
                             let mut signature = Signature::default();
                             signature.push(Sketch::MinHash(new_mh));
                             signature.set_filename(&name);
@@ -144,7 +139,7 @@ pub fn fastmultigather(
                                 eprintln!("Error writing signature file: {}", e);
                             }
                         } else {
-                            eprintln!("Error creating signature file: {}", filename);
+                            eprintln!("Error creating signature file: {}", sig_filename);
                         }
                     } else {
                         println!("No matches to '{}'", location);
