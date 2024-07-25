@@ -79,7 +79,7 @@ pub fn fastmultigather(
                 let prefix = name.split(' ').next().unwrap_or_default().to_string();
                 let location = PathBuf::new(&prefix).file_name().unwrap();
                 if let Some(query_mh) = query_sig.minhash() {
-                    let mut matching_hashes = if save_matches { Vec::new() } else { Vec::new() };
+                    let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
                         .filter_map(|against| {
@@ -90,7 +90,10 @@ pub fn fastmultigather(
                                         if let Ok(intersection) =
                                             against.minhash.intersection(query_mh)
                                         {
-                                            matching_hashes.extend(intersection.0);
+                                            matching_hashes
+                                                .as_mut()
+                                                .unwrap()
+                                                .extend(intersection.0);
                                         }
                                     }
                                     let result = PrefetchResult {
@@ -125,28 +128,28 @@ pub fn fastmultigather(
 
                         // Save matching hashes to .sig file if save_matches is true
                         if save_matches {
-                            let sig_filename = format!("{}.matches.sig", name);
-                            if let Ok(mut file) = File::create(&sig_filename) {
-                                let unique_hashes: HashSet<u64> =
-                                    matching_hashes.into_iter().collect();
-                                let mut new_mh = KmerMinHash::new(
-                                    query_mh.scaled().try_into().unwrap(),
-                                    query_mh.ksize().try_into().unwrap(),
-                                    query_mh.hash_function().clone(),
-                                    query_mh.seed(),
-                                    false,
-                                    query_mh.num(),
-                                );
-                                let _ =
+                            if let Some(hashes) = matching_hashes {
+                                let sig_filename = format!("{}_saved_matches.sig", name);
+                                if let Ok(mut file) = File::create(&sig_filename) {
+                                    let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
+                                    let mut new_mh = KmerMinHash::new(
+                                        query_mh.scaled().try_into().unwrap(),
+                                        query_mh.ksize().try_into().unwrap(),
+                                        query_mh.hash_function().clone(),
+                                        query_mh.seed(),
+                                        false,
+                                        query_mh.num(),
+                                    );
                                     new_mh.add_many(&unique_hashes.into_iter().collect::<Vec<_>>());
-                                let mut signature = Signature::default();
-                                signature.push(Sketch::MinHash(new_mh));
-                                signature.set_filename(&name);
-                                if let Err(e) = signature.to_writer(&mut file) {
-                                    eprintln!("Error writing signature file: {}", e);
+                                    let mut signature = Signature::default();
+                                    signature.push(Sketch::MinHash(new_mh));
+                                    signature.set_filename(&name);
+                                    if let Err(e) = signature.to_writer(&mut file) {
+                                        eprintln!("Error writing signature file: {}", e);
+                                    }
+                                } else {
+                                    eprintln!("Error creating signature file: {}", sig_filename);
                                 }
-                            } else {
-                                eprintln!("Error creating signature file: {}", sig_filename);
                             }
                         }
                     } else {
