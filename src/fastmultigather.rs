@@ -78,20 +78,18 @@ pub fn fastmultigather(
                 let name = query_sig.name();
                 let prefix = name.split(' ').next().unwrap_or_default().to_string();
                 let location = PathBuf::new(&prefix).file_name().unwrap();
-                // Use a local Vec to collect hashes for the current query
-                let mut local_hashes = Vec::new();
 
                 if let Some(query_mh) = query_sig.minhash() {
+                    let mut local_hashes = HashSet::new();
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
                         .filter_map(|against| {
                             let mut mm: Option<PrefetchResult> = None;
                             if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
-                                    
                                     let extracted_overlap_list =
                                         against.minhash.intersection(query_mh).unwrap().0;
-                                    
+
                                     local_hashes.extend(extracted_overlap_list);
 
                                     let result = PrefetchResult {
@@ -125,24 +123,29 @@ pub fn fastmultigather(
                         .ok();
 
                         // Write unique hashes to a file
-                        let filename = format!("{}_saved_matches.sig", name);
-                        let mut file = File::create(&filename).unwrap();
-                        let unique_hashes: Vec<u64> = local_hashes.into_iter().collect();
+                        let filename = format!("{}.matches.sig", name);
+                        if let Ok(mut file) = File::create(&filename) {
+                            let unique_hashes: Vec<u64> = local_hashes.into_iter().collect();
 
-                        let mut new_mh = KmerMinHash::new(
-                            query_mh.scaled().try_into().unwrap(),
-                            query_mh.ksize().try_into().unwrap(),
-                            query_mh.hash_function().clone(),
-                            query_mh.seed(),
-                            false,
-                            query_mh.num(),
-                        );
+                            let mut new_mh = KmerMinHash::new(
+                                query_mh.scaled().try_into().unwrap(),
+                                query_mh.ksize().try_into().unwrap(),
+                                query_mh.hash_function().clone(),
+                                query_mh.seed(),
+                                false,
+                                query_mh.num(),
+                            );
 
-                        new_mh.add_many(&unique_hashes);
-                        let mut signature = Signature::default();
-                        signature.push(Sketch::MinHash(new_mh));
-                        signature.set_filename(&name);
-                        signature.to_writer(&mut file).unwrap();
+                            new_mh.add_many(&unique_hashes);
+                            let mut signature = Signature::default();
+                            signature.push(Sketch::MinHash(new_mh));
+                            signature.set_filename(&name);
+                            if let Err(e) = signature.to_writer(&mut file) {
+                                eprintln!("Error writing signature file: {}", e);
+                            }
+                        } else {
+                            eprintln!("Error creating signature file: {}", filename);
+                        }
                     } else {
                         println!("No matches to '{}'", location);
                     }
