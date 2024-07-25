@@ -31,9 +31,8 @@ pub fn fastmultigather(
     scaled: usize,
     selection: &Selection,
     allow_failed_sigpaths: bool,
+    save_matches: bool,
 ) -> Result<()> {
-    let save_matches: bool = false;
-
     // load query collection
     let query_collection = load_collection(
         &query_filepath,
@@ -88,7 +87,9 @@ pub fn fastmultigather(
                             if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
                                     if save_matches {
-                                        if let Ok(intersection) = against.minhash.intersection(query_mh) {
+                                        if let Ok(intersection) =
+                                            against.minhash.intersection(query_mh)
+                                        {
                                             matching_hashes.extend(intersection.0);
                                         }
                                     }
@@ -124,9 +125,10 @@ pub fn fastmultigather(
 
                         // Save matching hashes to .sig file if save_matches is true
                         if save_matches {
-                            let sig_filename = format!("{}_saved_matches.sig", name);
+                            let sig_filename = format!("{}.matches.sig", name);
                             if let Ok(mut file) = File::create(&sig_filename) {
-                                let unique_hashes: HashSet<u64> = matching_hashes.into_iter().collect();
+                                let unique_hashes: HashSet<u64> =
+                                    matching_hashes.into_iter().collect();
                                 let mut new_mh = KmerMinHash::new(
                                     query_mh.scaled().try_into().unwrap(),
                                     query_mh.ksize().try_into().unwrap(),

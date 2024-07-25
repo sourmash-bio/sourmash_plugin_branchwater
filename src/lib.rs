@@ -105,7 +105,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
-#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None))]
+#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false))]
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
@@ -114,6 +114,7 @@ fn do_fastmultigather(
     scaled: usize,
     moltype: String,
     output_path: Option<String>,
+    save_matches: bool,
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
@@ -146,6 +147,7 @@ fn do_fastmultigather(
             scaled,
             &selection,
             allow_failed_sigpaths,
+            save_matches,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
