@@ -1235,8 +1235,6 @@ def test_save_matches(runtmp):
 
     assert os.path.exists(g_output)
     df = pandas.read_csv(g_output)
-    df.to_csv('/Users/mabuelanin/dev/branchwater/sourmash_plugin_branchwater_save_matches/XX_test_gather.csv', index=False)
-    print(df)
 
     assert len(df) == 3
     keys = set(df.keys())
