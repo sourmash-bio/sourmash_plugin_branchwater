@@ -2,7 +2,8 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::selection::Selection;
+use sourmash::prelude::ToWriter;
+use sourmash::{selection::Selection, signature::SigsTrait};
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -15,6 +16,9 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 
+use sourmash::signature::Signature;
+use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
@@ -84,8 +88,10 @@ pub fn fastmultigather(
                             let mut mm: Option<PrefetchResult> = None;
                             if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
+                                    
                                     let extracted_overlap_list =
                                         against.minhash.intersection(query_mh).unwrap().0;
+                                    
                                     local_hashes.extend(extracted_overlap_list);
 
                                     let result = PrefetchResult {
@@ -119,12 +125,24 @@ pub fn fastmultigather(
                         .ok();
 
                         // Write unique hashes to a file
-                        let filename = format!("{}_unique_hashes.txt", name);
+                        let filename = format!("{}_saved_matches.sig", name);
                         let mut file = File::create(&filename).unwrap();
-                        let unique_hashes: HashSet<u64> = local_hashes.drain(..).collect();
-                        for hash in unique_hashes {
-                            writeln!(file, "{}", hash).unwrap();
-                        }
+                        let unique_hashes: Vec<u64> = local_hashes.into_iter().collect();
+
+                        let mut new_mh = KmerMinHash::new(
+                            query_mh.scaled().try_into().unwrap(),
+                            query_mh.ksize().try_into().unwrap(),
+                            query_mh.hash_function().clone(),
+                            query_mh.seed(),
+                            false,
+                            query_mh.num(),
+                        );
+
+                        new_mh.add_many(&unique_hashes);
+                        let mut signature = Signature::default();
+                        signature.push(Sketch::MinHash(new_mh));
+                        signature.set_filename(&name);
+                        signature.to_writer(&mut file).unwrap();
                     } else {
                         println!("No matches to '{}'", location);
                     }
