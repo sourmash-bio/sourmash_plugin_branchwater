@@ -32,6 +32,8 @@ pub fn fastmultigather(
     selection: &Selection,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
+    let save_matches: bool = false;
+
     // load query collection
     let query_collection = load_collection(
         &query_filepath,
@@ -78,16 +80,17 @@ pub fn fastmultigather(
                 let prefix = name.split(' ').next().unwrap_or_default().to_string();
                 let location = PathBuf::new(&prefix).file_name().unwrap();
                 if let Some(query_mh) = query_sig.minhash() {
-                    let mut matching_hashes = Vec::new();
+                    let mut matching_hashes = if save_matches { Vec::new() } else { Vec::new() };
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
                         .filter_map(|against| {
                             let mut mm: Option<PrefetchResult> = None;
                             if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
-                                    if let Ok(intersection) = against.minhash.intersection(query_mh)
-                                    {
-                                        matching_hashes.extend(intersection.0);
+                                    if save_matches {
+                                        if let Ok(intersection) = against.minhash.intersection(query_mh) {
+                                            matching_hashes.extend(intersection.0);
+                                        }
                                     }
                                     let result = PrefetchResult {
                                         name: against.name.clone(),
@@ -119,27 +122,29 @@ pub fn fastmultigather(
                         )
                         .ok();
 
-                        // Save matching hashes to .sig file
-                        let sig_filename = format!("{}.matches.sig", name);
-                        if let Ok(mut file) = File::create(&sig_filename) {
-                            let unique_hashes: HashSet<u64> = matching_hashes.into_iter().collect();
-                            let mut new_mh = KmerMinHash::new(
-                                query_mh.scaled().try_into().unwrap(),
-                                query_mh.ksize().try_into().unwrap(),
-                                query_mh.hash_function().clone(),
-                                query_mh.seed(),
-                                false,
-                                query_mh.num(),
-                            );
-                            new_mh.add_many(&unique_hashes.into_iter().collect::<Vec<_>>());
-                            let mut signature = Signature::default();
-                            signature.push(Sketch::MinHash(new_mh));
-                            signature.set_filename(&name);
-                            if let Err(e) = signature.to_writer(&mut file) {
-                                eprintln!("Error writing signature file: {}", e);
+                        // Save matching hashes to .sig file if save_matches is true
+                        if save_matches {
+                            let sig_filename = format!("{}_saved_matches.sig", name);
+                            if let Ok(mut file) = File::create(&sig_filename) {
+                                let unique_hashes: HashSet<u64> = matching_hashes.into_iter().collect();
+                                let mut new_mh = KmerMinHash::new(
+                                    query_mh.scaled().try_into().unwrap(),
+                                    query_mh.ksize().try_into().unwrap(),
+                                    query_mh.hash_function().clone(),
+                                    query_mh.seed(),
+                                    false,
+                                    query_mh.num(),
+                                );
+                                new_mh.add_many(&unique_hashes.into_iter().collect::<Vec<_>>());
+                                let mut signature = Signature::default();
+                                signature.push(Sketch::MinHash(new_mh));
+                                signature.set_filename(&name);
+                                if let Err(e) = signature.to_writer(&mut file) {
+                                    eprintln!("Error writing signature file: {}", e);
+                                }
+                            } else {
+                                eprintln!("Error creating signature file: {}", sig_filename);
                             }
-                        } else {
-                            eprintln!("Error creating signature file: {}", sig_filename);
                         }
                     } else {
                         println!("No matches to '{}'", location);
