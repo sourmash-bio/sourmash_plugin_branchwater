@@ -11,6 +11,11 @@ use std::collections::BinaryHeap;
 
 use camino::Utf8Path as PathBuf;
 
+use std::collections::HashSet;
+use std::fs::File;
+use std::io::Write;
+
+
 use crate::utils::{
     consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
     ReportType,
@@ -69,6 +74,9 @@ pub fn fastmultigather(
                 let name = query_sig.name();
                 let prefix = name.split(' ').next().unwrap_or_default().to_string();
                 let location = PathBuf::new(&prefix).file_name().unwrap();
+                // Use a local Vec to collect hashes for the current query
+                let mut local_hashes = Vec::new();
+
                 if let Some(query_mh) = query_sig.minhash() {
                     let matchlist: BinaryHeap<PrefetchResult> = against
                         .iter()
@@ -76,6 +84,10 @@ pub fn fastmultigather(
                             let mut mm: Option<PrefetchResult> = None;
                             if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                                 if overlap >= threshold_hashes {
+                                    let extracted_overlap_list =
+                                        against.minhash.intersection(query_mh).unwrap().0;
+                                    local_hashes.extend(extracted_overlap_list);
+
                                     let result = PrefetchResult {
                                         name: against.name.clone(),
                                         md5sum: against.md5sum.clone(),
@@ -105,6 +117,14 @@ pub fn fastmultigather(
                             Some(gather_output),
                         )
                         .ok();
+
+                        // Write unique hashes to a file
+                        let filename = format!("{}_unique_hashes.txt", name);
+                        let mut file = File::create(&filename).unwrap();
+                        let unique_hashes: HashSet<u64> = local_hashes.drain(..).collect();
+                        for hash in unique_hashes {
+                            writeln!(file, "{}", hash).unwrap();
+                        }
                     } else {
                         println!("No matches to '{}'", location);
                     }
