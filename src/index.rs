@@ -1,5 +1,6 @@
 use sourmash::index::revindex::RevIndex;
 use sourmash::prelude::*;
+use sourmash::index::revindex::RevIndexOps;
 use std::path::Path;
 
 use crate::utils::{load_collection, ReportType};
@@ -20,11 +21,13 @@ pub fn index<P: AsRef<Path>>(
         allow_failed_sigpaths,
     )?;
 
-    RevIndex::create(
+    let mut index = RevIndex::create(
         output.as_ref(),
         collection.select(selection)?.try_into()?,
         colors,
     )?;
+
+    index.internalize_storage()?;
 
     Ok(())
 }
