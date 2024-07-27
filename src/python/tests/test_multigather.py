@@ -548,7 +548,7 @@ def test_empty_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Sketch loading error: No such file or directory" in captured.err
+    assert "WARNING: path '' does not exist in 'against.txt'" in captured.err
     assert "No search signatures loaded, exiting." in captured.err
 
 

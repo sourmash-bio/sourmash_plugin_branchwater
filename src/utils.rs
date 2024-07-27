@@ -726,13 +726,25 @@ fn collection_to_signatures(collection: &Collection) -> Result<Vec<Signature>, a
         .filter_map(|record| match collection.sig_from_record(&record) {
             Ok(sigstore) => {
                 eprintln!(
-                    "Hello in collection_to_signatures, reading {}",
-                    record.filename()
+                    "\n:) Hello in collection_to_signatures, record.internal_location(): {}, record.filename(): {}",
+                    record.internal_location(), record.filename()
                 );
+                eprintln!("record.md5sum(): {}", record.md5());
                 let sig = Signature::from(sigstore);
+                eprintln!(
+                    ":) Hello in collection_to_signatures, created signature, signature filename: {}",
+                    sig.filename()
+                );                
+                eprintln!("sig.md5sum(): {}", sig.md5sum());
                 Some(sig)
             }
-            Err(_err) => None,
+            Err(_err) => {
+                eprintln!(
+                    "\n:( Hello in collection_to_signatures Error (None), record.internal_location(): {}, record.filename(): {}",
+                    record.internal_location(), record.filename()
+                );
+                None
+            },
             //    record.filename()
         })
         // .map(|record| record.filename());
