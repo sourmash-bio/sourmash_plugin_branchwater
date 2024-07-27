@@ -397,7 +397,7 @@ def test_missing_query(runtmp, capfd, indexed):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert "WARNING: path 'no-exist' does not exist" in captured.err
     assert "WARNING: 1 query paths failed to load. See error messages above."
 
 
@@ -493,7 +493,7 @@ def test_bad_against(runtmp, capfd):
 
     against_list = runtmp.output('against.txt')
     sig2 = get_test_data('2.fa.sig.gz')
-    make_file_list(against_list, [sig2, "no exist"])
+    make_file_list(against_list, [sig2, "no-exist"])
 
     # should succeed, but with error output.
     runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
@@ -502,7 +502,7 @@ def test_bad_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: could not load sketches from path 'no exist'" in captured.err
+    assert "WARNING: path 'no-exist' does not exist" in captured.err
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
@@ -549,7 +549,7 @@ def test_empty_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Sketch loading error: No such file or directory" in captured.err
+    assert "WARNING: path '' does not exist in 'against.txt'" in captured.err
     assert "No search signatures loaded, exiting." in captured.err
 
 
