@@ -193,7 +193,7 @@ As of v0.9.5, `fastgather` outputs the same columns as `sourmash gather`, with o
 
 `fastmultigather` takes a collection of query metagenomes and a collection of sketches as a database, and outputs many CSVs:
 ```
-sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4
+sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4 --save-matches
 ```
 <!-- We suggest using a manifest CSV for the queries. CTB -->
 
@@ -204,6 +204,8 @@ The main advantage that `fastmultigather` has over running `fastgather` on multi
 On a database of sketches (but not on RocksDB indexes) `fastmultigather` will output two CSV files for each query, a `prefetch` file containing all overlapping matches between that query and the database, and a `gather` file containing the minimum metagenome cover for that query in the database.
 
 The prefetch CSV will be named `{signame}.prefetch.csv`, and the gather CSV will be named `{signame}.gather.csv`.  Here, `{signame}` is the name of your sourmash signature.
+
+`--save-matches` is an optional flag that will save the matched hashes for each query in a separate sourmash signature `{signame}.matches.sig`. This can be useful for debugging or for further analysis.
 
 When searching against a RocksDB index, `fastmultigather` will output a single file containing all gather results, specified with `-o/--output`. No prefetch results will be output.
 
