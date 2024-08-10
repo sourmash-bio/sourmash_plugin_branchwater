@@ -183,7 +183,14 @@ fn do_index(
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = false;
-    match index::index(siglist, &selection, output, colors, allow_failed_sigpaths, use_internal_storage) {
+    match index::index(
+        siglist,
+        &selection,
+        output,
+        colors,
+        allow_failed_sigpaths,
+        use_internal_storage,
+    ) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

@@ -1,6 +1,6 @@
 use sourmash::index::revindex::RevIndex;
-use sourmash::prelude::*;
 use sourmash::index::revindex::RevIndexOps;
+use sourmash::prelude::*;
 use std::path::Path;
 
 use crate::utils::{load_collection, ReportType};
