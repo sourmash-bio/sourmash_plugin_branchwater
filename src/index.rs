@@ -11,6 +11,7 @@ pub fn index<P: AsRef<Path>>(
     output: P,
     colors: bool,
     allow_failed_sigpaths: bool,
+    use_internal_storage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
@@ -27,7 +28,9 @@ pub fn index<P: AsRef<Path>>(
         colors,
     )?;
 
-    index.internalize_storage()?;
+    if use_internal_storage {
+        index.internalize_storage()?;
+    }
 
     Ok(())
 }

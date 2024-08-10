@@ -25,7 +25,7 @@ def test_installed(runtmp):
     assert 'usage:  index' in runtmp.last_result.err
 
 
-def test_index(runtmp):
+def test_index(runtmp, toggle_internal_storage):
     # test basic index!
     siglist = runtmp.output('db-sigs.txt')
 
@@ -38,47 +38,49 @@ def test_index(runtmp):
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', output)
+                    '-o', output, toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
 
     assert 'index is done' in runtmp.last_result.err
 
 
-def test_index_protein(runtmp):
+def test_index_protein(runtmp, toggle_internal_storage):
     sigs = get_test_data('protein.zip')
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
-                    '--moltype', 'protein', '-o', output)
+                    '--moltype', 'protein', '-o', output,
+                    toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
     assert 'index is done' in runtmp.last_result.err
 
 
-def test_index_dayhoff(runtmp):
+def test_index_dayhoff(runtmp, toggle_internal_storage):
     sigs = get_test_data('dayhoff.zip')
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
-                    '--moltype', 'dayhoff', '-o', output)
+                    '--moltype', 'dayhoff', '-o', output,
+                    toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
     assert 'index is done' in runtmp.last_result.err
 
 
-def test_index_protein(runtmp):
+def test_index_protein(runtmp, toggle_internal_storage):
     sigs = get_test_data('hp.zip')
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', sigs, '-k', '19', '-s', '100',
-                    '--moltype', 'hp', '-o', output)
+                    '--moltype', 'hp', '-o', output, toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
     assert 'index is done' in runtmp.last_result.err
 
 
-def test_index_missing_siglist(runtmp, capfd):
+def test_index_missing_siglist(runtmp, capfd, toggle_internal_storage):
     # test missing siglist file
     siglist = runtmp.output('db-sigs.txt')
     output = runtmp.output('out.db')
@@ -86,21 +88,21 @@ def test_index_missing_siglist(runtmp, capfd):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'index', siglist,
-                        '-o', output)
+                        '-o', output, toggle_internal_storage)
 
     captured = capfd.readouterr()
     print(captured.err)
     assert 'Error: No such file or directory' in captured.err
 
 
-def test_index_sig(runtmp, capfd):
+def test_index_sig(runtmp, capfd, toggle_internal_storage):
     # test index with a .sig.gz file instead of pathlist
     # (should work now)
     sig2 = get_test_data('2.fa.sig.gz')
     output = runtmp.output('out.db')
 
     runtmp.sourmash('scripts', 'index', sig2,
-                        '-o', output)
+                    '-o', output, toggle_internal_storage)
 
     captured = capfd.readouterr()
     print(captured.err)
@@ -108,7 +110,7 @@ def test_index_sig(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
 
 
-def test_index_manifest(runtmp, capfd):
+def test_index_manifest(runtmp, capfd, toggle_internal_storage):
     # test index with a manifest file
     sig2 = get_test_data('2.fa.sig.gz')
     output = runtmp.output('out.db')
@@ -116,7 +118,7 @@ def test_index_manifest(runtmp, capfd):
     runtmp.sourmash("sig", "manifest", sig2, "-o", sig_mf)
 
     runtmp.sourmash('scripts', 'index', sig_mf,
-                        '-o', output)
+                        '-o', output, toggle_internal_storage)
 
     captured = capfd.readouterr()
     print(captured.err)
@@ -202,7 +204,7 @@ def test_index_nomatch_sig_in_siglist(runtmp, capfd):
     assert os.path.exists(db)
 
 
-def test_index_zipfile(runtmp, capfd):
+def test_index_zipfile(runtmp, capfd, toggle_internal_storage):
     # test basic index from sourmash zipfile
     siglist = runtmp.output('db-sigs.txt')
 
@@ -219,7 +221,7 @@ def test_index_zipfile(runtmp, capfd):
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
-                    '-o', output)
+                    '-o', output, toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
 
@@ -228,7 +230,7 @@ def test_index_zipfile(runtmp, capfd):
     print(captured.err)
 
 
-def test_index_zipfile_subdir(runtmp, capfd):
+def test_index_zipfile_subdir(runtmp, capfd, toggle_internal_storage):
     # test index from sourmash zipfile in different directory.
 
     # this was a tough test to get to fail!! have to:
@@ -256,7 +258,8 @@ def test_index_zipfile_subdir(runtmp, capfd):
     output = runtmp.output('subdir/db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
-                    '-o', output, in_directory=runtmp.output(''))
+                    '-o', output, in_directory=runtmp.output(''),
+                    toggle_internal_storage=toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
 
@@ -270,7 +273,7 @@ def test_index_zipfile_subdir(runtmp, capfd):
                     in_directory=runtmp.output(''))
 
 
-def test_index_zipfile_repeated_md5sums(runtmp, capfd):
+def test_index_zipfile_repeated_md5sums(runtmp, capfd, toggle_internal_storage):
     # test that we're reading all files, including repeated md5sums
     siglist = runtmp.output('db-sigs.txt')
 
@@ -288,7 +291,7 @@ def test_index_zipfile_repeated_md5sums(runtmp, capfd):
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
-                    '-o', output)
+                    '-o', output, toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
 
@@ -298,7 +301,7 @@ def test_index_zipfile_repeated_md5sums(runtmp, capfd):
     assert 'index is done' in runtmp.last_result.err
 
 
-def test_index_zipfile_multiparam(runtmp, capfd):
+def test_index_zipfile_multiparam(runtmp, capfd, toggle_internal_storage):
     # test index from sourmash zipfile with multiple ksizes / scaled /moltype
     siglist = runtmp.output('db-sigs.txt')
 
@@ -318,7 +321,7 @@ def test_index_zipfile_multiparam(runtmp, capfd):
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', zipf,
-                    '-o', output)
+                    '-o', output, toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
 
@@ -349,7 +352,7 @@ def test_index_zipfile_bad(runtmp, capfd):
     assert "Couldn't find End Of Central Directory Record" in captured.err
 
 
-def test_index_check(runtmp):
+def test_index_check(runtmp, toggle_internal_storage):
     # test check index
     siglist = runtmp.output('db-sigs.txt')
 
@@ -361,7 +364,7 @@ def test_index_check(runtmp):
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', output)
+                    '-o', output, toggle_internal_storage)
 
     runtmp.sourmash('scripts', 'check', output)
     print(runtmp.last_result.err)
@@ -369,7 +372,7 @@ def test_index_check(runtmp):
     assert 'index is ok' in runtmp.last_result.err
 
 
-def test_index_check_quick(runtmp):
+def test_index_check_quick(runtmp, toggle_internal_storage):
     # test check index
     siglist = runtmp.output('db-sigs.txt')
 
@@ -381,7 +384,7 @@ def test_index_check_quick(runtmp):
     output = runtmp.output('db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', output)
+                    '-o', output, toggle_internal_storage)
 
     runtmp.sourmash('scripts', 'check', '--quick', output)
     print(runtmp.last_result.err)
@@ -389,8 +392,8 @@ def test_index_check_quick(runtmp):
     assert 'index is ok' in runtmp.last_result.err
 
 
-def test_index_subdir(runtmp):
-    # test basic index!
+def test_index_subdir(runtmp, toggle_internal_storage):
+    # test basic index & output to subdir
     siglist = runtmp.output('db-sigs.txt')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -403,7 +406,7 @@ def test_index_subdir(runtmp):
     output = runtmp.output('subdir/db.rocksdb')
 
     runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', output)
+                    '-o', output, toggle_internal_storage)
     assert os.path.exists(output)
     print(runtmp.last_result.err)
 
