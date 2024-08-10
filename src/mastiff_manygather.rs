@@ -123,8 +123,7 @@ pub fn mastiff_manygather(
                             }
                         } else {
                             eprintln!("Error gathering matches: {:?}", matches.err());
-                            let _ = failed_gathers.fetch_add(1,
-                                                             atomic::Ordering::SeqCst);
+                            let _ = failed_gathers.fetch_add(1, atomic::Ordering::SeqCst);
                         }
                     } else {
                         eprintln!(

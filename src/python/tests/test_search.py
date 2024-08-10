@@ -140,70 +140,72 @@ def test_simple(runtmp, zip_query, zip_against):
 
 def test_simple_abund(runtmp):
     # test with abund sig
-    query = get_test_data('SRR606249.sig.gz')
-    against_list = runtmp.output('against.txt')
-
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
-    make_file_list(against_list, [sig2, sig47, sig63])
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    against = get_test_data('SRR606249.sig.gz')
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manysearch', query, against_list,
+    runtmp.sourmash('scripts', 'manysearch', query_list, against,
                         '-o', output, '--scaled', '100000', '-k', '31')
 
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
-    assert len(df) == 1
+    assert len(df) == 3
 
     dd = df.to_dict(orient='index')
+    dd = list(sorted(dd.values(), key=lambda x: x['query_name']))
     print(dd)
 
-    for idx, row in dd.items():
-        # confirm hand-checked numbers
-        q = row['query_name'].split()[0]
-        assert q == "SRR606249"
-        m = row['match_name'].split()[0]
-        assert "NC_011665.1" in m
-        cont = float(row['containment'])
-        jaccard = float(row['jaccard'])
-        maxcont = float(row['max_containment'])
-        intersect_hashes = int(row['intersect_hashes'])
-        query_ani = float(row['query_containment_ani'])
-        match_ani = float(row['match_containment_ani'])
-        average_ani = float(row['average_containment_ani'])
-        max_ani = float(row['max_containment_ani'])
-        average_abund = float(row['average_abund'])
-        median_abund = float(row['median_abund'])
-        std_abund = float(row['std_abund'])
+    row = dd[0]
+    query_name = row['query_name'].split()[0]
+    average_abund = round(float(row['average_abund']), 4)
+    median_abund = round(float(row['median_abund']), 4)
+    std_abund = round(float(row['std_abund']), 4)
+    n_weighted_found = int(row['n_weighted_found'])
+    total_weighted_hashes = int(row['total_weighted_hashes'])
 
-        jaccard = round(jaccard, 4)
-        cont = round(cont, 4)
-        maxcont = round(maxcont, 4)
-        query_ani = round(query_ani, 4)
-        match_ani = round(match_ani, 4)
-        average_ani = round(average_ani, 4)
-        max_ani = round(max_ani, 4)
-        avg_abund = round(average_abund, 4)
-        med_abund = round(median_abund, 4)
-        std_abund = round(std_abund, 4)
-        print(q, m, f"{jaccard}", f"{cont}", f"{maxcont}",
-                    f"{query_ani}", f"{match_ani}", f"{average_ani}", f"{max_ani}",
-                    f"{avg_abund}", f"{med_abund}", f"{std_abund}")
+    assert query_name == 'CP001071.1'
+    assert average_abund == round(21.045454545454500, 4)
+    assert median_abund == 21.5
+    assert std_abund == round(5.644605411181010, 4)
+    assert n_weighted_found == 463
+    assert total_weighted_hashes == 73489
 
-        assert jaccard == 0.0047
-        assert cont == 0.0105
-        assert maxcont == 0.0105
-        assert intersect_hashes == 44
-        assert query_ani == 0.8632
-        assert match_ani == 0.8571
-        assert average_ani == 0.8602
-        assert max_ani == 0.8632
-        assert avg_abund == 10.3864
-        assert med_abund == 10.5
-        assert std_abund == 6.9322
+    row = dd[1]
+    query_name = row['query_name'].split()[0]
+    average_abund = round(float(row['average_abund']), 4)
+    median_abund = round(float(row['median_abund']), 4)
+    std_abund = round(float(row['std_abund']), 4)
+    n_weighted_found = int(row['n_weighted_found'])
+    total_weighted_hashes = int(row['total_weighted_hashes'])
+
+    assert query_name == 'NC_009661.1'
+    assert average_abund == round(11.365853658536600, 4)
+    assert median_abund == 11.0
+    assert std_abund == round(4.976805212676670, 4)
+    assert n_weighted_found == 466
+    assert total_weighted_hashes == 73489
+
+    row = dd[2]
+    query_name = row['query_name'].split()[0]
+    average_abund = round(float(row['average_abund']), 4)
+    median_abund = round(float(row['median_abund']), 4)
+    std_abund = round(float(row['std_abund']), 4)
+    n_weighted_found = int(row['n_weighted_found'])
+    total_weighted_hashes = int(row['total_weighted_hashes'])
+
+    assert query_name == 'NC_011665.1'
+    assert average_abund == round(10.386363636363600, 4)
+    assert median_abund == 10.5
+    assert std_abund == round(6.932190750047300, 4)
+    assert n_weighted_found == 457
+    assert total_weighted_hashes == 73489
 
 
 @pytest.mark.parametrize("zip_query", [False, True])
