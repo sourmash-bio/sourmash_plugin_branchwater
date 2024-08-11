@@ -7,6 +7,7 @@ import os
 import importlib.metadata
 
 from . import sourmash_plugin_branchwater
+from . import prettyprint
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")
 
@@ -58,6 +59,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('-P', '--pretty-print', action='store_true',
+                       help="display the output CSV file after search finishes")
 
     def main(self, args):
         print_version()
@@ -77,6 +80,9 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                            args.output)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
+
+        if args.pretty_print:
+            prettyprint.pretty_print_manysearch(args.output)
         return status
 
 
