@@ -60,7 +60,11 @@ class Branchwater_Manysearch(CommandLinePlugin):
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
         p.add_argument('-P', '--pretty-print', action='store_true',
-                       help="display the output CSV file after search finishes")
+                       default=True,
+                       help="display results after search finishes (default: True)")
+        p.add_argument('-N', '--no-pretty-print', action='store_false',
+                       dest='pretty_print',
+                       help="do not display results (e.g. for large output)")
 
     def main(self, args):
         print_version()
