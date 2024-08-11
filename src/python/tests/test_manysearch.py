@@ -1080,3 +1080,45 @@ def test_simple_hp_indexed(runtmp):
                 assert cont == 0.5994
                 assert intersect_hashes == 1724
                 assert query_ani == 0.9911
+
+
+def test_pretty_print(runtmp):
+    # test pretty-printing of output
+    query = get_test_data('hmp-queries.sig.zip')
+    against = get_test_data('hmp-against.sig.zip')
+
+    outcsv = runtmp.output('xxx.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query, against,
+                    '-o', outcsv)
+    print(runtmp.last_result.out)
+
+    # if this fails in the future, it might be because the order of the
+    # output gets shuffled by multithreading. consider refactoring to
+    # do line by line?
+    expected="""\
+query             p_genome avg_abund   p_metag   metagenome name
+--------          -------- ---------   -------   ---------------
+B. fragilis I1345   96.7%     7.3      27.5%     CD136
+B. fragilis I1345   96.7%     7.5      22.6%     CD237
+F. prausnitzii      58.4%    25.3      30.7%     CD136
+"""
+    assert expected in runtmp.last_result.out
+
+
+def test_no_pretty_print(runtmp):
+    # test pretty-printing of output
+    query = get_test_data('hmp-queries.sig.zip')
+    against = get_test_data('hmp-against.sig.zip')
+
+    outcsv = runtmp.output('xxx.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query, against,
+                    '-o', outcsv, '-N')
+    print(runtmp.last_result.out)
+
+    # if this fails in the future, it might be because the order of the
+    # output gets shuffled by multithreading. consider refactoring to
+    # do line by line?
+    expected="p_genome"
+    assert expected not in runtmp.last_result.out
