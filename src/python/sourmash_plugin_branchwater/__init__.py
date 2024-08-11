@@ -85,8 +85,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
 
-        if args.pretty_print:
-            prettyprint.pretty_print_manysearch(args.output)
+            if args.pretty_print:
+                prettyprint.pretty_print_manysearch(args.output)
         return status
 
 

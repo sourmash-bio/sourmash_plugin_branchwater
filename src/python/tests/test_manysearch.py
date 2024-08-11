@@ -1091,7 +1091,7 @@ F. prausnitzii      58.4%    25.3      30.7%     CD136
 
 
 def test_no_pretty_print(runtmp):
-    # test pretty-printing of output
+    # test turning off pretty-printing of output
     query = get_test_data('hmp-queries.sig.zip')
     against = get_test_data('hmp-against.sig.zip')
 
