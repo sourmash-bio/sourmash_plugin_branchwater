@@ -49,8 +49,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help="input file of sketches")
         p.add_argument('-o', '--output', required=True,
                        help='CSV output file for matches')
-        p.add_argument('-t', '--threshold', default=0.01, type=float,
-                       help='containment threshold for reporting matches')
+        p.add_argument('-t', '--threshold', default=0, type=float,
+                       help='containment threshold for reporting matches (default: 0.0)')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,

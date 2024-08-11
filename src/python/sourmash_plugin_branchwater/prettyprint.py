@@ -10,7 +10,7 @@ def pretty_print_manysearch(manysearch_csv):
 
     first = True
     for row in rows:
-        has_abundance = row['average_abund'] != ''
+        has_abundance = 'average_abund' in row
 
         #
         # display!
