@@ -190,6 +190,12 @@ class Branchwater_Index(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('--internal-storage', default=True, action='store_true',
+                       help="build indexes that contain sketches and are relocatable (default: True)")
+        p.add_argument('--no-internal-storage', '--no-store-sketches',
+                       action='store_false',
+                       help="do not store sketches in the index; index may not be relocatable (default: False)",
+                       dest='internal_storage')
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} ")
@@ -205,7 +211,8 @@ class Branchwater_Index(CommandLinePlugin):
                                                       args.scaled,
                                                       args.moltype,
                                                       args.output,
-                                                      False) # colors - currently must be false?
+                                                      False, # colors - currently must be false?
+                                                      args.internal_storage)
         if status == 0:
             notify(f"...index is done! results in '{args.output}'")
         return status
@@ -217,7 +224,7 @@ class Branchwater_Check(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('index',
-                       help='index file')
+                       help="RocksDB index file created with 'index'")
         p.add_argument('--quick', action='store_true')
 
     def main(self, args):
