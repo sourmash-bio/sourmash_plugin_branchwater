@@ -250,9 +250,15 @@ sourmash scripts manysearch queries.zip metagenomes.manifest.csv -o results.csv
 ```
 <!-- We suggest using a manifest CSV for the metagenome collection. -->
 
-The results file here, `query.x.gtdb-reps.csv`, will have the following columns: `query`, `query_md5`, `match_name`, `match_md5`, `containment`, `jaccard`, `max_containment`, `intersect_hashes`, `query_containment_ani`.
+The results file here, `query.x.gtdb-reps.csv`, will have the
+following columns: `query`, `query_md5`, `match_name`, `match_md5`,
+`containment`, `jaccard`, `max_containment`, `intersect_hashes`,
+`query_containment_ani`.
 
-If you run `manysearch` _without_ using a RocksDB database (that is, against regular sketches), the results file will also have the following columns: , `match_containment_ani`, `average_containment_ani`, and `max_containment_ani`.
+If you run `manysearch` _without_ using a RocksDB database (that is,
+against regular sketches), the results file will also have the
+following columns: , `match_containment_ani`,
+`average_containment_ani`, and `max_containment_ani`.
 
 Finally, if using sketches that have abundance information, the
 results file will also contain the following columns: `average_abund`,
@@ -344,12 +350,12 @@ if `--no-internal-storage` is provided, then the references point to
 the original source sketches used to construct the database, wherever
 they reside on your disk.
 
-The sketches *are not used* by `manysearch`, but **are used** by
+The sketches *are not used* by `manysearch`, but *are used* by
 `multifastgather`: with v0.9.6 and later, you'll get an error if you
 run `multifastgather` against a RocksDB index where the sketches
 cannot be loaded.
 
-**What this means** is therefore a bit complicated, but boils down to
+What this means is therefore a bit complicated, but boils down to
 the following two approaches:
 
 1. The safest thing to do is build a RocksDB index and use internal
@@ -365,7 +371,7 @@ will stop working (although `manysearch` and the branchwater app
 should be fine).
 
 You should (for the moment) avoid specifying relative paths to the
-sketches.  Follow
+sketches when running `index`.  Follow
 [sourmash_branchwater_plugin#415](https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/415)
 if better support for relative paths is of interest!
 
