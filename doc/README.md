@@ -9,16 +9,21 @@
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
+| `index` | build a RocksDB inverted index for efficient containment queries | [link](#Running-index)
 
 This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
 
-The main *drawback* to these plugin commands is that their inputs and outputs are different (and sometimes not as rich as) the native sourmash commands. In particular, this means that your input files may need to be prepared differently, and the output may need to be processed differently.
+The main *drawback* to these plugin commands is that their inputs are
+more restricted than the native sourmash commands, and in some cases
+their outputs are in a differnt format. This means that your input
+files may need to be prepared differently, and the output may need to
+be processed differently.
 
 **Note:** As of v0.9.5, the outputs of `fastgather` and `fastmultigather` almost completely match the output of `sourmash gather`; see below for details.
 
 ## Input file formats
 
-sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not yet supported by sourmash (through v4.8.9).
+sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not (yet) supported natively by sourmash (through v4.8.11).
 
 <!-- **As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.** CTB -->
 
@@ -79,7 +84,7 @@ will create a manifest CSV from a list of sketches.
 
 The branchwater plugin also supports a database type that is not yet supported by sourmash: inverted indexes stored in a RocksDB database. These indexes provide fast and low-memory lookups when searching very large datasets, and are used for the branchwater petabase scale search hosted at [branchwater.sourmash.bio](https://branchwater.sourmash.bio). 
 
-Some commands - `fastmultigather` and `manysearch` - support using these RocksDB-based inverted indexes. They can be created by running `sourmash scripts index`.
+Some commands - `fastmultigather` and `manysearch` - support using these RocksDB-based inverted indexes. They can be created by running `sourmash scripts index`. See [the `index` documentation, below](#Running-index).
 
 ### Using "fromfiles"
 
@@ -250,23 +255,132 @@ cluster_size,count
 
 `cluster` takes a `--similarity_column` argument to specify which of the similarity columns, with the following choices: `containment`, `max_containment`, `jaccard`, `average_containment_ani`, `maximum_containment_ani`. All values should be input as fractions (e.g. 0.9 for 90%)
 
+### Running `index`
+
+The `index` subcommand creates a RocksDB inverted index that can be
+used as a database for `manysearch` (containment queries into
+mixtures) and `fastmultigather` (mixture decomposition against a
+database of genomes).
+
+RocksDB inverted indexes support fast, low-latency, and low-memory
+queries, in exchange for a time-intensive indexing step and extra disk
+space. They are also used for the
+[branchwater.sourmash.bio](https://branchwater.sourmash.bio/)
+real-time SRA metagenome query.
+
+Note that RocksDB indexes do not support abundance estimation for
+containment queries.
+
+To run `index`, provide it with multiple sketches in sig, zip, or
+fromfile format, and specify the desired output directory; we suggest
+using the `.rocksdb` extension for RocksDB databases, e.g. `-o
+gtdb-rs214-k31.rocksdb`.
+
+By default, as of v0.9.7, `index` will store a copy of the sketches
+along with the inverted index.  This will substantially increase the
+disk space required for large databases.  You can provide an optional
+`--no-internal-storage` to `index` to store them externally, which
+reduces the disk space needed for the index.  Read below for technical
+details!
+
+#### Internal vs external storage of sketches in a RocksDB index
+
+(The below applies to v0.9.7 and later of the plugin; for v0.9.6 and
+before, only external storage was implemented.)
+
+RocksDB indexes support containment queries (a la the
+[branchwater application](https://github.com/sourmash-bio/branchwater)),
+as well as `gather`-style mixture decomposition (see
+[Irber et al., 2022](https://www.biorxiv.org/content/10.1101/2022.01.11.475838v2)).
+For this plugin, the `manysearch` command supports a RocksDB index for
+the database for containment queries, and `multifastgather` can use a
+RocksDB index for the database of genomes.
+
+RocksDB indexes contain references to the sketches used to construct
+the index. If `--internal-storage` is set (which is the default), a
+copy of the sketches is stored within the RocksDB database directory;
+if `--no-internal-storage` is provided, then the references point to
+the original source sketches used to construct the database, wherever
+they reside on your disk.
+
+The sketches *are not used* by `manysearch`, but **are used** by
+`multifastgather`: with v0.9.6 and later, you'll get an error if you
+run `multifastgather` against a RocksDB index where the sketches
+cannot be loaded.
+
+**What this means** is therefore a bit complicated, but boils down to
+the following two approaches:
+
+1. The safest thing to do is build a RocksDB index and use internal
+storage (the default). This will consume more disk space but your
+RocksDB database will always be usable for both `manysearch` and
+`multifastgather`, as well as the branchwater app.
+2. If you want to avoid storing duplicate copies of your sketches,
+then specify `--no-internal-storage` and provide a stable absolute
+path to the source sketches.  This will again support both
+`manysearch` and `multifastgather`, as well as the branchwater app.
+If the source sketches later become unavailable, `multifastgather`
+will stop working (although `manysearch` and the branchwater app
+should be fine).
+
+You should (for the moment) avoid specifying relative paths to the
+sketches.  Follow
+[sourmash_branchwater_plugin#415](https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/415)
+if better support for relative paths is of interest!
+
+#### Links and more materials
+
+Note that RocksDB indexes are implemented in the core
+[sourmash Rust library](https://crates.io/crates/sourmash), and
+used in downstream software packages (this plugin, and
+[the branchwater application code](https://github.com/sourmash-bio/branchwater)).  The above documentation applies to sourmash core v0.15.0.
+
 ## Notes on concurrency and efficiency
 
-Each command does things slightly differently, with implications for CPU and disk load. You can measure threading efficiency with `/usr/bin/time -v` on Linux systems, and disk load by number of complaints received when running.
+Each command does things somewhat differently, with implications for
+CPU and disk load; moreover, the performance will vary depending on
+the database format. You can measure threading efficiency with
+`/usr/bin/time -v` on Linux systems, and disk load by number of
+complaints received when running.  Your best bet is to
+[just ask the team for suggestions](https://github.com/dib-lab/sourmash/issues),
+but you can lightly skim the docs below and play with some small data
+sets, too!
 
-`manysketch` loads one sequence file from disk per thread and sketches it using all signature params simultaneously.
+---
 
-`manysearch` loads all the queries at the beginning, and then loads one database sketch from disk per thread. The compute-per-database-sketch is dominated by I/O. So your number of threads should be chosen with care for disk load. We typically limit it to `-c 32` for shared disks. <!-- We suggest using a manifest CSV file for the database sketches. CTB -->
+`manysketch` loads one sequence file from disk per thread and sketches
+it using all signature params simultaneously.
 
-`multisearch` loads all the queries and database sketches once, at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! Zipfiles <!-- and manifests CTB --> should work well.
+`manysearch` loads all the queries at the beginning, and then loads
+one database sketch from disk per thread. The
+compute-per-database-sketch is dominated by I/O. So your number of
+threads should be chosen with care for disk load. We typically limit
+it to `-c 32` for shared disks. <!-- We suggest using a manifest CSV
+file for the database sketches. CTB -->
 
-`pairwise` acts just like `multisearch`, but only loads one file (and then does all comparisons between all pairs within that file).
+`multisearch` loads all the queries and database sketches once, at the
+beginning, and then uses multithreading to search across all matching
+sequences. For large databases it is extremely efficient at using all
+available cores. So 128 threads or more should work fine!
+Zipfiles <!-- and manifests CTB --> should work well.
 
-Like `multisearch` and `pairwise`, `fastgather` loads everything at the beginning, and then uses multithreading to search across all matching sequences. For large databases it is extremely efficient at using all available cores. So 128 threads or more should work fine! We suggest using zipfiles <!-- or manifests CTB --> for the database.
+`pairwise` acts just like `multisearch`, but only loads one file (and
+then does all comparisons between all pairs within that file).
 
-`fastmultigather` loads the entire database once, and then loads one query from disk per thread. The compute-per-query can be significant, though, so multithreading efficiency here is less dependent on I/O and the disk is less likely to be saturated with many threads. We suggest limiting threads to between 32 and 64 to decrease shared disk load.
+Like `multisearch` and `pairwise`, `fastgather` loads everything at
+the beginning, and then uses multithreading to search across all
+matching sequences. For large databases it is extremely efficient at
+using all available cores. So 128 threads or more should work fine! We
+suggest using zipfiles <!-- or manifests CTB --> for the database.
 
-`cluster` loads the entire file multithreaded, and then populates the graph sequentially.
+`fastmultigather` loads the entire database once, and then loads one
+query from disk per thread. The compute-per-query can be significant,
+though, so multithreading efficiency here is less dependent on I/O and
+the disk is less likely to be saturated with many threads. We suggest
+limiting threads to between 32 and 64 to decrease shared disk load.
+
+`cluster` loads the entire file multithreaded, and then populates the
+graph sequentially.
 
 ## Appendix 1 - `index` to create a low-memory index
 
