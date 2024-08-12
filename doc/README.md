@@ -265,6 +265,12 @@ for information on these various columns.
 The `-t/--threshold` for `manysearch` applies to the containment of
 query-in-database (e.g. genome in metagenome) and defaults to 0.01.
 To report _any_ overlap between two sketches, set the threshold to 0.
+(This will produce many, many results when searching a collection of
+metagenomes!)
+
+By default, `manysearch` will display the contents of the CSV file in a
+human-readable format. This can be disabled with `-N/--no-pretty-print`
+when executing large searches.
 
 ### Running `cluster`
 
