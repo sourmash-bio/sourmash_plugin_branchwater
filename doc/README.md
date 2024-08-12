@@ -114,9 +114,19 @@ When using a pathlist for search, we load all signatures into memory at the star
 
 ### Running `manysketch`
 
-The `manysketch` command sketches one or more FASTA/FASTQ files into a zipped sourmash signature collection (`zip`). `manysketch` uses one thread per input file, so it can (very) efficiently sketch many files at once; and, because sequence file parsing is entirely implemented in Rust, it is much, _much_ faster than `sourmash sketch` for large FASTQ files. However, it does not currently support translation, i.e. protein signature generation from DNA FASTA.
+The `manysketch` command sketches a list of FASTA/FASTQ files into a
+zipped sourmash signature collection (`zip`). `manysketch` uses one
+thread per input file, so it can (very) efficiently sketch many files
+at once; and, because sequence file parsing is entirely implemented in
+Rust, it is much, _much_ faster than `sourmash sketch` for large FASTQ
+files. However, it does not currently support translation,
+i.e. protein signature generation from DNA FASTA.
 
-#### specifying input FASTA
+`manysketch` can be used to sketch collections of genomes, pairs of R1/R2
+files, and more flexible collections based on prefix - which approach is
+used depends on the columns provided to `manysketch` in the input CSV file.
+
+#### Specifying input FASTA
 
 To run `manysketch`, you need to build a text file list of FASTA/FASTQ files (see `manysketch.csv` example, below).
 
