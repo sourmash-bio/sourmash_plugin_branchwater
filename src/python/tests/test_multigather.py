@@ -21,11 +21,12 @@ def make_file_list(filename, paths):
         fp.write("\n")
 
 
-def index_siglist(runtmp, siglist, db, ksize=31, scaled=1000, moltype='DNA'):
+def index_siglist(runtmp, siglist, db, *, ksize=31, scaled=1000, moltype='DNA',
+                  toggle_internal_storage='--internal-storage'):
     # build index
     runtmp.sourmash('scripts', 'index', siglist,
                     '-o', db, '-k', str(ksize), '--scaled', str(scaled),
-                    '--moltype', moltype)
+                    '--moltype', moltype, toggle_internal_storage)
     return db
 
 
@@ -41,7 +42,6 @@ def zip_siglist(runtmp, siglist, db):
                     '-o', db)
     return db
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_simple(runtmp, zip_against):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
@@ -203,8 +203,7 @@ def test_simple_read_manifests(runtmp):
     assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
 
 
-@pytest.mark.parametrize('zip_query', [False, True])
-def test_simple_indexed(runtmp, zip_query):
+def test_simple_indexed(runtmp, zip_query, toggle_internal_storage):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     sig2 = get_test_data('2.fa.sig.gz')
@@ -221,7 +220,7 @@ def test_simple_indexed(runtmp, zip_query):
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     g_output = runtmp.output('out.csv')
-    against_db = index_siglist(runtmp, against_list, runtmp.output('test.rocksdb'))
+    against_db = index_siglist(runtmp, against_list, runtmp.output('test.rocksdb'), toggle_internal_storage=toggle_internal_storage)
     runtmp.sourmash('scripts', 'fastmultigather', query_list,
                         against_db, '-s', '100000', '-t', '0',
                         '-o', g_output)
@@ -240,7 +239,7 @@ def test_simple_indexed(runtmp, zip_query):
     assert  keys == expected_keys
 
 
-def test_simple_indexed_query_manifest(runtmp):
+def test_simple_indexed_query_manifest(runtmp, toggle_internal_storage):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     sig2 = get_test_data('2.fa.sig.gz')
@@ -254,7 +253,8 @@ def test_simple_indexed_query_manifest(runtmp):
     runtmp.sourmash("sig", "manifest", query, "-o", query_mf)
 
     g_output = runtmp.output('out.csv')
-    against_db = index_siglist(runtmp, against_list, runtmp.output('db'))
+    against_db = index_siglist(runtmp, against_list, runtmp.output('db'),
+                               toggle_internal_storage=toggle_internal_storage)
     runtmp.sourmash('scripts', 'fastmultigather', query_mf,
                         against_db, '-s', '100000', '-t', '0',
                         '-o', g_output)
@@ -273,9 +273,7 @@ def test_simple_indexed_query_manifest(runtmp):
     assert  keys == expected_keys
 
 
-@pytest.mark.parametrize('zip_query', [False, True])
-@pytest.mark.parametrize('indexed', [False, True])
-def test_missing_querylist(runtmp, capfd, indexed, zip_query):
+def test_missing_querylist(runtmp, capfd, indexed, zip_query, toggle_internal_storage):
     # test missing querylist
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -290,7 +288,8 @@ def test_missing_querylist(runtmp, capfd, indexed, zip_query):
     make_file_list(against_list, [sig2, sig47, sig63])
 
     if indexed:
-        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'),
+                                     toggle_internal_storage=toggle_internal_storage)
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
@@ -301,7 +300,6 @@ def test_missing_querylist(runtmp, capfd, indexed, zip_query):
     assert 'Error: No such file or directory' in captured.err
 
 
-@pytest.mark.parametrize('indexed', [False, True])
 def test_sig_query(runtmp, capfd, indexed):
     # sig file is now fine as a query
     query = get_test_data('SRR606249.sig.gz')
@@ -347,7 +345,6 @@ def test_sig_query(runtmp, capfd, indexed):
         assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
 
 
-@pytest.mark.parametrize('indexed', [False, True])
 def test_bad_query(runtmp, capfd, indexed):
     # test with a bad query (a .sig.gz file renamed as zip file)
     against_list = runtmp.output('against.txt')
@@ -376,7 +373,6 @@ def test_bad_query(runtmp, capfd, indexed):
     assert "InvalidArchive" in captured.err
 
 
-@pytest.mark.parametrize('indexed', [False, True])
 def test_missing_query(runtmp, capfd, indexed):
     # test missing query
     query_list = runtmp.output('query.txt')
@@ -401,8 +397,6 @@ def test_missing_query(runtmp, capfd, indexed):
     assert "WARNING: 1 query paths failed to load. See error messages above."
 
 
-@pytest.mark.parametrize('indexed', [False, True])
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_nomatch_query(runtmp, capfd, indexed, zip_query):
     # test nomatch file in querylist
     query_list = runtmp.output('query.txt')
@@ -429,7 +423,6 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
     assert "WARNING: skipped 1 query paths - no compatible signatures." in captured.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_missing_against(runtmp, capfd, zip_against):
     # test missing against
     query_list = runtmp.output('query.txt')
@@ -506,7 +499,6 @@ def test_bad_against(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-@pytest.mark.parametrize('zip_query', [False, True])
 def test_bad_against_2(runtmp, capfd, zip_query):
     # test with a bad against (a .sig.gz file renamed as zip file)
     query = get_test_data('SRR606249.sig.gz')
@@ -553,7 +545,6 @@ def test_empty_against(runtmp, capfd):
     assert "No search signatures loaded, exiting." in captured.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_nomatch_in_against(runtmp, capfd, zip_against):
     # test an against file that has a non-matching ksize sig in it
     query = get_test_data('SRR606249.sig.gz')
@@ -578,7 +569,6 @@ def test_nomatch_in_against(runtmp, capfd, zip_against):
     assert 'WARNING: skipped 1 search paths - no compatible signatures.' in captured.err
 
 
-@pytest.mark.parametrize('zip_query', [False, True])
 def test_md5(runtmp, zip_query):
     # test correct md5s present in output
     query = get_test_data('SRR606249.sig.gz')
@@ -633,7 +623,6 @@ def test_md5(runtmp, zip_query):
             assert ss.md5sum() in md5s
 
 
-@pytest.mark.parametrize('zip_query', [False, True])
 def test_md5_indexed(runtmp, zip_query):
     # test correct md5s present in output
     query = get_test_data('SRR606249.sig.gz')
@@ -676,8 +665,6 @@ def test_md5_indexed(runtmp, zip_query):
             assert ss.md5sum() in md5s
 
 
-@pytest.mark.parametrize('zip_query', [False, True])
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_query, zip_against):
     # the column names should be strict subsets of sourmash prefetch cols
     query = get_test_data('SRR606249.sig.gz')
@@ -1145,8 +1132,43 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
     assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
 
 
-def test_rocksdb_no_sigs(runtmp, capfd):
-    # make sure fastmultigather error-exits if a gather fails.
+def test_rocksdb_gather_against_index_with_sigs(runtmp, capfd):
+    # fastmultigather should succeed if indexed sigs are stored internally.
+    query = get_test_data('SRR606249.sig.gz')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    shutil.copyfile(sig2, runtmp.output('2.fa.sig.gz'))
+    shutil.copyfile(sig47, runtmp.output('47.fa.sig.gz'))
+    shutil.copyfile(sig63, runtmp.output('63.fa.sig.gz'))
+
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+    against_list = runtmp.output('against.txt')
+    make_file_list(against_list, ["2.fa.sig.gz",
+                                  "47.fa.sig.gz",
+                                  "63.fa.sig.gz"])
+
+    # index! note: '--internal-storage' defaults to True
+    runtmp.sourmash('scripts', 'index', against_list,
+                    '-o', 'subdir/against.rocksdb')
+
+    # remove the external storage out from under the rocksdb.
+    os.unlink(runtmp.output('2.fa.sig.gz'))
+    os.unlink(runtmp.output('47.fa.sig.gz'))
+    os.unlink(runtmp.output('63.fa.sig.gz'))
+
+    g_output = runtmp.output('zzz.csv')
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list,
+                    'subdir/against.rocksdb', '-s', '100000', '-t', '0',
+                    '-o', g_output,
+                    in_location=runtmp.output(''))
+
+
+def test_rocksdb_no_internal_storage_gather_fails(runtmp, capfd):
+    # force gather to fail b/c we make an index with no internal sketches
     query = get_test_data('SRR606249.sig.gz')
 
     sig2 = get_test_data('2.fa.sig.gz')
@@ -1164,7 +1186,7 @@ def test_rocksdb_no_sigs(runtmp, capfd):
                                   "63.fa.sig.gz"])
 
     # index!
-    runtmp.sourmash('scripts', 'index', against_list,
+    runtmp.sourmash('scripts', 'index', against_list, '--no-internal-storage',
                     '-o', 'subdir/against.rocksdb')
 
     # remove the external storage out from under the rocksdb.
