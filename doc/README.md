@@ -340,7 +340,7 @@ RocksDB indexes support containment queries (a la the
 as well as `gather`-style mixture decomposition (see
 [Irber et al., 2022](https://www.biorxiv.org/content/10.1101/2022.01.11.475838v2)).
 For this plugin, the `manysearch` command supports a RocksDB index for
-the database for containment queries, and `multifastgather` can use a
+the database for containment queries, and `fastmultigather` can use a
 RocksDB index for the database of genomes.
 
 RocksDB indexes contain references to the sketches used to construct
@@ -351,8 +351,8 @@ the original source sketches used to construct the database, wherever
 they reside on your disk.
 
 The sketches *are not used* by `manysearch`, but *are used* by
-`multifastgather`: with v0.9.6 and later, you'll get an error if you
-run `multifastgather` against a RocksDB index where the sketches
+`fastmultigather`: with v0.9.6 and later, you'll get an error if you
+run `fastmultigather` against a RocksDB index where the sketches
 cannot be loaded.
 
 What this means is therefore a bit complicated, but boils down to
@@ -361,12 +361,12 @@ the following two approaches:
 1. The safest thing to do is build a RocksDB index and use internal
 storage (the default). This will consume more disk space but your
 RocksDB database will always be usable for both `manysearch` and
-`multifastgather`, as well as the branchwater app.
+`fastmultigather`, as well as the branchwater app.
 2. If you want to avoid storing duplicate copies of your sketches,
 then specify `--no-internal-storage` and provide a stable absolute
 path to the source sketches.  This will again support both
-`manysearch` and `multifastgather`, as well as the branchwater app.
-If the source sketches later become unavailable, `multifastgather`
+`manysearch` and `fastmultigather`, as well as the branchwater app.
+If the source sketches later become unavailable, `fastmultigather`
 will stop working (although `manysearch` and the branchwater app
 should be fine).
 
