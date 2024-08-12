@@ -1,4 +1,5 @@
 use sourmash::index::revindex::RevIndex;
+use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
 use std::path::Path;
 
@@ -10,6 +11,7 @@ pub fn index<P: AsRef<Path>>(
     output: P,
     colors: bool,
     allow_failed_sigpaths: bool,
+    use_internal_storage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
@@ -20,11 +22,15 @@ pub fn index<P: AsRef<Path>>(
         allow_failed_sigpaths,
     )?;
 
-    RevIndex::create(
+    let mut index = RevIndex::create(
         output.as_ref(),
         collection.select(selection)?.try_into()?,
         colors,
     )?;
+
+    if use_internal_storage {
+        index.internalize_storage()?;
+    }
 
     Ok(())
 }
