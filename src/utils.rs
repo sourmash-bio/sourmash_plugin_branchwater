@@ -22,6 +22,7 @@ use zip::CompressionMethod;
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
+use sourmash::prelude::Storage;
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
@@ -544,6 +545,59 @@ pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Resu
     }
 }
 
+// Make a collection from anything except a pathlist, as this is called
+// from collection_from_pathlist
+fn collection_from_any_zipfile_or_signature_or_manifest(
+    sigpath: &Path,
+    report_type: &ReportType,
+    allow_failed: bool,
+) -> Result<Option<Collection>, Option<anyhow::Error>> {
+    // returns collection and number of failures
+    let mut last_error = None;
+    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+        match collection_from_zipfile(&sigpath, &report_type) {
+            Ok(coll) => Some(coll),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let collection =
+        collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
+            Ok(coll) => Some(coll),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+    let collection =
+        collection.or_else(|| match collection_from_signature(&sigpath, &report_type) {
+            Ok(coll) => Some(coll),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+    match collection {
+        Some(collection) => Ok(Some(collection)),
+        None => {
+            if let Some(e) = last_error {
+                eprintln!("WARNING: could not load sketches from path '{}'", sigpath);
+                Err(Some(e))
+            } else {
+                // Should never get here
+                Err(anyhow!("Unable to load the collection for an unknown reason.").into())
+            }
+        }
+    }
+}
+
 fn collection_from_manifest(
     sigpath: &Path,
     report_type: &ReportType,
@@ -579,66 +633,139 @@ fn collection_from_manifest(
 fn collection_from_pathlist(
     sigpath: &Path,
     report_type: &ReportType,
+    allow_failed: bool,
 ) -> Result<(Collection, usize), anyhow::Error> {
+    // load sketches from paths in parallel.
+    let n_failed = AtomicUsize::new(0);
+
     let file = File::open(sigpath).with_context(|| {
+        let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
         format!(
             "Failed to open {} pathlist file: '{}'",
             report_type, sigpath
         )
     })?;
-    let reader = BufReader::new(file);
+
+    let reader_new = BufReader::new(file);
+    let mut last_error: std::option::Option<anyhow::Error> = None;
 
     // load list of paths
-    let lines: Vec<_> = reader
+    let path_bufs: Vec<_> = reader_new
         .lines()
         .filter_map(|line| match line {
-            Ok(path) => Some(path),
-            Err(_err) => None,
+            Ok(l) => {
+                let path_buf = PathBuf::from(l.clone());
+                match path_buf.exists() {
+                    true => Some(path_buf),
+                    false => {
+                        eprintln!("WARNING: path '{}' does not exist in '{}'", l, sigpath);
+                        let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                        None
+                    }
+                }
+            }
+            Err(err) => {
+                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                None
+            }
         })
         .collect();
 
-    // load sketches from paths in parallel.
-    let n_failed = AtomicUsize::new(0);
-    let records: Vec<Record> = lines
+    // Load all entries as collections
+    let collections = path_bufs
         .par_iter()
-        .filter_map(|path| match Signature::from_path(path) {
-            Ok(signatures) => {
-                let recs: Vec<Record> = signatures
-                    .into_iter()
-                    .flat_map(|v| Record::from_sig(&v, path))
-                    .collect();
-                Some(recs)
+        .filter_map(|path| {
+            match collection_from_any_zipfile_or_signature_or_manifest(
+                &path,
+                &report_type,
+                allow_failed,
+            ) {
+                Ok(collection) => Some(collection),
+                Err(err) => {
+                    // eprintln!("collection_from_any_zipfile_or_signature_or_manifest WARNING: could not load sketches from path '{}'", path);
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
+                }
             }
+        })
+        .flatten()
+        .collect::<Vec<Collection>>();
+
+    // get all the signatures from each collection
+    let flattened_signatures = collections
+        .par_iter()
+        .filter_map(|collection| match collection_to_signatures(&collection) {
+            Ok(pathlist) => Some(pathlist),
             Err(err) => {
-                eprintln!("Sketch loading error: {}", err);
-                eprintln!("WARNING: could not load sketches from path '{}'", path);
+                eprintln!("WARNING: could not get signatures for collection ");
                 let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                 None
             }
         })
         .flatten()
-        .collect();
+        .collect::<Vec<Signature>>();
 
-    if records.is_empty() {
-        eprintln!(
-            "No valid signatures found in {} pathlist '{}'",
+    // // Now load the path filenames as one big collection
+
+    let collection = Collection::from_sigs(flattened_signatures).with_context(|| {
+        format!(
+            "Loaded {} signatures but failed to load as collection: '{}'",
             report_type, sigpath
-        );
-    }
+        )
+    });
 
-    let manifest: Manifest = records.into();
-    let collection = Collection::new(
-        manifest,
-        InnerStorage::new(
-            FSStorage::builder()
-                .fullpath("".into())
-                .subdir("".into())
-                .build(),
-        ),
-    );
     let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
-    Ok((collection, n_failed))
+    Ok((collection?, n_failed))
+}
+
+// Convert a collection into a list of paths that can then be read to create a collection
+fn collection_to_signatures(collection: &Collection) -> Result<Vec<Signature>, anyhow::Error> {
+    // For each record in the collection, get its path filename
+    let signatures: Vec<Signature> = collection
+        .manifest()
+        .iter()
+        .filter_map(|record| match collection.sig_from_record(&record) {
+            Ok(sigstore) => {
+                eprintln!(
+                    "\n:) Hello in collection_to_signatures, record.internal_location(): {}, record.filename(): {}",
+                    record.internal_location(), record.filename()
+                );
+                eprintln!("record.md5sum(): {}", record.md5());
+                let sig = Signature::from(sigstore);
+                eprintln!(
+                    ":) Hello in collection_to_signatures, created signature, signature filename: {}",
+                    sig.filename()
+                );                
+                eprintln!("sig.md5sum(): {}", sig.md5sum());
+                Some(sig)
+            }
+            Err(_err) => {
+                eprintln!(
+                    "\n:( Hello in collection_to_signatures Error (None), record.internal_location(): {}, record.filename(): {}",
+                    record.internal_location(), record.filename()
+                );
+                None
+            },
+            //    record.filename()
+        })
+        // .map(|record| record.filename());
+        // internal_location should create Vec<Vec<PathBuf>>
+        .collect::<Vec<Signature>>();
+
+    eprintln!("signatures, {}", signatures.len());
+
+    // Collection::from_sigs(signatures);
+
+    // let pathlist = &filenames
+    //     .iter()
+    //     .map(|filename| PathBuf::from(&filename))
+    //     .flatten();
+
+    // let random_strings =vec!["abc".to_string(), "def".to_string()];
+
+    // Ok(random_strings)
+    Ok(signatures)
 }
 
 fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
@@ -707,14 +834,15 @@ pub fn load_collection(
             }
         });
 
-    let collection =
-        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type) {
+    let collection = collection.or_else(|| {
+        match collection_from_pathlist(&sigpath, &report_type, allow_failed) {
             Ok((coll, n_failed)) => Some((coll, n_failed)),
             Err(e) => {
                 last_error = Some(e);
                 None
             }
-        });
+        }
+    });
 
     match collection {
         Some((coll, n_failed)) => {

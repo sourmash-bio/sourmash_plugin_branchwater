@@ -34,6 +34,18 @@ pub fn mastiff_manygather(
         allow_failed_sigpaths,
     )?;
 
+    eprintln!(
+        "queries_file: {}\nquery_collection.len(): {}",
+        // "\nquery_collection.manifest().internal_locations(): {}",
+        queries_file,
+        query_collection.len(),
+        // query_collection.manifest().internal_locations().cloned().collect::<Vec<String>>().join(", ")
+    );
+
+    query_collection.manifest().internal_locations().for_each(|location|
+        eprintln!("query collection, internal location: {}", location)
+    );
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());

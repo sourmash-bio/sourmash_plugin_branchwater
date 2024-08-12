@@ -126,6 +126,32 @@ def test_index_manifest(runtmp, capfd, toggle_internal_storage):
     assert 'index is done' in runtmp.last_result.err
 
 
+def test_index_manifest_zip_files(runtmp, capfd):
+    # test index with text file of multiple zip files
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+    sigs = [sig2, sig47, sig63]
+    manifests = []
+    for sig in sigs:
+        sig_mf = runtmp.output(os.path.basename(sig) + ".mf.zip")
+        runtmp.sourmash("sig", "cat", sig, "-o", sig_mf)
+        manifests.append(sig_mf)
+
+    # assert False
+    manifests_zips_list = runtmp.output('manifest_zips.txt')
+    make_file_list(manifests_zips_list, manifests)
+
+    output = runtmp.output('out.db')
+    runtmp.sourmash('scripts', 'index', manifests_zips_list,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    print(runtmp.last_result.err)
+    assert 'index is done' in runtmp.last_result.err
+
+
 def test_index_bad_siglist_2(runtmp, capfd):
     # test with a bad siglist (containing a missing file)
     against_list = runtmp.output('against.txt')
@@ -143,7 +169,7 @@ def test_index_bad_siglist_2(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert "WARNING: path 'no-exist' does not exist" in captured.err
 
 
 def test_index_empty_siglist(runtmp, capfd):

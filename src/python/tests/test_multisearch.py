@@ -312,7 +312,7 @@ def test_bad_query(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert "WARNING: path 'no-exist' does not exist" in captured.err
     assert "WARNING: 1 query paths failed to load. See error messages above." in captured.err
 
 
@@ -416,7 +416,7 @@ def test_bad_against(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
+    assert "WARNING: path 'no-exist' does not exist" in captured.err
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
