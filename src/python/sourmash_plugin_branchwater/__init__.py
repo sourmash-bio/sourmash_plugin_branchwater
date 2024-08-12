@@ -7,6 +7,7 @@ import os
 import importlib.metadata
 
 from . import sourmash_plugin_branchwater
+from . import prettyprint
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")
 
@@ -49,7 +50,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
         p.add_argument('-o', '--output', required=True,
                        help='CSV output file for matches')
         p.add_argument('-t', '--threshold', default=0.01, type=float,
-                       help='containment threshold for reporting matches')
+                       help='containment threshold for reporting matches (default: 0.01)')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
@@ -58,6 +59,12 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('-P', '--pretty-print', action='store_true',
+                       default=True,
+                       help="display results after search finishes (default: True)")
+        p.add_argument('-N', '--no-pretty-print', action='store_false',
+                       dest='pretty_print',
+                       help="do not display results (e.g. for large output)")
 
     def main(self, args):
         print_version()
@@ -77,6 +84,9 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                            args.output)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
+
+            if args.pretty_print:
+                prettyprint.pretty_print_manysearch(args.output)
         return status
 
 
