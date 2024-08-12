@@ -11,13 +11,22 @@
 | `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
 | `index` | build a RocksDB inverted index for efficient containment queries | [link](#Running-index)
 
-This repository implements multithreaded plugins for [sourmash](https://sourmash.readthedocs.io/) that provide very fast implementations of `sketch`, `search`, and `gather`. These commands are typically hundreds to thousands of times faster, and 10-50x lower memory, than the current sourmash code. For example, a `gather` of SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and 14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes and 2 GB of RAM.
+This repository implements multithreaded plugins for
+[sourmash](https://sourmash.readthedocs.io/) that provide very fast
+implementations of `sketch`, `search`, and `gather`. These commands
+are typically hundreds to thousands of times faster, and 10-50x lower
+memory, than the current sourmash code. For example, a `gather` of
+SRR606249 with sourmash v4.8.6 against GTDB rs214 takes 40 minutes and
+14 GB of RAM, while `fastgather` with 64 cores takes only 2 minutes
+and 2 GB of RAM.
 
 The main *drawback* to these plugin commands is that their inputs are
 more restricted than the native sourmash commands, and in some cases
-their outputs are in a differnt format. This means that your input
+their outputs are in a different format. This means that your input
 files may need to be prepared differently, and the output may need to
-be processed differently.
+be processed differently.  The plugin commands are also a bit less
+user friendly, because (for now) we're more focused on speed than
+polish and user experience.
 
 **Note:** As of v0.9.5, the outputs of `fastgather` and `fastmultigather` almost completely match the output of `sourmash gather`; see below for details.
 
@@ -27,15 +36,16 @@ sourmash supports a variety of different storage formats for sketches (see [sour
 
 <!-- **As of v0.9.0, we recommend using zip files or manifest CSVs whenever you need to provide multiple sketches.** CTB -->
 
-| command | query input | database format |
+| command | command input | database format |
 | -------- | -------- | -------- |
 | `manysketch`     | CSV with input fasta/fastq paths (details below)    | _produces_ Zip database |
-| `gather`     | Single metagenome in sig, zip, or fromfile     | Zip or fromfile |
-| `fastmultigather` | Multiple metagenomes in sig, zip, or fromfile | Zip, fromfile, or rocksdb index |
-| `manysearch` | Multiple genomes in sig, zip, or fromfile | Zip, fromfile, or rocksdb index |
-| `multisearch` | Multiple sketches in sig, zip, or fromfile | Multiple sketches in sig, zip, or fromfile |
-| `pairwise` | Multiple sketches in sig, zip, or fromfile | N/A |
+| `gather`     | Single metagenome in sig, zip, or pathlist     | Zip or pathlist |
+| `fastmultigather` | Multiple metagenomes in sig, zip, or pathlist | Zip, pathlist, or rocksdb index |
+| `manysearch` | Multiple genomes in sig, zip, or pathlist | Zip, pathlist, or rocksdb index |
+| `multisearch` | Multiple sketches in sig, zip, or pathlist | Multiple sketches in sig, zip, or pathlist |
+| `pairwise` | Multiple sketches in sig, zip, or pathlist | N/A |
 | `cluster`| Output from `pairwise` or `multisearch`| N/A |
+| `index` | Multiple sketches in sig, zip, or pathlist | N/A |
 
 ### Using zipfiles
 
@@ -75,7 +85,7 @@ And the answer is: manifests. Manifests are a sourmash filetype that contains in
 
 The branchwater plugin supports manifest CSVs.  These can be created from lists of sketches by using `sourmash sig collect` or `sourmash sig manifest`; for example,
 ```
-sourmash sig manifest <from file> -o manifest.csv
+sourmash sig manifest <pathlist> -o manifest.csv
 ```
 will create a manifest CSV from a list of sketches.
 -->
@@ -86,16 +96,16 @@ The branchwater plugin also supports a database type that is not yet supported b
 
 Some commands - `fastmultigather` and `manysearch` - support using these RocksDB-based inverted indexes. They can be created by running `sourmash scripts index`. See [the `index` documentation, below](#Running-index).
 
-### Using "fromfiles"
+### Using "pathlists"
 
-<!-- **Note: We no longer recommend using "fromfiles". Use zip files or manifests instead.** CTB -->
+<!-- **Note: We no longer recommend using "pathlists". Use zip files or manifests instead.** CTB -->
 
-You can make a fromfile by listing a collection of .sig.gz files like so:
+You can make a pathlist by listing a collection of .sig.gz files like so:
 ```
 find /path/to/directory/ -name "*.sig.gz" -type f > directory.txt
 ```
 
-When using a fromfile for search, we load all signatures into memory at the start in order to generate a manifest. To avoid memory issues, the signatures are not kept in memory, but instead re-loaded as described below for each command (see: Notes on concurrency and efficiency). This makes using fromfiles less efficient than `zip` files (as of v0.9.0).
+When using a pathlist for search, we load all signatures into memory at the start in order to generate a manifest. To avoid memory issues, the signatures are not kept in memory, but instead re-loaded as described below for each command (see: Notes on concurrency and efficiency). This makes using pathlists less efficient than `zip` files (as of v0.9.0).
 
 
 <!-- or manifests... CTB -->
@@ -179,6 +189,10 @@ The `pairwise` command does the same comparisons as `multisearch` but takes
 only a single collection of sketches, for which it calculates all the pairwise comparisons. Since the comparisons are symmetric, it is approximately
 twice as fast as `multisearch`.
 
+The `-t/--threshold` for `multisearch` and `pairwise` applies to the
+containment of query-in-target and defaults to 0.01.  To report 
+_any_ overlap between two sketches, set the threshold to 0.
+
 ### Running `fastgather`
 
 The `fastgather` command is a much faster version of `sourmash gather`.
@@ -228,8 +242,19 @@ sourmash scripts manysearch queries.zip metagenomes.manifest.csv -o results.csv
 
 The results file here, `query.x.gtdb-reps.csv`, will have the following columns: `query`, `query_md5`, `match_name`, `match_md5`, `containment`, `jaccard`, `max_containment`, `intersect_hashes`, `query_containment_ani`.
 
-If you run `manysearch` _without_ using a rocksdb database, the results file will also have the following columns: `average_abund`, `median_abund`, `std_abund`, `match_containment_ani`, `average_containment_ani`, `max_containment_ani`. If the query sketches were not built with abundance tracking enabled, `average_abund` and `median_abund` will default to `1.0`; `std_abund` will default to `0.0`.
+If you run `manysearch` _without_ using a RocksDB database (that is, against regular sketches), the results file will also have the following columns: , `match_containment_ani`, `average_containment_ani`, and `max_containment_ani`.
 
+Finally, if using sketches that have abundance information, the
+results file will also contain the following columns: `average_abund`,
+`median_abund`, `std_abund`, `n_weighted_found`, and `total_weighted_hashes`.
+
+See
+[the prefetch CSV output column documentation](https://sourmash.readthedocs.io/en/latest/classifying-signatures.html#appendix-e-prefetch-csv-output-columns)
+for information on these various columns.
+
+The `-t/--threshold` for `manysearch` applies to the containment of
+query-in-database (e.g. genome in metagenome) and defaults to 0.01.
+To report _any_ overlap between two sketches, set the threshold to 0.
 
 ### Running `cluster`
 
@@ -272,7 +297,7 @@ Note that RocksDB indexes do not support abundance estimation for
 containment queries.
 
 To run `index`, provide it with multiple sketches in sig, zip, or
-fromfile format, and specify the desired output directory; we suggest
+pathlist format, and specify the desired output directory; we suggest
 using the `.rocksdb` extension for RocksDB databases, e.g. `-o
 gtdb-rs214-k31.rocksdb`.
 
