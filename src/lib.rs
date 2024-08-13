@@ -73,6 +73,7 @@ fn do_manysearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (query_filename, siglist_path, threshold_bp, ksize, scaled, moltype, output_path_prefetch=None, output_path_gather=None))]
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
