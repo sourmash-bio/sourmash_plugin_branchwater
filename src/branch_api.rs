@@ -6,6 +6,7 @@ use crate::utils::load_collection;
 use crate::utils::ReportType;
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
+use pyo3::types::{IntoPyDict, PyDict, PyList};
 
 #[pyclass]
 pub struct BranchRecord {
@@ -18,10 +19,38 @@ impl BranchRecord {
         Ok(self.record.name().clone())
     }
 
-    pub fn to_row_dict(&self, py: Python) -> PyResult<String> {
-        Ok("hello".to_string())
+    #[getter]
+    pub fn get_as_row<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = {
+            let key_vals: Vec<(&str, PyObject)> = vec![
+                ("ksize", self.record.ksize().to_object(py)),
+                ("moltype", self.record.moltype().to_string().to_object(py)),
+                ("scaled", 1000.to_object(py)), // self.record.scaled().to_object(py)),
+                ("num", 0.to_object(py)), //, self.record.num().to_object(py)),
+                ("with_abundance", false.to_object(py)), // self.record.with_abundance().to_object(py)),
+                ("n_hashes", 100.to_object(py)), // self.record.n_hashes().to_object(py)),
+            ];
+            key_vals.into_py_dict_bound(py)
+        };
+        Ok(dict)
     }
 }
+
+/*
+impl<T, I> IntoPyDict for I
+where
+    T: PyDictItem
+    I: IntoIterator<Item = T>
+fn into_py_dict(self, py: Python<'_>) -> Bound<'_, PyDict> {
+    let dict = PyDict::new(py);
+    for item in self {
+        dict.set_item(item.key(), item.value())
+            .expect("Failed to set_item on dict");
+    }
+    dict
+}
+}
+*/
 
 #[pyclass]
 pub struct BranchManifest {
@@ -35,6 +64,15 @@ impl BranchManifest {
     }
     pub fn _check_row_values(&self) -> PyResult<bool> {
         Ok(true)
+    }
+    #[getter]
+    pub fn get_rows<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDict>>> {
+        let res: Vec<_> = self.manifest.iter().map(|x| { BranchRecord {
+            record: x.clone(),
+        }.get_as_row(py).unwrap()
+        }).collect();
+
+        Ok(res)
     }
 }
 
@@ -82,7 +120,8 @@ impl BranchCollection {
         Ok(obj)
     }
 
-    pub fn get_records(&self) -> PyResult<Vec<BranchRecord>> {
+    #[getter]
+    pub fn get_rows(&self) -> PyResult<Vec<BranchRecord>> {
         let records: Vec<_> = self.collection.iter().collect();
 
         let obj = records

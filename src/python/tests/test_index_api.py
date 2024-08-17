@@ -29,10 +29,11 @@ def test_basic_get_manifest():
 
     rec = res.get_first_record()
     print(rec, dir(rec))
+    print('ZZZ', rec.as_row)
 
     print(rec.get_name())
 
-    print(res.get_records())
-    for rec in res.get_records():
+    print(mf.rows)
+    for rec in mf.rows:
         print(rec.get_name())
     assert 0
