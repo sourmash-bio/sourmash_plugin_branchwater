@@ -22,6 +22,7 @@ mod pairwise;
 use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None))]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,
@@ -72,6 +73,7 @@ fn do_manysearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (query_filename, siglist_path, threshold_bp, ksize, scaled, moltype, output_path_prefetch=None, output_path_gather=None))]
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
@@ -104,6 +106,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
+#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None))]
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
@@ -213,6 +216,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
 fn do_multisearch(
     querylist_path: String,
     siglist_path: String,
@@ -245,6 +249,7 @@ fn do_multisearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (siglist_path, threshold, ksize, scaled, moltype, estimate_ani, write_all, output_path=None))]
 fn do_pairwise(
     siglist_path: String,
     threshold: f64,
@@ -292,6 +297,7 @@ fn do_manysketch(
 }
 
 #[pyfunction]
+#[pyo3(signature = (pairwise_csv, output_clusters, similarity_column, similarity_threshold, cluster_sizes=None))]
 fn do_cluster(
     pairwise_csv: String,
     output_clusters: String,
