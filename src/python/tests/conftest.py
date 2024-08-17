@@ -17,6 +17,10 @@ def zip_query(request):
     return request.param
 
 @pytest.fixture(params=[True, False])
+def zip_db(request):
+    return request.param
+
+@pytest.fixture(params=[True, False])
 def zip_against(request):
     return request.param
 
