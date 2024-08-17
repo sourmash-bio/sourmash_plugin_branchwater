@@ -31,3 +31,8 @@ def test_basic_get_manifest():
     print(rec, dir(rec))
 
     print(rec.get_name())
+
+    print(res.get_records())
+    for rec in res.get_records():
+        print(rec.get_name())
+    assert 0

@@ -4,8 +4,8 @@ use pyo3::prelude::*;
 #[macro_use]
 extern crate simple_error;
 
-mod utils;
 mod branch_api;
+mod utils;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
@@ -320,7 +320,6 @@ fn do_cluster(
         }
     }
 }
-
 
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
