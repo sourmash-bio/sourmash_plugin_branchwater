@@ -13,6 +13,13 @@ pub struct BranchCollection {
     collection: Collection
 }
 
+#[pymethods]
+impl BranchCollection {
+    pub fn __len__(&self) -> PyResult<usize> {
+        Ok(self.collection.len())
+    }
+}
+
 
 #[pyfunction]
 pub fn api_load_collection(

@@ -7,9 +7,11 @@ def test_basic():
     sigfile = get_test_data('SRR606249.sig.gz')
     res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
     assert res.val == 1001
+    assert len(res) == 1
 
 
 def test_fail():
+    # try to load a (nonexistent) collection
     sigfile = get_test_data('XXX_SRR606249.sig.gz')
     try:
         res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
