@@ -3,6 +3,7 @@ import sys
 import argparse
 from sourmash.plugins import CommandLinePlugin
 from sourmash.logging import notify
+from sourmash.exceptions import IndexNotLoaded
 import os
 import importlib.metadata
 
@@ -36,6 +37,14 @@ def set_thread_pool(user_cores):
         notify(f"warning: only {avail_threads} threads available, using {avail_threads}")
     actual_rayon_cores = sourmash_plugin_branchwater.set_global_thread_pool(num_threads)
     return actual_rayon_cores
+
+
+def load_collection(path, *, traverse_yield_all=False, cache_size=0):
+    try:
+        return api.api_load_collection(path, 31, 100_000, 'DNA')
+    except:
+        raise IndexNotLoaded
+load_collection.priority = 20
 
 
 class Branchwater_Manysearch(CommandLinePlugin):

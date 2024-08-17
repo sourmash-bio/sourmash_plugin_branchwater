@@ -6,7 +6,7 @@ from .sourmash_tst_utils import get_test_data
 def test_basic():
     sigfile = get_test_data('SRR606249.sig.gz')
     res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
-    assert res.val == 1001
+    assert res.location == sigfile
     assert len(res) == 1
 
 
@@ -23,7 +23,7 @@ def test_fail():
 def test_basic_get_manifest():
     sigfile = get_test_data('SRR606249.sig.gz')
     res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
-    mf = res.get_manifest()
+    mf = res.manifest
     print(mf, dir(mf))
     assert len(mf) == 1
 
