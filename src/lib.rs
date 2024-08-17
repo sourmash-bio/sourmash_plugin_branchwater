@@ -73,6 +73,7 @@ fn do_manysearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (query_filename, siglist_path, threshold_bp, ksize, scaled, moltype, output_path_prefetch=None, output_path_gather=None))]
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
@@ -218,6 +219,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 #[pyfunction]
 #[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
 fn do_multisearch(
     querylist_path: String,
     siglist_path: String,
