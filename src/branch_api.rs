@@ -84,9 +84,6 @@ pub struct BranchCollection {
     #[pyo3(get)]
     pub is_database: bool,
 
-    #[pyo3(get)]
-    pub has_manifest: bool,
-
     collection: Collection,
 }
 
