@@ -1,6 +1,7 @@
 /// Lower-level Python API implementation for sourmash_plugin_branchwater
 use pyo3::prelude::*;
 
+use sourmash::collection::Collection;
 use crate::utils::build_selection;
 use crate::utils::load_collection;
 use crate::utils::ReportType;
@@ -9,6 +10,7 @@ use crate::utils::ReportType;
 pub struct BranchCollection {
     #[pyo3(get)]
     pub val: i32,
+    collection: Collection
 }
 
 
@@ -21,18 +23,8 @@ pub fn api_load_collection(
 ) -> PyResult<Py<BranchCollection>> {
     let selection = build_selection(ksize, scaled, &moltype);
 
-/*
-    match load_collection(&location, &selection, ReportType::Query, true) {
-        Ok(_) => Ok(0),
-        Err(e) => {
-            eprintln!("Error: {e}");
-            Ok(1)
-        }
-}
-     */
+    let collection = load_collection(&location, &selection, ReportType::Query, true).unwrap();
     let obj =
-        Python::with_gil(|py| Py::new(py, BranchCollection { val: 1001 }).unwrap());
+        Python::with_gil(|py| Py::new(py, BranchCollection { val: 1001, collection }).unwrap());
     Ok(obj)
 }
-
-
