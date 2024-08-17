@@ -1229,13 +1229,9 @@ def test_save_matches(runtmp):
     make_file_list(against_list, [sig2, sig47, sig63])
 
   
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0', '--save-matches')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', '--save-matches',
+                    in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
