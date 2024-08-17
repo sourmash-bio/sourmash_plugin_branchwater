@@ -7,6 +7,7 @@ import os
 import importlib.metadata
 
 from . import sourmash_plugin_branchwater
+from . import sourmash_plugin_branchwater as api
 from . import prettyprint
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")

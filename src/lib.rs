@@ -5,6 +5,7 @@ use pyo3::prelude::*;
 extern crate simple_error;
 
 mod utils;
+mod python_api;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
@@ -320,8 +321,10 @@ fn do_cluster(
     }
 }
 
+
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // top level 'scripts' commands
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastgather, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastmultigather, m)?)?;
@@ -332,5 +335,10 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
+
+    // lower level API stuff
+    m.add_class::<python_api::BranchCollection>()?;
+    m.add_function(wrap_pyfunction!(python_api::api_load_collection, m)?)?;
+
     Ok(())
 }
