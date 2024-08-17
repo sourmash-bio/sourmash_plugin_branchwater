@@ -69,7 +69,6 @@ class Branchwater_Manysearch(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
-        args.moltype = args.moltype.lower()
         num_threads = set_thread_pool(args.cores)
 
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
@@ -117,7 +116,6 @@ class Branchwater_Fastgather(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -164,7 +162,6 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -209,7 +206,6 @@ class Branchwater_Index(CommandLinePlugin):
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} ")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -274,7 +270,6 @@ class Branchwater_Multisearch(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -321,7 +316,6 @@ class Branchwater_Pairwise(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
