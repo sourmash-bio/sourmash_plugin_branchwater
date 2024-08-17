@@ -18,3 +18,16 @@ def test_fail():
     except:
         pass
     # @CTB should do something better here ;)
+
+
+def test_basic_get_manifest():
+    sigfile = get_test_data('SRR606249.sig.gz')
+    res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
+    mf = res.get_manifest()
+    print(mf, dir(mf))
+    assert len(mf) == 1
+
+    rec = res.get_first_record()
+    print(rec, dir(rec))
+
+    print(rec.get_name())

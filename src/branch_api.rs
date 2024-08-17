@@ -2,9 +2,34 @@
 use pyo3::prelude::*;
 
 use sourmash::collection::Collection;
+use sourmash::manifest::{Manifest, Record};
 use crate::utils::build_selection;
 use crate::utils::load_collection;
 use crate::utils::ReportType;
+
+#[pyclass]
+pub struct BranchRecord {
+    record: Record
+}
+
+#[pymethods]
+impl BranchRecord {
+    pub fn get_name(&self) -> PyResult<String> {
+        Ok(self.record.name().clone())
+    }
+}
+
+#[pyclass]
+pub struct BranchManifest {
+    manifest: Manifest
+}
+
+#[pymethods]
+impl BranchManifest {
+    pub fn __len__(&self) -> PyResult<usize> {
+        Ok(self.manifest.len())
+    }
+}
 
 #[pyclass]
 pub struct BranchCollection {
@@ -17,6 +42,18 @@ pub struct BranchCollection {
 impl BranchCollection {
     pub fn __len__(&self) -> PyResult<usize> {
         Ok(self.collection.len())
+    }
+
+    pub fn get_manifest(&self) -> PyResult<Py<BranchManifest>> {
+        let manifest: Manifest = self.collection.manifest().clone();
+        let obj = Python::with_gil(|py| Py::new(py, BranchManifest { manifest: manifest }).unwrap());
+        Ok(obj)
+    }
+    pub fn get_first_record(&self) -> PyResult<Py<BranchRecord>> {
+        let records: Vec<_> = self.collection.iter().collect();
+        let first_record = records.first().unwrap().1;
+        let obj = Python::with_gil(|py| Py::new(py, BranchRecord { record: first_record.clone() }).unwrap());
+        Ok(obj)
     }
 }
 
