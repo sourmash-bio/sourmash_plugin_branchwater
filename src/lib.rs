@@ -219,7 +219,6 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 #[pyfunction]
 #[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
 #[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
 fn do_multisearch(
     querylist_path: String,
     siglist_path: String,
