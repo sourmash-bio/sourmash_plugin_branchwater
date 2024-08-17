@@ -1229,13 +1229,9 @@ def test_save_matches(runtmp):
     make_file_list(against_list, [sig2, sig47, sig63])
 
   
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0', '--save-matches')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', '--save-matches',
+                    in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -1261,6 +1257,15 @@ def test_save_matches(runtmp):
     keys = set(df.keys())
     assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
 
-    # can't test against prefetch becuase matched k-mers can overlap
-    matches_sig_len = len(list(sourmash.load_file_as_signatures(m_output, ksize=31))[0].minhash)
+    # can't test against prefetch because matched k-mers can overlap
+    match_ss = list(sourmash.load_file_as_signatures(m_output, ksize=31))[0]
+    match_mh = match_ss.minhash
+    matches_sig_len = len(match_mh)
+
+    # right size?
     assert sum(df['intersect_bp']) >= matches_sig_len * 100_000
+
+    # containment?
+    mg_ss = list(sourmash.load_file_as_signatures(query, ksize=31))[0]
+    assert match_mh.contained_by(mg_ss.minhash) == 1.0
+    assert mg_ss.minhash.contained_by(match_mh) < 1
