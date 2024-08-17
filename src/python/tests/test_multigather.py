@@ -1212,3 +1212,60 @@ def test_rocksdb_no_internal_storage_gather_fails(runtmp, capfd):
     assert "Error gathering matches:" in captured.err
     assert "ERROR: 1 failed gathers. See error messages above." in captured.err
     assert "Unresolvable errors found; results cannot be trusted. Quitting." in captured.err
+
+
+
+def test_save_matches(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+  
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', '--save-matches',
+                    in_directory=runtmp.output(''))
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
+    m_output = runtmp.output('SRR606249.matches.sig')
+
+    assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
+    assert os.path.exists(m_output)
+    
+    # check prefetch output (only non-indexed gather)
+    df = pandas.read_csv(p_output)
+        
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
+
+    # can't test against prefetch because matched k-mers can overlap
+    match_ss = list(sourmash.load_file_as_signatures(m_output, ksize=31))[0]
+    match_mh = match_ss.minhash
+    matches_sig_len = len(match_mh)
+
+    # right size?
+    assert sum(df['intersect_bp']) >= matches_sig_len * 100_000
+
+    # containment?
+    mg_ss = list(sourmash.load_file_as_signatures(query, ksize=31))[0]
+    assert match_mh.contained_by(mg_ss.minhash) == 1.0
+    assert mg_ss.minhash.contained_by(match_mh) < 1
