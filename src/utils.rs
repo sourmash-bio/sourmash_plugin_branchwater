@@ -433,7 +433,7 @@ fn process_prefix_csv(
     Ok((results, n_fastas))
 }
 
-// Load all compatible minhashes from a collection into memory
+// Load all compatible minhashes from a collection into memory, in parallel;
 // also store sig name and md5 alongside, as we usually need those
 pub fn load_sketches(
     collection: Collection,
@@ -573,6 +573,7 @@ fn collection_from_manifest(
         Err(anyhow!("could not read as manifest: '{}'", sigpath))
     } else {
         // If the manifest is not empty, proceed to create and return the Collection
+        eprintln!("collection from manifest!");
         Ok(Collection::new(
             manifest,
             InnerStorage::new(

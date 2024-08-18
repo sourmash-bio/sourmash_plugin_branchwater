@@ -62,12 +62,12 @@ pub fn multisearch(
 
     if queries.len() == 0 {
         eprintln!("No query sketches present. Exiting.");
-        return Err(anyhow::anyhow!("foo").into()); // @CTB
+        return Err(anyhow::anyhow!("failed to load query sketches").into());
     }
 
     if against.len() == 0 {
         eprintln!("No search sketches present. Exiting.");
-        return Err(anyhow::anyhow!("foo").into()); // @CTB
+        return Err(anyhow::anyhow!("failed to load search sketches").into());
     }
 
     let send = against
