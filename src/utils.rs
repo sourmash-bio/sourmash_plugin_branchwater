@@ -1,4 +1,5 @@
-/// Utility functions for sourmash_plugin_branchwater.
+//! Utility functions for `sourmash_plugin_branchwater`.
+
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;

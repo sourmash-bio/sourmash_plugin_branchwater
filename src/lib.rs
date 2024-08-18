@@ -1,4 +1,8 @@
-/// Python interface Rust code for sourmash_plugin_branchwater.
+//! Rust-to-Pyton interface code for sourmash_plugin_branchwater, using pyo3.
+//!
+//! If you're using Rust, you're probably most interested in
+//! [utils](utils/index.html)
+
 use pyo3::prelude::*;
 
 #[macro_use]
@@ -321,6 +325,8 @@ fn do_cluster(
         }
     }
 }
+
+/// Module interface for the `sourmash_plugin_branchwater` extension module.
 
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
