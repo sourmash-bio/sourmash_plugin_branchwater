@@ -546,12 +546,25 @@ impl std::fmt::Display for ReportType {
     }
 }
 
+/// Load a collection from a .zip file.
+
 pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
     match Collection::from_zipfile(sigpath) {
         Ok(collection) => Ok(collection),
         Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
     }
 }
+
+/// Load a collection from a RocksDB.
+
+pub fn collection_from_rocksdb(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
+    match Collection::from_rocksdb(sigpath) {
+        Ok(collection) => Ok(collection),
+        Err(_) => bail!("failed to load {} rocksdb: '{}'", report_type, sigpath),
+    }
+}
+
+/// Load a collection from a manifest CSV.
 
 fn collection_from_manifest(
     sigpath: &Path,
@@ -585,6 +598,8 @@ fn collection_from_manifest(
         ))
     }
 }
+
+/// Load a collection from a list of paths.
 
 fn collection_from_pathlist(
     sigpath: &Path,
@@ -651,6 +666,8 @@ fn collection_from_pathlist(
     Ok((collection, n_failed))
 }
 
+/// Load a collection from a .sig/.sig.gz JSON file.
+
 fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
     let signatures = Signature::from_path(sigpath).with_context(|| {
         format!(
@@ -667,6 +684,8 @@ fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result
     })
 }
 
+/// Load a collection from a path - this is the top-level load function.
+
 pub fn load_collection(
     siglist: &String,
     selection: &Selection,
@@ -679,10 +698,12 @@ pub fn load_collection(
         bail!("No such file or directory: '{}'", &sigpath);
     }
 
-    // disallow rocksdb input here
+    // disallow rocksdb input here - CTB test me a lot ;)
+    /*
     if is_revindex_database(&sigpath) {
         bail!("Cannot load {} signatures from a 'rocksdb' database. Please use sig, zip, or pathlist.", report_type);
-    }
+}
+    */
 
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
     let mut last_error = None;
@@ -698,6 +719,15 @@ pub fn load_collection(
     } else {
         None
     };
+
+    let collection =
+        collection.or_else(|| match collection_from_rocksdb(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
 
     let collection =
         collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
