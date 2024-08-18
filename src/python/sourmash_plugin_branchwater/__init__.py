@@ -157,11 +157,12 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
         p.add_argument('-o', '--output', help='CSV output file for matches')
+        p.add_argument('--save-matches', action='store_true', default=False, help='save matched hashes for every input to a signature')
 
 
     def main(self, args):
         print_version()
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}")
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp} / save matches: {args.save_matches}")
 
         num_threads = set_thread_pool(args.cores)
 
@@ -173,7 +174,9 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                                                                 args.ksize,
                                                                 args.scaled,
                                                                 args.moltype,
-                                                                args.output)
+                                                                args.output,
+                                                                args.save_matches
+                                                                )
         if status == 0:
             notify(f"...fastmultigather is done!")
         return status
