@@ -443,16 +443,24 @@ pub fn load_sketches(
     let sketchinfo: Vec<SmallSignature> = collection
         .par_iter()
         .filter_map(|(_idx, record)| {
-            let sig = collection.sig_from_record(record).ok()?;
-            let selected_sig = sig.clone().select(selection).ok()?;
-            let minhash = selected_sig.minhash()?.clone();
+            match collection.sig_from_record(record) {
+                Ok(sig) => {
+                    let selected_sig = sig.clone().select(selection).ok()?;
+                    let minhash = selected_sig.minhash()?.clone();
 
-            Some(SmallSignature {
-                location: record.internal_location().to_string(),
-                name: sig.name(),
-                md5sum: sig.md5sum(),
-                minhash,
-            })
+                    Some(SmallSignature {
+                        location: record.internal_location().to_string(),
+                        name: sig.name(),
+                        md5sum: sig.md5sum(),
+                        minhash,
+                    })
+                },
+                Err(_) => {
+                    eprintln!("FAILED to load sketch from '{}'",
+                              record.internal_location());
+                    None
+                }
+            }
         })
         .collect();
 

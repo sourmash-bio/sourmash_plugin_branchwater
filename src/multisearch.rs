@@ -60,12 +60,23 @@ pub fn multisearch(
     let processed_cmp = AtomicUsize::new(0);
     let ksize = selection.ksize().unwrap() as f64;
 
+    if queries.len() == 0 {
+        eprintln!("No query sketches present. Exiting.");
+        return Err(anyhow::anyhow!("foo").into()); // @CTB
+    }
+
+    if against.len() == 0 {
+        eprintln!("No search sketches present. Exiting.");
+        return Err(anyhow::anyhow!("foo").into()); // @CTB
+    }
+
     let send = against
         .par_iter()
         .filter_map(|against| {
             let mut results = vec![];
             // search for matches & save containment.
             for query in queries.iter() {
+                eprintln!("XXXX");
                 let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
                 if i % 100000 == 0 && i > 0 {
                     eprintln!("Processed {} comparisons", i);
