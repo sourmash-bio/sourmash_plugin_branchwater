@@ -76,7 +76,6 @@ pub fn multisearch(
             let mut results = vec![];
             // search for matches & save containment.
             for query in queries.iter() {
-                eprintln!("XXXX");
                 let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
                 if i % 100000 == 0 && i > 0 {
                     eprintln!("Processed {} comparisons", i);
