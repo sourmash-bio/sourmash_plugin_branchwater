@@ -442,24 +442,24 @@ pub fn load_sketches(
 ) -> Result<Vec<SmallSignature>> {
     let sketchinfo: Vec<SmallSignature> = collection
         .par_iter()
-        .filter_map(|(_idx, record)| {
-            match collection.sig_from_record(record) {
-                Ok(sig) => {
-                    let selected_sig = sig.clone().select(selection).ok()?;
-                    let minhash = selected_sig.minhash()?.clone();
+        .filter_map(|(_idx, record)| match collection.sig_from_record(record) {
+            Ok(sig) => {
+                let selected_sig = sig.clone().select(selection).ok()?;
+                let minhash = selected_sig.minhash()?.clone();
 
-                    Some(SmallSignature {
-                        location: record.internal_location().to_string(),
-                        name: sig.name(),
-                        md5sum: sig.md5sum(),
-                        minhash,
-                    })
-                },
-                Err(_) => {
-                    eprintln!("FAILED to load sketch from '{}'",
-                              record.internal_location());
-                    None
-                }
+                Some(SmallSignature {
+                    location: record.internal_location().to_string(),
+                    name: sig.name(),
+                    md5sum: sig.md5sum(),
+                    minhash,
+                })
+            }
+            Err(_) => {
+                eprintln!(
+                    "FAILED to load sketch from '{}'",
+                    record.internal_location()
+                );
+                None
             }
         })
         .collect();
@@ -700,10 +700,10 @@ pub fn load_collection(
 
     // disallow rocksdb input here - CTB test me a lot ;)
     /*
-    if is_revindex_database(&sigpath) {
-        bail!("Cannot load {} signatures from a 'rocksdb' database. Please use sig, zip, or pathlist.", report_type);
-}
-    */
+        if is_revindex_database(&sigpath) {
+            bail!("Cannot load {} signatures from a 'rocksdb' database. Please use sig, zip, or pathlist.", report_type);
+    }
+        */
 
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
     let mut last_error = None;
@@ -720,14 +720,13 @@ pub fn load_collection(
         None
     };
 
-    let collection =
-        collection.or_else(|| match collection_from_rocksdb(&sigpath, &report_type) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match collection_from_rocksdb(&sigpath, &report_type) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
 
     let collection =
         collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
