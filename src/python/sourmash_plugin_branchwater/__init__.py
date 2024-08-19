@@ -80,7 +80,7 @@ def load_collection(path, *, traverse_yield_all=False, cache_size=0):
         coll_obj = api.api_load_collection(path, 31, 100_000, 'DNA')
         return BranchwaterCollectionWrapper(coll_obj)
     except:
-        raise IndexNotLoaded
+        raise IndexNotLoaded(f"branchwater could not load '{path}'")
 load_collection.priority = 20
 
 

@@ -25,10 +25,10 @@ impl BranchRecord {
             let key_vals: Vec<(&str, PyObject)> = vec![
                 ("ksize", self.record.ksize().to_object(py)),
                 ("moltype", self.record.moltype().to_string().to_object(py)),
-                ("scaled", 1000.to_object(py)), // self.record.scaled().to_object(py)),
-                ("num", 0.to_object(py)), //, self.record.num().to_object(py)),
-                ("with_abundance", false.to_object(py)), // self.record.with_abundance().to_object(py)),
-                ("n_hashes", 100.to_object(py)), // self.record.n_hashes().to_object(py)),
+                ("scaled", self.record.scaled().to_object(py)),
+                ("num", self.record.num().to_object(py)),
+                ("with_abundance", self.record.with_abundance().to_object(py)),
+                ("n_hashes", self.record.n_hashes().to_object(py)),
             ];
             key_vals.into_py_dict_bound(py)
         };
