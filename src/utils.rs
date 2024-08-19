@@ -1131,7 +1131,7 @@ pub fn consume_query_by_gather(
 
 pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
     let hash_function = match moltype {
-        "dna" => HashFunctions::Murmur64Dna,
+        "DNA" => HashFunctions::Murmur64Dna,
         "protein" => HashFunctions::Murmur64Protein,
         "dayhoff" => HashFunctions::Murmur64Dayhoff,
         "hp" => HashFunctions::Murmur64Hp,
