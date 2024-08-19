@@ -1,4 +1,5 @@
-/// Utility functions for sourmash_plugin_branchwater.
+//! Utility functions for `sourmash_plugin_branchwater`.
+
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
@@ -432,7 +433,7 @@ fn process_prefix_csv(
     Ok((results, n_fastas))
 }
 
-// Load all compatible minhashes from a collection into memory
+// Load all compatible minhashes from a collection into memory, in parallel;
 // also store sig name and md5 alongside, as we usually need those
 pub fn load_sketches(
     collection: Collection,
@@ -442,16 +443,24 @@ pub fn load_sketches(
     let sketchinfo: Vec<SmallSignature> = collection
         .par_iter()
         .filter_map(|(_idx, record)| {
-            let sig = collection.sig_from_record(record).ok()?;
-            let selected_sig = sig.clone().select(selection).ok()?;
-            let minhash = selected_sig.minhash()?.clone();
+            match collection.sig_from_record(record) {
+                Ok(sig) => {
+                    let selected_sig = sig.clone().select(selection).ok()?;
+                    let minhash = selected_sig.minhash()?.clone();
 
-            Some(SmallSignature {
-                location: record.internal_location().to_string(),
-                name: sig.name(),
-                md5sum: sig.md5sum(),
-                minhash,
-            })
+                    Some(SmallSignature {
+                        location: record.internal_location().to_string(),
+                        name: sig.name(),
+                        md5sum: sig.md5sum(),
+                        minhash,
+                    })
+                },
+                Err(_) => {
+                    eprintln!("FAILED to load sketch from '{}'",
+                              record.internal_location());
+                    None
+                }
+            }
         })
         .collect();
 
@@ -537,12 +546,25 @@ impl std::fmt::Display for ReportType {
     }
 }
 
+/// Load a collection from a .zip file.
+
 pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
     match Collection::from_zipfile(sigpath) {
         Ok(collection) => Ok(collection),
         Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
     }
 }
+
+/// Load a collection from a RocksDB.
+
+pub fn collection_from_rocksdb(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
+    match Collection::from_rocksdb(sigpath) {
+        Ok(collection) => Ok(collection),
+        Err(_) => bail!("failed to load {} rocksdb: '{}'", report_type, sigpath),
+    }
+}
+
+/// Load a collection from a manifest CSV.
 
 fn collection_from_manifest(
     sigpath: &Path,
@@ -564,6 +586,7 @@ fn collection_from_manifest(
         Err(anyhow!("could not read as manifest: '{}'", sigpath))
     } else {
         // If the manifest is not empty, proceed to create and return the Collection
+        eprintln!("collection from manifest!");
         Ok(Collection::new(
             manifest,
             InnerStorage::new(
@@ -575,6 +598,8 @@ fn collection_from_manifest(
         ))
     }
 }
+
+/// Load a collection from a list of paths.
 
 fn collection_from_pathlist(
     sigpath: &Path,
@@ -641,6 +666,8 @@ fn collection_from_pathlist(
     Ok((collection, n_failed))
 }
 
+/// Load a collection from a .sig/.sig.gz JSON file.
+
 fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
     let signatures = Signature::from_path(sigpath).with_context(|| {
         format!(
@@ -657,6 +684,8 @@ fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result
     })
 }
 
+/// Load a collection from a path - this is the top-level load function.
+
 pub fn load_collection(
     siglist: &String,
     selection: &Selection,
@@ -669,10 +698,12 @@ pub fn load_collection(
         bail!("No such file or directory: '{}'", &sigpath);
     }
 
-    // disallow rocksdb input here
+    // disallow rocksdb input here - CTB test me a lot ;)
+    /*
     if is_revindex_database(&sigpath) {
         bail!("Cannot load {} signatures from a 'rocksdb' database. Please use sig, zip, or pathlist.", report_type);
-    }
+}
+    */
 
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
     let mut last_error = None;
@@ -688,6 +719,15 @@ pub fn load_collection(
     } else {
         None
     };
+
+    let collection =
+        collection.or_else(|| match collection_from_rocksdb(&sigpath, &report_type) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
 
     let collection =
         collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {

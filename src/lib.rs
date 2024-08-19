@@ -1,4 +1,8 @@
-/// Python interface Rust code for sourmash_plugin_branchwater.
+//! Rust-to-Pyton interface code for sourmash_plugin_branchwater, using pyo3.
+//!
+//! If you're using Rust, you're probably most interested in
+//! [utils](utils/index.html)
+
 use pyo3::prelude::*;
 
 #[macro_use]
@@ -107,7 +111,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
-#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None))]
+#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false))]
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
@@ -116,6 +120,7 @@ fn do_fastmultigather(
     scaled: usize,
     moltype: String,
     output_path: Option<String>,
+    save_matches: bool,
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
@@ -148,6 +153,7 @@ fn do_fastmultigather(
             scaled,
             &selection,
             allow_failed_sigpaths,
+            save_matches,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -216,8 +222,8 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 }
 
 #[pyfunction]
-#[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
+#[allow(clippy::too_many_arguments)]
 fn do_multisearch(
     querylist_path: String,
     siglist_path: String,
@@ -320,6 +326,8 @@ fn do_cluster(
         }
     }
 }
+
+/// Module interface for the `sourmash_plugin_branchwater` extension module.
 
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
