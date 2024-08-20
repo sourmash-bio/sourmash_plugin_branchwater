@@ -17,7 +17,7 @@ use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::{FSStorage, InnerStorage};
+use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 
 /// A collection of sketches, potentially stored in multiple files.
 pub struct MultiCollection {
@@ -25,6 +25,10 @@ pub struct MultiCollection {
 }
 
 impl MultiCollection {
+    fn new(collections: Vec<Collection>) -> Self {
+        Self { collections }
+    }
+
     /// Build from a standalone manifest
     pub fn from_manifest(sigpath: &Path) -> Result<Self> {
         debug!("multi from manifest!");
@@ -47,9 +51,7 @@ impl MultiCollection {
                         .build(),
                 ),
             );
-            Ok(Self {
-                collections: vec![coll],
-            })
+            Ok(MultiCollection::new(vec![coll]))
         }
     }
 
@@ -57,9 +59,7 @@ impl MultiCollection {
     pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
         debug!("multi from zipfile!");
         match Collection::from_zipfile(sigpath) {
-            Ok(collection) => Ok(Self {
-                collections: vec![collection],
-            }),
+            Ok(collection) => Ok(MultiCollection::new(vec![collection])),
             Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
         }
     }
@@ -68,9 +68,7 @@ impl MultiCollection {
     pub fn from_rocksdb(sigpath: &Path) -> Result<Self> {
         debug!("multi from rocksdb!");
         match Collection::from_rocksdb(sigpath) {
-            Ok(collection) => Ok(Self {
-                collections: vec![collection],
-            }),
+            Ok(collection) => Ok(MultiCollection::new(vec![collection])),
             Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
         }
     }
@@ -129,12 +127,7 @@ impl MultiCollection {
         );
         let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
-        Ok((
-            Self {
-                collections: vec![collection],
-            },
-            n_failed,
-        ))
+        Ok((MultiCollection::new(vec![collection]), n_failed))
     }
 
     // Load from a sig file
@@ -149,9 +142,7 @@ impl MultiCollection {
                 sigpath
             )
         })?;
-        Ok(Self {
-            collections: vec![coll],
-        })
+        Ok(MultiCollection::new(vec![coll]))
     }
 
     pub fn len(&self) -> usize {
@@ -171,14 +162,37 @@ impl MultiCollection {
         self.collections.iter()
     }
 
+    // iterate over tuples
+    pub fn item_iter(&self) -> impl Iterator<Item = (&Collection, Idx, &Record)> {
+        // CTB: request review by Rust expert pls :). Does this make
+        // unnecessary copies??
+        let s: Vec<_> = self
+            .iter()
+            .map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
+            .flatten()
+            .collect();
+        s.into_iter()
+    }
+
     pub fn par_iter(&self) -> impl IndexedParallelIterator<Item = (&Collection, Idx, &Record)> {
-        // CTB: request review by Rust expert pls :). Does this make copies??
+        // CTB: request review by Rust expert - why can't I use item_iter here?
+        // i.e. self.item_iter().into_par_iter()?
         let s: Vec<_> = self
             .iter()
             .map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
             .flatten()
             .collect();
         s.into_par_iter()
+    }
+
+    pub fn get_first_sig(&self) -> Option<SigStore> {
+        if !self.is_empty() {
+            let query_item = self.item_iter().next().unwrap();
+            let (coll, _, _) = query_item;
+            Some(coll.sig_for_dataset(0).ok()?)
+        } else {
+            None
+        }
     }
 }
 
