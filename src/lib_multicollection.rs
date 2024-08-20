@@ -129,9 +129,12 @@ impl MultiCollection {
         );
         let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
-        Ok((Self {
-            collections: vec![collection],
-        }, n_failed))
+        Ok((
+            Self {
+                collections: vec![collection],
+            },
+            n_failed,
+        ))
     }
 
     // Load from a sig file

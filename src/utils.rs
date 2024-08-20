@@ -434,37 +434,30 @@ pub fn load_sketches(
     selection: &Selection,
     _report_type: ReportType,
 ) -> Result<Vec<SmallSignature>> {
-    // @CTB: convert to iter from vec.
-    let mut sketchinfo: Vec<SmallSignature> = vec![];
+    let sketchinfo: Vec<_> = multi
+        .par_iter()
+        .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
+            Ok(sig) => {
+                let selected_sig = sig.clone().select(selection).ok()?;
+                let minhash = selected_sig.minhash()?.clone();
 
-    for coll in multi.iter() {
-        let mut si: Vec<SmallSignature> = coll
-            .par_iter()
-            .filter_map(|(_idx, record)| match coll.sig_from_record(record) {
-                Ok(sig) => {
-                    let selected_sig = sig.clone().select(selection).ok()?;
-                    let minhash = selected_sig.minhash()?.clone();
-
-                    Some(SmallSignature {
-                        collection: coll.clone(), // @CTB
-                        location: record.internal_location().to_string(),
-                        name: sig.name(),
-                        md5sum: sig.md5sum(),
-                        minhash,
-                    })
-                }
-                Err(_) => {
-                    eprintln!(
-                        "FAILED to load sketch from '{}'",
-                        record.internal_location()
-                    );
-                    None
-                }
-            })
-            .collect();
-
-        sketchinfo.append(&mut si);
-    }
+                Some(SmallSignature {
+                    collection: coll.clone(), // @CTB
+                    location: record.internal_location().to_string(),
+                    name: sig.name(),
+                    md5sum: sig.md5sum(),
+                    minhash,
+                })
+            }
+            Err(_) => {
+                eprintln!(
+                    "FAILED to load sketch from '{}'",
+                    record.internal_location()
+                );
+                None
+            }
+        })
+        .collect();
 
     Ok(sketchinfo)
 }
