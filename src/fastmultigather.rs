@@ -69,6 +69,7 @@ pub fn fastmultigather(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
+    #[rustfmt::skip]
     query_collection
         .par_iter()
         .for_each(|(coll, _idx, record)| {
