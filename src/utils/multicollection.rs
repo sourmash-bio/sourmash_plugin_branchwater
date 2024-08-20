@@ -151,11 +151,7 @@ impl MultiCollection {
     }
     pub fn is_empty(&self) -> bool {
         let val: usize = self.collections.iter().map(|c| c.len()).sum();
-        if val > 0 {
-            false
-        } else {
-            true
-        }
+        val == 0
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Collection> {
@@ -168,8 +164,7 @@ impl MultiCollection {
         // unnecessary copies??
         let s: Vec<_> = self
             .iter()
-            .map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
-            .flatten()
+            .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
             .collect();
         s.into_iter()
     }
@@ -179,8 +174,7 @@ impl MultiCollection {
         // i.e. self.item_iter().into_par_iter()?
         let s: Vec<_> = self
             .iter()
-            .map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
-            .flatten()
+            .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
             .collect();
         s.into_par_iter()
     }

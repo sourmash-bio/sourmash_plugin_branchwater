@@ -133,7 +133,7 @@ pub fn fastmultigather(
                                 if let Ok(mut file) = File::create(&sig_filename) {
                                     let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
                                     let mut new_mh = KmerMinHash::new(
-                                        query_mh.scaled().try_into().unwrap(),
+                                        query_mh.scaled(),
                                         query_mh.ksize().try_into().unwrap(),
                                         query_mh.hash_function().clone(),
                                         query_mh.seed(),

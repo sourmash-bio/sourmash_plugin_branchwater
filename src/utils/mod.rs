@@ -853,7 +853,7 @@ pub fn consume_query_by_gather(
     }
     let query_md5sum: String = orig_query_mh.md5sum().clone();
     let query_name = query.name().clone();
-    let query_scaled = orig_query_mh.scaled().clone() as usize; //query_mh.scaled() as usize
+    let query_scaled = orig_query_mh.scaled() as usize;
 
     let mut query_mh = orig_query_mh.clone();
     let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
@@ -924,11 +924,11 @@ pub fn consume_query_by_gather(
             query_filename: query.filename(),
             query_name: query_name.clone(),
             query_md5: query_md5sum.clone(),
-            query_bp: query_bp.clone(),
+            query_bp,
             ksize,
             moltype: query_moltype.clone(),
-            scaled: query_scaled.clone(),
-            query_n_hashes: query_n_hashes,
+            scaled: query_scaled,
+            query_n_hashes,
             query_abundance: query_mh.track_abundance(),
             query_containment_ani: match_.query_containment_ani,
             match_containment_ani: match_.match_containment_ani,
