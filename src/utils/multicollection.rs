@@ -172,16 +172,13 @@ impl MultiCollection {
     }
 
     pub fn par_iter(&self) -> impl IndexedParallelIterator<Item = (&Collection, Idx, &Record)> {
-        // @CTB convert away from vec
-        let mut sketchinfo: Vec<(&Collection, Idx, &Record)> = vec![];
-        for coll in self.collections.iter() {
-            let mut si: Vec<_> = coll
-                .par_iter()
-                .map(|(_idx, record)| (coll, _idx, record))
-                .collect();
-            sketchinfo.append(&mut si);
-        }
-        sketchinfo.into_par_iter()
+        // CTB: request review by Rust expert pls :)
+        let s: Vec<_> = self
+            .iter()
+            .map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
+            .flatten()
+            .collect();
+        s.into_par_iter()
     }
 }
 
