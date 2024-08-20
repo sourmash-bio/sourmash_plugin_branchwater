@@ -566,7 +566,7 @@ pub fn load_collection(
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
     let mut last_error = None;
 
-    let multi = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
         match MultiCollection::from_zipfile(&sigpath) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
@@ -578,7 +578,7 @@ pub fn load_collection(
         None
     };
 
-    let multi = multi.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
+    let collection = collection.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
         Ok(coll) => Some((coll, 0)),
         Err(e) => {
             last_error = Some(e);
@@ -586,8 +586,8 @@ pub fn load_collection(
         }
     });
 
-    let multi =
-        multi.or_else(|| match MultiCollection::from_manifest(&sigpath) {
+    let collection =
+        collection.or_else(|| match MultiCollection::from_manifest(&sigpath) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
@@ -595,8 +595,8 @@ pub fn load_collection(
             }
         });
 
-    let multi =
-        multi.or_else(|| match MultiCollection::from_signature(&sigpath) {
+    let collection =
+        collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
@@ -604,8 +604,8 @@ pub fn load_collection(
             }
         });
 
-    let multi =
-        multi.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
+    let collection =
+        collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
             // @CTB n_failed
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
@@ -614,7 +614,7 @@ pub fn load_collection(
             }
         });
 
-    match multi {
+    match collection {
         Some((coll, n_failed)) => {
             let n_total = coll.len();
             let selected = coll.select(selection)?;
