@@ -18,7 +18,7 @@ use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::{FSStorage, InnerStorage, SigStore};
+use sourmash::storage::SigStore;
 
 /// A collection of sketches, potentially stored in multiple files.
 pub struct MultiCollection {
@@ -129,14 +129,10 @@ impl MultiCollection {
             })
             .collect();
 
-        let num_to_load = lines.len();
-
         let (colls, n_failed) = MultiCollection::load_set_of_paths(lines);
         let colls: Vec<_> = colls.into_iter().collect();
 
-        let n_missing = num_to_load - colls.len();
-
-        Ok((MultiCollection::new(colls), n_missing))
+        Ok((MultiCollection::new(colls), n_failed))
     }
 
     // Load from a sig file
