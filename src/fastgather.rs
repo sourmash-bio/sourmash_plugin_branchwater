@@ -33,7 +33,7 @@ pub fn fastgather(
         )
     }
     // get single query sig and minhash
-    let query_sig = query_collection.collections.first().unwrap().sig_for_dataset(0)?; // need this for original md5sum
+    let query_sig = query_collection.iter().next().unwrap().sig_for_dataset(0)?; // need this for original md5sum @CTB
     let query_sig_ds = query_sig.clone().select(selection)?; // downsample
     let query_mh = match query_sig_ds.minhash() {
         Some(query_mh) => query_mh,

@@ -434,12 +434,10 @@ pub fn load_sketches(
     selection: &Selection,
     _report_type: ReportType,
 ) -> Result<Vec<SmallSignature>> {
+    // @CTB: convert to iter from vec.
     let mut sketchinfo: Vec<SmallSignature> = vec![];
 
-    eprintln!("yyy {}", multi.len());
-
     for coll in multi.iter() {
-        eprintln!("multi iter: {}", coll.len());
         let mut si: Vec<SmallSignature> = coll
             .par_iter()
             .filter_map(|(_idx, record)| match coll.sig_from_record(record) {
@@ -464,8 +462,6 @@ pub fn load_sketches(
             }
         })
             .collect();
-
-        eprintln!("si len: {}", si.len());
 
         sketchinfo.append(&mut si);
     }
@@ -610,7 +606,7 @@ pub fn load_collection(
 
     let multi =
         multi.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
-            // @n_failed
+            // @CTB n_failed
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
@@ -623,7 +619,7 @@ pub fn load_collection(
             let n_total = coll.len();
             let selected = coll.select(selection)?;
             let n_skipped = n_total - selected.len();
-            report_on_multicollection_loading(
+            report_on_collection_loading(
                 &selected,
                 n_skipped,
                 n_failed,
@@ -667,7 +663,7 @@ pub fn load_collection(
 ///
 /// Returns an error if:
 /// * No signatures were successfully loaded.
-pub fn report_on_multicollection_loading(
+pub fn report_on_collection_loading(
     collection: &MultiCollection,
     skipped_paths: usize,
     failed_paths: usize,

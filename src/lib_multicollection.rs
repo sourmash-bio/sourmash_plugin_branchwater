@@ -21,8 +21,7 @@ use sourmash::storage::{FSStorage, InnerStorage};
 
 /// A collection of sketches, potentially stored in multiple files.
 pub struct MultiCollection {
-    // @CTB pub
-    pub collections: Vec<Collection>
+    collections: Vec<Collection>
 }
 
 impl MultiCollection {
@@ -167,6 +166,7 @@ impl MultiCollection {
     }
 
     pub fn par_iter(&self) -> impl IndexedParallelIterator<Item = (&Collection, Idx, &Record)> {
+        // @CTB convert away from vec
         let mut sketchinfo: Vec<(&Collection, Idx, &Record)> = vec![];
         for coll in self.collections.iter() {
             let mut si: Vec<_> = coll.par_iter().map(|(_idx, record)| (coll, _idx, record)).collect();
