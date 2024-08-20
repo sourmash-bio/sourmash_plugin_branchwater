@@ -443,7 +443,7 @@ pub fn load_sketches(
                 let minhash = selected_sig.minhash()?.clone();
 
                 Some(SmallSignature {
-                    collection: coll.clone(),
+                    collection: coll.clone(), // @CTB
                     location: record.internal_location().to_string(),
                     name: sig.name(),
                     md5sum: sig.md5sum(),
