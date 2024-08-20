@@ -28,7 +28,8 @@ use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 
-use crate::lib_multicollection::{MultiCollection, SmallSignature};
+mod multicollection;
+use multicollection::{MultiCollection, SmallSignature};
 
 /// Structure to hold overlap information from comparisons.
 pub struct PrefetchResult {
@@ -442,7 +443,7 @@ pub fn load_sketches(
                 let minhash = selected_sig.minhash()?.clone();
 
                 Some(SmallSignature {
-                    collection: coll.clone(), // @CTB
+                    collection: coll.clone(),
                     location: record.internal_location().to_string(),
                     name: sig.name(),
                     md5sum: sig.md5sum(),
