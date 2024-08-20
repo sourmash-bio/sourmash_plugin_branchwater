@@ -3,10 +3,12 @@ import sys
 import argparse
 from sourmash.plugins import CommandLinePlugin
 from sourmash.logging import notify
+from sourmash.exceptions import IndexNotLoaded
 import os
 import importlib.metadata
 
 from . import sourmash_plugin_branchwater
+from . import sourmash_plugin_branchwater as api
 from . import prettyprint
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")
@@ -35,6 +37,51 @@ def set_thread_pool(user_cores):
         notify(f"warning: only {avail_threads} threads available, using {avail_threads}")
     actual_rayon_cores = sourmash_plugin_branchwater.set_global_thread_pool(num_threads)
     return actual_rayon_cores
+
+
+class BranchwaterManifestWrapper:
+    def __init__(self, mf_obj):
+        self.obj = mf_obj
+
+    def _check_row_values(self):
+        return self.obj._check_row_values()
+
+    @property
+    def rows(self):
+        return self.obj.rows
+
+
+class BranchwaterCollectionWrapper:
+    def __init__(self, coll_obj):
+        self.obj = coll_obj
+
+    @property
+    def location(self):
+        return self.obj.location
+
+    @property
+    def is_database(self):
+        return self.obj.is_database
+
+    @property
+    def has_manifest(self):
+        return self.obj.has_manifest
+
+    @property
+    def manifest(self):
+        return BranchwaterManifestWrapper(self.obj.manifest)
+
+    def __len__(self):
+        return len(self.obj)
+
+
+def load_collection(path, *, traverse_yield_all=False, cache_size=0):
+    try:
+        coll_obj = api.api_load_collection(path, 31, 100_000, 'DNA')
+        return BranchwaterCollectionWrapper(coll_obj)
+    except:
+        raise IndexNotLoaded(f"branchwater could not load '{path}'")
+load_collection.priority = 20
 
 
 class Branchwater_Manysearch(CommandLinePlugin):

@@ -1,9 +1,14 @@
-/// Python interface Rust code for sourmash_plugin_branchwater.
+//! Rust-to-Pyton interface code for sourmash_plugin_branchwater, using pyo3.
+//!
+//! If you're using Rust, you're probably most interested in
+//! [utils](utils/index.html)
+
 use pyo3::prelude::*;
 
 #[macro_use]
 extern crate simple_error;
 
+mod branch_api;
 mod utils;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
@@ -106,6 +111,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false))]
 fn do_fastmultigather(
     query_filenames: String,
@@ -322,8 +328,11 @@ fn do_cluster(
     }
 }
 
+/// Module interface for the `sourmash_plugin_branchwater` extension module.
+
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // top level 'scripts' commands
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastgather, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastmultigather, m)?)?;
@@ -334,5 +343,10 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
+
+    // lower level API stuff
+    m.add_class::<branch_api::BranchCollection>()?;
+    m.add_function(wrap_pyfunction!(branch_api::api_load_collection, m)?)?;
+
     Ok(())
 }
