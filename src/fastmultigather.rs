@@ -69,11 +69,11 @@ pub fn fastmultigather(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    query_collection.par_iter().for_each(|(_idx, record)| {
+    query_collection.par_iter().for_each(|(c, _idx, record)| {
         // increment counter of # of queries. q: could we instead use the _idx from par_iter(), or will it vary based on thread?
         let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
         // Load query sig (downsampling happens here)
-        match query_collection.sig_from_record(record) {
+        match c.sig_from_record(record) {
             Ok(query_sig) => {
                 let name = query_sig.name();
                 let prefix = name.split(' ').next().unwrap_or_default().to_string();

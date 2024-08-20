@@ -56,7 +56,7 @@ pub fn mastiff_manysearch(
 
     let send_result = query_collection
         .par_iter()
-        .filter_map(|(_idx, record)| {
+        .filter_map(|(coll, _idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 && i > 0 {
                 eprintln!("Processed {} search sigs", i);
@@ -64,7 +64,7 @@ pub fn mastiff_manysearch(
 
             let mut results = vec![];
             // query downsample happens here
-            match query_collection.sig_from_record(record) {
+            match coll.sig_from_record(record) {
                 Ok(query_sig) => {
                     if let Some(query_mh) = query_sig.minhash() {
                         let query_size = query_mh.size();
