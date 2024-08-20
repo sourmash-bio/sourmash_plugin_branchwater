@@ -7,7 +7,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
+    csvwriter_thread, load_multicollection, load_sketches_from_multi, MultiSearchResult, ReportType,
 };
 use sourmash::ani_utils::ani_from_containment;
 
@@ -27,22 +27,22 @@ pub fn multisearch(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
 
-    let query_collection = load_collection(
+    let query_collection = load_multicollection(
         &query_filepath,
         selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    let queries = load_sketches(query_collection, selection, ReportType::Query).unwrap();
+    let queries = load_sketches_from_multi(query_collection, selection, ReportType::Query).unwrap();
 
     // Load all against sketches into memory at once.
-    let against_collection = load_collection(
+    let against_collection = load_multicollection(
         &against_filepath,
         selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let against = load_sketches_from_multi(against_collection, selection, ReportType::Against).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

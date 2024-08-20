@@ -22,6 +22,7 @@ use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::collection::Collection;
+use sourmash::errors::SourmashError;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
@@ -29,16 +30,25 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
-/// Track a name/minhash.
 
+/// Track a name/minhash.
 pub struct SmallSignature {
     pub location: String,
     pub name: String,
     pub md5sum: String,
     pub minhash: KmerMinHash,
 }
-/// Structure to hold overlap information from comparisons.
 
+/// Track a name/minhash.
+pub struct SmallSignatureMulti {
+    pub collection: Collection,
+    pub location: String,
+    pub name: String,
+    pub md5sum: String,
+    pub minhash: KmerMinHash,
+}
+
+/// Structure to hold overlap information from comparisons.
 pub struct PrefetchResult {
     pub name: String,
     pub md5sum: String,
@@ -433,6 +443,167 @@ fn process_prefix_csv(
     Ok((results, n_fastas))
 }
 
+/////////
+
+/// A collection of sketches, potentially stored in multiple files.
+
+pub struct MultiCollection {
+    // @CTB pub
+    pub collections: Vec<Collection>
+}
+
+impl MultiCollection {
+    /// Build from a standalone manifest
+    pub fn from_manifest(sigpath: &Path) -> Result<Self> {
+        eprintln!("multi from manifest!");
+        let file = File::open(sigpath)
+            .with_context(|| format!("Failed to open file: '{}'", sigpath))?;
+
+        let reader = BufReader::new(file);
+        let manifest = Manifest::from_reader(reader).with_context(|| {
+            format!("Failed to read manifest from: '{}'", sigpath)
+        })?;
+
+        if manifest.is_empty() {
+            Err(anyhow!("could not read as manifest: '{}'", sigpath))
+        } else {
+            let coll = Collection::new(
+                manifest,
+                InnerStorage::new(
+                    FSStorage::builder()
+                        .fullpath("".into())
+                        .subdir("".into())
+                        .build(),
+                )
+            );
+            Ok(Self { collections: vec![ coll ] })
+        }
+    }
+
+    /// Load a collection from a .zip file.
+    pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
+        eprintln!("multi from zipfile!");
+        match Collection::from_zipfile(sigpath) {
+            Ok(collection) => Ok(Self { collections: vec![ collection ] }),
+            Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
+        }
+    }
+
+    /// Load a collection from a RocksDB.
+    pub fn from_rocksdb(sigpath: &Path) -> Result<Self> {
+        eprintln!("multi from rocksdb!");
+        match Collection::from_rocksdb(sigpath) {
+            Ok(collection) => Ok(Self { collections: vec![ collection ] }),
+            Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
+        }
+    }
+
+    /// Load a collection from a list of paths.
+    pub fn from_pathlist(sigpath: &Path) -> Result<Self> {
+        eprintln!("multi from pathlist!");
+        let file = File::open(sigpath).with_context(|| {
+            format!("Failed to open pathlist file: '{}'", sigpath)
+        })?;
+        let reader = BufReader::new(file);
+
+        // load list of paths
+        let lines: Vec<_> = reader
+            .lines()
+            .filter_map(|line| match line {
+                Ok(path) => Some(path),
+                Err(_err) => None,
+            })
+            .collect();
+
+        // load sketches from paths in parallel.
+        let n_failed = AtomicUsize::new(0);
+        let records: Vec<Record> = lines
+            .par_iter()
+            .filter_map(|path| match Signature::from_path(path) {
+                Ok(signatures) => {
+                    let recs: Vec<Record> = signatures
+                        .into_iter()
+                        .flat_map(|v| Record::from_sig(&v, path))
+                        .collect();
+                    Some(recs)
+                }
+                Err(err) => {
+                    eprintln!("Sketch loading error: {}", err);
+                    eprintln!("WARNING: could not load sketches from path '{}'", path);
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+
+        if records.is_empty() {
+            eprintln!(
+                "No valid signatures found in pathlist '{}'",
+                sigpath
+            );
+        }
+
+        let manifest: Manifest = records.into();
+        let collection = Collection::new(
+            manifest,
+            InnerStorage::new(
+                FSStorage::builder()
+                    .fullpath("".into())
+                    .subdir("".into())
+                    .build(),
+            ),
+        );
+        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
+        Ok(Self { collections: vec![ collection ] } )
+    }
+
+    // Load from a sig file
+    pub fn from_signature(sigpath: &Path) -> Result<Self> {
+        eprintln!("multi from signature!");
+        let signatures = Signature::from_path(sigpath).with_context(|| {
+            format!(
+                "Failed to load signatures from: '{}'",
+                sigpath
+            )
+        })?;
+
+        let coll =
+            Collection::from_sigs(signatures).with_context(|| {
+                format!(
+                    "Loaded signatures but failed to load as collection: '{}'",
+                    sigpath
+                )
+            })?;
+        eprintln!("xxx {}", coll.len());
+        Ok(Self { collections: vec![ coll ] } )
+    }
+
+    pub fn len(&self) -> usize {
+        let val: usize = self.collections.iter().map(|c| c.len()).sum();
+        val
+    }
+    pub fn is_empty(&self) -> bool {
+        let val: usize = self.collections.iter().map(|c| c.len()).sum();
+        if val > 0 { false } else { true }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Collection> {
+        self.collections.iter()
+    }
+}
+
+impl Select for MultiCollection {
+    fn select(mut self, selection: &Selection) -> Result<Self, SourmashError> {
+        self.collections = self.collections
+            .iter()
+            .filter_map(|c| c.clone().select(selection).ok() )
+            .collect();
+        Ok(self)
+    }
+}
+
 // Load all compatible minhashes from a collection into memory, in parallel;
 // also store sig name and md5 alongside, as we usually need those
 pub fn load_sketches(
@@ -463,6 +634,52 @@ pub fn load_sketches(
             }
         })
         .collect();
+
+    Ok(sketchinfo)
+}
+
+// Load all compatible minhashes from a collection into memory, in parallel;
+// also store sig name and md5 alongside, as we usually need those
+pub fn load_sketches_from_multi(
+    multi: MultiCollection,
+    selection: &Selection,
+    _report_type: ReportType,
+) -> Result<Vec<SmallSignatureMulti>> {
+    let mut sketchinfo: Vec<SmallSignatureMulti> = vec![];
+
+    eprintln!("yyy {}", multi.len());
+
+    for coll in multi.iter() {
+        eprintln!("multi iter: {}", coll.len());
+        let mut si: Vec<SmallSignatureMulti> = coll
+            .par_iter()
+            .filter_map(|(_idx, record)| match coll.sig_from_record(record) {
+            Ok(sig) => {
+                let selected_sig = sig.clone().select(selection).ok()?;
+                let minhash = selected_sig.minhash()?.clone();
+
+                Some(SmallSignatureMulti {
+                    collection: coll.clone(), // @CTB
+                    location: record.internal_location().to_string(),
+                    name: sig.name(),
+                    md5sum: sig.md5sum(),
+                    minhash,
+                })
+            }
+            Err(_) => {
+                eprintln!(
+                    "FAILED to load sketch from '{}'",
+                    record.internal_location()
+                );
+                None
+            }
+        })
+            .collect();
+
+        eprintln!("si len: {}", si.len());
+
+        sketchinfo.append(&mut si);
+    }
 
     Ok(sketchinfo)
 }
@@ -546,23 +763,6 @@ impl std::fmt::Display for ReportType {
     }
 }
 
-/// Load a collection from a .zip file.
-
-pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
-    match Collection::from_zipfile(sigpath) {
-        Ok(collection) => Ok(collection),
-        Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
-    }
-}
-
-/// Load a collection from a RocksDB.
-
-pub fn collection_from_rocksdb(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
-    match Collection::from_rocksdb(sigpath) {
-        Ok(collection) => Ok(collection),
-        Err(_) => bail!("failed to load {} rocksdb: '{}'", report_type, sigpath),
-    }
-}
 
 /// Load a collection from a manifest CSV.
 
@@ -596,6 +796,24 @@ fn collection_from_manifest(
                     .build(),
             ),
         ))
+    }
+}
+
+/// Load a collection from a .zip file.
+
+pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
+    match Collection::from_zipfile(sigpath) {
+        Ok(collection) => Ok(collection),
+        Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
+    }
+}
+
+/// Load a collection from a RocksDB.
+
+pub fn collection_from_rocksdb(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
+    match Collection::from_rocksdb(sigpath) {
+        Ok(collection) => Ok(collection),
+        Err(_) => bail!("failed to load {} rocksdb: '{}'", report_type, sigpath),
     }
 }
 
@@ -782,6 +1000,98 @@ pub fn load_collection(
     }
 }
 
+/// Load a multi collection from a path - this is the new top-level load function.
+
+pub fn load_multicollection(
+    siglist: &String,
+    selection: &Selection,
+    report_type: ReportType,
+    allow_failed: bool,
+) -> Result<MultiCollection> {
+    let sigpath = PathBuf::from(siglist);
+
+    if !sigpath.exists() {
+        bail!("No such file or directory: '{}'", &sigpath);
+    }
+
+    eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
+    let mut last_error = None;
+
+    let multi = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+        match MultiCollection::from_zipfile(&sigpath) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let multi = multi.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
+
+    let multi =
+        multi.or_else(|| match MultiCollection::from_manifest(&sigpath) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+    let multi =
+        multi.or_else(|| match MultiCollection::from_signature(&sigpath) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+    let multi =
+        multi.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
+            // @n_failed
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+    match multi {
+        Some((coll, n_failed)) => {
+            let n_total = coll.len();
+            let selected = coll.select(selection)?;
+            let n_skipped = n_total - selected.len();
+            report_on_multicollection_loading(
+                &selected,
+                n_skipped,
+                n_failed,
+                report_type,
+                allow_failed,
+            )?;
+            Ok(selected)
+        }
+        None => {
+            if let Some(e) = last_error {
+                Err(e)
+            } else {
+                // Should never get here
+                Err(anyhow!(
+                    "Unable to load the collection for an unknown reason."
+                ))
+            }
+        }
+    }
+}
+
 /// Uses the output of collection loading function to report the
 /// total number of sketches loaded, as well as the number of files,
 /// if any, that failed to load or contained no compatible sketches.
@@ -806,6 +1116,59 @@ pub fn load_collection(
 /// * No signatures were successfully loaded.
 pub fn report_on_collection_loading(
     collection: &Collection,
+    skipped_paths: usize,
+    failed_paths: usize,
+    report_type: ReportType,
+    allow_failed: bool,
+) -> Result<()> {
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} {} paths failed to load. See error messages above.",
+            failed_paths, report_type
+        );
+        if !allow_failed {
+            bail! {"Signatures failed to load. Exiting."}
+        }
+    }
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} {} paths - no compatible signatures.",
+            skipped_paths, report_type
+        );
+    }
+
+    // Validate sketches
+    if collection.is_empty() {
+        bail!("No {} signatures loaded, exiting.", report_type);
+    }
+    eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);
+    Ok(())
+}
+
+/// Uses the output of collection loading function to report the
+/// total number of sketches loaded, as well as the number of files,
+/// if any, that failed to load or contained no compatible sketches.
+/// If no sketches were loaded, bail.
+///
+/// # Arguments
+///
+/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
+/// * `skipped_paths` - # paths that contained no compatible sketches.
+/// * `failed_paths` - # paths that failed to load.
+/// * `report_type` - ReportType Enum (Query or Against). Used to specify
+///                   which sketch input this information pertains to.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if at least one signature was successfully loaded.
+/// Returns an error if no signatures were loaded.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * No signatures were successfully loaded.
+pub fn report_on_multicollection_loading(
+    collection: &MultiCollection,
     skipped_paths: usize,
     failed_paths: usize,
     report_type: ReportType,
