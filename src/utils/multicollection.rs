@@ -172,7 +172,7 @@ impl MultiCollection {
     }
 
     pub fn par_iter(&self) -> impl IndexedParallelIterator<Item = (&Collection, Idx, &Record)> {
-        // CTB: request review by Rust expert pls :)
+        // CTB: request review by Rust expert pls :). Does this make copies??
         let s: Vec<_> = self
             .iter()
             .map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
@@ -184,8 +184,8 @@ impl MultiCollection {
 
 impl Select for MultiCollection {
     fn select(mut self, selection: &Selection) -> Result<Self, SourmashError> {
+        // CTB: request review by Rust expert! Is the clone necessary?
         self.collections = self
-            .collections
             .iter()
             .filter_map(|c| c.clone().select(selection).ok())
             .collect();
@@ -197,6 +197,7 @@ impl TryFrom<MultiCollection> for CollectionSet {
     type Error = SourmashError;
 
     fn try_from(multi: MultiCollection) -> Result<CollectionSet, SourmashError> {
+        // CTB: request review by Rust expert! Is the clone necessary?
         let coll = multi.iter().next().unwrap().clone();
         let cs: CollectionSet = coll.try_into()?;
         Ok(cs)
@@ -205,6 +206,7 @@ impl TryFrom<MultiCollection> for CollectionSet {
 
 /// Track a name/minhash.
 pub struct SmallSignature {
+    // CTB: request help - can we/should we use references & lifetimes here?
     pub collection: Collection,
     pub location: String,
     pub name: String,
