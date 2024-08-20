@@ -21,8 +21,9 @@ use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
-use sourmash::collection::Collection;
+use sourmash::collection::{Collection, CollectionSet};
 use sourmash::errors::SourmashError;
+use sourmash::encodings::Idx;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
@@ -592,6 +593,15 @@ impl MultiCollection {
     pub fn iter(&self) -> impl Iterator<Item = &Collection> {
         self.collections.iter()
     }
+
+    pub fn par_iter(&self) -> impl IndexedParallelIterator<Item = (&Collection, Idx, &Record)> {
+        let mut sketchinfo: Vec<(&Collection, Idx, &Record)> = vec![];
+        for coll in self.collections.iter() {
+            let mut si: Vec<_> = coll.par_iter().map(|(_idx, record)| (coll, _idx, record)).collect();
+            sketchinfo.append(&mut si);
+        }
+        sketchinfo.into_par_iter()
+    }
 }
 
 impl Select for MultiCollection {
@@ -604,43 +614,19 @@ impl Select for MultiCollection {
     }
 }
 
-// Load all compatible minhashes from a collection into memory, in parallel;
-// also store sig name and md5 alongside, as we usually need those
-pub fn load_sketches(
-    collection: Collection,
-    selection: &Selection,
-    _report_type: ReportType,
-) -> Result<Vec<SmallSignature>> {
-    let sketchinfo: Vec<SmallSignature> = collection
-        .par_iter()
-        .filter_map(|(_idx, record)| match collection.sig_from_record2(record) {
-            Ok(sig) => {
-                let selected_sig = sig.clone().select(selection).ok()?;
-                let minhash = selected_sig.minhash()?.clone();
+impl TryFrom<MultiCollection> for CollectionSet {
+    type Error = SourmashError;
 
-                Some(SmallSignature {
-                    location: record.internal_location().to_string(),
-                    name: sig.name(),
-                    md5sum: sig.md5sum(),
-                    minhash,
-                })
-            }
-            Err(_) => {
-                eprintln!(
-                    "FAILED to load sketch from '{}'",
-                    record.internal_location()
-                );
-                None
-            }
-        })
-        .collect();
-
-    Ok(sketchinfo)
+    fn try_from(multi: MultiCollection) -> Result<CollectionSet, SourmashError> {
+        let coll = multi.iter().next().unwrap().clone();
+        let cs: CollectionSet = coll.try_into()?;
+        Ok(cs)
+    }
 }
 
 // Load all compatible minhashes from a collection into memory, in parallel;
 // also store sig name and md5 alongside, as we usually need those
-pub fn load_sketches_from_multi(
+pub fn load_sketches(
     multi: MultiCollection,
     selection: &Selection,
     _report_type: ReportType,
@@ -688,7 +674,7 @@ pub fn load_sketches_from_multi(
 /// those with a minimum overlap.
 
 pub fn load_sketches_above_threshold(
-    against_collection: Collection,
+    against_collection: MultiCollection,
     query: &KmerMinHash,
     threshold_hashes: u64,
 ) -> Result<(BinaryHeap<PrefetchResult>, usize, usize)> {
@@ -697,10 +683,10 @@ pub fn load_sketches_above_threshold(
 
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
-        .filter_map(|(_idx, against_record)| {
+        .filter_map(|(coll, _idx, against_record)| {
             let mut results = Vec::new();
             // Load against into memory
-            if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
+            if let Ok(against_sig) = coll.sig_from_record(against_record) {
                 if let Some(against_mh) = against_sig.minhash() {
                     // downsample against_mh, but keep original md5sum
                     let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
@@ -904,7 +890,7 @@ fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result
 
 /// Load a collection from a path - this is the top-level load function.
 
-pub fn load_collection(
+pub fn load_collection2(
     siglist: &String,
     selection: &Selection,
     report_type: ReportType,
@@ -1002,7 +988,7 @@ pub fn load_collection(
 
 /// Load a multi collection from a path - this is the new top-level load function.
 
-pub fn load_multicollection(
+pub fn load_collection(
     siglist: &String,
     selection: &Selection,
     report_type: ReportType,
