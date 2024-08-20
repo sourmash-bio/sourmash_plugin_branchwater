@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 extern crate simple_error;
 
 mod utils;
+mod lib_multicollection;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
