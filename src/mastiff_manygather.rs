@@ -54,12 +54,12 @@ pub fn mastiff_manygather(
 
     let send = query_collection
         .par_iter()
-        .filter_map(|(_idx, record)| {
+        .filter_map(|(coll, _idx, record)| {
             let threshold = threshold_bp / selection.scaled()? as usize;
             let ksize = selection.ksize()?;
 
             // query downsampling happens here
-            match query_collection.sig_from_record(record) {
+            match coll.sig_from_record(record) {
                 Ok(query_sig) => {
                     let mut results = vec![];
                     if let Some(query_mh) = query_sig.minhash() {

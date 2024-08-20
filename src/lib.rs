@@ -111,6 +111,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false))]
 fn do_fastmultigather(
     query_filenames: String,

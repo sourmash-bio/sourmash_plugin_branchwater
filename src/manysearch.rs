@@ -58,7 +58,7 @@ pub fn manysearch(
 
     let send = against_collection
         .par_iter()
-        .filter_map(|(_idx, record)| {
+        .filter_map(|(coll, _idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 && i > 0 {
                 eprintln!("Processed {} search sigs", i);
@@ -67,7 +67,7 @@ pub fn manysearch(
             let mut results = vec![];
 
             // against downsampling happens here
-            match against_collection.sig_from_record(record) {
+            match coll.sig_from_record(record) {
                 Ok(against_sig) => {
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {

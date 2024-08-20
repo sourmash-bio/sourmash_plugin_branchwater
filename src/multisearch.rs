@@ -60,12 +60,12 @@ pub fn multisearch(
     let processed_cmp = AtomicUsize::new(0);
     let ksize = selection.ksize().unwrap() as f64;
 
-    if queries.len() == 0 {
+    if queries.is_empty() {
         eprintln!("No query sketches present. Exiting.");
         return Err(anyhow::anyhow!("failed to load query sketches").into());
     }
 
-    if against.len() == 0 {
+    if against.is_empty() {
         eprintln!("No search sketches present. Exiting.");
         return Err(anyhow::anyhow!("failed to load search sketches").into());
     }
