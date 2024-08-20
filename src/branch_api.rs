@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 use crate::utils::build_selection;
 use crate::utils::load_collection;
 use crate::utils::ReportType;
+use crate::utils::multicollection::MultiCollection;
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
 use pyo3::types::{IntoPyDict, PyDict, PyList};
@@ -87,7 +88,7 @@ pub struct BranchCollection {
     #[pyo3(get)]
     pub has_manifest: bool,
 
-    collection: Collection,
+    collection: MultiCollection,
 }
 
 #[pymethods]

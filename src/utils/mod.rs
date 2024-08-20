@@ -28,7 +28,7 @@ use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 
-mod multicollection;
+pub mod multicollection;
 use multicollection::{MultiCollection, SmallSignature};
 
 /// Structure to hold overlap information from comparisons.
