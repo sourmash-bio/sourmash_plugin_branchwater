@@ -442,7 +442,7 @@ pub fn load_sketches(
 ) -> Result<Vec<SmallSignature>> {
     let sketchinfo: Vec<SmallSignature> = collection
         .par_iter()
-        .filter_map(|(_idx, record)| match collection.sig_from_record(record) {
+        .filter_map(|(_idx, record)| match collection.sig_from_record2(record) {
             Ok(sig) => {
                 let selected_sig = sig.clone().select(selection).ok()?;
                 let minhash = selected_sig.minhash()?.clone();
