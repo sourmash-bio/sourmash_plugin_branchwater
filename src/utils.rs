@@ -22,9 +22,9 @@ use zip::CompressionMethod;
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
-use sourmash::storage::SigStore;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 
@@ -441,26 +441,26 @@ pub fn load_sketches(
         let mut si: Vec<SmallSignature> = coll
             .par_iter()
             .filter_map(|(_idx, record)| match coll.sig_from_record(record) {
-            Ok(sig) => {
-                let selected_sig = sig.clone().select(selection).ok()?;
-                let minhash = selected_sig.minhash()?.clone();
+                Ok(sig) => {
+                    let selected_sig = sig.clone().select(selection).ok()?;
+                    let minhash = selected_sig.minhash()?.clone();
 
-                Some(SmallSignature {
-                    collection: coll.clone(), // @CTB
-                    location: record.internal_location().to_string(),
-                    name: sig.name(),
-                    md5sum: sig.md5sum(),
-                    minhash,
-                })
-            }
-            Err(_) => {
-                eprintln!(
-                    "FAILED to load sketch from '{}'",
-                    record.internal_location()
-                );
-                None
-            }
-        })
+                    Some(SmallSignature {
+                        collection: coll.clone(), // @CTB
+                        location: record.internal_location().to_string(),
+                        name: sig.name(),
+                        md5sum: sig.md5sum(),
+                        minhash,
+                    })
+                }
+                Err(_) => {
+                    eprintln!(
+                        "FAILED to load sketch from '{}'",
+                        record.internal_location()
+                    );
+                    None
+                }
+            })
             .collect();
 
         sketchinfo.append(&mut si);
@@ -548,7 +548,6 @@ impl std::fmt::Display for ReportType {
     }
 }
 
-
 /// Load a multi collection from a path - this is the new top-level load function.
 
 pub fn load_collection(
@@ -586,33 +585,30 @@ pub fn load_collection(
         }
     });
 
-    let collection =
-        collection.or_else(|| match MultiCollection::from_manifest(&sigpath) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match MultiCollection::from_manifest(&sigpath) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
 
-    let collection =
-        collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
 
-    let collection =
-        collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
-            // @CTB n_failed
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
+        // @CTB n_failed
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
 
     match collection {
         Some((coll, n_failed)) => {
