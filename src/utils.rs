@@ -602,8 +602,7 @@ pub fn load_collection(
     });
 
     let collection = collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
-        // @CTB n_failed
-        Ok(coll) => Some((coll, 0)),
+        Ok((coll, n_failed)) => Some((coll, n_failed)),
         Err(e) => {
             last_error = Some(e);
             None

@@ -76,7 +76,7 @@ impl MultiCollection {
     }
 
     /// Load a collection from a list of paths.
-    pub fn from_pathlist(sigpath: &Path) -> Result<Self> {
+    pub fn from_pathlist(sigpath: &Path) -> Result<(Self, usize)> {
         debug!("multi from pathlist!");
         let file = File::open(sigpath)
             .with_context(|| format!("Failed to open pathlist file: '{}'", sigpath))?;
@@ -129,9 +129,9 @@ impl MultiCollection {
         );
         let n_failed = n_failed.load(atomic::Ordering::SeqCst);
 
-        Ok(Self {
+        Ok((Self {
             collections: vec![collection],
-        })
+        }, n_failed))
     }
 
     // Load from a sig file
