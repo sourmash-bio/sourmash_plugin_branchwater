@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
+use std::collections::HashSet;
 
 use sourmash::collection::{Collection, CollectionSet};
 use sourmash::encodings::Idx;
@@ -29,9 +30,49 @@ impl MultiCollection {
         Self { collections }
     }
 
+    // Turn a set of paths into list of Collections.
+    fn load_set_of_paths(paths: HashSet<String>) -> (Vec<Collection>, usize) {
+        let n_failed = AtomicUsize::new(0);
+
+        let colls: Vec<_> = paths
+            .par_iter()
+            .filter_map(|iloc| match iloc {
+                // could just use a variant of load_collection here?
+                x if x.ends_with(".zip") => {
+                    debug!("loading sigs from zipfile {}", x);
+                    Some(Collection::from_zipfile(x).unwrap())
+                },
+                _ => {
+                    debug!("loading sigs from sigfile {}", iloc);
+                    let signatures = match Signature::from_path(iloc) {
+                        Ok(signatures) => Some(signatures),
+                        Err(err) => {
+                            eprintln!("Sketch loading error: {}", err);
+                            None
+                        }
+                    };
+
+                    match signatures {
+                        Some(signatures) => {
+                            Some(Collection::from_sigs(signatures).unwrap())
+                        },
+                        None => {
+                            eprintln!("WARNING: could not load sketches from path '{}'", iloc);
+                            let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                            None
+                        }
+                    }
+                }
+            })
+            .collect();
+
+        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+        (colls, n_failed)
+    }
+
     /// Build from a standalone manifest
-    pub fn from_manifest(sigpath: &Path) -> Result<Self> {
-        debug!("multi from manifest!");
+    pub fn from_standalone_manifest(sigpath: &Path) -> Result<Self> {
+        debug!("multi from standalone manifest!");
         let file =
             File::open(sigpath).with_context(|| format!("Failed to open file: '{}'", sigpath))?;
 
@@ -42,16 +83,15 @@ impl MultiCollection {
         if manifest.is_empty() {
             Err(anyhow!("could not read as manifest: '{}'", sigpath))
         } else {
-            let coll = Collection::new(
-                manifest,
-                InnerStorage::new(
-                    FSStorage::builder()
-                        .fullpath("".into())
-                        .subdir("".into())
-                        .build(),
-                ),
-            );
-            Ok(MultiCollection::new(vec![coll]))
+            let ilocs: HashSet<_> = manifest
+                .internal_locations()
+                .map(|s| String::from(s))
+                .collect();
+
+            let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
+            let colls = colls.into_iter().collect();
+
+            Ok(MultiCollection::new(colls))
         }
     }
 
@@ -80,8 +120,8 @@ impl MultiCollection {
             .with_context(|| format!("Failed to open pathlist file: '{}'", sigpath))?;
         let reader = BufReader::new(file);
 
-        // load list of paths
-        let lines: Vec<_> = reader
+        // load set of paths
+        let lines: HashSet<_> = reader
             .lines()
             .filter_map(|line| match line {
                 Ok(path) => Some(path),
@@ -89,45 +129,14 @@ impl MultiCollection {
             })
             .collect();
 
-        // load sketches from paths in parallel.
-        let n_failed = AtomicUsize::new(0);
-        let records: Vec<Record> = lines
-            .par_iter()
-            .filter_map(|path| match Signature::from_path(path) {
-                Ok(signatures) => {
-                    let recs: Vec<Record> = signatures
-                        .into_iter()
-                        .flat_map(|v| Record::from_sig(&v, path))
-                        .collect();
-                    Some(recs)
-                }
-                Err(err) => {
-                    eprintln!("Sketch loading error: {}", err);
-                    eprintln!("WARNING: could not load sketches from path '{}'", path);
-                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
-                    None
-                }
-            })
-            .flatten()
-            .collect();
+        let num_to_load = lines.len();
 
-        if records.is_empty() {
-            eprintln!("No valid signatures found in pathlist '{}'", sigpath);
-        }
+        let (colls, n_failed) = MultiCollection::load_set_of_paths(lines);
+        let colls: Vec<_> = colls.into_iter().collect();
 
-        let manifest: Manifest = records.into();
-        let collection = Collection::new(
-            manifest,
-            InnerStorage::new(
-                FSStorage::builder()
-                    .fullpath("".into())
-                    .subdir("".into())
-                    .build(),
-            ),
-        );
-        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+        let n_missing = num_to_load - colls.len();
 
-        Ok((MultiCollection::new(vec![collection]), n_failed))
+        Ok((MultiCollection::new(colls), n_missing))
     }
 
     // Load from a sig file
