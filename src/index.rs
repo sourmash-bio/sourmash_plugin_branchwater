@@ -5,7 +5,6 @@ use sourmash::prelude::*;
 use std::path::Path;
 
 use crate::utils::{load_collection, ReportType};
-use crate::utils::multicollection::MultiCollection;
 use sourmash::collection::Collection;
 
 pub fn index<P: AsRef<Path>>(
@@ -25,16 +24,16 @@ pub fn index<P: AsRef<Path>>(
         allow_failed_sigpaths,
     )?;
 
-    debug!("loaded collection from '{}' with len {}", siglist, collection.len());
+    debug!(
+        "loaded collection from '{}' with len {}",
+        siglist,
+        collection.len()
+    );
 
     let sigs = collection.load_sigs()?; // @CTB load into memory :sob:
     let coll = Collection::from_sigs(sigs)?;
 
-    let mut index = RevIndex::create(
-        output.as_ref(),
-        coll.select(selection)?.try_into()?,
-        colors,
-    )?;
+    let mut index = RevIndex::create(output.as_ref(), coll.select(selection)?.try_into()?, colors)?;
 
     if use_internal_storage {
         index.internalize_storage()?;

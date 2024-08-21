@@ -4,22 +4,22 @@ use rayon::prelude::*;
 
 use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
+use camino::Utf8PathBuf;
 use log::debug;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use std::collections::HashSet;
-use camino::Utf8PathBuf;
 
-use sourmash::collection::{Collection, CollectionSet};
+use sourmash::collection::Collection;
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::{ SigStore, MemStorage, InnerStorage };
+use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]
@@ -43,7 +43,7 @@ impl MultiCollection {
                 x if x.ends_with(".zip") => {
                     debug!("loading sigs from zipfile {}", x);
                     Some(Collection::from_zipfile(x).unwrap())
-                },
+                }
                 _ => {
                     debug!("loading sigs from sigfile {}", iloc);
                     let signatures = match Signature::from_path(iloc) {
@@ -56,8 +56,23 @@ impl MultiCollection {
 
                     match signatures {
                         Some(signatures) => {
-                            Some(Collection::from_sigs(signatures).unwrap())
-                        },
+                            let records: Vec<_> = signatures
+                                .into_iter()
+                                .flat_map(|v| Record::from_sig(&v, iloc))
+                                .collect();
+
+                            let manifest: Manifest = records.into();
+                            let collection = Collection::new(
+                                manifest,
+                                InnerStorage::new(
+                                    FSStorage::builder()
+                                        .fullpath("".into())
+                                        .subdir("".into())
+                                        .build(),
+                                ),
+                            );
+                            Some(collection)
+                        }
                         None => {
                             eprintln!("WARNING: could not load sketches from path '{}'", iloc);
                             let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
@@ -87,7 +102,7 @@ impl MultiCollection {
         } else {
             let ilocs: HashSet<_> = manifest
                 .internal_locations()
-                .map(|s| String::from(s))
+                .map(String::from)
                 .collect();
 
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);

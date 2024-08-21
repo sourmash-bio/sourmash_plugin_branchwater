@@ -1,7 +1,7 @@
 /// mastiff_manysearch: mastiff-indexed version of manysearch.
 use anyhow::Result;
-use log::debug;
 use camino::Utf8PathBuf as PathBuf;
+use log::debug;
 use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -75,8 +75,7 @@ pub fn mastiff_manysearch(
                             db.matches_from_counter(counter, minimum_containment as usize);
 
                         // filter the matches for containment
-                        debug!("FOUND: {} matches for {:?}", matches.len(),
-                               query_sig);
+                        debug!("FOUND: {} matches for {:?}", matches.len(), query_sig);
                         for (path, overlap) in matches {
                             let containment = overlap as f64 / query_size as f64;
                             if containment >= minimum_containment {

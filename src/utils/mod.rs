@@ -1,5 +1,6 @@
 //! Utility functions for `sourmash_plugin_branchwater`.
 use rayon::prelude::*;
+
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
 
@@ -555,13 +556,16 @@ pub fn load_collection(
         }
     });
 
-    let collection = collection.or_else(|| match MultiCollection::from_standalone_manifest(&sigpath) {
-        Ok(coll) => Some((coll, 0)),
-        Err(e) => {
-            last_error = Some(e);
-            None
-        }
-    });
+    let collection =
+        collection.or_else(
+            || match MultiCollection::from_standalone_manifest(&sigpath) {
+                Ok(coll) => Some((coll, 0)),
+                Err(e) => {
+                    last_error = Some(e);
+                    None
+                }
+            },
+        );
 
     let collection = collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
         Ok(coll) => Some((coll, 0)),
