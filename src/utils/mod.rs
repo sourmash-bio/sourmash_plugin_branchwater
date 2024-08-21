@@ -28,7 +28,7 @@ use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 
-mod multicollection;
+pub mod multicollection;
 use multicollection::{MultiCollection, SmallSignature};
 
 /// Structure to hold overlap information from comparisons.
@@ -430,37 +430,13 @@ fn process_prefix_csv(
 
 // Load all compatible minhashes from a collection into memory, in parallel;
 // also store sig name and md5 alongside, as we usually need those
+// @CTB switch to using load_sketches method directly!
 pub fn load_sketches(
     multi: MultiCollection,
     selection: &Selection,
     _report_type: ReportType,
 ) -> Result<Vec<SmallSignature>> {
-    let sketchinfo: Vec<_> = multi
-        .par_iter()
-        .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
-            Ok(sig) => {
-                let selected_sig = sig.clone().select(selection).ok()?;
-                let minhash = selected_sig.minhash()?.clone();
-
-                Some(SmallSignature {
-                    collection: coll.clone(), // @CTB
-                    location: record.internal_location().to_string(),
-                    name: sig.name(),
-                    md5sum: sig.md5sum(),
-                    minhash,
-                })
-            }
-            Err(_) => {
-                eprintln!(
-                    "FAILED to load sketch from '{}'",
-                    record.internal_location()
-                );
-                None
-            }
-        })
-        .collect();
-
-    Ok(sketchinfo)
+    multi.load_sketches(selection)
 }
 
 /// Load a collection of sketches from a file, filtering to keep only

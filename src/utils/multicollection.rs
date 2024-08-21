@@ -19,9 +19,10 @@ use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::SigStore;
+use sourmash::storage::{ SigStore, MemStorage, InnerStorage };
 
 /// A collection of sketches, potentially stored in multiple files.
+#[derive(Clone)]
 pub struct MultiCollection {
     collections: Vec<Collection>,
 }
@@ -122,7 +123,10 @@ impl MultiCollection {
 
         if is_rocksdb {
             match Collection::from_rocksdb(sigpath) {
-                Ok(collection) => Ok(MultiCollection::new(vec![collection])),
+                Ok(collection) => {
+                    debug!("...rocksdb successful!");
+                    Ok(MultiCollection::new(vec![collection]))
+                }
                 Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
             }
         } else {
@@ -210,6 +214,56 @@ impl MultiCollection {
             None
         }
     }
+
+    // Load all sketches into memory, using SmallSignature to track original
+    // signature metadata.
+    pub fn load_sketches(&self, selection: &Selection) -> Result<Vec<SmallSignature>> {
+        let sketchinfo: Vec<_> = self
+            .par_iter()
+            .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
+                Ok(sig) => {
+                    let selected_sig = sig.clone().select(selection).ok()?;
+                    let minhash = selected_sig.minhash()?.clone();
+
+                    Some(SmallSignature {
+                        collection: coll.clone(), // @CTB
+                        location: record.internal_location().to_string(),
+                        name: sig.name(),
+                        md5sum: sig.md5sum(),
+                        minhash,
+                    })
+                }
+                Err(_) => {
+                    eprintln!(
+                        "FAILED to load sketch from '{}'",
+                        record.internal_location()
+                    );
+                    None
+                }
+            })
+            .collect();
+
+        Ok(sketchinfo)
+    }
+
+    // Load all signatures into memory.
+    pub fn load_sigs(&self) -> Result<Vec<Signature>> {
+        let sigs: Vec<_> = self
+            .par_iter()
+            .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
+                Ok(sigstore) => Some(sigstore.into()),
+                Err(_) => {
+                    eprintln!(
+                        "FAILED to load sketch from '{}'",
+                        record.internal_location()
+                    );
+                    None
+                }
+            })
+            .collect();
+
+        Ok(sigs)
+    }
 }
 
 impl Select for MultiCollection {
@@ -223,16 +277,20 @@ impl Select for MultiCollection {
     }
 }
 
+/*
 impl TryFrom<MultiCollection> for CollectionSet {
     type Error = SourmashError;
 
     fn try_from(multi: MultiCollection) -> Result<CollectionSet, SourmashError> {
         // CTB: request review by Rust expert! Is the clone necessary?
+// @CTB need to do something better than just getting the first CS! :sob:
+// @CTB could fail if more than one?
         let coll = multi.iter().next().unwrap().clone();
         let cs: CollectionSet = coll.try_into()?;
         Ok(cs)
     }
 }
+*/
 
 /// Track a name/minhash.
 pub struct SmallSignature {
