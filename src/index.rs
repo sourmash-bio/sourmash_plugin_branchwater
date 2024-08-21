@@ -17,7 +17,7 @@ pub fn index<P: AsRef<Path>>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
-    let collection = load_collection(
+    let multi = load_collection(
         &siglist,
         selection,
         ReportType::General,
@@ -25,12 +25,12 @@ pub fn index<P: AsRef<Path>>(
     )?;
 
     debug!(
-        "loaded collection from '{}' with len {}",
+        "loaded multicollection from '{}' with len {}",
         siglist,
-        collection.len()
+        multi.len()
     );
 
-    let sigs = collection.load_sigs()?; // @CTB load into memory :sob:
+    let sigs = multi.load_sigs()?; // @CTB load into memory :sob:
     let coll = Collection::from_sigs(sigs)?;
 
     let mut index = RevIndex::create(output.as_ref(), coll.select(selection)?.try_into()?, colors)?;
