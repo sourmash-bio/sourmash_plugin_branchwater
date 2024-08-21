@@ -10,6 +10,7 @@ use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 use std::collections::HashSet;
+use camino::Utf8PathBuf;
 
 use sourmash::collection::{Collection, CollectionSet};
 use sourmash::encodings::Idx;
@@ -107,9 +108,25 @@ impl MultiCollection {
     /// Load a collection from a RocksDB.
     pub fn from_rocksdb(sigpath: &Path) -> Result<Self> {
         debug!("multi from rocksdb!");
-        match Collection::from_rocksdb(sigpath) {
-            Ok(collection) => Ok(MultiCollection::new(vec![collection])),
-            Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
+        // duplicate logic from is_revindex_database
+        let path: Utf8PathBuf = sigpath.into();
+
+        let mut is_rocksdb = false;
+
+        if path.is_dir() {
+            let current_file = path.join("CURRENT");
+            if current_file.exists() && current_file.is_file() {
+                is_rocksdb = true;
+            }
+        }
+
+        if is_rocksdb {
+            match Collection::from_rocksdb(sigpath) {
+                Ok(collection) => Ok(MultiCollection::new(vec![collection])),
+                Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
+            }
+        } else {
+            bail!("not a rocksdb: '{}'", sigpath)
         }
     }
 
