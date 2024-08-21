@@ -203,7 +203,7 @@ impl MultiCollection {
 
     pub fn get_first_sig(&self) -> Option<SigStore> {
         if !self.is_empty() {
-            let query_item = self.item_iter().next().unwrap();
+            let query_item = self.item_iter().next()?;
             let (coll, _, _) = query_item;
             Some(coll.sig_for_dataset(0).ok()?)
         } else {
