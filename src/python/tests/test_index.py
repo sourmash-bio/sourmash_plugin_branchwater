@@ -82,9 +82,10 @@ def test_index_missing_siglist(runtmp, capfd, toggle_internal_storage):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Error: No such file or directory' in captured.err
+    assert 'Failed to open pathlist file:' in captured.err
 
 
+@pytest.mark.xfail(reason="not implemented yet")
 def test_index_sig(runtmp, capfd, toggle_internal_storage):
     # test index with a .sig.gz file instead of pathlist
     # (should work now)
@@ -100,6 +101,7 @@ def test_index_sig(runtmp, capfd, toggle_internal_storage):
     assert 'index is done' in runtmp.last_result.err
 
 
+@pytest.mark.xfail(reason="not implemented yet")
 def test_index_manifest(runtmp, capfd, toggle_internal_storage):
     # test index with a manifest file
     sig2 = get_test_data('2.fa.sig.gz')

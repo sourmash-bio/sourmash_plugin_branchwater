@@ -9,7 +9,7 @@ use anyhow::Context;
 use camino::Utf8PathBuf as PathBuf;
 
 use crate::utils::{load_collection, ReportType};
-use sourmash::collection::Collection;
+use sourmash::collection::{ Collection, CollectionSet };
 
 pub fn index<P: AsRef<Path>>(
     siglist: String,
@@ -52,13 +52,18 @@ pub fn index<P: AsRef<Path>>(
         }
     };
 
-    let mut index = RevIndex::create(output.as_ref(),
-                                     collection.select(selection)?.try_into()?,
-                                     colors)?;
+    let collection: CollectionSet = collection.select(selection)?.try_into()?;
 
-    if use_internal_storage {
-        index.internalize_storage()?;
+    if collection.is_empty() {
+        Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into())
+    } else {
+        let mut index = RevIndex::create(output.as_ref(),
+                                         collection,
+                                         colors)?;
+
+        if use_internal_storage {
+            index.internalize_storage()?;
+        }
+        Ok(())
     }
-
-    Ok(())
 }
