@@ -3,6 +3,10 @@ use sourmash::index::revindex::RevIndex;
 use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
 use std::path::Path;
+use std::fs::File;
+use std::io::{ BufRead, BufReader };
+use anyhow::Context;
+use camino::Utf8PathBuf as PathBuf;
 
 use crate::utils::{load_collection, ReportType};
 use sourmash::collection::Collection;
@@ -17,23 +21,40 @@ pub fn index<P: AsRef<Path>>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
-    let multi = load_collection(
-        &siglist,
-        selection,
-        ReportType::General,
-        allow_failed_sigpaths,
-    )?;
+    let collection = match siglist {
+        x if x.ends_with(".zip") => {
+            Collection::from_zipfile(x)?
+        }
+        _ => {
+            let file = File::open(siglist.clone()).with_context(|| {
+                format!(
+                    "Failed to open pathlist file: '{}'",
+                    siglist
+                )
+            })?;
 
-    debug!(
-        "loaded multicollection from '{}' with len {}",
-        siglist,
-        multi.len()
-    );
+            let reader = BufReader::new(file);
 
-    let sigs = multi.load_sigs()?; // @CTB load into memory :sob:
-    let coll = Collection::from_sigs(sigs)?;
+            // load list of paths
+            let lines: Vec<_> = reader
+                .lines()
+                .filter_map(|line| match line {
+                    Ok(path) => {
+                        let mut filename = PathBuf::new();
+                        filename.push(path);
+                        Some(filename)
+                    }
+                    Err(_err) => None,
+                })
+                .collect();
 
-    let mut index = RevIndex::create(output.as_ref(), coll.select(selection)?.try_into()?, colors)?;
+            Collection::from_paths(&lines)?
+        }
+    };
+
+    let mut index = RevIndex::create(output.as_ref(),
+                                     collection.select(selection)?.try_into()?,
+                                     colors)?;
 
     if use_internal_storage {
         index.internalize_storage()?;
