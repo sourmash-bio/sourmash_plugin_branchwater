@@ -280,13 +280,8 @@ def test_against_multisigfile(runtmp, zip_against):
                     '-o', g_output, '--output-prefetch', p_output,
                     '-s', '100000')
     df = pandas.read_csv(g_output)
-    if zip_against:
-        assert len(df) == 3
-        print(df)
-    else:
-        print(df)
-        assert len(df) == 1
-    # @CTB this is a bug :(. It should load multiple sketches properly!
+    assert len(df) == 3
+    print(df)
 
 
 def test_query_multisigfile(runtmp, capfd, zip_against):
