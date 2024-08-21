@@ -48,7 +48,17 @@ pub fn index<P: AsRef<Path>>(
                 })
                 .collect();
 
-            Collection::from_paths(&lines)?
+            if lines.is_empty() {
+                return Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into());
+            } else {
+                match Collection::from_paths(&lines) {
+                    Ok(collection) => collection,
+                    Err(err) => {
+                        eprintln!("Error in loading from '{}': {}", siglist, err);
+                        return Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into());
+                    }
+                }
+            }
         }
     };
 
