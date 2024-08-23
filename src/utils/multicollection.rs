@@ -113,7 +113,7 @@ impl MultiCollection {
                 .collect();
 
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
-            let colls = colls.iter().map(|c| c.clone().select_picklist(picklist.clone()))
+            let colls = colls.iter().map(|c| c.clone().select_picklist(&picklist))
                 .collect();
 
             Ok(MultiCollection::new(colls, false))
