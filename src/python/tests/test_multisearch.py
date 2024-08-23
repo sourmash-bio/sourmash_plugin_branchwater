@@ -177,7 +177,7 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
 
 
 def test_simple_ani_list_of_zips(runtmp):
-    # test basic execution!
+    # test basic execution against a pathlist file of zips
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
 
@@ -254,6 +254,53 @@ def test_simple_ani_list_of_zips(runtmp):
                 assert q2_ani == 0.9768
                 assert avg_ani == 0.977
                 assert max_ani == 0.9772
+
+
+def test_simple_ani_standalone_manifest(runtmp):
+    # test basic execution of a standalone manifest
+    against_list = runtmp.output('against.sig.zip')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    runtmp.sourmash('sig', 'cat', sig2, sig47, sig63, '-o', against_list)
+
+    picklist_file = runtmp.output('pl.csv')
+    with open(picklist_file, 'w', newline='') as fp:
+        w = csv.writer(fp)
+        w.writerow(['ident'])
+        w.writerow(['CP001071.1'])
+
+    # use picklist to create a standalone manifest
+    query_csv = runtmp.output('select.mf.csv')
+    runtmp.sourmash('sig', 'check', '--picklist',
+                    f'{picklist_file}:ident:ident',
+                    '-m', query_csv, against_list)
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', query_csv, against_list,
+                    '-o', output, '--ani')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 1         # should only be the one, identical match.
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+            assert float(row['query_containment_ani'] == 1.0)
+            assert float(row['match_containment_ani'] == 1.0)
+            assert float(row['average_containment_ani'] == 1.0)
+            assert float(row['max_containment_ani'] == 1.0)
 
 
 def test_simple_threshold(runtmp, zip_query, zip_db):

@@ -106,14 +106,20 @@ impl MultiCollection {
             Err(anyhow!("could not read as manifest: '{}'", sigpath))
         } else {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
+            let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
+
+            // select out only the (name, md5) pairs that were present
+            // in the manifest
             let picklist: HashSet<_> = manifest
                 .clone()
                 .iter()
                 .map(|r| (r.name().clone(), r.md5().clone()))
                 .collect();
 
-            let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
-            let colls = colls.iter().map(|c| c.clone().select_picklist(&picklist))
+            // @CTB transfer into MultiCollection too?
+            let colls = colls
+                .iter()
+                .map(|c| c.clone().select_picklist(&picklist))
                 .collect();
 
             Ok(MultiCollection::new(colls, false))
