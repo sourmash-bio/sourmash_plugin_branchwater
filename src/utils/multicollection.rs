@@ -25,11 +25,12 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 #[derive(Clone)]
 pub struct MultiCollection {
     collections: Vec<Collection>,
+    pub contains_revindex: bool,
 }
 
 impl MultiCollection {
-    fn new(collections: Vec<Collection>) -> Self {
-        Self { collections }
+    fn new(collections: Vec<Collection>, contains_revindex: bool) -> Self {
+        Self { collections, contains_revindex }
     }
 
     // Turn a set of paths into list of Collections.
@@ -108,7 +109,7 @@ impl MultiCollection {
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
             let colls = colls.into_iter().collect();
 
-            Ok(MultiCollection::new(colls))
+            Ok(MultiCollection::new(colls, false))
         }
     }
 
@@ -116,7 +117,7 @@ impl MultiCollection {
     pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
         debug!("multi from zipfile!");
         match Collection::from_zipfile(sigpath) {
-            Ok(collection) => Ok(MultiCollection::new(vec![collection])),
+            Ok(collection) => Ok(MultiCollection::new(vec![collection], false)),
             Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
         }
     }
@@ -140,7 +141,7 @@ impl MultiCollection {
             match Collection::from_rocksdb(sigpath) {
                 Ok(collection) => {
                     debug!("...rocksdb successful!");
-                    Ok(MultiCollection::new(vec![collection]))
+                    Ok(MultiCollection::new(vec![collection], true))
                 }
                 Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
             }
@@ -168,7 +169,7 @@ impl MultiCollection {
         let (colls, n_failed) = MultiCollection::load_set_of_paths(lines);
         let colls: Vec<_> = colls.into_iter().collect();
 
-        Ok((MultiCollection::new(colls), n_failed))
+        Ok((MultiCollection::new(colls, false), n_failed))
     }
 
     // Load from a sig file
@@ -183,7 +184,7 @@ impl MultiCollection {
                 sigpath
             )
         })?;
-        Ok(MultiCollection::new(vec![coll]))
+        Ok(MultiCollection::new(vec![coll], false))
     }
 
     pub fn len(&self) -> usize {
@@ -233,6 +234,9 @@ impl MultiCollection {
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
     pub fn load_sketches(&self, selection: &Selection) -> Result<Vec<SmallSignature>> {
+        if self.contains_revindex {
+            eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
+        }
         let sketchinfo: Vec<_> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
@@ -262,6 +266,7 @@ impl MultiCollection {
     }
 
     // Load all signatures into memory.
+    // @CTB remove.
     pub fn load_sigs(&self) -> Result<Vec<Signature>> {
         let sigs: Vec<_> = self
             .par_iter()

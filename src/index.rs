@@ -67,6 +67,7 @@ pub fn index<P: AsRef<Path>>(
     if collection.is_empty() {
         Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into())
     } else {
+        eprintln!("Indexing {} sketches.", collection.len());
         let mut index = RevIndex::create(output.as_ref(),
                                          collection,
                                          colors)?;

@@ -4,7 +4,8 @@ import pandas
 import sourmash
 
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):
@@ -13,13 +14,6 @@ def test_installed(runtmp):
 
     assert 'usage:  manysearch' in runtmp.last_result.err
 
-
-def index_siglist(runtmp, siglist, db, ksize=31, scaled=1000, moltype='DNA'):
-    # build index
-    runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', db, '-k', str(ksize), '--scaled', str(scaled),
-                    '--moltype', moltype)
-    return db
 
 def test_simple(runtmp, zip_query, zip_against):
     # test basic execution!

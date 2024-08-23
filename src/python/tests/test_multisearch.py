@@ -5,7 +5,8 @@ import pandas
 import sourmash
 
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):
@@ -83,7 +84,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert intersect_hashes == 2529
 
 
-def test_simple_ani(runtmp, zip_query, zip_db):
+def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -99,8 +100,15 @@ def test_simple_ani(runtmp, zip_query, zip_db):
 
     if zip_db:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
+
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    if indexed_query:
+        query_list = index_siglist(runtmp, query_list, runtmp.output('q_db'))
+
+    if indexed_against:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output, '--ani')

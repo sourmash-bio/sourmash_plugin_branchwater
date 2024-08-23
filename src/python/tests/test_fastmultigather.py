@@ -8,16 +8,8 @@ import shutil
 
 import sourmash
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
-
-
-def index_siglist(runtmp, siglist, db, *, ksize=31, scaled=1000, moltype='DNA',
-                  toggle_internal_storage='--internal-storage'):
-    # build index
-    runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', db, '-k', str(ksize), '--scaled', str(scaled),
-                    '--moltype', moltype, toggle_internal_storage)
-    return db
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):

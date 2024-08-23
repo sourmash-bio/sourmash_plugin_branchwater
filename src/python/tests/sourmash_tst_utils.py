@@ -31,6 +31,15 @@ def zip_siglist(runtmp, siglist, db):
     return db
 
 
+def index_siglist(runtmp, siglist, db, *, ksize=31, scaled=1000, moltype='DNA',
+                  toggle_internal_storage='--internal-storage'):
+    # build index
+    runtmp.sourmash('scripts', 'index', siglist,
+                    '-o', db, '-k', str(ksize), '--scaled', str(scaled),
+                    '--moltype', moltype, toggle_internal_storage)
+    return db
+
+
 def scriptpath(scriptname='sourmash'):
     """Return the path to the scripts, in both dev and install situations."""
     # note - it doesn't matter what the scriptname is here, as long as
