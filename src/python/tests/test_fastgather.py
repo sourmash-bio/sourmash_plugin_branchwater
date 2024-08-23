@@ -84,6 +84,37 @@ def test_simple_with_prefetch(runtmp, zip_against, indexed, toggle_internal_stor
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
 
+def test_simple_with_prefetch_list_of_zips(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+    assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
+
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
+
 def test_missing_query(runtmp, capfd, zip_against):
     # test missing query
     query = runtmp.output('no-such-file')

@@ -226,6 +226,57 @@ def test_simple_indexed(runtmp, zip_query):
                 assert query_ani == 0.9772
 
 
+def test_simple_list_of_zips(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                    '-o', output, '-t', '0.01')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert float(row['containment'] == 1.0)
+            assert float(row['query_containment_ani'] == 1.0)
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+            query_ani = float(row['query_containment_ani'])
+            cont = round(cont, 4)
+            query_ani = round(query_ani, 4)
+            print(q, m, f"{cont:.04}", f"{query_ani:.04}")
+
+            if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert cont == 0.4828
+                assert intersect_hashes == 2529
+                assert query_ani == 0.9768
+
+            if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert cont == 0.4885
+                assert intersect_hashes == 2529
+                assert query_ani == 0.9772
+
+
 def test_simple_with_cores(runtmp, capfd, indexed, zip_query):
     # test basic execution with -c argument (that it runs, at least!)
     query_list = runtmp.output('query.txt')

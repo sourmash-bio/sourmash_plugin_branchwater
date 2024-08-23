@@ -452,7 +452,7 @@ pub fn load_sketches_above_threshold(
     let failed_paths = AtomicUsize::new(0);
 
     if against_collection.contains_revindex {
-        eprintln!("WARNING: loading all sketches from a RocksDB!");
+        eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
     }
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
