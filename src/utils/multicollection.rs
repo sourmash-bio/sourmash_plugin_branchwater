@@ -100,14 +100,21 @@ impl MultiCollection {
         let reader = BufReader::new(file);
         let manifest = Manifest::from_reader(reader)
             .with_context(|| format!("Failed to read manifest from: '{}'", sigpath))?;
+        debug!("got {} records from standalone manifest", manifest.len());
 
         if manifest.is_empty() {
             Err(anyhow!("could not read as manifest: '{}'", sigpath))
         } else {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
+            let picklist: HashSet<_> = manifest
+                .clone()
+                .iter()
+                .map(|r| (r.name().clone(), r.md5().clone()))
+                .collect();
 
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
-            let colls = colls.into_iter().collect();
+            let colls = colls.iter().map(|c| c.clone().select_picklist(picklist.clone()))
+                .collect();
 
             Ok(MultiCollection::new(colls, false))
         }
