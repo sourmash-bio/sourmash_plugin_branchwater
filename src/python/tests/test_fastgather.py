@@ -653,7 +653,6 @@ def test_simple_hp(runtmp):
 
 
 def test_indexed_against(runtmp, capfd):
-    return
     # do not accept rocksdb for now @CTB we do now!!
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -671,15 +670,17 @@ def test_indexed_against(runtmp, capfd):
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'fastgather', query, db_against,
-                        '-o', g_output, '--output-prefetch', p_output,
-                        '-s', '100000')
+    runtmp.sourmash('scripts', 'fastgather', query, db_against,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 1
 
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Cannot load search signatures from a 'rocksdb' database. Please use sig, zip, or pathlist." in captured.err
+    assert "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
 
 
 def test_simple_with_manifest_loading(runtmp):
