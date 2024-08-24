@@ -432,11 +432,11 @@ fn process_prefix_csv(
 // Load all compatible minhashes from a collection into memory, in parallel;
 // also store sig name and md5 alongside, as we usually need those
 // @CTB switch to using load_sketches method directly!
-pub fn load_sketches<'a>(
-    multi: &'a MultiCollection,
+pub fn load_sketches(
+    multi: MultiCollection,
     selection: &Selection,
     _report_type: ReportType,
-) -> Result<Vec<SmallSignature<'a>>> {
+) -> Result<Vec<SmallSignature>> {
     multi.load_sketches(selection)
 }
 

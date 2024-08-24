@@ -38,7 +38,7 @@ pub fn pairwise(
             &siglist
         )
     }
-    let sketches = load_sketches(&collection, selection, ReportType::General).unwrap();
+    let sketches = load_sketches(collection, selection, ReportType::General).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

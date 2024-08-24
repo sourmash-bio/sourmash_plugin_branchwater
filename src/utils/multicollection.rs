@@ -103,7 +103,6 @@ impl MultiCollection {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
 
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
-            let colls = colls.into_iter().collect();
 
             Ok(MultiCollection::new(colls))
         }
@@ -163,7 +162,6 @@ impl MultiCollection {
             .collect();
 
         let (colls, n_failed) = MultiCollection::load_set_of_paths(lines);
-        let colls: Vec<_> = colls.into_iter().collect();
 
         Ok((MultiCollection::new(colls), n_failed))
     }
@@ -187,20 +185,21 @@ impl MultiCollection {
         let val: usize = self.collections.iter().map(|c| c.len()).sum();
         val
     }
+
     pub fn is_empty(&self) -> bool {
         let val: usize = self.collections.iter().map(|c| c.len()).sum();
         val == 0
     }
-
+/*
     pub fn iter(&self) -> impl Iterator<Item = &Collection> {
         self.collections.iter()
     }
+*/
 
     // iterate over tuples
     pub fn item_iter(&self) -> impl Iterator<Item = (&Collection, Idx, &Record)> {
-        // CTB: request review by Rust expert pls :). Does this make
-        // unnecessary copies??
         let s: Vec<_> = self
+            .collections
             .iter()
             .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
             .collect();
@@ -208,12 +207,13 @@ impl MultiCollection {
     }
 
     pub fn par_iter(&self) -> impl IndexedParallelIterator<Item = (&Collection, Idx, &Record)> {
-        // CTB: request review by Rust expert - why can't I use item_iter here?
-        // i.e. self.item_iter().into_par_iter()?
+        // first create a Vec of all triples (Collection, Idx, Record)
         let s: Vec<_> = self
+            .collections
             .iter()
             .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
             .collect();
+        // then return a parallel iterator over the Vec.
         s.into_par_iter()
     }
 
@@ -238,7 +238,6 @@ impl MultiCollection {
                     let minhash = selected_sig.minhash()?.clone();
 
                     Some(SmallSignature {
-                        collection: coll,
                         location: record.internal_location().to_string(),
                         name: sig.name(),
                         md5sum: sig.md5sum(),
@@ -257,41 +256,22 @@ impl MultiCollection {
 
         Ok(sketchinfo)
     }
-
-    // Load all signatures into memory.
-    pub fn load_sigs(&self) -> Result<Vec<Signature>> {
-        let sigs: Vec<_> = self
-            .par_iter()
-            .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
-                Ok(sigstore) => Some(sigstore.into()),
-                Err(_) => {
-                    eprintln!(
-                        "FAILED to load sketch from '{}'",
-                        record.internal_location()
-                    );
-                    None
-                }
-            })
-            .collect();
-
-        Ok(sigs)
-    }
 }
 
 impl Select for MultiCollection {
-    fn select(mut self, selection: &Selection) -> Result<Self, SourmashError> {
-        // CTB: request review by Rust expert! Is the clone necessary?
-        self.collections = self
-            .iter()
-            .filter_map(|c| c.clone().select(selection).ok())
+    fn select(self, selection: &Selection) -> Result<Self, SourmashError> {
+        let collections = self
+            .collections
+            .into_iter()
+            .filter_map(|c| c.select(selection).ok())
             .collect();
-        Ok(self)
+
+        Ok(MultiCollection::new(collections))
     }
 }
 
 /// Track a name/minhash.
-pub struct SmallSignature<'a> {
-    pub collection: &'a Collection,
+pub struct SmallSignature {
     pub location: String,
     pub name: String,
     pub md5sum: String,
