@@ -423,7 +423,7 @@ def test_empty_query(runtmp, capfd):
     # @CTB
 
 
-def test_nomatch_query(runtmp, capfd, zip_query):
+def test_nomatch_query_warn(runtmp, capfd, zip_query):
     # test a non-matching (diff ksize) in query; do we get warning message?
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -449,6 +449,64 @@ def test_nomatch_query(runtmp, capfd, zip_query):
     print(captured.err)
 
     assert 'WARNING: skipped 1 query paths - no compatible signatures' in captured.err
+
+
+def test_nomatch_query_exit(runtmp, capfd, zip_query):
+    # test loading no matching sketches - do we error exit appropriately?
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig1])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'WARNING: skipped 1 query paths - no compatible signatures' in captured.err
+    assert 'No query signatures loaded, exiting' in captured.err
+
+
+def test_nomatch_against(runtmp, capfd, zip_query):
+    # test a non-matching (diff ksize) in against; do we get warning message?
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63, sig1])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+                        '-o', output, '-k', '21')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'WARNING: skipped 3 search paths - no compatible signatures' in captured.err
+    assert 'No search signatures loaded, exiting' in captured.err
 
 
 def test_load_only_one_bug(runtmp, capfd, zip_db):
