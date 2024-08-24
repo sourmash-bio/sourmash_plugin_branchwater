@@ -190,11 +190,6 @@ impl MultiCollection {
         let val: usize = self.collections.iter().map(|c| c.len()).sum();
         val == 0
     }
-/*
-    pub fn iter(&self) -> impl Iterator<Item = &Collection> {
-        self.collections.iter()
-    }
-*/
 
     // iterate over tuples
     pub fn item_iter(&self) -> impl Iterator<Item = (&Collection, Idx, &Record)> {
