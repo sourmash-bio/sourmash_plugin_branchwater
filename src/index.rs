@@ -1,6 +1,5 @@
 use anyhow::Context;
 use camino::Utf8PathBuf as PathBuf;
-use log::debug;
 use sourmash::index::revindex::RevIndex;
 use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
@@ -8,7 +7,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use crate::utils::{load_collection, ReportType};
 use sourmash::collection::{Collection, CollectionSet};
 
 pub fn index<P: AsRef<Path>>(
@@ -16,7 +14,7 @@ pub fn index<P: AsRef<Path>>(
     selection: &Selection,
     output: P,
     colors: bool,
-    allow_failed_sigpaths: bool,
+    _allow_failed_sigpaths: bool,
     use_internal_storage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
