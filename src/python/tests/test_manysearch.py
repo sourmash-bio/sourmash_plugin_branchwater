@@ -170,7 +170,7 @@ def test_simple_abund(runtmp):
     assert total_weighted_hashes == 73489
 
 
-def test_simple_indexed(runtmp, zip_query):
+def test_simple_indexed(runtmp, zip_query, indexed_query):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -182,13 +182,17 @@ def test_simple_indexed(runtmp, zip_query):
     make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    if indexed_query:
+        query_list = index_siglist(runtmp, query_list, runtmp.output('query_db'))
+
     output = runtmp.output('out.csv')
 
     against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
-    if zip_query:
-        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
-
+    print('query_list is:', query_list)
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output, '-t', '0.01')
     assert os.path.exists(output)
