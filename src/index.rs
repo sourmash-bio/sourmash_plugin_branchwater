@@ -25,13 +25,12 @@ pub fn index<P: AsRef<Path>>(
             let signatures = Signature::from_path(&x)
                 .with_context(|| format!("Failed to load signatures from: '{}'", x))?;
 
-            let coll = Collection::from_sigs(signatures).with_context(|| {
+            Collection::from_sigs(signatures).with_context(|| {
                 format!(
                     "Loaded signatures but failed to load as collection: '{}'",
                     x
                 )
-            })?;
-            coll
+            })?
         }
         _ => {
             let file = File::open(siglist.clone())
