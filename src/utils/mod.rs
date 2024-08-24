@@ -69,13 +69,15 @@ pub fn prefetch(
     sketchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
 ) -> BinaryHeap<PrefetchResult> {
-    sketchlist
+    eprintln!("sketchlist: {}", sketchlist.len());
+    let s: BinaryHeap<_> = sketchlist
         .into_par_iter()
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
             // downsample within count_common
             let overlap = searchsig.count_common(query_mh, true);
+            eprintln!("overlap: {:?}", overlap);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {
                     let result = PrefetchResult { overlap, ..result };
@@ -84,7 +86,9 @@ pub fn prefetch(
             }
             mm
         })
-        .collect()
+        .collect();
+    eprintln!("found matches: {}", s.len());
+    s
 }
 
 /// Write list of prefetch matches.
@@ -457,6 +461,7 @@ pub fn load_sketches_above_threshold(
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
         .filter_map(|(coll, _idx, against_record)| {
+            eprintln!("against_record: {}", against_record.name());
             let mut results = Vec::new();
             // Load against into memory
             if let Ok(against_sig) = coll.sig_from_record(against_record) {
@@ -501,6 +506,8 @@ pub fn load_sketches_above_threshold(
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+    eprintln!("matchlist: {}", matchlist.len());
 
     Ok((matchlist, skipped_paths, failed_paths))
 }

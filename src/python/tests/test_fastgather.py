@@ -310,8 +310,7 @@ def test_bad_against_3(runtmp, capfd):
     assert 'InvalidArchive' in captured.err
 
 
-@pytest.mark.xfail(reason="should work, bug")
-def test_against_multisigfile(runtmp, zip_against):
+def test_against_pathlist_multisigfile(runtmp, zip_against, indexed_against):
     # test against a sigfile that contains multiple sketches
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -326,6 +325,9 @@ def test_against_multisigfile(runtmp, zip_against):
 
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
+
+    if indexed_against:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')

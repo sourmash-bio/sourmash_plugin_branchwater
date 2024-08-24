@@ -68,7 +68,12 @@ impl MultiCollection {
                                 .flat_map(|v| Record::from_sig(&v, iloc))
                                 .collect();
 
+                            eprintln!("records: {:?}", records);
+
                             let manifest: Manifest = records.into();
+
+                            eprintln!("manifest: {:?}", manifest);
+
                             let collection = Collection::new(
                                 manifest,
                                 InnerStorage::new(
@@ -78,6 +83,9 @@ impl MultiCollection {
                                         .build(),
                                 ),
                             );
+
+                            eprintln!("size: {}", collection.len());
+
                             Some(collection)
                         }
                         None => {
