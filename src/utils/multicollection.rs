@@ -110,6 +110,7 @@ impl MultiCollection {
 
             // select out only the (name, md5) pairs that were present
             // in the manifest
+            // @CTB par_iter?
             let picklist: HashSet<_> = manifest
                 .clone()
                 .iter()
@@ -117,6 +118,7 @@ impl MultiCollection {
                 .collect();
 
             // @CTB transfer into MultiCollection too?
+            // @CTB par_iter?
             let colls = colls
                 .iter()
                 .map(|c| c.clone().select_picklist(&picklist))
