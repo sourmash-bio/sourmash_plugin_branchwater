@@ -9,7 +9,6 @@ use log::debug;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::ops::Deref;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -276,14 +275,6 @@ impl MultiCollection {
             .collect();
 
         Ok(sketchinfo)
-    }
-}
-
-impl Deref for MultiCollection {
-    type Target = Vec<Collection>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.collections
     }
 }
 
