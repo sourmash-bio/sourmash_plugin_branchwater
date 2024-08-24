@@ -15,7 +15,7 @@ def test_installed(runtmp):
     assert 'usage:  fastgather' in runtmp.last_result.err
 
 
-def test_simple(runtmp, indexed, zip_against, toggle_internal_storage):
+def test_simple(runtmp, capfd, indexed_query, indexed_against, zip_against, toggle_internal_storage):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -26,10 +26,14 @@ def test_simple(runtmp, indexed, zip_against, toggle_internal_storage):
 
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if indexed_query:
+        query = index_siglist(runtmp, query, runtmp.output('query'),
+                              scaled=100000)
+
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
-    if indexed:
+    if indexed_against:
         against_list = index_siglist(runtmp, against_list, runtmp.output('db'),
                                      toggle_internal_storage=toggle_internal_storage)
 
@@ -40,10 +44,19 @@ def test_simple(runtmp, indexed, zip_against, toggle_internal_storage):
                     '-o', g_output, '-s', '100000')
     assert os.path.exists(g_output)
 
+    captured = capfd.readouterr()
+    print(captured.err)
+
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
     assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
+
+    # CTB note: we do not need to worry about this warning for query from a
+    # RocksDB, since there is only one.
+    if indexed_against:
+        print('indexed against:', indexed_against)
+        assert "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
 
 
 def test_simple_with_prefetch(runtmp, zip_against, indexed, toggle_internal_storage):

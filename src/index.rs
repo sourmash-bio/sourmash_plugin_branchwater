@@ -21,6 +21,18 @@ pub fn index<P: AsRef<Path>>(
 
     let collection = match siglist {
         x if x.ends_with(".zip") => Collection::from_zipfile(x)?,
+        x if x.ends_with(".sig") || x.ends_with(".sig.gz") => {
+            let signatures = Signature::from_path(&x)
+                .with_context(|| format!("Failed to load signatures from: '{}'", x))?;
+
+            let coll = Collection::from_sigs(signatures).with_context(|| {
+                format!(
+                    "Loaded signatures but failed to load as collection: '{}'",
+                    x
+                )
+            })?;
+            coll
+        }
         _ => {
             let file = File::open(siglist.clone())
                 .with_context(|| format!("Failed to open pathlist file: '{}'", siglist))?;
