@@ -40,14 +40,16 @@ impl MultiCollection {
     fn load_set_of_paths(paths: HashSet<String>) -> (Vec<Collection>, usize) {
         let n_failed = AtomicUsize::new(0);
 
+        // could just use a variant of load_collection here?
         let colls: Vec<_> = paths
             .par_iter()
             .filter_map(|iloc| match iloc {
-                // could just use a variant of load_collection here?
+                // load from zipfile
                 x if x.ends_with(".zip") => {
                     debug!("loading sigs from zipfile {}", x);
                     Some(Collection::from_zipfile(x).unwrap())
                 }
+                // load from (by default) a sigfile
                 _ => {
                     debug!("loading sigs from sigfile {}", iloc);
                     let signatures = match Signature::from_path(iloc) {
