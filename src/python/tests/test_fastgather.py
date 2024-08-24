@@ -653,7 +653,7 @@ def test_simple_hp(runtmp):
 
 
 def test_indexed_against(runtmp, capfd):
-    # do not accept rocksdb for now @CTB we do now!!
+    # accept rocksdb against, but with a warning
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
 

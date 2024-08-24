@@ -30,7 +30,7 @@ use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 
 pub mod multicollection;
-use multicollection::{MultiCollection, SmallSignature};
+use multicollection::MultiCollection;
 
 /// Structure to hold overlap information from comparisons.
 pub struct PrefetchResult {
@@ -428,17 +428,6 @@ fn process_prefix_csv(
 }
 
 /////////
-
-// Load all compatible minhashes from a collection into memory, in parallel;
-// also store sig name and md5 alongside, as we usually need those
-// @CTB switch to using load_sketches method directly!
-pub fn load_sketches(
-    multi: MultiCollection,
-    selection: &Selection,
-    _report_type: ReportType,
-) -> Result<Vec<SmallSignature>> {
-    multi.load_sketches(selection)
-}
 
 /// Load a collection of sketches from a file, filtering to keep only
 /// those with a minimum overlap.

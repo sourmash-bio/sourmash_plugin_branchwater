@@ -20,8 +20,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
-    ReportType,
+    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
 };
 
 pub fn fastmultigather(
@@ -62,7 +61,7 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let against = against_collection.load_sketches(selection)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
