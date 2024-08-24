@@ -62,7 +62,7 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let against = load_sketches(&against_collection, selection, ReportType::Against).unwrap();
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);

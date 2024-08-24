@@ -33,7 +33,7 @@ pub fn multisearch(
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    let queries = load_sketches(query_collection, selection, ReportType::Query).unwrap();
+    let queries = load_sketches(&query_collection, selection, ReportType::Query).unwrap();
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
@@ -42,7 +42,7 @@ pub fn multisearch(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let against = load_sketches(&against_collection, selection, ReportType::Against).unwrap();
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

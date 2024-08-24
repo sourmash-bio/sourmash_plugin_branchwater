@@ -30,7 +30,7 @@ pub fn manysearch(
         allow_failed_sigpaths,
     )?;
     // load all query sketches into memory, downsampling on the way
-    let query_sketchlist = load_sketches(query_collection, selection, ReportType::Query).unwrap();
+    let query_sketchlist = load_sketches(&query_collection, selection, ReportType::Query).unwrap();
 
     // Against: Load all _paths_, not signatures, into memory.
     let against_collection = load_collection(

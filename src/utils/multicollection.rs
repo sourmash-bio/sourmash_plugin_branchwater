@@ -238,7 +238,7 @@ impl MultiCollection {
                     let minhash = selected_sig.minhash()?.clone();
 
                     Some(SmallSignature {
-                        collection: coll.clone(), // @CTB
+                        collection: coll,
                         location: record.internal_location().to_string(),
                         name: sig.name(),
                         md5sum: sig.md5sum(),
@@ -289,25 +289,9 @@ impl Select for MultiCollection {
     }
 }
 
-/*
-impl TryFrom<MultiCollection> for CollectionSet {
-    type Error = SourmashError;
-
-    fn try_from(multi: MultiCollection) -> Result<CollectionSet, SourmashError> {
-        // CTB: request review by Rust expert! Is the clone necessary?
-// @CTB need to do something better than just getting the first CS! :sob:
-// @CTB could fail if more than one?
-        let coll = multi.iter().next().unwrap().clone();
-        let cs: CollectionSet = coll.try_into()?;
-        Ok(cs)
-    }
-}
-*/
-
 /// Track a name/minhash.
-pub struct SmallSignature {
-    // CTB: request help - can we/should we use references & lifetimes here?
-    pub collection: Collection,
+pub struct SmallSignature<'a> {
+    pub collection: &'a Collection,
     pub location: String,
     pub name: String,
     pub md5sum: String,
