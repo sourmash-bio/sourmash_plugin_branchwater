@@ -21,6 +21,18 @@ pub fn index<P: AsRef<Path>>(
 
     let collection = match siglist {
         x if x.ends_with(".zip") => Collection::from_zipfile(x)?,
+        x if x.ends_with(".sig") || x.ends_with(".sig.gz") => {
+            let signatures = Signature::from_path(&x)
+                .with_context(|| format!("Failed to load signatures from: '{}'", x))?;
+
+            let coll = Collection::from_sigs(signatures).with_context(|| {
+                format!(
+                    "Loaded signatures but failed to load as collection: '{}'",
+                    x
+                )
+            })?;
+            coll
+        }
         _ => {
             let file = File::open(siglist.clone())
                 .with_context(|| format!("Failed to open pathlist file: '{}'", siglist))?;
@@ -59,6 +71,7 @@ pub fn index<P: AsRef<Path>>(
     if collection.is_empty() {
         Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into())
     } else {
+        eprintln!("Indexing {} sketches.", collection.len());
         let mut index = RevIndex::create(output.as_ref(), collection, colors)?;
 
         if use_internal_storage {

@@ -25,25 +25,31 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 #[derive(Clone)]
 pub struct MultiCollection {
     collections: Vec<Collection>,
+    pub contains_revindex: bool,
 }
 
 impl MultiCollection {
-    fn new(collections: Vec<Collection>) -> Self {
-        Self { collections }
+    fn new(collections: Vec<Collection>, contains_revindex: bool) -> Self {
+        Self {
+            collections,
+            contains_revindex,
+        }
     }
 
     // Turn a set of paths into list of Collections.
     fn load_set_of_paths(paths: HashSet<String>) -> (Vec<Collection>, usize) {
         let n_failed = AtomicUsize::new(0);
 
+        // could just use a variant of load_collection here?
         let colls: Vec<_> = paths
             .par_iter()
             .filter_map(|iloc| match iloc {
-                // could just use a variant of load_collection here?
+                // load from zipfile
                 x if x.ends_with(".zip") => {
                     debug!("loading sigs from zipfile {}", x);
                     Some(Collection::from_zipfile(x).unwrap())
                 }
+                // load from (by default) a sigfile
                 _ => {
                     debug!("loading sigs from sigfile {}", iloc);
                     let signatures = match Signature::from_path(iloc) {
@@ -96,15 +102,31 @@ impl MultiCollection {
         let reader = BufReader::new(file);
         let manifest = Manifest::from_reader(reader)
             .with_context(|| format!("Failed to read manifest from: '{}'", sigpath))?;
+        debug!("got {} records from standalone manifest", manifest.len());
 
         if manifest.is_empty() {
             Err(anyhow!("could not read as manifest: '{}'", sigpath))
         } else {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
-
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
 
-            Ok(MultiCollection::new(colls))
+            // select out only the (name, md5) pairs that were present
+            // in the manifest
+            // @CTB par_iter?
+            let picklist: HashSet<_> = manifest
+                .clone()
+                .iter()
+                .map(|r| (r.name().clone(), r.md5().clone()))
+                .collect();
+
+            // @CTB transfer into MultiCollection too?
+            // @CTB par_iter?
+            let colls = colls
+                .iter()
+                .map(|c| c.clone().select_picklist(&picklist))
+                .collect();
+
+            Ok(MultiCollection::new(colls, false))
         }
     }
 
@@ -112,7 +134,7 @@ impl MultiCollection {
     pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
         debug!("multi from zipfile!");
         match Collection::from_zipfile(sigpath) {
-            Ok(collection) => Ok(MultiCollection::new(vec![collection])),
+            Ok(collection) => Ok(MultiCollection::new(vec![collection], false)),
             Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
         }
     }
@@ -136,7 +158,7 @@ impl MultiCollection {
             match Collection::from_rocksdb(sigpath) {
                 Ok(collection) => {
                     debug!("...rocksdb successful!");
-                    Ok(MultiCollection::new(vec![collection]))
+                    Ok(MultiCollection::new(vec![collection], true))
                 }
                 Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
             }
@@ -163,7 +185,7 @@ impl MultiCollection {
 
         let (colls, n_failed) = MultiCollection::load_set_of_paths(lines);
 
-        Ok((MultiCollection::new(colls), n_failed))
+        Ok((MultiCollection::new(colls, false), n_failed))
     }
 
     // Load from a sig file
@@ -178,7 +200,7 @@ impl MultiCollection {
                 sigpath
             )
         })?;
-        Ok(MultiCollection::new(vec![coll]))
+        Ok(MultiCollection::new(vec![coll], false))
     }
 
     pub fn len(&self) -> usize {
@@ -225,6 +247,9 @@ impl MultiCollection {
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
     pub fn load_sketches(&self, selection: &Selection) -> Result<Vec<SmallSignature>> {
+        if self.contains_revindex {
+            eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
+        }
         let sketchinfo: Vec<_> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
@@ -261,7 +286,7 @@ impl Select for MultiCollection {
             .filter_map(|c| c.select(selection).ok())
             .collect();
 
-        Ok(MultiCollection::new(collections))
+        Ok(MultiCollection::new(collections, self.contains_revindex))
     }
 }
 

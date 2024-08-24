@@ -5,7 +5,8 @@ import pandas
 import sourmash
 
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):
@@ -83,7 +84,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert intersect_hashes == 2529
 
 
-def test_simple_ani(runtmp, zip_query, zip_db):
+def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -99,8 +100,15 @@ def test_simple_ani(runtmp, zip_query, zip_db):
 
     if zip_db:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('db.zip'))
+
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    if indexed_query:
+        query_list = index_siglist(runtmp, query_list, runtmp.output('q_db'))
+
+    if indexed_against:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
                     '-o', output, '--ani')
@@ -168,6 +176,133 @@ def test_simple_ani(runtmp, zip_query, zip_db):
                 assert max_ani == 0.9772
 
 
+def test_simple_ani_list_of_zips(runtmp):
+    # test basic execution against a pathlist file of zips
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+                    '-o', output, '--ani')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+            assert float(row['query_containment_ani'] == 1.0)
+            assert float(row['match_containment_ani'] == 1.0)
+            assert float(row['average_containment_ani'] == 1.0)
+            assert float(row['max_containment_ani'] == 1.0)
+
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+            q1_ani = float(row['query_containment_ani'])
+            q2_ani = float(row['match_containment_ani'])
+            avg_ani = float(row['average_containment_ani'])
+            max_ani = float(row['max_containment_ani'])
+
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            maxcont = round(maxcont, 4)
+            q1_ani = round(q1_ani, 4)
+            q2_ani = round(q2_ani, 4)
+            avg_ani = round(avg_ani, 4)
+            max_ani = round(max_ani, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", f"{q1_ani:.04}", f"{q2_ani:.04}", f"{avg_ani:.04}", f"{max_ani:.04}")
+
+            if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4828
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+                assert q1_ani == 0.9768
+                assert q2_ani == 0.9772
+                assert avg_ani == 0.977
+                assert max_ani == 0.9772
+
+            if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert jaccard == 0.3207
+                assert cont == 0.4885
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+                assert q1_ani == 0.9772
+                assert q2_ani == 0.9768
+                assert avg_ani == 0.977
+                assert max_ani == 0.9772
+
+
+def test_simple_ani_standalone_manifest(runtmp):
+    # test basic execution of a standalone manifest
+    against_list = runtmp.output('against.sig.zip')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    runtmp.sourmash('sig', 'cat', sig2, sig47, sig63, '-o', against_list)
+
+    picklist_file = runtmp.output('pl.csv')
+    with open(picklist_file, 'w', newline='') as fp:
+        w = csv.writer(fp)
+        w.writerow(['ident'])
+        w.writerow(['CP001071.1'])
+
+    # use picklist to create a standalone manifest
+    query_csv = runtmp.output('select.mf.csv')
+    runtmp.sourmash('sig', 'check', '--picklist',
+                    f'{picklist_file}:ident:ident',
+                    '-m', query_csv, against_list)
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', query_csv, against_list,
+                    '-o', output, '--ani')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 1         # should only be the one, identical match.
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+            assert float(row['query_containment_ani'] == 1.0)
+            assert float(row['match_containment_ani'] == 1.0)
+            assert float(row['average_containment_ani'] == 1.0)
+            assert float(row['max_containment_ani'] == 1.0)
+
+
 def test_simple_threshold(runtmp, zip_query, zip_db):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
@@ -205,6 +340,42 @@ def test_simple_manifest(runtmp):
     sig63 = get_test_data('63.fa.sig.gz')
 
     make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    query_mf = runtmp.output('qmf.csv')
+    against_mf = runtmp.output('amf.csv')
+
+    runtmp.sourmash("sig", "manifest", query_list, "-o", query_mf)
+    runtmp.sourmash("sig", "manifest", against_list, "-o", against_mf)
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', query_mf, against_mf,
+                    '-o', output, '-t', '0.5')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 3
+
+
+@pytest.mark.xfail(reason="not implemented yet")
+def test_lists_of_standalone_manifests(runtmp):
+    # test pathlists of manifests
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    sig2_mf = runtmp.output('2.mf.csv')
+    runtmp.sourmash('sig', 'collect', sig2, '-o', sig2_mf, '-F', 'csv')
+    sig47_mf = runtmp.output('47.mf.csv')
+    runtmp.sourmash('sig', 'collect', sig47, '-o', sig47_mf, '-F', 'csv')
+    sig63_mf = runtmp.output('63.mf.csv')
+    runtmp.sourmash('sig', 'collect', sig63, '-o', sig63_mf, '-F', 'csv')
+
+    make_file_list(query_list, [sig2_mf, sig47_mf, sig63_mf])
     make_file_list(against_list, [sig2, sig47, sig63])
 
     query_mf = runtmp.output('qmf.csv')

@@ -4,7 +4,8 @@ import pandas
 
 import sourmash
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):
@@ -14,7 +15,7 @@ def test_installed(runtmp):
     assert 'usage:  fastgather' in runtmp.last_result.err
 
 
-def test_simple(runtmp, zip_against):
+def test_simple(runtmp, capfd, indexed_query, indexed_against, zip_against, toggle_internal_storage):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -25,8 +26,16 @@ def test_simple(runtmp, zip_against):
 
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if indexed_query:
+        query = index_siglist(runtmp, query, runtmp.output('query'),
+                              scaled=100000)
+
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
+
+    if indexed_against:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'),
+                                     toggle_internal_storage=toggle_internal_storage)
 
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')
@@ -35,13 +44,22 @@ def test_simple(runtmp, zip_against):
                     '-o', g_output, '-s', '100000')
     assert os.path.exists(g_output)
 
+    captured = capfd.readouterr()
+    print(captured.err)
+
     df = pandas.read_csv(g_output)
     assert len(df) == 3
     keys = set(df.keys())
     assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
 
+    # CTB note: we do not need to worry about this warning for query from a
+    # RocksDB, since there is only one.
+    if indexed_against:
+        print('indexed against:', indexed_against)
+        assert "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
 
-def test_simple_with_prefetch(runtmp, zip_against):
+
+def test_simple_with_prefetch(runtmp, zip_against, indexed, toggle_internal_storage):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -54,6 +72,41 @@ def test_simple_with_prefetch(runtmp, zip_against):
 
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output('db'),
+                                     toggle_internal_storage=toggle_internal_storage)
+
+    g_output = runtmp.output('gather.csv')
+    p_output = runtmp.output('prefetch.csv')
+
+    runtmp.sourmash('scripts', 'fastgather', query, against_list,
+                    '-o', g_output, '--output-prefetch', p_output,
+                    '-s', '100000')
+    assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
+
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
+
+def test_simple_with_prefetch_list_of_zips(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    make_file_list(against_list, [sig2, sig47, sig63])
 
     g_output = runtmp.output('gather.csv')
     p_output = runtmp.output('prefetch.csv')

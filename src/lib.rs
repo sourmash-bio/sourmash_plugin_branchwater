@@ -234,6 +234,8 @@ fn do_multisearch(
     estimate_ani: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    let _ = env_logger::try_init();
+
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
