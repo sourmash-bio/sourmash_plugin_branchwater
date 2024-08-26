@@ -14,6 +14,23 @@ from io import open  # pylint: disable=redefined-builtin
 from io import StringIO
 
 
+def get_test_data(filename):
+    thisdir = os.path.dirname(__file__)
+    return os.path.join(thisdir, 'test-data', filename)
+
+
+def make_file_list(filename, paths):
+    with open(filename, 'wt') as fp:
+        fp.write("\n".join(paths))
+        fp.write("\n")
+
+
+def zip_siglist(runtmp, siglist, db):
+    runtmp.sourmash('sig', 'cat', siglist,
+                    '-o', db)
+    return db
+
+
 def scriptpath(scriptname='sourmash'):
     """Return the path to the scripts, in both dev and install situations."""
     # note - it doesn't matter what the scriptname is here, as long as

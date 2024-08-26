@@ -5,17 +5,7 @@ import sourmash
 import shutil
 
 from . import sourmash_tst_utils as utils
-
-
-def get_test_data(filename):
-    thisdir = os.path.dirname(__file__)
-    return os.path.join(thisdir, 'test-data', filename)
-
-
-def make_file_list(filename, paths):
-    with open(filename, 'wt') as fp:
-        fp.write("\n".join(paths))
-        fp.write("\n")
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
 
 
 def test_installed(runtmp):

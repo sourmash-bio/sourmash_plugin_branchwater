@@ -8,17 +8,7 @@ import shutil
 
 import sourmash
 from . import sourmash_tst_utils as utils
-
-
-def get_test_data(filename):
-    thisdir = os.path.dirname(__file__)
-    return os.path.join(thisdir, 'test-data', filename)
-
-
-def make_file_list(filename, paths):
-    with open(filename, 'wt') as fp:
-        fp.write("\n".join(paths))
-        fp.write("\n")
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
 
 
 def index_siglist(runtmp, siglist, db, *, ksize=31, scaled=1000, moltype='DNA',
@@ -36,11 +26,6 @@ def test_installed(runtmp):
 
     assert 'usage:  fastmultigather' in runtmp.last_result.err
 
-
-def zip_siglist(runtmp, siglist, db):
-    runtmp.sourmash('sig', 'cat', siglist,
-                    '-o', db)
-    return db
 
 def test_simple(runtmp, zip_against):
     # test basic execution!
