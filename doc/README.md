@@ -64,31 +64,57 @@ You can create zipfiles with sourmash like so:
 sourmash sig cat <list of sketches> -o sigs.zip
 ```
 
-<!--
-CTB
+### Using manifests for input databases - why and when?
 
-### Using manifests instead of zip files - why and when?
+The branchwater plugin commands take a relatively restricted set of
+inputs, compared to sourmash: they take a single file for query and a
+single file for search.  These files must be a collection of sketches
+(in .sig/.sig.gz format), a RocksDB database, a pathlist, or a
+standalone manifest.
 
-There are various places where we recommend using manifests instead of zip files. Why?
+When you want to search subsets or deal with many large
+files, we recommend _standalone manifests_ over constructing new
+databases or using pathlists to point at subsets of files. Why?
 
-Well, first, if you are using a zip file created by sourmash, you are already using a manifest! And you will get all of the benefits described above!
- 
-But if you want to use a collection of multiple very large metagenomes (as search targets in `manysearch`, or as queries in `fastmultigather`), then standalone manifests might be a good solution for you.
+There are three main reasons:
+* first, metagenome sketches are often extremely large (100s of MBs to
+  GBs), and it is not ideal to zip many large sketches into a single
+  zip file;
+* second, both `manysearch` and `fastmultigather` take a single
+  argument that specifies collections of metagenomes which need to be
+  loaded on demand, because they cannot fit into memory;
+* third, when searching subsets of large collections, it is not ideal
+  to make a copy of the collection;
 
-This is for two specific reasons:
-* first, metagenome sketches are often extremely large (100s of MBs to GBs), and it is not ideal to zip many large sketches into a single zip file;
-* second, both `manysearch` and `fastmultigather` take a single argument that specifies collections of metagenomes which need to be loaded on demand, because they cannot fit into memory;
+Manifests are a sourmash filetype that contains information about
+sketches without containing the actual sketch content, and they can be
+used as "catalogs" of sketch content.
 
-so the question becomes, how do you provide collections of large metagenomes to `manysearch` and `fastmultigather` in a single filename?
+Manifests let you provide large collections of sketches/collections of
+large sketches to `manysearch` and `fastmultigather`, and also let you
+select a subset of a collection without making a copy.
 
-And the answer is: manifests. Manifests are a sourmash filetype that contains information about sketches without containing the actual sketch content, and they can be used as "catalogs" of sketch content.
+The branchwater plugin supports manifest CSVs.  These can be created
+from lists of sketches by using `sourmash sig collect` or `sourmash
+sig check`; for example,
 
-The branchwater plugin supports manifest CSVs.  These can be created from lists of sketches by using `sourmash sig collect` or `sourmash sig manifest`; for example,
 ```
-sourmash sig manifest <pathlist> -o manifest.csv
+sourmash sig check <database.sig.zip -F csv --picklist idents.csv:ident:ident -m subset.csv
 ```
-will create a manifest CSV from a list of sketches.
--->
+will create a manifest CSV containing a subset of sketches [using picklists](https://sourmash.readthedocs.io/en/latest/command-line.html#using-picklists-to-subset-large-collections-of-signatures),
+
+and
+
+```
+find -type f /path/to/sig/files/* > pathlist.txt
+sourmash sig collect pathlist.txt -o summary-manifest.csv
+```
+will collect a list of all of the sketches under `/path/to/sig/files`
+and make the list available as a combined manifest.
+
+Note that manifests have many advantages over pathlists: in
+particular, they contain metadata that enables fast loading of
+specific sketches, and they support subsetting from large databases.
 
 ### Using RocksDB inverted indexes
 
