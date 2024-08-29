@@ -163,11 +163,13 @@ pub fn fastmultigather(
                             // touch output files
                             match std::fs::File::create(&prefetch_output) {
                                 Ok(_) => {}
-                                Err(e) => eprintln!("Failed to create prefetch output: {}", e),
+                                Err(e) => {
+                                    eprintln!("Failed to create empty prefetch output: {}", e)
+                                }
                             }
                             match std::fs::File::create(&gather_output) {
                                 Ok(_) => {}
-                                Err(e) => eprintln!("Failed to create gather output: {}", e),
+                                Err(e) => eprintln!("Failed to create empty gather output: {}", e),
                             }
                         }
                     }
