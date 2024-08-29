@@ -106,7 +106,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
-#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false))]
+#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false, create_empty_results=false))]
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,

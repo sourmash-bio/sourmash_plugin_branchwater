@@ -161,8 +161,14 @@ pub fn fastmultigather(
                             let prefetch_output = format!("{}.prefetch.csv", location);
                             let gather_output = format!("{}.gather.csv", location);
                             // touch output files
-                            std::fs::File::create(&prefetch_output)?;
-                            std::fs::File::create(&gather_output)?;
+                            match std::fs::File::create(&prefetch_output) {
+                                Ok(_) => {}
+                                Err(e) => eprintln!("Failed to create prefetch output: {}", e),
+                            }
+                            match std::fs::File::create(&gather_output) {
+                                Ok(_) => {}
+                                Err(e) => eprintln!("Failed to create gather output: {}", e),
+                            }
                         }
                     }
                 } else {
