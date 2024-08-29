@@ -1254,3 +1254,30 @@ def test_save_matches(runtmp):
     mg_ss = list(sourmash.load_file_as_signatures(query, ksize=31))[0]
     assert match_mh.contained_by(mg_ss.minhash) == 1.0
     assert mg_ss.minhash.contained_by(match_mh) < 1
+
+
+def test_create_empty_results(runtmp):
+    # sig2 has 0 hashes in common with 47 and 63
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [sig2])
+    make_file_list(against_list, [sig47, sig63])
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(runtmp.output(''))
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000', '-t', '0', '--create-empty-results')
+    finally:
+        os.chdir(cwd)
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('CP001071.1.gather.csv')
+    p_output = runtmp.output('CP001071.1.prefetch.csv')
+    assert os.path.exists(p_output)
