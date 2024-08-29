@@ -310,6 +310,7 @@ fn do_cluster(
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn do_sigcat(
+    py: Python,
     sigfiles: String,
     output_path: String,
     force: bool,
@@ -320,6 +321,7 @@ fn do_sigcat(
     let selection = build_selection(ksize, scaled, moltype.as_deref());
     let allow_failed_sigpaths = true;
     match sigcat::sig_cat(
+        py,
         sigfiles,
         &selection,
         allow_failed_sigpaths,

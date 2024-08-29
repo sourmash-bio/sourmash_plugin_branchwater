@@ -1,5 +1,6 @@
 /// sigcat: concatenate signatures into a single sourmash zip file
 use anyhow::Result;
+use pyo3::Python;
 use sourmash::{collection::Collection, selection::Selection};
 
 use std::collections::HashMap;
@@ -14,6 +15,7 @@ use zip::CompressionMethod;
 use crate::utils::{load_collection, open_output_file, write_signature, ReportType};
 
 pub fn sig_cat(
+    py: Python,
     input_sigs: String,
     selection: &Selection,
     allow_failed_sigpaths: bool,
@@ -64,14 +66,15 @@ pub fn sig_cat(
 
     for collection in collection_list {
         collection.iter().for_each(|(_idx, record)| {
+            py.check_signals();
             // todo: count the number we're adding? or count failures?
             let _i = collected_sigs.fetch_add(1, Ordering::SeqCst);
             // if scaled doesn't match sig scaled, we need to downsample.
             let sig = collection
                 .sig_from_record(record)
-                .expect("failed to get sig from record")
-                .select(selection)
-                .unwrap();
+                .expect("failed to get sig from record");
+                // .select(selection)
+                // .unwrap();
 
             let md5sum_str = sig.md5sum(); // this is now the downsampled md5sum -- okay?
 
