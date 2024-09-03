@@ -43,13 +43,9 @@ def test_simple(runtmp, zip_against):
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -87,13 +83,8 @@ def test_simple_space_in_signame(runtmp):
 
     make_file_list(against_list, [sig2, sig47, sig63])
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', renamed_query, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', renamed_query, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -118,13 +109,8 @@ def test_simple_zip_query(runtmp):
 
     query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output('') )
 
     print(os.listdir(runtmp.output('')))
 
@@ -161,13 +147,8 @@ def test_simple_read_manifests(runtmp):
     runtmp.sourmash("sig", "manifest", query, "-o", query_mf)
     runtmp.sourmash("sig", "manifest", against_list, "-o", against_mf)
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_mf, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_mf, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -570,13 +551,8 @@ def test_md5(runtmp, zip_query):
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -668,13 +644,8 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_query, zip_against):
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     g_output = runtmp.output('SRR606249.gather.csv')
     p_output = runtmp.output('SRR606249.prefetch.csv')
@@ -1268,13 +1239,8 @@ def test_create_empty_results(runtmp):
     make_file_list(query_list, [sig2])
     make_file_list(against_list, [sig47, sig63])
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0', '--create-empty-results')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', '--create-empty-results', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
