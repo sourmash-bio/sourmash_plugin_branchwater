@@ -32,6 +32,7 @@ pub fn fastmultigather(
     selection: &Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
+    create_empty_results: bool,
 ) -> Result<()> {
     // load query collection
     let query_collection = load_collection(
@@ -156,6 +157,21 @@ pub fn fastmultigather(
                         }
                     } else {
                         println!("No matches to '{}'", location);
+                        if create_empty_results {
+                            let prefetch_output = format!("{}.prefetch.csv", location);
+                            let gather_output = format!("{}.gather.csv", location);
+                            // touch output files
+                            match std::fs::File::create(&prefetch_output) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("Failed to create empty prefetch output: {}", e)
+                                }
+                            }
+                            match std::fs::File::create(&gather_output) {
+                                Ok(_) => {}
+                                Err(e) => eprintln!("Failed to create empty gather output: {}", e),
+                            }
+                        }
                     }
                 } else {
                     // different warning here? Could not load sig from record??
