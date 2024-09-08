@@ -45,7 +45,10 @@ pub fn index<P: AsRef<Path>>(
                 Ok(cs)
             } else {
                 // @CTB test error message
-                Err(anyhow::anyhow!("ERROR: cannot load this type of file with 'index'. Exiting.").into())
+                Err(
+                    anyhow::anyhow!("ERROR: cannot load this type of file with 'index'. Exiting.")
+                        .into(),
+                )
             }
         }
     };
