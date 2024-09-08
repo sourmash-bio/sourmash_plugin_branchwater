@@ -3,7 +3,6 @@ use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
 use std::path::Path;
 
-use crate::utils::multicollection::MultiCollection;
 use crate::utils::{load_collection, ReportType};
 use sourmash::collection::{Collection, CollectionSet};
 
@@ -15,33 +14,35 @@ pub fn index<P: AsRef<Path>>(
     allow_failed_sigpaths: bool,
     use_internal_storage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Loading siglist");
+    eprintln!("Loading sketches from {}", siglist);
 
-    let multi: MultiCollection = load_collection(
+    let multi = match load_collection(
         &siglist,
         selection,
         ReportType::General,
         allow_failed_sigpaths,
-    )
-    .unwrap();
+    ) {
+        Ok(multi) => multi,
+        Err(err) => return Err(err.into()),
+    };
     eprintln!("loaded - {}", multi.len());
 
-    let coll: Result<Collection, &str> = multi.clone().try_into();
-
-    let collection = match coll {
-        // if we can convert it, we have a single Collection; use that!
-        Ok(coll) => Ok(CollectionSet::from(
-            coll.select(selection).unwrap().try_into()?,
-        )),
-        // alt, our only chance is to load everything into memory.
+    // Try to convert it into a Collection and then CollectionSet.
+    let collection = match Collection::try_from(multi.clone()) {
+        // conversion worked!
+        Ok(c) => {
+            let cs: CollectionSet = c.select(selection).unwrap().try_into()?;
+            Ok(cs)
+        }
+        // conversion failed; can we/should we load it into memory?
+        // @CTB bool.
         Err(_) => {
             if use_internal_storage {
-                // @CTB warn: loading all the things
-                let coll = multi.load_all_sigs(selection).unwrap();
+                let c = multi.load_all_sigs(selection).unwrap();
                 // @CTB multiple selects...
-                Ok(CollectionSet::from(
-                    coll.select(selection).unwrap().try_into()?,
-                ))
+                let c = c.select(selection).unwrap();
+                let cs: CollectionSet = c.try_into()?;
+                Ok(cs)
             } else {
                 Err(anyhow::anyhow!("failed. Exiting.").into())
             }
