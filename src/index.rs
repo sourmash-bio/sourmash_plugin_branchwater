@@ -25,26 +25,27 @@ pub fn index<P: AsRef<Path>>(
         Ok(multi) => multi,
         Err(err) => return Err(err.into()),
     };
-    eprintln!("loaded - {}", multi.len());
+    eprintln!("Found {} sketches total.", multi.len());
 
     // Try to convert it into a Collection and then CollectionSet.
     let collection = match Collection::try_from(multi.clone()) {
         // conversion worked!
         Ok(c) => {
-            let cs: CollectionSet = c.select(selection).unwrap().try_into()?;
+            let cs: CollectionSet = c.select(selection)?.try_into()?;
             Ok(cs)
         }
         // conversion failed; can we/should we load it into memory?
-        // @CTB bool.
         Err(_) => {
             if use_internal_storage {
-                let c = multi.load_all_sigs(selection).unwrap();
-                // @CTB multiple selects...
-                let c = c.select(selection).unwrap();
+                // @CTB test warning
+                eprintln!("WARNING: loading all sketches into memory in order to index.");
+                eprintln!("See 'index' documentation for details.");
+                let c: Collection = multi.load_all_sigs(selection)?;
                 let cs: CollectionSet = c.try_into()?;
                 Ok(cs)
             } else {
-                Err(anyhow::anyhow!("failed. Exiting.").into())
+                // @CTB test error message
+                Err(anyhow::anyhow!("ERROR: cannot load this type of file with 'index'. Exiting.").into())
             }
         }
     };
