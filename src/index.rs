@@ -8,68 +8,33 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use sourmash::collection::{Collection, CollectionSet};
+use crate::utils::{ load_collection, ReportType };
+use crate::utils::multicollection::MultiCollection;
 
 pub fn index<P: AsRef<Path>>(
     siglist: String,
     selection: &Selection,
     output: P,
     colors: bool,
-    _allow_failed_sigpaths: bool,
+    allow_failed_sigpaths: bool,
     use_internal_storage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
-    let collection = match siglist {
-        x if x.ends_with(".zip") => Collection::from_zipfile(x)?,
-        x if x.ends_with(".sig") || x.ends_with(".sig.gz") => {
-            let signatures = Signature::from_path(&x)
-                .with_context(|| format!("Failed to load signatures from: '{}'", x))?;
-
-            Collection::from_sigs(signatures).with_context(|| {
-                format!(
-                    "Loaded signatures but failed to load as collection: '{}'",
-                    x
-                )
-            })?
+    let multi: MultiCollection = load_collection(&siglist, selection,
+                                                 ReportType::General,
+                                                 allow_failed_sigpaths).unwrap();
+    if multi.len() == 1 || use_internal_storage {
+        let mut collection: CollectionSet;
+        if multi.len() == 1 {
+            let coll: Collection = Collection::try_from(multi).unwrap();
+            collection = coll.select(selection)?.try_into().unwrap();
+        } else { // use_internal_storage
+            // @CTB warn: loading all the things
+            let coll = multi.load_all_sigs(selection).unwrap();
+            // @CTB multiple selects...
+             collection = coll.select(selection)?.try_into()?;
         }
-        _ => {
-            let file = File::open(siglist.clone())
-                .with_context(|| format!("Failed to open pathlist file: '{}'", siglist))?;
-
-            let reader = BufReader::new(file);
-
-            // load list of paths
-            let lines: Vec<_> = reader
-                .lines()
-                .filter_map(|line| match line {
-                    Ok(path) => {
-                        let mut filename = PathBuf::new();
-                        filename.push(path);
-                        Some(filename)
-                    }
-                    Err(_err) => None,
-                })
-                .collect();
-
-            if lines.is_empty() {
-                return Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into());
-            } else {
-                match Collection::from_paths(&lines) {
-                    Ok(collection) => collection,
-                    Err(err) => {
-                        eprintln!("Error in loading from '{}': {}", siglist, err);
-                        return Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into());
-                    }
-                }
-            }
-        }
-    };
-
-    let collection: CollectionSet = collection.select(selection)?.try_into()?;
-
-    if collection.is_empty() {
-        Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into())
-    } else {
         eprintln!("Indexing {} sketches.", collection.len());
         let mut index = RevIndex::create(output.as_ref(), collection, colors)?;
 
@@ -77,5 +42,7 @@ pub fn index<P: AsRef<Path>>(
             index.internalize_storage()?;
         }
         Ok(())
+    } else {
+        Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into())
     }
 }
