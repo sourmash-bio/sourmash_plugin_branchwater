@@ -1,3 +1,5 @@
+.PHONY: all install test wheel sdist upload_dist
+
 PYTHON ?= python
 
 all:
