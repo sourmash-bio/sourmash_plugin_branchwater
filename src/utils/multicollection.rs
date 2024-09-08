@@ -37,17 +37,26 @@ impl MultiCollection {
     }
 
     // Turn a set of paths into list of Collections.
-    fn load_set_of_paths(paths: HashSet<String>) -> (Vec<Collection>, usize) {
+    fn load_set_of_paths(paths: HashSet<String>) -> (MultiCollection, usize) {
         let n_failed = AtomicUsize::new(0);
 
         // could just use a variant of load_collection here?
-        let colls: Vec<_> = paths
+        let colls: Vec<MultiCollection> = paths
             .par_iter()
             .filter_map(|iloc| match iloc {
                 // load from zipfile
                 x if x.ends_with(".zip") => {
                     debug!("loading sigs from zipfile {}", x);
-                    Some(Collection::from_zipfile(x).unwrap())
+                    let coll = Collection::from_zipfile(x).unwrap();
+                    Some(MultiCollection::from(coll))
+                }
+                // load from CSV
+                x if x.ends_with(".csv") => {
+                    debug!("vec from pathlist of standalone manifests!");
+
+                    let x: String = x.into();
+                    let utf_path: &Path = x.as_str().into();
+                    MultiCollection::from_standalone_manifest(utf_path).ok()
                 }
                 // load from (by default) a sigfile
                 _ => {
@@ -77,7 +86,7 @@ impl MultiCollection {
                                         .build(),
                                 ),
                             );
-                            Some(collection)
+                            Some(MultiCollection::from(collection))
                         }
                         None => {
                             eprintln!("WARNING: could not load sketches from path '{}'", iloc);
@@ -90,7 +99,7 @@ impl MultiCollection {
             .collect();
 
         let n_failed = n_failed.load(atomic::Ordering::SeqCst);
-        (colls, n_failed)
+        (MultiCollection::from(colls), n_failed)
     }
 
     /// Build from a standalone manifest.  Note: the tricky bit here
@@ -112,12 +121,9 @@ impl MultiCollection {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
 
-            let colls = colls
-                .par_iter()
-                .map(|c| c.clone().intersect_manifest(&manifest))
-                .collect();
+            let multi = colls.intersect_manifest(&manifest);
 
-            Ok(MultiCollection::new(colls, false))
+            Ok(multi)
         }
     }
 
@@ -174,9 +180,9 @@ impl MultiCollection {
             })
             .collect();
 
-        let (colls, n_failed) = MultiCollection::load_set_of_paths(lines);
+        let (multi, n_failed) = MultiCollection::load_set_of_paths(lines);
 
-        Ok((MultiCollection::new(colls, false), n_failed))
+        Ok((multi, n_failed))
     }
 
     // Load from a sig file
@@ -267,6 +273,15 @@ impl MultiCollection {
 
         Ok(sketchinfo)
     }
+
+    fn intersect_manifest(self, manifest: &Manifest) -> MultiCollection {
+        let colls = self
+            .collections
+            .par_iter()
+            .map(|c| c.clone().intersect_manifest(&manifest))
+            .collect();
+        MultiCollection::new(colls, self.contains_revindex)
+    }
 }
 
 impl Select for MultiCollection {
@@ -278,6 +293,28 @@ impl Select for MultiCollection {
             .collect();
 
         Ok(MultiCollection::new(collections, self.contains_revindex))
+    }
+}
+
+// Convert a single Collection into a MultiCollection
+impl From<Collection> for MultiCollection {
+    fn from(coll: Collection) -> Self {
+        // @CTB check if revindex
+        MultiCollection::new(vec![coll], false)
+    }
+}
+
+// Merge a bunch of MultiCollection structs into one
+impl From<Vec<MultiCollection>> for MultiCollection {
+    fn from(multi: Vec<MultiCollection>) -> Self {
+        let mut x: Vec<Collection> = vec![];
+        for mc in multi.into_iter() {
+            for coll in mc.collections.into_iter() {
+                x.push(coll);
+            }
+        }
+        // @CTB check bool
+        MultiCollection::new(x, false)
     }
 }
 
