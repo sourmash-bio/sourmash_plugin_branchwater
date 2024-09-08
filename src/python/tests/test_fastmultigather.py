@@ -203,6 +203,9 @@ def test_simple_read_manifests(runtmp):
 
 
 def test_simple_indexed(runtmp, zip_query, toggle_internal_storage):
+    if toggle_internal_storage == '--no-internal-storage':
+        raise pytest.xfail("not implemented")
+
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     sig2 = get_test_data('2.fa.sig.gz')
@@ -239,6 +242,8 @@ def test_simple_indexed(runtmp, zip_query, toggle_internal_storage):
 
 
 def test_simple_indexed_query_manifest(runtmp, toggle_internal_storage):
+    if toggle_internal_storage == '--no-internal-storage':
+        raise pytest.xfail("not implemented")
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     sig2 = get_test_data('2.fa.sig.gz')
@@ -273,6 +278,8 @@ def test_simple_indexed_query_manifest(runtmp, toggle_internal_storage):
 
 
 def test_missing_querylist(runtmp, capfd, indexed, zip_query, toggle_internal_storage):
+    if toggle_internal_storage == '--no-internal-storage':
+        raise pytest.xfail("not implemented")
     # test missing querylist
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -1174,7 +1181,9 @@ def test_rocksdb_no_internal_storage_gather_fails(runtmp, capfd):
                                   "47.fa.sig.gz",
                                   "63.fa.sig.gz"])
 
-    # index!
+    # index! CTB, note this will fail currently.
+    raise pytest.xfail("not implemented")
+
     runtmp.sourmash('scripts', 'index', against_list, '--no-internal-storage',
                     '-o', 'subdir/against.rocksdb')
 

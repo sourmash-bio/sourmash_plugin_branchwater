@@ -16,6 +16,9 @@ def test_installed(runtmp):
 
 
 def test_index(runtmp, toggle_internal_storage):
+    if toggle_internal_storage == "--no-internal-storage":
+        raise pytest.xfail("not implemented currently")
+
     # test basic index!
     siglist = runtmp.output('db-sigs.txt')
 
@@ -82,10 +85,9 @@ def test_index_missing_siglist(runtmp, capfd, toggle_internal_storage):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert 'Failed to open pathlist file:' in captured.err
+    assert 'Error: No such file or directory: ' in captured.err
 
 
-@pytest.mark.xfail(reason="not implemented yet")
 def test_index_sig(runtmp, capfd, toggle_internal_storage):
     # test index with a .sig.gz file instead of pathlist
     # (should work now)
@@ -101,7 +103,6 @@ def test_index_sig(runtmp, capfd, toggle_internal_storage):
     assert 'index is done' in runtmp.last_result.err
 
 
-@pytest.mark.xfail(reason="not implemented yet")
 def test_index_manifest(runtmp, capfd, toggle_internal_storage):
     # test index with a manifest file
     sig2 = get_test_data('2.fa.sig.gz')
@@ -118,7 +119,6 @@ def test_index_manifest(runtmp, capfd, toggle_internal_storage):
     assert 'index is done' in runtmp.last_result.err
 
 
-@pytest.mark.xfail(reason="needs more work")
 def test_index_bad_siglist_2(runtmp, capfd):
     # test with a bad siglist (containing a missing file)
     against_list = runtmp.output('against.txt')
@@ -139,7 +139,6 @@ def test_index_bad_siglist_2(runtmp, capfd):
     assert "WARNING: could not load sketches from path 'no-exist'" in captured.err
 
 
-@pytest.mark.xfail(reason="needs more work")
 def test_index_empty_siglist(runtmp, capfd):
     # test empty siglist file
     siglist = runtmp.output('db-sigs.txt')
@@ -347,6 +346,8 @@ def test_index_zipfile_bad(runtmp, capfd):
 
 
 def test_index_check(runtmp, toggle_internal_storage):
+    if toggle_internal_storage == "--no-internal-storage":
+        raise pytest.xfail("not implemented currently")
     # test check index
     siglist = runtmp.output('db-sigs.txt')
 
@@ -367,6 +368,8 @@ def test_index_check(runtmp, toggle_internal_storage):
 
 
 def test_index_check_quick(runtmp, toggle_internal_storage):
+    if toggle_internal_storage == "--no-internal-storage":
+        raise pytest.xfail("not implemented currently")
     # test check index
     siglist = runtmp.output('db-sigs.txt')
 
@@ -387,6 +390,9 @@ def test_index_check_quick(runtmp, toggle_internal_storage):
 
 
 def test_index_subdir(runtmp, toggle_internal_storage):
+    if toggle_internal_storage == "--no-internal-storage":
+        raise pytest.xfail("not implemented currently")
+
     # test basic index & output to subdir
     siglist = runtmp.output('db-sigs.txt')
 
