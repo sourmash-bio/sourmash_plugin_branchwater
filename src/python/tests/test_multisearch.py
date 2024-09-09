@@ -256,6 +256,35 @@ def test_simple_ani_list_of_zips(runtmp):
                 assert max_ani == 0.9772
 
 
+def test_simple_ani_list_of_csv(runtmp):
+    # test basic execution against a pathlist file of manifests
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    runtmp.sourmash('sig', 'collect', sig2, '-o', 'sig2.mf.csv', '-F', 'csv')
+    runtmp.sourmash('sig', 'collect', sig47, '-o', 'sig47.mf.csv', '-F', 'csv')
+    runtmp.sourmash('sig', 'collect', sig63, '-o', 'sig63.mf.csv', '-F', 'csv')
+
+    make_file_list(query_list, ['sig2.mf.csv', 'sig47.mf.csv', 'sig63.mf.csv'])
+    make_file_list(against_list, ['sig2.mf.csv', 'sig47.mf.csv', 'sig63.mf.csv'])
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', query_list, against_list,
+                    '-o', output, '--ani')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+
 def test_simple_ani_standalone_manifest(runtmp):
     # test basic execution of a standalone manifest
     against_list = runtmp.output('against.sig.zip')

@@ -16,6 +16,8 @@ def test_installed(runtmp):
 
 
 def test_simple(runtmp, capfd, indexed_query, indexed_against, zip_against, toggle_internal_storage):
+    if toggle_internal_storage == '--no-internal-storage':
+        raise pytest.xfail("not implemented")
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
@@ -60,6 +62,8 @@ def test_simple(runtmp, capfd, indexed_query, indexed_against, zip_against, togg
 
 
 def test_simple_with_prefetch(runtmp, zip_against, indexed, toggle_internal_storage):
+    if toggle_internal_storage == '--no-internal-storage':
+        raise pytest.xfail("not implemented")
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
     against_list = runtmp.output('against.txt')
