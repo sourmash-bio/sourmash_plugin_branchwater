@@ -283,6 +283,7 @@ impl MultiCollection {
         MultiCollection::new(colls, self.contains_revindex)
     }
 
+    // Load all sketches into memory, producing an in-memory Collection.
     pub fn load_all_sigs(self, selection: &Selection) -> Result<Collection> {
         let all_sigs: Vec<Signature> = self
             .par_iter()
