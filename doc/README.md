@@ -53,8 +53,7 @@ When working with large collections of small sketches such as genomes, we sugges
 
 * sketches are compressed in zip files;
 * zip files can contain many sketches, including incompatible types (e.g. multiple k-mer sizes);
-* zip files contain "manifests" listing their contents;
-* subsets of zip files can be efficiently selected and loaded depending on what is needed;
+* subsets of zip files can be efficiently selected and loaded;
 * in particular, _single_ sketches can be loaded on demand, supporting lower memory requirements for certain kinds of searches.
 
 For all these reasons, zip files are the most efficient and effective
@@ -89,12 +88,13 @@ There are three main reasons NOT to use zip files or pathlists in this case:
 * third, when searching subsets of large collections, it can be expensive
   to make a copy of the subset;
 
-Manifests are a sourmash filetype that catalogs sketch content and can
+Manifests are a sourmash filetype that catalog sketch content and can
 be used to point at many sketches and/or subset large collections of
-sketches, and they solve this problem. In particular, manifests let
-you provide large collections of sketches/collections of large
-sketches to `manysearch` and `fastmultigather`, and also let you
-select a subset of a collection without making a copy.
+sketches, and so they provide solutions to these problems. In
+particular, manifests let you provide large collections of
+sketches/collections of large sketches to `manysearch` and
+`fastmultigather`, and also let you select a subset of a collection
+without making a copy.
 
 The branchwater plugin supports manifest CSVs.  These can be created
 from lists of sketches by using `sourmash sig collect` or `sourmash
@@ -112,11 +112,15 @@ find -type f /path/to/sig/files/* > pathlist.txt
 sourmash sig collect pathlist.txt -o summary-manifest.csv -F csv
 ```
 will collect a list of all of the sketches under `/path/to/sig/files`
-and make the list available as a combined manifest.
+and make the list available through a combined manifest.
 
-Note that manifests have many advantages over pathlists: in
+Note here that manifests are _much_ smaller than the files containing all
+of the sketches!
+
+Note also that manifests have many advantages over pathlists: in
 particular, they contain metadata that enables fast loading of
-specific sketches, and they support subsetting from large databases.
+specific sketches, and they support subsetting from large databases;
+pathlists support neither.
 
 ### Using RocksDB inverted indexes
 
@@ -134,7 +138,8 @@ can be created by running `sourmash scripts index`. See
 
 ### Using "pathlists"
 
-**Note: We no longer recommend using "pathlists". Use zip files or manifests instead.**
+**Note: We no longer recommend using "pathlists". Use zip files or
+  standalone manifests instead.**
 
 You can make a pathlist by listing a collection of .sig.gz files like so:
 ```
@@ -383,8 +388,8 @@ the similarity columns, with the following choices: `containment`,
 ### Running `index`
 
 The `index` subcommand creates a RocksDB inverted index that can be
-used as a database for `manysearch` (containment queries into
-mixtures) and `fastmultigather` (mixture decomposition against a
+used as an efficient database for `manysearch` (containment queries
+into mixtures) and `fastmultigather` (mixture decomposition against a
 database of genomes).
 
 RocksDB inverted indexes support fast, low-latency, and low-memory
@@ -408,11 +413,12 @@ disk space required for large databases.  You can provide an optional
 reduces the disk space needed for the index.  Read below for technical
 details!
 
-As of v0.9.8, `index` can take any of the supported input types,
-but unless you are using a zip file, it may need to load all the
-sketches into memory before indexing them. Moreover, you can
-only use external storage with a zip file. We are working on
-improving this; see @CTB for details.
+As of v0.9.8, `index` can take any of the supported input types, but
+unless you are using a zip file, it may need to load all the sketches
+into memory before indexing them. Moreover, you can only use external
+storage with a zip file. We are working on improving this; see
+[issue #415](https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/415)
+for details.
 
 #### Internal vs external storage of sketches in a RocksDB index
 
