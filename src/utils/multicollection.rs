@@ -93,7 +93,9 @@ impl MultiCollection {
         (colls, n_failed)
     }
 
-    /// Build from a standalone manifest
+    /// Build from a standalone manifest.  Note: the tricky bit here
+    /// is that the manifest may select only a subset of the rows,
+    /// using (name, md5) tuples.
     pub fn from_standalone_manifest(sigpath: &Path) -> Result<Self> {
         debug!("multi from standalone manifest!");
         let file =
@@ -110,20 +112,9 @@ impl MultiCollection {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
             let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
 
-            // select out only the (name, md5) pairs that were present
-            // in the manifest
-            // @CTB par_iter?
-            let picklist: HashSet<_> = manifest
-                .clone()
-                .iter()
-                .map(|r| (r.name().clone(), r.md5().clone()))
-                .collect();
-
-            // @CTB transfer into MultiCollection too?
-            // @CTB par_iter?
             let colls = colls
-                .iter()
-                .map(|c| c.clone().select_picklist(&picklist))
+                .par_iter()
+                .map(|c| c.clone().intersect_manifest(&manifest))
                 .collect();
 
             Ok(MultiCollection::new(colls, false))

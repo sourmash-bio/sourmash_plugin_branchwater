@@ -35,13 +35,9 @@ def test_simple(runtmp, zip_against):
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -120,13 +116,8 @@ def test_simple_space_in_signame(runtmp):
 
     make_file_list(against_list, [sig2, sig47, sig63])
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', renamed_query, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', renamed_query, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -151,13 +142,8 @@ def test_simple_zip_query(runtmp):
 
     query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output('') )
 
     print(os.listdir(runtmp.output('')))
 
@@ -194,13 +180,8 @@ def test_simple_read_manifests(runtmp):
     runtmp.sourmash("sig", "manifest", query, "-o", query_mf)
     runtmp.sourmash("sig", "manifest", against_list, "-o", against_mf)
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_mf, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_mf, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -603,13 +584,8 @@ def test_md5(runtmp, zip_query):
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     print(os.listdir(runtmp.output('')))
 
@@ -701,13 +677,8 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_query, zip_against):
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                        '-s', '100000', '-t', '0')
-    finally:
-        os.chdir(cwd)
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
 
     g_output = runtmp.output('SRR606249.gather.csv')
     p_output = runtmp.output('SRR606249.prefetch.csv')
@@ -1287,3 +1258,25 @@ def test_save_matches(runtmp):
     mg_ss = list(sourmash.load_file_as_signatures(query, ksize=31))[0]
     assert match_mh.contained_by(mg_ss.minhash) == 1.0
     assert mg_ss.minhash.contained_by(match_mh) < 1
+
+
+def test_create_empty_results(runtmp):
+    # sig2 has 0 hashes in common with 47 and 63
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [sig2])
+    make_file_list(against_list, [sig47, sig63])
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-s', '100000', '-t', '0', '--create-empty-results', in_directory=runtmp.output(''))
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('CP001071.1.gather.csv')
+    p_output = runtmp.output('CP001071.1.prefetch.csv')
+    assert os.path.exists(p_output)
