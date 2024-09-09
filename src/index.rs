@@ -37,16 +37,14 @@ pub fn index<P: AsRef<Path>>(
         // conversion failed; can we/should we load it into memory?
         Err(_) => {
             if use_internal_storage {
-                // @CTB test warning
                 eprintln!("WARNING: loading all sketches into memory in order to index.");
                 eprintln!("See 'index' documentation for details.");
                 let c: Collection = multi.load_all_sigs(selection)?;
                 let cs: CollectionSet = c.try_into()?;
                 Ok(cs)
             } else {
-                // @CTB test error message
                 Err(
-                    anyhow::anyhow!("ERROR: cannot load this type of file with 'index'. Exiting.")
+                    anyhow::anyhow!("cannot index this type of collection with external storage")
                         .into(),
                 )
             }

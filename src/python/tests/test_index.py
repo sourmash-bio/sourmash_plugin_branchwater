@@ -38,6 +38,49 @@ def test_index(runtmp, toggle_internal_storage):
     assert 'index is done' in runtmp.last_result.err
 
 
+def test_index_warning_message(runtmp, capfd):
+    # test basic index when it has to load things into memory - see #451.
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', siglist, '-o', output)
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert 'index is done' in runtmp.last_result.err
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "WARNING: loading all sketches into memory in order to index." in captured.err
+
+
+def test_index_error_message(runtmp, capfd):
+    # test basic index when it errors out b/c can't load
+    siglist = runtmp.output('db-sigs.txt')
+
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    output = runtmp.output('db.rocksdb')
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'index', siglist, '-o', output,
+                        '--no-internal-storage')
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "cannot index this type of collection with external storage" in captured.err
+
+
 def test_index_protein(runtmp, toggle_internal_storage):
     sigs = get_test_data('protein.zip')
     output = runtmp.output('db.rocksdb')
