@@ -282,6 +282,26 @@ impl MultiCollection {
             .collect();
         MultiCollection::new(colls, self.contains_revindex)
     }
+
+    pub fn load_all_sigs(self, selection: &Selection) -> Result<Collection> {
+        let all_sigs: Vec<Signature> = self
+            .par_iter()
+            .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
+                Ok(sig) => {
+                    let sig = sig.clone().select(selection).ok()?;
+                    Some(Signature::from(sig))
+                }
+                Err(_) => {
+                    eprintln!(
+                        "FAILED to load sketch from '{}'",
+                        record.internal_location()
+                    );
+                    None
+                }
+            })
+            .collect();
+        Ok(Collection::from_sigs(all_sigs)?)
+    }
 }
 
 impl Select for MultiCollection {
@@ -315,6 +335,19 @@ impl From<Vec<MultiCollection>> for MultiCollection {
         }
         // @CTB check bool
         MultiCollection::new(x, false)
+    }
+}
+
+// Extract a single Collection from a MultiCollection, if possible
+impl TryFrom<MultiCollection> for Collection {
+    type Error = &'static str;
+
+    fn try_from(multi: MultiCollection) -> Result<Self, Self::Error> {
+        if multi.collections.len() == 1 {
+            Ok(multi.collections.into_iter().next().unwrap())
+        } else {
+            Err("More than one Collection in this MultiCollection; cannot convert")
+        }
     }
 }
 
