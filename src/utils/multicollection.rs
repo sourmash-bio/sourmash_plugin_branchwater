@@ -47,7 +47,7 @@ impl MultiCollection {
                 // load from zipfile
                 x if x.ends_with(".zip") => {
                     debug!("loading sigs from zipfile {}", x);
-                    let coll = Collection::from_zipfile(x).unwrap();
+                    let coll = Collection::from_zipfile(x).expect("nothing to load!?");
                     Some(MultiCollection::from(coll))
                 }
                 // load from CSV
@@ -345,6 +345,7 @@ impl TryFrom<MultiCollection> for Collection {
 
     fn try_from(multi: MultiCollection) -> Result<Self, Self::Error> {
         if multi.collections.len() == 1 {
+            // this must succeed b/c len > 0
             Ok(multi.collections.into_iter().next().unwrap())
         } else {
             Err("More than one Collection in this MultiCollection; cannot convert")
