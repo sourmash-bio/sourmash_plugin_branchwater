@@ -49,8 +49,7 @@ pub fn fastmultigather(
             1
         }
     }
-    .try_into()
-    .unwrap();
+    .try_into()?;
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
