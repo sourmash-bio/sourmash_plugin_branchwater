@@ -1,4 +1,4 @@
-//! Rust-to-Pyton interface code for sourmash_plugin_branchwater, using pyo3.
+//! Rust-to-Python interface code for sourmash_plugin_branchwater, using pyo3.
 //!
 //! If you're using Rust, you're probably most interested in
 //! [utils](utils/index.html)
