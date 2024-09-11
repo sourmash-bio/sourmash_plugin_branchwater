@@ -224,7 +224,7 @@ impl MultiCollection {
         // first create a Vec of all triples (Collection, Idx, Record)
         let s: Vec<_> = self
             .collections
-            .iter()             // CTB: are we loading things into memory here? No...
+            .iter() // CTB: are we loading things into memory here? No...
             .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
             .collect();
         // then return a parallel iterator over the Vec.
