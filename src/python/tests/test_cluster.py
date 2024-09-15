@@ -488,3 +488,146 @@ def test_bad_file(runtmp, capfd):
     print(captured.err)
 
     assert "Error: Failed to build graph" in captured.err
+
+
+def test_cluster_ani_output_graph(runtmp):
+    pairwise_csv = get_test_data('cluster.pairwise.csv')
+    output = runtmp.output('clusters.csv')
+    sizes = runtmp.output('sizes.csv')
+    graph = runtmp.output('clustergraph.net')
+    threshold = '0.9'
+
+    runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
+                    '--similarity-column', "average_containment_ani", "--cluster-sizes",
+                    sizes, '--threshold', threshold, "--graph-output", graph)
+
+    assert os.path.exists(output)
+
+    # check cluster output
+    with open(output, mode='r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = [row for row in reader]
+        assert reader.fieldnames == ['cluster','nodes']
+    assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
+    assert rows[0]['cluster'] == 'Component_1'
+    expected_node_sets = [
+    set("n1;n2;n3;n4;n5".split(';')),
+    set("n6;n7".split(';'))
+    ]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
+
+    # check cluster size histogram
+    with open(sizes, mode='r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = [row for row in reader]
+        assert reader.fieldnames == ['cluster_size','count']
+    assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
+    rows_as_tuples = {tuple(row.values()) for row in rows}
+    expected = {('5', '1'), ('2', '1')}
+    assert rows_as_tuples == expected
+
+    # check graph output
+    expected_vertex_count = 7
+    expected_vertices = ['1', '2', '3', '4', '5', '6', '7']
+    expected_edges = [('1', '2'), ('1', '3'), ('2', '3'), ('2', '4'), ('3', '4'), ('4', '5'), ('6', '7')]
+    assert os.path.exists(graph)
+    with open(graph, 'r', newline='') as pajek_graph:
+        reader = csv.reader(pajek_graph, delimiter=' ')
+
+        found_vertices = []
+        found_edges = []
+
+        for row in reader:
+            if not row:
+                continue
+
+            if row[0] == "*Vertices":
+                section = "Vertices"
+                continue
+
+            if row[0] == "*Edges":
+                section = "Edges"
+                continue
+
+            if section == "Vertices":
+                found_vertices.append(row[0])
+
+            if section == "Edges":
+                found_edges.append((row[0], row[1]))
+
+    # Check found vertices and edges against expected values
+    assert len(found_vertices) == expected_vertex_count
+    assert found_vertices == expected_vertices, f"Vertices dont match: {found_vertices}"
+    assert found_edges == expected_edges, f"Edges dont match: {found_edges}"
+
+
+def test_cluster_ani_pairwise_graph_output(runtmp):
+    pairwise_csv = runtmp.output('pairwise.csv')
+    output = runtmp.output('clusters.csv')
+    graph = runtmp.output('clustergraph.net')
+    cluster_threshold = '0.90'
+
+    query_list = runtmp.output('query.txt')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    runtmp.sourmash('scripts', 'pairwise', query_list,
+                    '-o', pairwise_csv, "-t", "-0.1", "--ani")
+
+    assert os.path.exists(pairwise_csv)
+
+    runtmp.sourmash('scripts', 'cluster', pairwise_csv, '-o', output,
+                    '--similarity-column', "average_containment_ani", "--graph-output",
+                    graph, '--threshold', cluster_threshold)
+
+    assert os.path.exists(output)
+
+    # check cluster output
+    with open(output, mode='r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        rows = [row for row in reader]
+        assert reader.fieldnames == ['cluster','nodes']
+    print(rows)
+    assert len(rows) == 2, f"Expected 2 data rows but found {len(rows)}"
+    assert rows[0]['cluster'] == 'Component_1'
+    expected_node_sets = [set("NC_009661.1;NC_011665.1".split(';')), set("CP001071.1".split(';'))]
+    for row in rows:
+        assert set(row['nodes'].split(';')) in expected_node_sets
+
+    # check graph output
+    expected_vertex_count = 3
+    expected_vertices = ['1', '2', '3']
+    n_expected_edges = 1
+    assert os.path.exists(graph)
+    with open(graph, 'r', newline='') as pajek_graph:
+        reader = csv.reader(pajek_graph, delimiter=' ')
+
+        found_vertices = []
+        found_edges = []
+
+        for row in reader:
+            if not row:
+                continue
+
+            if row[0] == "*Vertices":
+                section = "Vertices"
+                continue
+
+            if row[0] == "*Edges":
+                section = "Edges"
+                continue
+
+            if section == "Vertices":
+                found_vertices.append(row[0])
+
+            if section == "Edges":
+                found_edges.append((row[0], row[1]))
+
+    # Check found vertices and edges against expected values
+    assert len(found_vertices) == expected_vertex_count
+    assert found_vertices == expected_vertices, f"Vertices dont match: {found_vertices}"
+    assert len(found_edges) == n_expected_edges, f"Edge count doesnt match: found edges: {found_edges}"

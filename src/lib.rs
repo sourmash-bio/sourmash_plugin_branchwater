@@ -308,6 +308,7 @@ fn do_cluster(
     similarity_column: String,
     similarity_threshold: f64,
     cluster_sizes: Option<String>,
+    output_graph: Option<String>,
 ) -> anyhow::Result<u8> {
     match cluster::cluster(
         pairwise_csv,
@@ -315,6 +316,7 @@ fn do_cluster(
         similarity_column,
         similarity_threshold,
         cluster_sizes,
+        output_graph,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {
