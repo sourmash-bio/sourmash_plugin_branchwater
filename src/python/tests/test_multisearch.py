@@ -387,8 +387,7 @@ def test_simple_manifest(runtmp):
     assert len(df) == 3
 
 
-#@pytest.mark.xfail(reason="not implemented yet")
-def test_lists_of_standalone_manifests(runtmp):
+def test_lists_of_standalone_manifests(runtmp, capfd):
     # test pathlists of manifests
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -421,6 +420,9 @@ def test_lists_of_standalone_manifests(runtmp):
 
     df = pandas.read_csv(output)
     assert len(df) == 3
+
+    captured = capfd.readouterr()
+    print(captured.err)
 
 
 def test_missing_query(runtmp, capfd, zip_query):
