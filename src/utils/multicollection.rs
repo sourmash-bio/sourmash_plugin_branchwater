@@ -36,7 +36,55 @@ impl MultiCollection {
         }
     }
 
-    // Turn a set of paths into list of Collections.
+    // Try loading a set of paths as JSON files only - filters on sig/sig.gz
+    // extensions. This is a legacy method that supports pathlists for
+    // building RocksDB. See sourmash-bio/sourmash#3321 for background.
+    //
+    // NOTE: this could potentially have very poor performance if there are
+    // a lot of _good_ files, with one _bad_ one. Look into exiting first loop
+    // early.
+    fn load_set_of_json_files(paths: &HashSet<String>) -> Result<MultiCollection> {
+        // load sketches from paths in parallel.
+        let n_failed = AtomicUsize::new(0);
+        let records: Vec<Record> = paths
+            .par_iter()
+            .filter_map(|path| match Signature::from_path(path) {
+                Ok(signatures) => {
+                    let recs: Vec<Record> = signatures
+                        .into_iter()
+                        .flat_map(|v| Record::from_sig(&v, path))
+                        .collect();
+                    Some(recs)
+                }
+                Err(_) => {
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+
+        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
+        if records.is_empty() || n_failed > 0 {
+            return Err(anyhow!("cannot load everything as JSON files"));
+        }
+
+        let manifest: Manifest = records.into();
+        let collection = Collection::new(
+            manifest,
+            InnerStorage::new(
+                FSStorage::builder()
+                    .fullpath("".into())
+                    .subdir("".into())
+                    .build(),
+            ),
+        );
+        Ok(MultiCollection::from(collection))
+    }
+
+    // Turn a set of paths into list of Collections - works recursively
+    // if needed, and can handle paths of any supported type.
     fn load_set_of_paths(paths: HashSet<String>) -> (MultiCollection, usize) {
         let n_failed = AtomicUsize::new(0);
 
@@ -180,7 +228,19 @@ impl MultiCollection {
             })
             .collect();
 
-        let (multi, n_failed) = MultiCollection::load_set_of_paths(lines);
+        let val = MultiCollection::load_set_of_json_files(&lines);
+
+        let (multi, n_failed) = match val {
+            Ok(collection) => {
+                eprintln!("SUCCEEDED in loading as JSON files, woot woot");
+                // CTB note: if anything fails to load, this fn returns Err.
+                (collection, 0)
+            }
+            Err(_) => {
+                eprintln!("FAILED to load as JSON files; falling back to general recursive");
+                MultiCollection::load_set_of_paths(lines) // @CTB borrow?
+            }
+        };
 
         Ok((multi, n_failed))
     }

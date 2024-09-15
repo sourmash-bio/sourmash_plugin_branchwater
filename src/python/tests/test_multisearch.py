@@ -387,7 +387,7 @@ def test_simple_manifest(runtmp):
     assert len(df) == 3
 
 
-@pytest.mark.xfail(reason="not implemented yet")
+#@pytest.mark.xfail(reason="not implemented yet")
 def test_lists_of_standalone_manifests(runtmp):
     # test pathlists of manifests
     query_list = runtmp.output('query.txt')

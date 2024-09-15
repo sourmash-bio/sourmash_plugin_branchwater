@@ -16,9 +16,6 @@ def test_installed(runtmp):
 
 
 def test_index(runtmp, toggle_internal_storage):
-    if toggle_internal_storage == "--no-internal-storage":
-        raise pytest.xfail("not implemented currently")
-
     # test basic index!
     siglist = runtmp.output('db-sigs.txt')
 
@@ -42,7 +39,8 @@ def test_index_warning_message(runtmp, capfd):
     # test basic index when it has to load things into memory - see #451.
     siglist = runtmp.output('db-sigs.txt')
 
-    sig2 = get_test_data('2.fa.sig.gz')
+    # note: can't use zip w/o breaking index. See sourmash-bio/sourmash#3321.
+    sig2 = get_test_data('2.sig.zip')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
@@ -64,7 +62,8 @@ def test_index_error_message(runtmp, capfd):
     # test basic index when it errors out b/c can't load
     siglist = runtmp.output('db-sigs.txt')
 
-    sig2 = get_test_data('2.fa.sig.gz')
+    # note: can't use zip w/o breaking index. See sourmash-bio/sourmash#3321.
+    sig2 = get_test_data('2.sig.zip')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
 
@@ -389,8 +388,6 @@ def test_index_zipfile_bad(runtmp, capfd):
 
 
 def test_index_check(runtmp, toggle_internal_storage):
-    if toggle_internal_storage == "--no-internal-storage":
-        raise pytest.xfail("not implemented currently")
     # test check index
     siglist = runtmp.output('db-sigs.txt')
 
@@ -411,8 +408,6 @@ def test_index_check(runtmp, toggle_internal_storage):
 
 
 def test_index_check_quick(runtmp, toggle_internal_storage):
-    if toggle_internal_storage == "--no-internal-storage":
-        raise pytest.xfail("not implemented currently")
     # test check index
     siglist = runtmp.output('db-sigs.txt')
 
@@ -433,9 +428,6 @@ def test_index_check_quick(runtmp, toggle_internal_storage):
 
 
 def test_index_subdir(runtmp, toggle_internal_storage):
-    if toggle_internal_storage == "--no-internal-storage":
-        raise pytest.xfail("not implemented currently")
-
     # test basic index & output to subdir
     siglist = runtmp.output('db-sigs.txt')
 
