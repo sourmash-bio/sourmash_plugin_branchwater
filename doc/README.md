@@ -414,11 +414,13 @@ reduces the disk space needed for the index.  Read below for technical
 details!
 
 As of v0.9.8, `index` can take any of the supported input types, but
-unless you are using a zip file, it may need to load all the sketches
-into memory before indexing them. Moreover, you can only use external
-storage with a zip file. We are working on improving this; see
+unless you are using a zip file or a pathlist of JSON files, it may
+need to load all the sketches into memory before indexing
+them. Moreover, you can only use external storage with a zip file. We
+are working on improving this; see
 [issue #415](https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/415)
-for details.
+for details. A warning will be printed to stderr in situations where
+the sketches are being loaded into memory.
 
 #### Internal vs external storage of sketches in a RocksDB index
 
