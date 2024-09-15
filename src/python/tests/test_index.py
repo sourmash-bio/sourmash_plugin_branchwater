@@ -80,6 +80,36 @@ def test_index_error_message(runtmp, capfd):
     assert "cannot index this type of collection with external storage" in captured.err
 
 
+def test_index_recursive(runtmp, capfd):
+    # test index of pathlist containing standalone manifest containing zip.
+    # a little ridiculous, but should hit the various branches in
+    # MultiCollection::load
+    siglist = runtmp.output('db-sigs.txt')
+
+    # our basic list of sketches...
+    sig2_zip = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    # generate a standalone mf containing a sip
+    standalone_mf = runtmp.output('stand-mf.csv')
+    runtmp.sourmash('sig', 'collect', '-F', 'csv', '-o', standalone_mf,
+                    sig2_zip)
+
+    # now make a file list containing that mf
+    make_file_list(siglist, [standalone_mf, sig47, sig63])
+
+    output = runtmp.output('db.rocksdb')
+
+    runtmp.sourmash('scripts', 'index', siglist, '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "WARNING: loading all sketches into memory in order to index." in captured.err
+    assert 'index is done' in runtmp.last_result.err
+    assert 'Indexing 3 sketches.' in captured.err
+
+
 def test_index_protein(runtmp, toggle_internal_storage):
     sigs = get_test_data('protein.zip')
     output = runtmp.output('db.rocksdb')
