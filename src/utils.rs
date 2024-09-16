@@ -540,7 +540,10 @@ impl std::fmt::Display for ReportType {
 pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
     match Collection::from_zipfile(sigpath) {
         Ok(collection) => Ok(collection),
-        Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            bail!("failed to load {} zipfile: '{}'", report_type, sigpath);
+        }
     }
 }
 
@@ -681,8 +684,8 @@ pub fn load_collection(
         match collection_from_zipfile(&sigpath, &report_type) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
-                last_error = Some(e);
-                None
+                eprintln!("Error: {}", e);
+                bail!("Cannot load '{}' as zipfile.", &siglist);
             }
         }
     } else {
