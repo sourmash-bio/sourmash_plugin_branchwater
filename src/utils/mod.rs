@@ -450,15 +450,17 @@ pub fn load_sketches_above_threshold(
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
         .filter_map(|(coll, _idx, against_record)| {
-            eprintln!("against_record: {}", against_record.name());
+            eprintln!("against_record: {} {}", against_record.name(), against_record.md5());
             let mut results = Vec::new();
             // Load against into memory
             if let Ok(against_sig) = coll.sig_from_record(against_record) {
+                eprintln!("XXX against_sig {} {}", against_sig.name(), against_sig.md5sum());
                 if let Some(against_mh) = against_sig.minhash() {
                     // downsample against_mh, but keep original md5sum
                     let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
                     if let Ok(overlap) = against_mh_ds.count_common(query, false) {
                         if overlap >= threshold_hashes {
+                            eprintln!("found overlap! {} {} {}", against_record.name().to_string(), against_mh.md5sum(), overlap);
                             let result = PrefetchResult {
                                 name: against_record.name().to_string(),
                                 md5sum: against_mh.md5sum(),
