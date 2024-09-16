@@ -156,8 +156,11 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
-        p.add_argument('-o', '--output', help='CSV output file for matches')
-        p.add_argument('--save-matches', action='store_true', default=False, help='save matched hashes for every input to a signature')
+        p.add_argument('-o', '--output', help='CSV output file for matches. Used for non-rocksdb searches only.')
+        p.add_argument('--create-empty-results', action = 'store_true',
+                       default=False, help='create empty results file(s) even if no matches')
+        p.add_argument('--save-matches', action='store_true',
+                       default=False, help='save matched hashes for every input to a signature')
 
 
     def main(self, args):
@@ -175,7 +178,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                                                                 args.scaled,
                                                                 args.moltype,
                                                                 args.output,
-                                                                args.save_matches
+                                                                args.save_matches,
+                                                                args.create_empty_results
                                                                 )
         if status == 0:
             notify(f"...fastmultigather is done!")

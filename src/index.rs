@@ -1,12 +1,9 @@
-use anyhow::Context;
-use camino::Utf8PathBuf as PathBuf;
 use sourmash::index::revindex::RevIndex;
 use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+use crate::utils::{load_collection, ReportType};
 use sourmash::collection::{Collection, CollectionSet};
 
 pub fn index<P: AsRef<Path>>(
@@ -14,69 +11,56 @@ pub fn index<P: AsRef<Path>>(
     selection: &Selection,
     output: P,
     colors: bool,
-    _allow_failed_sigpaths: bool,
+    allow_failed_sigpaths: bool,
     use_internal_storage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Loading siglist");
+    eprintln!("Loading sketches from {}", siglist);
 
-    let collection = match siglist {
-        x if x.ends_with(".zip") => Collection::from_zipfile(x)?,
-        x if x.ends_with(".sig") || x.ends_with(".sig.gz") => {
-            let signatures = Signature::from_path(&x)
-                .with_context(|| format!("Failed to load signatures from: '{}'", x))?;
+    let multi = match load_collection(
+        &siglist,
+        selection,
+        ReportType::General,
+        allow_failed_sigpaths,
+    ) {
+        Ok(multi) => multi,
+        Err(err) => return Err(err.into()),
+    };
+    eprintln!("Found {} sketches total.", multi.len());
 
-            let coll = Collection::from_sigs(signatures).with_context(|| {
-                format!(
-                    "Loaded signatures but failed to load as collection: '{}'",
-                    x
-                )
-            })?;
-            coll
+    // Try to convert it into a Collection and then CollectionSet.
+    let collection = match Collection::try_from(multi.clone()) {
+        // conversion worked!
+        Ok(c) => {
+            let cs: CollectionSet = c.select(selection)?.try_into()?;
+            Ok(cs)
         }
-        _ => {
-            let file = File::open(siglist.clone())
-                .with_context(|| format!("Failed to open pathlist file: '{}'", siglist))?;
-
-            let reader = BufReader::new(file);
-
-            // load list of paths
-            let lines: Vec<_> = reader
-                .lines()
-                .filter_map(|line| match line {
-                    Ok(path) => {
-                        let mut filename = PathBuf::new();
-                        filename.push(path);
-                        Some(filename)
-                    }
-                    Err(_err) => None,
-                })
-                .collect();
-
-            if lines.is_empty() {
-                return Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into());
+        // conversion failed; can we/should we load it into memory?
+        Err(_) => {
+            if use_internal_storage {
+                eprintln!("WARNING: loading all sketches into memory in order to index.");
+                eprintln!("See 'index' documentation for details.");
+                let c: Collection = multi.load_all_sigs(selection)?;
+                let cs: CollectionSet = c.try_into()?;
+                Ok(cs)
             } else {
-                match Collection::from_paths(&lines) {
-                    Ok(collection) => collection,
-                    Err(err) => {
-                        eprintln!("Error in loading from '{}': {}", siglist, err);
-                        return Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into());
-                    }
-                }
+                Err(
+                    anyhow::anyhow!("cannot index this type of collection with external storage")
+                        .into(),
+                )
             }
         }
     };
 
-    let collection: CollectionSet = collection.select(selection)?.try_into()?;
+    match collection {
+        Ok(collection) => {
+            eprintln!("Indexing {} sketches.", collection.len());
+            let mut index = RevIndex::create(output.as_ref(), collection, colors)?;
 
-    if collection.is_empty() {
-        Err(anyhow::anyhow!("Signatures failed to load. Exiting.").into())
-    } else {
-        eprintln!("Indexing {} sketches.", collection.len());
-        let mut index = RevIndex::create(output.as_ref(), collection, colors)?;
-
-        if use_internal_storage {
-            index.internalize_storage()?;
+            if use_internal_storage {
+                index.internalize_storage()?;
+            }
+            Ok(())
         }
-        Ok(())
+        Err(e) => Err(e),
     }
 }

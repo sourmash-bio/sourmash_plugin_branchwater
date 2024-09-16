@@ -9,7 +9,7 @@ use stats::{median, stddev};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{csvwriter_thread, load_collection, load_sketches, ReportType, SearchResult};
+use crate::utils::{csvwriter_thread, load_collection, ReportType, SearchResult};
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
@@ -29,10 +29,11 @@ pub fn manysearch(
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    // load all query sketches into memory, downsampling on the way
-    let query_sketchlist = load_sketches(query_collection, selection, ReportType::Query).unwrap();
 
-    // Against: Load all _paths_, not signatures, into memory.
+    // load all query sketches into memory, downsampling on the way
+    let query_sketchlist = query_collection.load_sketches(selection)?;
+
+    // Against: Load collection, potentially off disk & not into memory.
     let against_collection = load_collection(
         &against_filepath,
         selection,

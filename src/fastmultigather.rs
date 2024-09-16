@@ -20,8 +20,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
-    ReportType,
+    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
 };
 
 pub fn fastmultigather(
@@ -32,6 +31,7 @@ pub fn fastmultigather(
     selection: &Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
+    create_empty_results: bool,
 ) -> Result<()> {
     // load query collection
     let query_collection = load_collection(
@@ -49,8 +49,7 @@ pub fn fastmultigather(
             1
         }
     }
-    .try_into()
-    .unwrap();
+    .try_into()?;
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
@@ -62,7 +61,7 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let against = against_collection.load_sketches(selection)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
@@ -156,6 +155,21 @@ pub fn fastmultigather(
                         }
                     } else {
                         println!("No matches to '{}'", location);
+                        if create_empty_results {
+                            let prefetch_output = format!("{}.prefetch.csv", location);
+                            let gather_output = format!("{}.gather.csv", location);
+                            // touch output files
+                            match std::fs::File::create(&prefetch_output) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("Failed to create empty prefetch output: {}", e)
+                                }
+                            }
+                            match std::fs::File::create(&gather_output) {
+                                Ok(_) => {}
+                                Err(e) => eprintln!("Failed to create empty gather output: {}", e),
+                            }
+                        }
                     }
                 } else {
                     // different warning here? Could not load sig from record??

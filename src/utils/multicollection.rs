@@ -9,7 +9,6 @@ use log::debug;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::ops::Deref;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -37,18 +36,78 @@ impl MultiCollection {
         }
     }
 
-    // Turn a set of paths into list of Collections.
-    fn load_set_of_paths(paths: HashSet<String>) -> (Vec<Collection>, usize) {
+    // Try loading a set of paths as JSON files only. Fails on any Err.
+    //
+    // This is a legacy method that supports pathlists for
+    // 'index'. See sourmash-bio/sourmash#3321 for background.
+    //
+    // Use load_set_of_paths for full generality!
+    //
+    // CTB NOTE: this could potentially have very poor performance if
+    // there are a lot of _good_ files, with one _bad_ one. Look into
+    // exiting first loop early.
+    fn load_set_of_json_files(paths: &HashSet<String>) -> Result<MultiCollection> {
+        // load sketches from paths in parallel.
+        let n_failed = AtomicUsize::new(0);
+        let records: Vec<Record> = paths
+            .par_iter()
+            .filter_map(|path| match Signature::from_path(path) {
+                Ok(signatures) => {
+                    let recs: Vec<Record> = signatures
+                        .into_iter()
+                        .flat_map(|v| Record::from_sig(&v, path))
+                        .collect();
+                    Some(recs)
+                }
+                Err(_) => {
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+
+        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
+        if records.is_empty() || n_failed > 0 {
+            return Err(anyhow!("cannot load everything as JSON files"));
+        }
+
+        let manifest: Manifest = records.into();
+        let collection = Collection::new(
+            manifest,
+            InnerStorage::new(
+                FSStorage::builder()
+                    .fullpath("".into())
+                    .subdir("".into())
+                    .build(),
+            ),
+        );
+        Ok(MultiCollection::from(collection))
+    }
+
+    // Turn a set of paths into list of Collections - works recursively
+    // if needed, and can handle paths of any supported type.
+    fn load_set_of_paths(paths: &HashSet<String>) -> (MultiCollection, usize) {
         let n_failed = AtomicUsize::new(0);
 
         // could just use a variant of load_collection here?
-        let colls: Vec<_> = paths
+        let colls: Vec<MultiCollection> = paths
             .par_iter()
             .filter_map(|iloc| match iloc {
                 // load from zipfile
                 x if x.ends_with(".zip") => {
                     debug!("loading sigs from zipfile {}", x);
-                    Some(Collection::from_zipfile(x).unwrap())
+                    let coll = Collection::from_zipfile(x).expect("nothing to load!?");
+                    Some(MultiCollection::from(coll))
+                }
+                // load from CSV
+                x if x.ends_with(".csv") => {
+                    debug!("vec from pathlist of standalone manifests!");
+
+                    let x: String = x.into();
+                    let utf_path: &Path = x.as_str().into();
+                    MultiCollection::from_standalone_manifest(utf_path).ok()
                 }
                 // load from (by default) a sigfile
                 _ => {
@@ -83,10 +142,8 @@ impl MultiCollection {
                                         .build(),
                                 ),
                             );
-
                             eprintln!("size: {}", collection.len());
-
-                            Some(collection)
+                            Some(MultiCollection::from(collection))
                         }
                         None => {
                             eprintln!("WARNING: could not load sketches from path '{}'", iloc);
@@ -99,10 +156,12 @@ impl MultiCollection {
             .collect();
 
         let n_failed = n_failed.load(atomic::Ordering::SeqCst);
-        (colls, n_failed)
+        (MultiCollection::from(colls), n_failed)
     }
 
-    /// Build from a standalone manifest
+    /// Build from a standalone manifest.  Note: the tricky bit here
+    /// is that the manifest may select only a subset of the rows,
+    /// using (name, md5) tuples.
     pub fn from_standalone_manifest(sigpath: &Path) -> Result<Self> {
         debug!("multi from standalone manifest!");
         let file =
@@ -117,25 +176,11 @@ impl MultiCollection {
             Err(anyhow!("could not read as manifest: '{}'", sigpath))
         } else {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
-            let (colls, _n_failed) = MultiCollection::load_set_of_paths(ilocs);
+            let (colls, _n_failed) = MultiCollection::load_set_of_paths(&ilocs);
 
-            // select out only the (name, md5) pairs that were present
-            // in the manifest
-            // @CTB par_iter?
-            let picklist: HashSet<_> = manifest
-                .clone()
-                .iter()
-                .map(|r| (r.name().clone(), r.md5().clone()))
-                .collect();
+            let multi = colls.intersect_manifest(&manifest);
 
-            // @CTB transfer into MultiCollection too?
-            // @CTB par_iter?
-            let colls = colls
-                .iter()
-                .map(|c| c.clone().select_picklist(&picklist))
-                .collect();
-
-            Ok(MultiCollection::new(colls, false))
+            Ok(multi)
         }
     }
 
@@ -192,9 +237,22 @@ impl MultiCollection {
             })
             .collect();
 
-        let (colls, n_failed) = MultiCollection::load_set_of_paths(lines);
+        let val = MultiCollection::load_set_of_json_files(&lines);
 
-        Ok((MultiCollection::new(colls, false), n_failed))
+        let (multi, n_failed) = match val {
+            Ok(collection) => {
+                eprintln!("SUCCEEDED in loading as JSON files, woot woot");
+                // CTB note: if any path fails to load,
+                // load_set_of_json_files returns Err.
+                (collection, 0)
+            }
+            Err(_) => {
+                eprintln!("FAILED to load as JSON files; falling back to general recursive");
+                MultiCollection::load_set_of_paths(&lines)
+            }
+        };
+
+        Ok((multi, n_failed))
     }
 
     // Load from a sig file
@@ -236,7 +294,7 @@ impl MultiCollection {
         // first create a Vec of all triples (Collection, Idx, Record)
         let s: Vec<_> = self
             .collections
-            .iter()
+            .iter() // CTB: are we loading things into memory here? No...
             .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
             .collect();
         // then return a parallel iterator over the Vec.
@@ -285,13 +343,35 @@ impl MultiCollection {
 
         Ok(sketchinfo)
     }
-}
 
-impl Deref for MultiCollection {
-    type Target = Vec<Collection>;
+    fn intersect_manifest(self, manifest: &Manifest) -> MultiCollection {
+        let colls = self
+            .collections
+            .par_iter()
+            .map(|c| c.clone().intersect_manifest(&manifest))
+            .collect();
+        MultiCollection::new(colls, self.contains_revindex)
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.collections
+    // Load all sketches into memory, producing an in-memory Collection.
+    pub fn load_all_sigs(self, selection: &Selection) -> Result<Collection> {
+        let all_sigs: Vec<Signature> = self
+            .par_iter()
+            .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
+                Ok(sig) => {
+                    let sig = sig.clone().select(selection).ok()?;
+                    Some(Signature::from(sig))
+                }
+                Err(_) => {
+                    eprintln!(
+                        "FAILED to load sketch from '{}'",
+                        record.internal_location()
+                    );
+                    None
+                }
+            })
+            .collect();
+        Ok(Collection::from_sigs(all_sigs)?)
     }
 }
 
@@ -304,6 +384,42 @@ impl Select for MultiCollection {
             .collect();
 
         Ok(MultiCollection::new(collections, self.contains_revindex))
+    }
+}
+
+// Convert a single Collection into a MultiCollection
+impl From<Collection> for MultiCollection {
+    fn from(coll: Collection) -> Self {
+        // @CTB check if revindex
+        MultiCollection::new(vec![coll], false)
+    }
+}
+
+// Merge a bunch of MultiCollection structs into one
+impl From<Vec<MultiCollection>> for MultiCollection {
+    fn from(multi: Vec<MultiCollection>) -> Self {
+        let mut x: Vec<Collection> = vec![];
+        for mc in multi.into_iter() {
+            for coll in mc.collections.into_iter() {
+                x.push(coll);
+            }
+        }
+        // @CTB check bool
+        MultiCollection::new(x, false)
+    }
+}
+
+// Extract a single Collection from a MultiCollection, if possible
+impl TryFrom<MultiCollection> for Collection {
+    type Error = &'static str;
+
+    fn try_from(multi: MultiCollection) -> Result<Self, Self::Error> {
+        if multi.collections.len() == 1 {
+            // this must succeed b/c len > 0
+            Ok(multi.collections.into_iter().next().unwrap())
+        } else {
+            Err("More than one Collection in this MultiCollection; cannot convert")
+        }
     }
 }
 
