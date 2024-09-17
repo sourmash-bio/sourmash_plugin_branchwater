@@ -69,15 +69,13 @@ pub fn prefetch(
     sketchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
 ) -> BinaryHeap<PrefetchResult> {
-    eprintln!("sketchlist: {}", sketchlist.len());
-    let s: BinaryHeap<_> = sketchlist
+    sketchlist
         .into_par_iter()
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
             // downsample within count_common
             let overlap = searchsig.count_common(query_mh, true);
-            eprintln!("overlap: {:?}", overlap);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {
                     let result = PrefetchResult { overlap, ..result };
@@ -86,9 +84,7 @@ pub fn prefetch(
             }
             mm
         })
-        .collect();
-    eprintln!("found matches: {}", s.len());
-    s
+        .collect()
 }
 
 /// Write list of prefetch matches.
@@ -450,20 +446,20 @@ pub fn load_sketches_above_threshold(
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
         .filter_map(|(coll, _idx, against_record)| {
-            eprintln!("against_record: {} {}", against_record.name(), against_record.md5());
             let mut results = Vec::new();
             // Load against into memory
             if let Ok(against_sig) = coll.sig_from_record(against_record) {
-                eprintln!("XXX against_sig {} {}", against_sig.name(), against_sig.md5sum());
                 if let Some(against_mh) = against_sig.minhash() {
                     // downsample against_mh, but keep original md5sum
                     let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
                     if let Ok(overlap) = against_mh_ds.count_common(query, false) {
                         if overlap >= threshold_hashes {
-                            eprintln!("found overlap! {} {} {}", against_record.name().to_string(), against_mh.md5sum(), overlap);
+                            if against_sig.name().to_string() != against_record.name().to_string() {
+                                eprintln!("AAA WHOA NOW {} {}", against_sig.name().to_string(), against_record.name().to_string());
+                            }
                             let result = PrefetchResult {
-                                name: against_record.name().to_string(),
-                                md5sum: against_mh.md5sum(),
+                                name: against_sig.name().to_string(),
+                                md5sum: against_sig.md5sum(),
                                 minhash: against_mh_ds.clone(),
                                 location: against_record.internal_location().to_string(),
                                 overlap,
@@ -497,8 +493,6 @@ pub fn load_sketches_above_threshold(
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
-
-    eprintln!("matchlist: {}", matchlist.len());
 
     Ok((matchlist, skipped_paths, failed_paths))
 }
