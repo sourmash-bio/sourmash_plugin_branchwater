@@ -1549,7 +1549,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.15.1"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=debug_multisigfile#9c267528977fab0bb04dc1da86c47290bff68bf8"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=debug_multisigfile#63df7a828f5a1cd909db650bebaae937ca74f561"
 dependencies = [
  "az",
  "byteorder",
