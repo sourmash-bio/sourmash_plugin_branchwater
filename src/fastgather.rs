@@ -49,6 +49,14 @@ pub fn fastgather(
         allow_failed_sigpaths,
     )?;
 
+    use sourmash::manifest::Record;
+    use sourmash::collection::Collection;
+    let cl: Collection = Collection::try_from(against_collection.clone()).unwrap().clone();
+    let binding = cl.manifest().clone();
+    let foo: Vec<&Record> = binding.iter().collect();
+    eprintln!("xxx {}", foo.len());
+    eprintln!("{:?}", foo);
+
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
