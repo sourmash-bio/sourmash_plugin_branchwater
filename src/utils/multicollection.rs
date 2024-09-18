@@ -170,11 +170,11 @@ impl MultiCollection {
             Err(anyhow!("could not read as manifest: '{}'", sigpath))
         } else {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
-            let (colls, _n_failed) = MultiCollection::load_set_of_paths(&ilocs);
+            let (mut colls, _n_failed) = MultiCollection::load_set_of_paths(&ilocs);
 
-            let multi = colls.intersect_manifest(&manifest);
+            colls.intersect_manifest(&manifest);
 
-            Ok(multi)
+            Ok(colls)
         }
     }
 
@@ -338,13 +338,10 @@ impl MultiCollection {
         Ok(sketchinfo)
     }
 
-    fn intersect_manifest(self, manifest: &Manifest) -> MultiCollection {
-        let colls = self
-            .collections
-            .par_iter()
-            .map(|c| c.clone().intersect_manifest(&manifest))
-            .collect();
-        MultiCollection::new(colls, self.contains_revindex)
+    fn intersect_manifest(&mut self, manifest: &Manifest) -> () {
+        for coll in self.collections.iter_mut() {
+            coll.intersect_manifest(&manifest);
+        }
     }
 
     // Load all sketches into memory, producing an in-memory Collection.
