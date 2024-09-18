@@ -1,3 +1,5 @@
+.PHONY: all install test wheel sdist upload_dist
+
 PYTHON ?= python
 
 all:
@@ -5,9 +7,6 @@ all:
 
 install:
 	$(PYTHON) -m pip install -e .
-
-clean:
-	$(PYTHON) -m pip uninstall .
 
 test:
 	$(PYTHON) -m pytest
