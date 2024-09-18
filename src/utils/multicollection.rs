@@ -338,9 +338,9 @@ impl MultiCollection {
         Ok(sketchinfo)
     }
 
-    fn intersect_manifest(&mut self, manifest: &Manifest) -> () {
+    fn intersect_manifest(&mut self, manifest: &Manifest) {
         for coll in self.collections.iter_mut() {
-            coll.intersect_manifest(&manifest);
+            coll.intersect_manifest(manifest);
         }
     }
 

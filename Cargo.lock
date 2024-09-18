@@ -1549,7 +1549,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.15.1"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=remove_unwrap#9b9e17e791e3d0cd89a254b1701f821bdd460108"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=remove_unwrap#aa109f804e62672c5e7bc20d4267334eb4bca0e8"
 dependencies = [
  "az",
  "byteorder",
