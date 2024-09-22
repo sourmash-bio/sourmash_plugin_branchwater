@@ -25,7 +25,7 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 #[derive(Clone)]
 pub struct MultiCollection {
     collections: Vec<Collection>,
-    pub contains_revindex: bool,
+    pub contains_revindex: bool, // track whether one or more Collection is a RevIndex
 }
 
 impl MultiCollection {
@@ -381,7 +381,7 @@ impl Select for MultiCollection {
 // Convert a single Collection into a MultiCollection
 impl From<Collection> for MultiCollection {
     fn from(coll: Collection) -> Self {
-        // @CTB check if revindex
+        // CTB: how can we check if revindex?
         MultiCollection::new(vec![coll], false)
     }
 }
@@ -390,13 +390,14 @@ impl From<Collection> for MultiCollection {
 impl From<Vec<MultiCollection>> for MultiCollection {
     fn from(multi: Vec<MultiCollection>) -> Self {
         let mut x: Vec<Collection> = vec![];
+        let mut contains_revindex = false;
         for mc in multi.into_iter() {
             for coll in mc.collections.into_iter() {
                 x.push(coll);
             }
+            contains_revindex = contains_revindex || mc.contains_revindex;
         }
-        // @CTB check bool
-        MultiCollection::new(x, false)
+        MultiCollection::new(x, contains_revindex)
     }
 }
 
