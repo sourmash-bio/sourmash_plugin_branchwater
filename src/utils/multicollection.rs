@@ -1,11 +1,12 @@
 //! MultiCollection implementation to handle sketches coming from multiple files.
 
 use rayon::prelude::*;
+use sourmash::prelude::*;
 
 use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf;
-use log::debug;
+use log::{debug, trace};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -315,6 +316,12 @@ impl MultiCollection {
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
                 Ok(sig) => {
+                    trace!(
+                        "MultiCollection load sketch: from:{} idx:{} loc:{}",
+                        coll.storage().spec(),
+                        _idx,
+                        record.internal_location()
+                    );
                     let selected_sig = sig.clone().select(selection).ok()?;
                     let minhash = selected_sig.minhash()?.clone();
 
