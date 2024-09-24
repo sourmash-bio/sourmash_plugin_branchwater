@@ -1,11 +1,12 @@
 //! MultiCollection implementation to handle sketches coming from multiple files.
 
 use rayon::prelude::*;
+use sourmash::prelude::*;
 
 use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf;
-use log::debug;
+use log::{debug, trace};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -25,7 +26,7 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 #[derive(Clone)]
 pub struct MultiCollection {
     collections: Vec<Collection>,
-    pub contains_revindex: bool,
+    pub contains_revindex: bool, // track whether one or more Collection is a RevIndex
 }
 
 impl MultiCollection {
@@ -178,11 +179,11 @@ impl MultiCollection {
             Err(anyhow!("could not read as manifest: '{}'", sigpath))
         } else {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
-            let (colls, _n_failed) = MultiCollection::load_set_of_paths(&ilocs);
+            let (mut colls, _n_failed) = MultiCollection::load_set_of_paths(&ilocs);
 
-            let multi = colls.intersect_manifest(&manifest);
+            colls.intersect_manifest(&manifest);
 
-            Ok(multi)
+            Ok(colls)
         }
     }
 
@@ -323,6 +324,12 @@ impl MultiCollection {
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
                 Ok(sig) => {
+                    trace!(
+                        "MultiCollection load sketch: from:{} idx:{} loc:{}",
+                        coll.storage().spec(),
+                        _idx,
+                        record.internal_location()
+                    );
                     let selected_sig = sig.clone().select(selection).ok()?;
                     let minhash = selected_sig.minhash()?.clone();
 
@@ -346,13 +353,10 @@ impl MultiCollection {
         Ok(sketchinfo)
     }
 
-    fn intersect_manifest(self, manifest: &Manifest) -> MultiCollection {
-        let colls = self
-            .collections
-            .par_iter()
-            .map(|c| c.clone().intersect_manifest(&manifest))
-            .collect();
-        MultiCollection::new(colls, self.contains_revindex)
+    fn intersect_manifest(&mut self, manifest: &Manifest) {
+        for coll in self.collections.iter_mut() {
+            coll.intersect_manifest(manifest);
+        }
     }
 
     // Load all sketches into memory, producing an in-memory Collection.
@@ -392,7 +396,7 @@ impl Select for MultiCollection {
 // Convert a single Collection into a MultiCollection
 impl From<Collection> for MultiCollection {
     fn from(coll: Collection) -> Self {
-        // @CTB check if revindex
+        // CTB: how can we check if revindex?
         MultiCollection::new(vec![coll], false)
     }
 }
@@ -401,13 +405,14 @@ impl From<Collection> for MultiCollection {
 impl From<Vec<MultiCollection>> for MultiCollection {
     fn from(multi: Vec<MultiCollection>) -> Self {
         let mut x: Vec<Collection> = vec![];
+        let mut contains_revindex = false;
         for mc in multi.into_iter() {
             for coll in mc.collections.into_iter() {
                 x.push(coll);
             }
+            contains_revindex = contains_revindex || mc.contains_revindex;
         }
-        // @CTB check bool
-        MultiCollection::new(x, false)
+        MultiCollection::new(x, contains_revindex)
     }
 }
 

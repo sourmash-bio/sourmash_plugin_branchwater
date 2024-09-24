@@ -2,7 +2,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::prelude::ToWriter;
+use sourmash::prelude::{Storage, ToWriter};
 use sourmash::{selection::Selection, signature::SigsTrait};
 
 use std::sync::atomic;
@@ -14,6 +14,8 @@ use camino::Utf8Path as PathBuf;
 
 use std::collections::HashSet;
 use std::fs::File;
+
+use log::trace;
 
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
@@ -33,6 +35,8 @@ pub fn fastmultigather(
     save_matches: bool,
     create_empty_results: bool,
 ) -> Result<()> {
+    let _ = env_logger::try_init();
+
     // load query collection
     let query_collection = load_collection(
         &query_filepath,
@@ -72,6 +76,12 @@ pub fn fastmultigather(
         // increment counter of # of queries. q: could we instead use the _idx from par_iter(), or will it vary based on thread?
         let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
         // Load query sig (downsampling happens here)
+        trace!(
+            "fastmultigather query load: from:{} idx:{} loc:{}",
+            c.storage().spec(),
+            _idx,
+            record.internal_location()
+        );
         match c.sig_from_record(record) {
             Ok(query_sig) => {
                 let name = query_sig.name();
