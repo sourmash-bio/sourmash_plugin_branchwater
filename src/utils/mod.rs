@@ -454,9 +454,12 @@ pub fn load_sketches_above_threshold(
                     let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
                     if let Ok(overlap) = against_mh_ds.count_common(query, false) {
                         if overlap >= threshold_hashes {
+                            if against_sig.name().to_string() != against_record.name().to_string() {
+                                eprintln!("AAA WHOA NOW {} {}", against_sig.name().to_string(), against_record.name().to_string());
+                            }
                             let result = PrefetchResult {
-                                name: against_record.name().to_string(),
-                                md5sum: against_mh.md5sum(),
+                                name: against_sig.name().to_string(),
+                                md5sum: against_sig.md5sum(),
                                 minhash: against_mh_ds.clone(),
                                 location: against_record.internal_location().to_string(),
                                 overlap,

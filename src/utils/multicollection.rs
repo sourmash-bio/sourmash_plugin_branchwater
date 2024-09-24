@@ -56,7 +56,14 @@ impl MultiCollection {
                 Ok(signatures) => {
                     let recs: Vec<Record> = signatures
                         .into_iter()
-                        .flat_map(|v| Record::from_sig(&v, path))
+                        .flat_map(|v| {
+                            let vr = Record::from_sig(&v, path);
+                            for r in vr.iter() {
+                                eprintln!("GOT record, {} {} {}", r.name(), r.md5(), r.internal_location());
+                                eprintln!("record: {:?}", r);
+                            }
+                            vr
+                        })
                         .collect();
                     Some(recs)
                 }
@@ -129,6 +136,7 @@ impl MultiCollection {
                                 .collect();
 
                             let manifest: Manifest = records.into();
+
                             let collection = Collection::new(
                                 manifest,
                                 InnerStorage::new(
