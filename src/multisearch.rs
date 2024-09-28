@@ -44,6 +44,8 @@ pub fn multisearch(
     )?;
     let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
+    eprintln!("{}", against.minhash);
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
@@ -87,6 +89,8 @@ pub fn multisearch(
                     let mut match_containment_ani = None;
                     let mut average_containment_ani = None;
                     let mut max_containment_ani = None;
+                    let mut prob_overlap_log10 = None;
+                    let mut prob_weighted_max_containment_ani = None;
 
                     // estimate ANI values
                     if estimate_ani {
@@ -111,6 +115,8 @@ pub fn multisearch(
                         match_containment_ani,
                         average_containment_ani,
                         max_containment_ani,
+                        prob_overlap_log10,
+                        prob_weighted_max_containment_ani,
                     })
                 }
             }

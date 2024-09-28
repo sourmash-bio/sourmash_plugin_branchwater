@@ -1241,6 +1241,12 @@ pub struct MultiSearchResult {
     pub average_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prob_overlap_log10: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    // max_containment / prob_overlap -> Bigger means less likely to be random
+    pub prob_weighted_max_containment_ani: Option<f64>,
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
