@@ -45,7 +45,11 @@ pub fn multisearch(
     )?;
     let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
-    // eprintln!("{}", against.minhash);
+
+    // Combine all the queries and against into a single signature
+    // maybe use minhash.merged?
+    // let queries_combined = make_new_signature(queries.iter());
+    // let against_combined = make_new_signature(queries.iter());
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -90,8 +94,10 @@ pub fn multisearch(
                     let mut match_containment_ani = None;
                     let mut average_containment_ani = None;
                     let mut max_containment_ani = None;
+
+                    // Related to getting the probability of overlap between query and target
                     let mut prob_overlap_log10 = None;
-                    let mut prob_weighted_max_containment_ani = None;
+                    let prob_weighted_containment = None;
 
                     prob_overlap_log10 = Some(get_prob_overlap);
 
@@ -119,7 +125,7 @@ pub fn multisearch(
                         average_containment_ani,
                         max_containment_ani,
                         prob_overlap_log10,
-                        prob_weighted_max_containment_ani,
+                        prob_weighted_containment,
                     })
                 }
             }
