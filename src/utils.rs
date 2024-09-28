@@ -28,6 +28,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
+use sourmash::Error;
+
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -1246,7 +1248,7 @@ pub struct MultiSearchResult {
     pub prob_overlap_log10: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     // max_containment / prob_overlap -> Bigger means less likely to be random
-    pub prob_weighted_max_containment_ani: Option<f64>,
+    pub prob_weighted_containment: Option<f64>,
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
@@ -1396,7 +1398,24 @@ pub fn get_prob_overlap(
     query_mh: &KmerMinHash,
     database_mh: &KmerMinHash,
 ) -> Result<f64, Error> {
-    let query_intersection = query_mh.intersection(database_mh);
+    let query_intersection = Some(query_mh.intersection(database_mh));
 
-    return 0.0;
+    return Ok(0.0);
+}
+
+pub fn merge_all_minhashes(
+    minhashes: &Vec<KmerMinHash>,
+) -> Result<KmerMinHash, Error> {
+    let first_mh = minhashes[0];
+    let mut combined_mh = KmerMinHash::new(
+        first_mh.scaled(),
+        first_mh.ksize,
+        first_mh.hash_function.clone(),
+        first_mh.seed,
+        first_mh.abunds.is_some(),
+        first_mh.num,
+    );
+
+    let combined_mh = minhashes.par_iter().map(mh | combined_mh.merge(mh))
+
 }
