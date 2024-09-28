@@ -185,7 +185,7 @@ You can check if all signatures were written properly with
 sourmash sig summarize proteins.zip
 ```
 
-In this case, three sketches of `protein`, `dayhoff`, and `hp` moltypes were made in `proteins.zip`.
+In this case, three sketches of `protein`, `dayhoff`, and `hp` moltypes were made for each file in `proteins.csv` and saved to `proteins.zip`.
 
 ### Running `multisearch` and `pairwise`
 
