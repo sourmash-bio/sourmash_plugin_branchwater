@@ -63,6 +63,9 @@ pub fn pairwise(
             let containment_q1_in_q2 = overlap / query1_size;
             let containment_q2_in_q1 = overlap / query2_size;
 
+            let mut prob_overlap_log10 = None;
+            let mut prob_weighted_max_containment_ani = None;
+
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
                 let jaccard = overlap / (query1_size + query2_size - overlap);
@@ -93,6 +96,8 @@ pub fn pairwise(
                     match_containment_ani,
                     average_containment_ani,
                     max_containment_ani,
+                    prob_overlap_log10,
+                    prob_weighted_max_containment_ani,
                 })
                 .unwrap();
             }
@@ -107,6 +112,8 @@ pub fn pairwise(
             let mut match_containment_ani = None;
             let mut average_containment_ani = None;
             let mut max_containment_ani = None;
+            let mut prob_overlap_log10 = None;
+            let mut prob_weighted_max_containment_ani = None;        
 
             if estimate_ani {
                 query_containment_ani = Some(1.0);
@@ -128,6 +135,8 @@ pub fn pairwise(
                 match_containment_ani,
                 average_containment_ani,
                 max_containment_ani,
+                prob_overlap_log10,
+                prob_weighted_max_containment_ani,
             })
             .unwrap();
         }

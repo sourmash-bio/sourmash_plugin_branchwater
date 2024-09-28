@@ -7,9 +7,10 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
+    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType, get_prob_overlap
 };
 use sourmash::ani_utils::ani_from_containment;
+
 
 /// Search many queries against a list of signatures.
 ///
@@ -44,7 +45,7 @@ pub fn multisearch(
     )?;
     let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
-    eprintln!("{}", against.minhash);
+    // eprintln!("{}", against.minhash);
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -91,6 +92,8 @@ pub fn multisearch(
                     let mut max_containment_ani = None;
                     let mut prob_overlap_log10 = None;
                     let mut prob_weighted_max_containment_ani = None;
+
+                    prob_overlap_log10 = Some(get_prob_overlap);
 
                     // estimate ANI values
                     if estimate_ani {
