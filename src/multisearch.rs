@@ -7,7 +7,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType, get_prob_overlap
+    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType, get_prob_overlap, merge_all_minhashes
 };
 use sourmash::ani_utils::ani_from_containment;
 
@@ -43,13 +43,15 @@ pub fn multisearch(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let against: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
 
+    let queries_merged = Some(merge_all_minhashes(&queries));
+    let against_merged = Some(merge_all_minhashes(&against));
     // Combine all the queries and against into a single signature
     // maybe use minhash.merged?
     // let queries_combined = make_new_signature(queries.iter());
-    // let against_combined = make_new_signature(queries.iter());
+    // let against_combined = make_new_signature(against.iter());
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -99,7 +101,7 @@ pub fn multisearch(
                     let mut prob_overlap_log10 = None;
                     let prob_weighted_containment = None;
 
-                    prob_overlap_log10 = Some(get_prob_overlap);
+                    prob_overlap_log10 = Some(get_prob_overlap(&query.minhash, &against.minhash));
 
                     // estimate ANI values
                     if estimate_ani {
