@@ -4,17 +4,7 @@ import pandas
 import sourmash
 
 from . import sourmash_tst_utils as utils
-
-
-def get_test_data(filename):
-    thisdir = os.path.dirname(__file__)
-    return os.path.join(thisdir, 'test-data', filename)
-
-
-def make_file_list(filename, paths):
-    with open(filename, 'wt') as fp:
-        fp.write("\n".join(paths))
-        fp.write("\n")
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
 
 
 def test_installed(runtmp):
@@ -23,10 +13,6 @@ def test_installed(runtmp):
 
     assert 'usage:  manysearch' in runtmp.last_result.err
 
-def zip_siglist(runtmp, siglist, db):
-    runtmp.sourmash('sig', 'cat', siglist,
-                    '-o', db)
-    return db
 
 def index_siglist(runtmp, siglist, db, ksize=31, scaled=1000, moltype='DNA'):
     # build index
@@ -35,8 +21,6 @@ def index_siglist(runtmp, siglist, db, ksize=31, scaled=1000, moltype='DNA'):
                     '--moltype', moltype)
     return db
 
-@pytest.mark.parametrize("zip_query", [False, True])
-@pytest.mark.parametrize("zip_against", [False, True])
 def test_simple(runtmp, zip_query, zip_against):
     # test basic execution!
     query_list = runtmp.output('query.txt')
@@ -57,7 +41,7 @@ def test_simple(runtmp, zip_query, zip_against):
         against_list = zip_siglist(runtmp, against_list, runtmp.output('against.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
-                    '-o', output)
+                    '-o', output, '-t', '0.01')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -77,9 +61,6 @@ def test_simple(runtmp, zip_query, zip_against):
             assert float(row['match_containment_ani'] == 1.0)
             assert float(row['average_containment_ani'] == 1.0)
             assert float(row['max_containment_ani'] == 1.0)
-            assert float(row['average_abund'] == 1.0)
-            assert float(row['median_abund'] == 1.0)
-            assert float(row['std_abund'] == 0.0)
 
         else:
             # confirm hand-checked numbers
@@ -93,10 +74,6 @@ def test_simple(runtmp, zip_query, zip_against):
             match_ani = float(row['match_containment_ani'])
             average_ani = float(row['average_containment_ani'])
             max_ani = float(row['max_containment_ani'])
-            average_abund = float(row['average_abund'])
-            median_abund = float(row['median_abund'])
-            std_abund = float(row['std_abund'])
-
             jaccard = round(jaccard, 4)
             cont = round(cont, 4)
             maxcont = round(maxcont, 4)
@@ -104,12 +81,8 @@ def test_simple(runtmp, zip_query, zip_against):
             match_ani = round(match_ani, 4)
             average_ani = round(average_ani, 4)
             max_ani = round(max_ani, 4)
-            avg_abund = round(average_abund, 4)
-            med_abund = round(median_abund, 4)
-            std_abund = round(std_abund, 4)
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}",
-                        f"{query_ani:.04}", f"{match_ani:.04}", f"{average_ani:.04}", f"{max_ani:.04}",
-                        f"{avg_abund:.04}", f"{med_abund:.04}", f"{std_abund:.04}")
+                        f"{query_ani:.04}", f"{match_ani:.04}", f"{average_ani:.04}", f"{max_ani:.04}")
 
             if q == 'NC_011665.1' and m == 'NC_009661.1':
                 assert jaccard == 0.3207
@@ -120,9 +93,6 @@ def test_simple(runtmp, zip_query, zip_against):
                 assert match_ani == 0.9772
                 assert average_ani == 0.977
                 assert max_ani == 0.9772
-                assert avg_abund == 1.0
-                assert med_abund == 1.0
-                assert std_abund == 0.0
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
                 assert jaccard == 0.3207
@@ -133,80 +103,79 @@ def test_simple(runtmp, zip_query, zip_against):
                 assert match_ani == 0.9768
                 assert average_ani == 0.977
                 assert max_ani == 0.9772
-                assert avg_abund == 1.0
-                assert med_abund == 1.0
-                assert std_abund == 0.0
 
 
 def test_simple_abund(runtmp):
     # test with abund sig
-    query = get_test_data('SRR606249.sig.gz')
-    against_list = runtmp.output('against.txt')
-
     sig2 = get_test_data('2.fa.sig.gz')
     sig47 = get_test_data('47.fa.sig.gz')
     sig63 = get_test_data('63.fa.sig.gz')
-    make_file_list(against_list, [sig2, sig47, sig63])
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    against = get_test_data('SRR606249.sig.gz')
 
     output = runtmp.output('out.csv')
 
-    runtmp.sourmash('scripts', 'manysearch', query, against_list,
-                        '-o', output, '--scaled', '100000', '-k', '31')
+    runtmp.sourmash('scripts', 'manysearch', query_list, against,
+                    '-o', output, '--scaled', '100000', '-k', '31',
+                    '-t', '0.01')
 
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
-    assert len(df) == 1
+    assert len(df) == 3
 
     dd = df.to_dict(orient='index')
+    dd = list(sorted(dd.values(), key=lambda x: x['query_name']))
     print(dd)
 
-    for idx, row in dd.items():
-        # confirm hand-checked numbers
-        q = row['query_name'].split()[0]
-        assert q == "SRR606249"
-        m = row['match_name'].split()[0]
-        assert "NC_011665.1" in m
-        cont = float(row['containment'])
-        jaccard = float(row['jaccard'])
-        maxcont = float(row['max_containment'])
-        intersect_hashes = int(row['intersect_hashes'])
-        query_ani = float(row['query_containment_ani'])
-        match_ani = float(row['match_containment_ani'])
-        average_ani = float(row['average_containment_ani'])
-        max_ani = float(row['max_containment_ani'])
-        average_abund = float(row['average_abund'])
-        median_abund = float(row['median_abund'])
-        std_abund = float(row['std_abund'])
+    row = dd[0]
+    query_name = row['query_name'].split()[0]
+    average_abund = round(float(row['average_abund']), 4)
+    median_abund = round(float(row['median_abund']), 4)
+    std_abund = round(float(row['std_abund']), 4)
+    n_weighted_found = int(row['n_weighted_found'])
+    total_weighted_hashes = int(row['total_weighted_hashes'])
 
-        jaccard = round(jaccard, 4)
-        cont = round(cont, 4)
-        maxcont = round(maxcont, 4)
-        query_ani = round(query_ani, 4)
-        match_ani = round(match_ani, 4)
-        average_ani = round(average_ani, 4)
-        max_ani = round(max_ani, 4)
-        avg_abund = round(average_abund, 4)
-        med_abund = round(median_abund, 4)
-        std_abund = round(std_abund, 4)
-        print(q, m, f"{jaccard}", f"{cont}", f"{maxcont}",
-                    f"{query_ani}", f"{match_ani}", f"{average_ani}", f"{max_ani}",
-                    f"{avg_abund}", f"{med_abund}", f"{std_abund}")
+    assert query_name == 'CP001071.1'
+    assert average_abund == round(21.045454545454500, 4)
+    assert median_abund == 21.5
+    assert std_abund == round(5.644605411181010, 4)
+    assert n_weighted_found == 463
+    assert total_weighted_hashes == 73489
 
-        assert jaccard == 0.0047
-        assert cont == 0.0105
-        assert maxcont == 0.0105
-        assert intersect_hashes == 44
-        assert query_ani == 0.8632
-        assert match_ani == 0.8571
-        assert average_ani == 0.8602
-        assert max_ani == 0.8632
-        assert avg_abund == 10.3864
-        assert med_abund == 10.5
-        assert std_abund == 6.9322
+    row = dd[1]
+    query_name = row['query_name'].split()[0]
+    average_abund = round(float(row['average_abund']), 4)
+    median_abund = round(float(row['median_abund']), 4)
+    std_abund = round(float(row['std_abund']), 4)
+    n_weighted_found = int(row['n_weighted_found'])
+    total_weighted_hashes = int(row['total_weighted_hashes'])
+
+    assert query_name == 'NC_009661.1'
+    assert average_abund == round(11.365853658536600, 4)
+    assert median_abund == 11.0
+    assert std_abund == round(4.976805212676670, 4)
+    assert n_weighted_found == 466
+    assert total_weighted_hashes == 73489
+
+    row = dd[2]
+    query_name = row['query_name'].split()[0]
+    average_abund = round(float(row['average_abund']), 4)
+    median_abund = round(float(row['median_abund']), 4)
+    std_abund = round(float(row['std_abund']), 4)
+    n_weighted_found = int(row['n_weighted_found'])
+    total_weighted_hashes = int(row['total_weighted_hashes'])
+
+    assert query_name == 'NC_011665.1'
+    assert average_abund == round(10.386363636363600, 4)
+    assert median_abund == 10.5
+    assert std_abund == round(6.932190750047300, 4)
+    assert n_weighted_found == 457
+    assert total_weighted_hashes == 73489
 
 
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_simple_indexed(runtmp, zip_query):
     # test basic execution!
     query_list = runtmp.output('query.txt')
@@ -227,7 +196,7 @@ def test_simple_indexed(runtmp, zip_query):
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
-                    '-o', output)
+                    '-o', output, '-t', '0.01')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -263,8 +232,6 @@ def test_simple_indexed(runtmp, zip_query):
                 assert query_ani == 0.9772
 
 
-@pytest.mark.parametrize("indexed", [False, True])
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_simple_with_cores(runtmp, capfd, indexed, zip_query):
     # test basic execution with -c argument (that it runs, at least!)
     query_list = runtmp.output('query.txt')
@@ -286,7 +253,7 @@ def test_simple_with_cores(runtmp, capfd, indexed, zip_query):
     output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
-                    '-o', output, '-c', '4')
+                    '-o', output, '-c', '4', '-t', '0.01')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -297,8 +264,6 @@ def test_simple_with_cores(runtmp, capfd, indexed, zip_query):
     assert " using 4 threads" in result.err
 
 
-@pytest.mark.parametrize("indexed", [False, True])
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_simple_threshold(runtmp, indexed, zip_query):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
@@ -327,7 +292,6 @@ def test_simple_threshold(runtmp, indexed, zip_query):
     assert len(df) == 3
 
 
-@pytest.mark.parametrize("indexed", [False, True])
 def test_simple_manifest(runtmp, indexed):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
@@ -361,8 +325,6 @@ def test_simple_manifest(runtmp, indexed):
     assert len(df) == 3
 
 
-@pytest.mark.parametrize("indexed", [False, True])
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_missing_query(runtmp, capfd, indexed, zip_query):
     # test with a missing query list
     query_list = runtmp.output('query.txt')
@@ -393,7 +355,6 @@ def test_missing_query(runtmp, capfd, indexed, zip_query):
     assert 'Error: No such file or directory' in captured.err
 
 
-@pytest.mark.parametrize("indexed", [False, True])
 def test_sig_query(runtmp, capfd, indexed):
     # test with a single sig query (a .sig.gz file)
     against_list = runtmp.output('against.txt')
@@ -413,7 +374,6 @@ def test_sig_query(runtmp, capfd, indexed):
                         '-o', output)
 
 
-@pytest.mark.parametrize("indexed", [False, True])
 def test_bad_query_2(runtmp, capfd, indexed):
     # test with a bad query list (a missing file)
     query_list = runtmp.output('query.txt')
@@ -467,7 +427,6 @@ def test_bad_query_3(runtmp, capfd):
     assert 'InvalidArchive' in captured.err
 
 
-@pytest.mark.parametrize("indexed", [False, True])
 def test_missing_against(runtmp, capfd, indexed):
     # test with a missing against list
     query_list = runtmp.output('query.txt')
@@ -538,7 +497,6 @@ def test_bad_against(runtmp, capfd):
     assert "WARNING: 1 search paths failed to load. See error messages above." in captured.err
 
 
-@pytest.mark.parametrize("indexed", [False, True])
 def test_empty_query(runtmp, indexed, capfd):
     # test with an empty query list
     query_list = runtmp.output('query.txt')
@@ -566,8 +524,6 @@ def test_empty_query(runtmp, indexed, capfd):
     assert "No query signatures loaded, exiting." in captured.err
 
 
-@pytest.mark.parametrize("indexed", [False, True])
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_nomatch_query(runtmp, capfd, indexed, zip_query):
     # test a non-matching (diff ksize) in query; do we get warning message?
     query_list = runtmp.output('query.txt')
@@ -598,8 +554,6 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
     assert 'WARNING: skipped 1 query paths - no compatible signatures.' in captured.err
 
 
-@pytest.mark.parametrize("zip_against", [False, True])
-@pytest.mark.parametrize("indexed", [False, True])
 def test_load_only_one_bug(runtmp, capfd, indexed, zip_against):
     # check that we behave properly when presented with multiple against
     # sketches
@@ -633,8 +587,6 @@ def test_load_only_one_bug(runtmp, capfd, indexed, zip_against):
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
-@pytest.mark.parametrize("zip_query", [False, True])
-@pytest.mark.parametrize("indexed", [False, True])
 def test_load_only_one_bug_as_query(runtmp, capfd, indexed, zip_query):
     # check that we behave properly when presented with multiple query
     # sketches in one file, with only one matching.
@@ -670,8 +622,6 @@ def test_load_only_one_bug_as_query(runtmp, capfd, indexed, zip_query):
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
-@pytest.mark.parametrize("zip_query", [False, True])
-@pytest.mark.parametrize("indexed", [False, True])
 def test_md5(runtmp, indexed, zip_query):
     # test that md5s match what was in the original files, not downsampled etc.
     query_list = runtmp.output('query.txt')
@@ -693,7 +643,7 @@ def test_md5(runtmp, indexed, zip_query):
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
-                    '-o', output)
+                    '-o', output, '-t', '0.01')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
@@ -722,7 +672,7 @@ def test_simple_protein(runtmp):
 
     runtmp.sourmash('scripts', 'manysearch', protsigs, protsigs,
                         '-k', '19', '-s', '100', '--moltype', 'protein',
-                        '-o', output)
+                        '-o', output, '-t', '0.01')
 
     assert os.path.exists(output)
 
@@ -797,7 +747,7 @@ def test_simple_protein_indexed(runtmp):
 
     runtmp.sourmash('scripts', 'manysearch', protsigs, protsigs_db,
                         '-k', '19', '-s', '100', '--moltype', 'protein',
-                        '-o', output)
+                        '-o', output, '-t', '0.01')
 
     assert os.path.exists(output)
 
@@ -843,7 +793,7 @@ def test_simple_dayhoff(runtmp):
 
     runtmp.sourmash('scripts', 'manysearch', protsigs, protsigs,
                         '-k', '19', '-s', '100', '--moltype', 'dayhoff',
-                        '-o', output)
+                        '-o', output, '-t', '0.01')
 
     assert os.path.exists(output)
 
@@ -919,7 +869,7 @@ def test_simple_dayhoff_indexed(runtmp):
 
     runtmp.sourmash('scripts', 'manysearch', protsigs, protsigs_db,
                         '-k', '19', '-s', '100', '--moltype', 'dayhoff',
-                        '-o', output)
+                        '-o', output, '-t', '0.01')
 
     assert os.path.exists(output)
 
@@ -965,7 +915,7 @@ def test_simple_hp(runtmp):
 
     runtmp.sourmash('scripts', 'manysearch', protsigs, protsigs,
                         '-k', '19', '-s', '100', '--moltype', 'hp',
-                        '-o', output)
+                        '-o', output, '-t', '0.01')
 
     assert os.path.exists(output)
 
@@ -1040,7 +990,7 @@ def test_simple_hp_indexed(runtmp):
 
     runtmp.sourmash('scripts', 'manysearch', protsigs, protsigs_db,
                         '-k', '19', '-s', '100', '--moltype', 'hp',
-                        '-o', output)
+                        '-o', output, '-t', '0.01')
 
     assert os.path.exists(output)
 
@@ -1078,3 +1028,45 @@ def test_simple_hp_indexed(runtmp):
                 assert cont == 0.5994
                 assert intersect_hashes == 1724
                 assert query_ani == 0.9911
+
+
+def test_pretty_print(runtmp):
+    # test pretty-printing of output
+    query = get_test_data('hmp-queries.sig.zip')
+    against = get_test_data('hmp-against.sig.zip')
+
+    outcsv = runtmp.output('xxx.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query, against,
+                    '-o', outcsv)
+    print(runtmp.last_result.out)
+
+    # if this fails in the future, it might be because the order of the
+    # output gets shuffled by multithreading. consider refactoring to
+    # do line by line?
+    expected="""\
+query             p_genome avg_abund   p_metag   metagenome name
+--------          -------- ---------   -------   ---------------
+B. fragilis I1345   96.7%     7.3      27.5%     CD136
+B. fragilis I1345   96.7%     7.5      22.6%     CD237
+F. prausnitzii      58.4%    25.3      30.7%     CD136
+"""
+    assert expected in runtmp.last_result.out
+
+
+def test_no_pretty_print(runtmp):
+    # test turning off pretty-printing of output
+    query = get_test_data('hmp-queries.sig.zip')
+    against = get_test_data('hmp-against.sig.zip')
+
+    outcsv = runtmp.output('xxx.csv')
+
+    runtmp.sourmash('scripts', 'manysearch', query, against,
+                    '-o', outcsv, '-N')
+    print(runtmp.last_result.out)
+
+    # if this fails in the future, it might be because the order of the
+    # output gets shuffled by multithreading. consider refactoring to
+    # do line by line?
+    expected="p_genome"
+    assert expected not in runtmp.last_result.out

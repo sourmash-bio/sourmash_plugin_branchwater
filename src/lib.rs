@@ -22,6 +22,7 @@ mod pairwise;
 use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None))]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,
@@ -72,6 +73,7 @@ fn do_manysearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (query_filename, siglist_path, threshold_bp, ksize, scaled, moltype, output_path_prefetch=None, output_path_gather=None))]
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
@@ -104,6 +106,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
+#[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false, create_empty_results=false))]
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
@@ -112,6 +115,8 @@ fn do_fastmultigather(
     scaled: usize,
     moltype: String,
     output_path: Option<String>,
+    save_matches: bool,
+    create_empty_results: bool,
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
@@ -144,6 +149,8 @@ fn do_fastmultigather(
             scaled,
             &selection,
             allow_failed_sigpaths,
+            save_matches,
+            create_empty_results,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -179,10 +186,18 @@ fn do_index(
     moltype: String,
     output: String,
     colors: bool,
+    use_internal_storage: bool,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = false;
-    match index::index(siglist, &selection, output, colors, allow_failed_sigpaths) {
+    match index::index(
+        siglist,
+        &selection,
+        output,
+        colors,
+        allow_failed_sigpaths,
+        use_internal_storage,
+    ) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -204,6 +219,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 }
 
 #[pyfunction]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
 #[allow(clippy::too_many_arguments)]
 fn do_multisearch(
     querylist_path: String,
@@ -237,6 +253,7 @@ fn do_multisearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (siglist_path, threshold, ksize, scaled, moltype, estimate_ani, write_all, output_path=None))]
 fn do_pairwise(
     siglist_path: String,
     threshold: f64,
@@ -284,6 +301,7 @@ fn do_manysketch(
 }
 
 #[pyfunction]
+#[pyo3(signature = (pairwise_csv, output_clusters, similarity_column, similarity_threshold, cluster_sizes=None))]
 fn do_cluster(
     pairwise_csv: String,
     output_clusters: String,
@@ -307,7 +325,7 @@ fn do_cluster(
 }
 
 #[pymodule]
-fn sourmash_plugin_branchwater(_py: Python, m: &PyModule) -> PyResult<()> {
+fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(do_manysearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastgather, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastmultigather, m)?)?;

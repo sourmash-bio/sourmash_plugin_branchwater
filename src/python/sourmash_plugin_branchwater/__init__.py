@@ -7,6 +7,7 @@ import os
 import importlib.metadata
 
 from . import sourmash_plugin_branchwater
+from . import prettyprint
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")
 
@@ -49,7 +50,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
         p.add_argument('-o', '--output', required=True,
                        help='CSV output file for matches')
         p.add_argument('-t', '--threshold', default=0.01, type=float,
-                       help='containment threshold for reporting matches')
+                       help='containment threshold for reporting matches (default: 0.01)')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
@@ -58,11 +59,16 @@ class Branchwater_Manysearch(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('-P', '--pretty-print', action='store_true',
+                       default=True,
+                       help="display results after search finishes (default: True)")
+        p.add_argument('-N', '--no-pretty-print', action='store_false',
+                       dest='pretty_print',
+                       help="do not display results (e.g. for large output)")
 
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
-        args.moltype = args.moltype.lower()
         num_threads = set_thread_pool(args.cores)
 
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
@@ -77,6 +83,9 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                            args.output)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
+
+            if args.pretty_print:
+                prettyprint.pretty_print_manysearch(args.output)
         return status
 
 
@@ -107,7 +116,6 @@ class Branchwater_Fastgather(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -148,13 +156,16 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                 help='number of cores to use (default is all available)')
-        p.add_argument('-o', '--output', help='CSV output file for matches')
+        p.add_argument('-o', '--output', help='CSV output file for matches. Used for non-rocksdb searches only.')
+        p.add_argument('--create-empty-results', action = 'store_true',
+                       default=False, help='create empty results file(s) even if no matches')
+        p.add_argument('--save-matches', action='store_true',
+                       default=False, help='save matched hashes for every input to a signature')
 
 
     def main(self, args):
         print_version()
-        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}")
-        args.moltype = args.moltype.lower()
+        notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp} / save matches: {args.save_matches}")
 
         num_threads = set_thread_pool(args.cores)
 
@@ -166,7 +177,10 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                                                                 args.ksize,
                                                                 args.scaled,
                                                                 args.moltype,
-                                                                args.output)
+                                                                args.output,
+                                                                args.save_matches,
+                                                                args.create_empty_results
+                                                                )
         if status == 0:
             notify(f"...fastmultigather is done!")
         return status
@@ -190,10 +204,15 @@ class Branchwater_Index(CommandLinePlugin):
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
                        help='number of cores to use (default is all available)')
+        p.add_argument('--internal-storage', default=True, action='store_true',
+                       help="build indexes that contain sketches and are relocatable (default: True)")
+        p.add_argument('--no-internal-storage', '--no-store-sketches',
+                       action='store_false',
+                       help="do not store sketches in the index; index may not be relocatable (default: False)",
+                       dest='internal_storage')
 
     def main(self, args):
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} ")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -205,7 +224,8 @@ class Branchwater_Index(CommandLinePlugin):
                                                       args.scaled,
                                                       args.moltype,
                                                       args.output,
-                                                      False) # colors - currently must be false?
+                                                      False, # colors - currently must be false?
+                                                      args.internal_storage)
         if status == 0:
             notify(f"...index is done! results in '{args.output}'")
         return status
@@ -217,7 +237,7 @@ class Branchwater_Check(CommandLinePlugin):
     def __init__(self, p):
         super().__init__(p)
         p.add_argument('index',
-                       help='index file')
+                       help="RocksDB index file created with 'index'")
         p.add_argument('--quick', action='store_true')
 
     def main(self, args):
@@ -242,7 +262,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
         p.add_argument('-o', '--output', required=True,
                        help='CSV output file for matches')
         p.add_argument('-t', '--threshold', default=0.01, type=float,
-                       help='containment threshold for reporting matches')
+                       help='containment threshold for reporting matches (default: 0.01)')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to select sketches')
         p.add_argument('-s', '--scaled', default=1000, type=int,
@@ -257,7 +277,6 @@ class Branchwater_Multisearch(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 
@@ -304,7 +323,6 @@ class Branchwater_Pairwise(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold: {args.threshold}")
-        args.moltype = args.moltype.lower()
 
         num_threads = set_thread_pool(args.cores)
 

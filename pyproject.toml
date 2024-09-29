@@ -8,7 +8,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     ]
-dependencies = ["sourmash>=4.8.9,<5"]
+dependencies = ["sourmash>=4.8.10,<5"]
 
 authors = [
   { name="N. Tessa Pierce-Ward", orcid="0000-0002-2942-5331" },
@@ -35,7 +35,7 @@ cluster = "sourmash_plugin_branchwater:Branchwater_Cluster"
 
 [project.optional-dependencies]
 test = [
-  "pytest>=6.2.4,<8.3.0",
+  "pytest>=6.2.4,<8.4.0",
   "pytest-cov>=2.12,<6.0",
   "pytest-xdist",
   "pandas",
@@ -43,9 +43,6 @@ test = [
 
 [tool.maturin]
 python-source = "src/python"
-
-[tool.maturin.target.x86_64-apple-darwin]
-macos-deployment-target = "10.14"
 
 [metadata]
 license = { text = "GNU Affero General Public License v3" }
