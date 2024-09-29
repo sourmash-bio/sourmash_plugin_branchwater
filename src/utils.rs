@@ -1,6 +1,7 @@
 /// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
+use sourmash::ffi::signature::SourmashSignature;
 use sourmash::selection::Select;
 
 use anyhow::{anyhow, Context, Result};
@@ -28,6 +29,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
+use sourmash::Error;
+
 /// Track a name/minhash.
 
 pub struct SmallSignature {
@@ -1241,6 +1244,12 @@ pub struct MultiSearchResult {
     pub average_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prob_overlap_log10: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    // max_containment / prob_overlap -> Bigger means less likely to be random
+    pub prob_weighted_containment: Option<f64>,
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
@@ -1383,4 +1392,39 @@ pub fn write_signature(
 
     zip.start_file(sig_filename, zip_options).unwrap();
     zip.write_all(&gzipped_buffer).unwrap();
+}
+
+
+pub fn get_prob_overlap(
+    query_mh: &KmerMinHash,
+    database_mh: &KmerMinHash,
+) -> Result<f64, Error> {
+    let _query_intersection = Some(query_mh.intersection(database_mh));
+
+    return Ok(0.0);
+}
+
+pub fn merge_all_minhashes(
+    sigs: &Vec<SourmashSignature>,
+) -> Result<KmerMinHash, Error> {
+    if sigs.is_empty() {
+        return Err(Error::new("Signature list is empty"));
+    }
+
+    let first_sig = &sigs[0];
+
+    // Use the first signature to create the combination
+    let mut combined_mh = KmerMinHash::new(
+        first_sig.minhash.scaled(),
+        first_sig.minhash.ksize(),
+        first_sig.minhash.hash_function().clone(),
+        first_sig.minhash.seed(),
+        first_sig.minhash.abunds().is_some(),
+        first_sig.minhash.num(),
+    );
+
+    for sig in sigs.iter().skip(1) {
+        combined_mh = Some(combined_mh.merge(sig.minhash));
+    }
+    Ok(combined_mh)
 }
