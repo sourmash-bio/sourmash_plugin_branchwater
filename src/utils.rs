@@ -1,6 +1,7 @@
 /// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
+use sourmash::ffi::signature::SourmashSignature;
 use sourmash::selection::Select;
 
 use anyhow::{anyhow, Context, Result};
@@ -1398,24 +1399,32 @@ pub fn get_prob_overlap(
     query_mh: &KmerMinHash,
     database_mh: &KmerMinHash,
 ) -> Result<f64, Error> {
-    let query_intersection = Some(query_mh.intersection(database_mh));
+    let _query_intersection = Some(query_mh.intersection(database_mh));
 
     return Ok(0.0);
 }
 
 pub fn merge_all_minhashes(
-    minhashes: &Vec<KmerMinHash>,
+    sigs: &Vec<SourmashSignature>,
 ) -> Result<KmerMinHash, Error> {
-    let first_mh = minhashes[0];
+    if sigs.is_empty() {
+        return Err(Error::new("Signature list is empty"));
+    }
+
+    let first_sig = &sigs[0];
+
+    // Use the first signature to create the combination
     let mut combined_mh = KmerMinHash::new(
-        first_mh.scaled(),
-        first_mh.ksize,
-        first_mh.hash_function.clone(),
-        first_mh.seed,
-        first_mh.abunds.is_some(),
-        first_mh.num,
+        first_sig.minhash.scaled(),
+        first_sig.minhash.ksize(),
+        first_sig.minhash.hash_function().clone(),
+        first_sig.minhash.seed(),
+        first_sig.minhash.abunds().is_some(),
+        first_sig.minhash.num(),
     );
 
-    let combined_mh = minhashes.par_iter().map(mh | combined_mh.merge(mh))
-
+    for sig in sigs.iter().skip(1) {
+        combined_mh = Some(combined_mh.merge(sig.minhash));
+    }
+    Ok(combined_mh)
 }
