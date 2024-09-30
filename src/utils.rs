@@ -9,8 +9,9 @@ use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use glob::glob;
 use logsumexp::LogSumExp;
+use std::primitive::f64::ln;
 use serde::{Deserialize, Serialize};
-use rust_decimal::{MathematicalOps, Decimal};
+// use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, File};
@@ -1400,17 +1401,17 @@ pub fn get_freq_intersecting_hashes(
     intersection: &Vec<u64>,
     minhash: &KmerMinHash,
     logged: bool,
-) -> HashMap<u64, Decimal> {
-    let sum_abunds = minhash.sum_abunds() as f64;
+) -> HashMap<u64, f64> {
+    let sum_abunds: f64 = minhash.sum_abunds() as f64;
     let minhash_abunds: HashMap<u64, u64> = minhash.to_vec_abunds().into_iter().map(|(hashval, abund)| (hashval, abund)).collect();
 
-    let mut frequencies: HashMap<u64, Decimal> = HashMap::from(intersection
+    let mut frequencies: HashMap<u64, f64> = HashMap::from(intersection
         .par_iter()
         .map(|hashval| 
             (hashval, 
-                Decimal::from_f64_retain(minhash_abunds[hashval] as f64 / sum_abunds)
+                minhash_abunds[hashval] as f64 / sum_abunds
             )
-        ).collect::<HashMap<u64, Decimal>>()
+        ).collect::<HashMap<u64, f64>>()
     );
 
     if logged {
@@ -1426,8 +1427,8 @@ pub fn get_freq_intersecting_hashes(
 
 // #[cfg(feature = "maths")]
 pub fn get_prob_overlap(intersection: &Vec<u64>, queries_merged_mh: &KmerMinHash, database_merged_mh: &KmerMinHash, logged: bool) -> Decimal {
-    let query_frequencies = get_freq_intersecting_hashes(intersection, queries_merged_mh, logged);
-    let database_frequencies = get_freq_intersecting_hashes(intersection, database_merged_mh, logged);
+    let query_frequencies: HashMap<u64, f64> = get_freq_intersecting_hashes(intersection, queries_merged_mh, logged);
+    let database_frequencies: HashMap<u64, f64> = get_freq_intersecting_hashes(intersection, database_merged_mh, logged);
 
     // It's not guaranteed to me that the MinHashes from the query and database are in the same order, so iterate over one of them
     // and use a hashmap to retrieve the frequency value of the other
@@ -1435,7 +1436,6 @@ pub fn get_prob_overlap(intersection: &Vec<u64>, queries_merged_mh: &KmerMinHash
     if logged {
         prob_overlap = query_frequencies
             .values()
-            // .map(|(hashval, prob)| prob)
             .ln_sum_exp();
         // ln_sum_exp uses natural log
         // -> change of base to log 10 for interpretability
