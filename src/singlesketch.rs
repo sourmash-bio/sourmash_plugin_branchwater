@@ -21,7 +21,6 @@ pub fn singlesketch(
         }
     };
 
-    // Extract moltype from the param_str (assume it's always the first part)
     let moltype = if param_str.contains("dna") {
         "dna"
     } else if param_str.contains("protein") {
@@ -49,6 +48,9 @@ pub fn singlesketch(
         parse_fastx_file(&input_filename)?
     };
 
+    // Counter for the number of sequences processed (u64)
+    let mut sequence_count: u64 = 0;
+
     // Parse FASTA and add to signature
     while let Some(record_result) = reader.next() {
         match record_result {
@@ -62,6 +64,7 @@ pub fn singlesketch(
                             .expect("Failed to add sequence");
                     }
                 });
+                sequence_count += 1;
             }
             Err(err) => eprintln!("Error while processing record: {:?}", err),
         }
@@ -89,6 +92,13 @@ pub fn singlesketch(
         // Write in JSON format
         serde_json::to_writer(&mut writer, &sigs)?;
     }
+
+    eprintln!(
+        "calculated {} signatures for {} sequences in {}",
+        sigs.len(),
+        sequence_count,
+        input_filename
+    );
 
     Ok(())
 }
