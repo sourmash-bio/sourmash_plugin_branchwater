@@ -1,19 +1,13 @@
 use crate::utils::parse_params_str;
-/// sketch: sketch a single sequence file.
 use anyhow::{bail, Result};
 use camino::Utf8Path as Path;
 use needletail::{parse_fastx_file, parse_fastx_reader};
 use std::fs::File;
 use std::io::BufWriter;
 
-pub fn singlesketch(
-    input_filename: String,
-    moltype: String,
-    param_str: String,
-    output: String,
-) -> Result<()> {
+pub fn singlesketch(input_filename: String, param_str: String, output: String) -> Result<()> {
     // Parse parameter string into params_vec
-    let param_result = parse_params_str(param_str);
+    let param_result = parse_params_str(param_str.clone());
     let params_vec = match param_result {
         Ok(params) => params,
         Err(e) => {
@@ -22,7 +16,20 @@ pub fn singlesketch(
         }
     };
 
-    // Build signature templates based on parameters and molecule type
+    // Extract moltype from the param_str (assume it's always the first part)
+    let moltype = if param_str.contains("dna") {
+        "dna"
+    } else if param_str.contains("protein") {
+        "protein"
+    } else if param_str.contains("dayhoff") {
+        "dayhoff"
+    } else if param_str.contains("hp") {
+        "hp"
+    } else {
+        bail!("Unrecognized molecule type in params string");
+    };
+
+    // Build signature templates based on parsed parameters and detected moltype
     let sig_templates = crate::manysketch::build_siginfo(&params_vec, &moltype);
 
     if sig_templates.is_empty() {

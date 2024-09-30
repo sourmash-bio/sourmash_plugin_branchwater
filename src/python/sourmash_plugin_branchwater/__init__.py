@@ -347,32 +347,40 @@ class Branchwater_SingleSketch(CommandLinePlugin):
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument('moltype', choices=["dna", "protein", "dayhoff", "hp"],
-                       help='molecule type (dna, protein, dayhoff, or hp)')
         p.add_argument('input_filename', help="input FASTA file or '-' for stdin")
-        p.add_argument('-p', '--param-string', action='append', type=str, default=[],
-                       help='parameter string for sketching (default: k=31,scaled=1000)')
         p.add_argument('-o', '--output', required=True,
                        help='output file for the signature')
+        p.add_argument('-p', '--param-string', action='append', type=str, default=[],
+                       help='parameter string for sketching (default: k=31,scaled=1000)')
 
     def main(self, args):
         print_version()
         if not args.param_string:
             args.param_string = ["k=31,scaled=1000"]
-        notify(f"params: {args.param_string}")
 
-        # Convert to a single string for easier Rust handling
-        args.param_string = "_".join(args.param_string)
-        # Lowercase the param string
-        args.param_string = args.param_string.lower()
+        # Check and append 'dna' if no moltype is found in a param string
+        moltypes = ["dna", "protein", "dayhoff", "hp"]
+        updated_param_strings = []
+
+        for param in args.param_string:
+            # If no moltype is found in the current param string, append 'dna'
+            if not any(mt in param for mt in moltypes):
+                param += ",dna"
+            updated_param_strings.append(param)
+
+        notify(f"params: {updated_param_strings}")
+
+        # Convert the list of param strings to a single string
+        args.param_string = "_".join(updated_param_strings).lower()
+
+        notify(f"sketching file '{args.input_filename}' with params '{args.param_string}'")
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_singlesketch(args.input_filename,
-                                                       args.moltype.lower(),
-                                                       args.param_string,
-                                                       args.output)
+                                                             args.param_string,
+                                                             args.output)
         if status == 0:
-            notify(f"...sketch is done! results in '{args.output}'")
+            notify(f"...singlesketch is done! results in '{args.output}'")
         return status
 
 
