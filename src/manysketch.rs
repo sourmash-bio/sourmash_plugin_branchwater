@@ -2,11 +2,11 @@
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
-use crate::utils::{load_fasta_fromfile, sigwriter, Params, ZipMessage};
+use crate::utils::{load_fasta_fromfile, sigwriter, Params};
+use camino::Utf8Path as Path;
 use needletail::parse_fastx_file;
 use sourmash::cmd::ComputeParameters;
 use sourmash::signature::Signature;
-use std::path::Path;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -22,8 +22,10 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
         let mut num = 0;
         let mut scaled = 1000;
         let mut seed = 42;
+        let mut is_dna = false;
         let mut is_protein = false;
-        let mut is_dna = true;
+        let mut is_dayhoff = false;
+        let mut is_hp = false;
 
         for item in items.iter() {
             match *item {
@@ -52,14 +54,25 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
                 }
                 "protein" => {
                     is_protein = true;
-                    is_dna = false;
                 }
                 "dna" => {
-                    is_protein = false;
                     is_dna = true;
+                }
+                "dayhoff" => {
+                    is_dayhoff = true;
+                }
+                "hp" => {
+                    is_hp = true;
                 }
                 _ => return Err(format!("unknown component '{}' in params string", item)),
             }
+        }
+
+        if !is_dna && !is_protein && !is_dayhoff && !is_hp {
+            return Err(format!("No moltype provided in params string {}", p_str));
+        }
+        if ksizes.is_empty() {
+            return Err(format!("No ksizes provided in params string {}", p_str));
         }
 
         for &k in &ksizes {
@@ -71,6 +84,8 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
                 seed,
                 is_protein,
                 is_dna,
+                is_dayhoff,
+                is_hp,
             };
             unique_params.insert(param);
         }
@@ -79,25 +94,19 @@ fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
     Ok(unique_params.into_iter().collect())
 }
 
-fn build_siginfo(
-    params: &[Params],
-    moltype: &str,
-    name: &str,
-    filename: &Path,
-) -> (Vec<Signature>, Vec<Params>) {
+fn build_siginfo(params: &[Params], input_moltype: &str) -> Vec<Signature> {
     let mut sigs = Vec::new();
-    let mut params_vec = Vec::new();
 
     for param in params.iter().cloned() {
-        match moltype {
-            // if dna, only build dna sigs. if protein, only build protein sigs
-            "dna" if !param.is_dna => continue,
-            "protein" if !param.is_protein => continue,
+        match input_moltype {
+            // if dna, only build dna sigs. if protein, only build protein sigs, etc
+            "dna" | "DNA" if !param.is_dna => continue,
+            "protein" if !param.is_protein && !param.is_dayhoff && !param.is_hp => continue,
             _ => (),
         }
 
         // Adjust ksize value based on the is_protein flag
-        let adjusted_ksize = if param.is_protein {
+        let adjusted_ksize = if param.is_protein || param.is_dayhoff || param.is_hp {
             param.ksize * 3
         } else {
             param.ksize
@@ -108,43 +117,37 @@ fn build_siginfo(
             .scaled(param.scaled)
             .protein(param.is_protein)
             .dna(param.is_dna)
+            .dayhoff(param.is_dayhoff)
+            .hp(param.is_hp)
             .num_hashes(param.num)
             .track_abundance(param.track_abundance)
             .build();
 
-        // let sig = Signature::from_params(&cp); // cant set name with this
-        let template = sourmash::cmd::build_template(&cp);
-        let sig = Signature::builder()
-            .hash_function("0.murmur64")
-            .name(Some(name.to_string()))
-            .filename(Some(filename.to_string_lossy().into_owned()))
-            .signatures(template)
-            .build();
+        let sig = Signature::from_params(&cp);
         sigs.push(sig);
-
-        params_vec.push(param);
     }
 
-    (sigs, params_vec)
+    sigs
 }
 
-pub fn manysketch<P: AsRef<Path> + Sync>(
-    filelist: P,
+pub fn manysketch(
+    filelist: String,
     param_str: String,
     output: String,
+    singleton: bool,
+    force: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let fileinfo = match load_fasta_fromfile(&filelist) {
-        Ok(result) => result,
+    let (fileinfo, n_fastas) = match load_fasta_fromfile(filelist, force) {
+        Ok((file_info, n_fastas)) => (file_info, n_fastas),
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e),
     };
 
     // if no files to process, exit with error
-    let n_fastas = fileinfo.len();
     if n_fastas == 0 {
         bail!("No files to load, exiting.");
     }
 
-    // if output doesnt end in zip, bail
+    // if output doesn't end in zip, bail
     if Path::new(&output)
         .extension()
         .map_or(true, |ext| ext != "zip")
@@ -153,12 +156,13 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
     }
 
     // set up a multi-producer, single-consumer channel that receives Signature
-    let (send, recv) = std::sync::mpsc::sync_channel::<ZipMessage>(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<Option<Vec<Signature>>>(rayon::current_num_threads());
     // need to use Arc so we can write the manifest after all sigs have written
-    let send = std::sync::Arc::new(send);
+    // let send = std::sync::Arc::new(send);
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sigwriter::<&str>(recv, output);
+    let thrd = sigwriter(recv, output);
 
     // parse param string into params_vec, print error if fail
     let param_result = parse_params_str(param_str);
@@ -180,68 +184,102 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
 
     let send_result = fileinfo
         .par_iter()
-        .filter_map(|(name, filename, moltype)| {
-            // increment processed_fastas counter; make 1-based for % reporting
-            let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
-            // progress report at threshold
-            if (i + 1) % reporting_threshold == 0 {
-                let percent_processed = (((i + 1) as f64 / n_fastas as f64) * 100.0).round();
-                eprintln!(
-                    "Starting file {}/{} ({}%)",
-                    (i + 1),
-                    n_fastas,
-                    percent_processed
-                );
-            }
-
-            // build sig templates from params
-            let (mut sigs, sig_params) = build_siginfo(&params_vec, moltype, name, filename);
-            // if no sigs to build, skip
-            if sigs.is_empty() {
-                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+        .filter_map(|fastadata| {
+            let name = &fastadata.name;
+            let filenames = &fastadata.paths;
+            let moltype = &fastadata.input_type;
+            // build sig templates for these sketches from params, check if there are sigs to build
+            let sig_templates = build_siginfo(&params_vec, moltype);
+            // if no sigs to build, skip this iteration
+            if sig_templates.is_empty() {
+                skipped_paths.fetch_add(filenames.len(), atomic::Ordering::SeqCst);
+                processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
                 return None;
             }
 
-            // Open fasta file reader
-            let mut reader = match parse_fastx_file(filename) {
-                Ok(r) => r,
-                Err(err) => {
-                    eprintln!("Error opening file {}: {:?}", filename.display(), err);
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    return None;
+            let mut sigs = sig_templates.clone();
+            // have name / filename been set for each sig yet?
+            let mut set_name = false;
+            // if merging multiple files, sourmash sets filename as last filename
+            let last_filename = filenames.last().unwrap();
+
+            for filename in filenames {
+                // increment processed_fastas counter; make 1-based for % reporting
+                let i = processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
+                // progress report at threshold
+                if (i + 1) % reporting_threshold == 0 {
+                    let percent_processed = (((i + 1) as f64 / n_fastas as f64) * 100.0).round();
+                    eprintln!(
+                        "Starting file {}/{} ({}%)",
+                        (i + 1),
+                        n_fastas,
+                        percent_processed
+                    );
                 }
-            };
-            // parse fasta and add to signature
-            while let Some(record_result) = reader.next() {
-                match record_result {
-                    Ok(record) => {
-                        // do we need to normalize to make sure all the bases are consistently capitalized?
-                        // let norm_seq = record.normalize(false);
-                        for sig in &mut sigs {
-                            if moltype == "protein" {
-                                sig.add_protein(&record.seq()).unwrap();
-                            } else {
-                                sig.add_sequence(&record.seq(), true).unwrap();
-                                // if not force, panics with 'N' in dna sequence
+
+                // Open fasta file reader
+                let mut reader = match parse_fastx_file(filename) {
+                    Ok(r) => r,
+                    Err(err) => {
+                        eprintln!("Error opening file {}: {:?}", filename, err);
+                        failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        return None;
+                    }
+                };
+
+                // parse fasta and add to signature
+                while let Some(record_result) = reader.next() {
+                    match record_result {
+                        Ok(record) => {
+                            // do we need to normalize to make sure all the bases are consistently capitalized?
+                            // let norm_seq = record.normalize(false);
+                            sigs.iter_mut().for_each(|sig| {
+                                if singleton {
+                                    let record_name = std::str::from_utf8(record.id())
+                                        .expect("could not get record id");
+                                    sig.set_name(record_name);
+                                    sig.set_filename(filename.as_str());
+                                } else if !set_name {
+                                    sig.set_name(name);
+                                    // sourmash sets filename to last filename if merging fastas
+                                    sig.set_filename(last_filename.as_str());
+                                };
+                                if moltype == "protein" {
+                                    sig.add_protein(&record.seq())
+                                        .expect("Failed to add protein");
+                                } else {
+                                    sig.add_sequence(&record.seq(), true)
+                                        .expect("Failed to add sequence");
+                                    // if not force, panics with 'N' in dna sequence
+                                }
+                            });
+                            if !set_name {
+                                set_name = true;
                             }
                         }
+                        Err(err) => eprintln!("Error while processing record: {:?}", err),
                     }
-                    Err(err) => {
-                        eprintln!("Error while processing record: {:?}", err);
+                    if singleton {
+                        // write sigs immediately to avoid memory issues
+                        if let Err(e) = send.send(Some(sigs.clone())) {
+                            eprintln!("Unable to send internal data: {:?}", e);
+                            return None;
+                        }
+                        sigs = sig_templates.clone();
                     }
                 }
             }
-            Some((sigs, sig_params, filename))
+            // if singleton sketches, they have already been written; only write aggregate sketches
+            if singleton {
+                None
+            } else {
+                Some(sigs)
+            }
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::Arc<std::sync::mpsc::SyncSender<ZipMessage>>,
-             (sigs, sig_params, filename)| {
-                if let Err(e) = s.send(ZipMessage::SignatureData(
-                    sigs,
-                    sig_params,
-                    filename.clone(),
-                )) {
+            |s: &mut std::sync::mpsc::SyncSender<Option<Vec<Signature>>>, sigs| {
+                if let Err(e) = s.send(Some(sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {
                     Ok(())
@@ -249,12 +287,10 @@ pub fn manysketch<P: AsRef<Path> + Sync>(
             },
         );
 
-    // After the parallel work, send the WriteManifest message
-    std::sync::Arc::try_unwrap(send)
-        .unwrap()
-        .send(ZipMessage::WriteManifest)
-        .unwrap();
-
+    // Send None to sigwriter to signal completion + write manifest
+    if let Err(e) = send.send(None) {
+        eprintln!("Unable to send completion signal: {:?}", e);
+    }
     // do some cleanup and error handling -
     if let Err(e) = send_result {
         eprintln!("Error during parallel processing: {}", e);

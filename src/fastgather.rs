@@ -1,49 +1,53 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
-
-use sourmash::signature::Signature;
-use sourmash::sketch::Sketch;
-use std::path::Path;
+use sourmash::prelude::Select;
+use sourmash::selection::Selection;
 
 use crate::utils::{
-    consume_query_by_gather, load_sigpaths_from_zip_or_pathlist, load_sketches_above_threshold,
-    prepare_query, write_prefetch, ReportType,
+    consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
+    ReportType,
 };
 
-pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
-    query_filename: P,
-    matchlist_filename: P,
+#[allow(clippy::too_many_arguments)]
+pub fn fastgather(
+    query_filepath: String,
+    against_filepath: String,
     threshold_bp: usize,
-    ksize: u8,
     scaled: usize,
-    template: Sketch,
-    gather_output: Option<P>,
-    prefetch_output: Option<P>,
+    selection: &Selection,
+    gather_output: Option<String>,
+    prefetch_output: Option<String>,
+    allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    let location = query_filename.to_string();
-    eprintln!("Loading query from '{}'", location);
-    let query = {
-        let sigs = Signature::from_path(query_filename)?;
+    let query_collection = load_collection(
+        &query_filepath,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
-        prepare_query(&sigs, &template, &location)
+    if query_collection.len() != 1 {
+        bail!(
+            "Fastgather requires a single query sketch. Check input: '{:?}'",
+            &query_filepath
+        )
+    }
+    // get single query sig and minhash
+    let query_sig = query_collection.sig_for_dataset(0)?; // need this for original md5sum
+    let query_sig_ds = query_sig.clone().select(selection)?; // downsample
+    let query_mh = match query_sig_ds.minhash() {
+        Some(query_mh) => query_mh,
+        None => {
+            bail!("No query sketch matching selection parameters.");
+        }
     };
-    // did we find anything matching the desired template?
-    let query = match query {
-        Some(query) => query,
-        None => bail!("No sketch found with scaled={}, k={}", scaled, ksize),
-    };
-
-    // build the list of paths to match against.
-    eprintln!(
-        "Loading matchlist from '{}'",
-        matchlist_filename.as_ref().display()
-    );
-
-    let matchlist_filename = matchlist_filename.as_ref().to_string_lossy().to_string();
-    let (matchlist_paths, _temp_dir) =
-        load_sigpaths_from_zip_or_pathlist(matchlist_filename, &template, ReportType::Against)?;
-
-    eprintln!("Loaded {} sig paths in matchlist", matchlist_paths.len());
+    // load collection to match against.
+    let against_collection = load_collection(
+        &against_filepath,
+        selection,
+        ReportType::Against,
+        allow_failed_sigpaths,
+    )?;
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes: u64 = {
@@ -62,16 +66,10 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     );
 
     // load a set of sketches, filtering for those with overlaps > threshold
-    let result = load_sketches_above_threshold(
-        matchlist_paths,
-        &template,
-        &query.minhash,
-        threshold_hashes,
-    )?;
+    let result = load_sketches_above_threshold(against_collection, query_mh, threshold_hashes)?;
     let matchlist = result.0;
     let skipped_paths = result.1;
     let failed_paths = result.2;
-
     if skipped_paths > 0 {
         eprintln!(
             "WARNING: skipped {} search paths - no compatible signatures.",
@@ -91,10 +89,17 @@ pub fn fastgather<P: AsRef<Path> + std::fmt::Debug + std::fmt::Display + Clone>(
     }
 
     if prefetch_output.is_some() {
-        write_prefetch(&query, prefetch_output, &matchlist).ok();
+        write_prefetch(&query_sig, prefetch_output, &matchlist).ok();
     }
 
     // run the gather!
-    consume_query_by_gather(query, matchlist, threshold_hashes, gather_output).ok();
+    consume_query_by_gather(
+        query_sig,
+        scaled as u64,
+        matchlist,
+        threshold_hashes,
+        gather_output,
+    )
+    .ok();
     Ok(())
 }

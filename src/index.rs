@@ -1,31 +1,36 @@
 use sourmash::index::revindex::RevIndex;
-use sourmash::sketch::Sketch;
+use sourmash::index::revindex::RevIndexOps;
+use sourmash::prelude::*;
 use std::path::Path;
 
-use crate::utils::{load_sigpaths_from_zip_or_pathlist, ReportType};
+use crate::utils::{load_collection, ReportType};
 
 pub fn index<P: AsRef<Path>>(
-    siglist: P,
-    template: Sketch,
+    siglist: String,
+    selection: &Selection,
     output: P,
-    save_paths: bool,
     colors: bool,
+    allow_failed_sigpaths: bool,
+    use_internal_storage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading siglist");
 
-    let (index_sigs, _temp_dir) =
-        load_sigpaths_from_zip_or_pathlist(&siglist, &template, ReportType::Index)?;
+    let collection = load_collection(
+        &siglist,
+        selection,
+        ReportType::General,
+        allow_failed_sigpaths,
+    )?;
 
-    // if index_sigs pathlist is empty, bail
-    if index_sigs.is_empty() {
-        bail!("No signatures to index loaded, exiting.");
+    let mut index = RevIndex::create(
+        output.as_ref(),
+        collection.select(selection)?.try_into()?,
+        colors,
+    )?;
+
+    if use_internal_storage {
+        index.internalize_storage()?;
     }
-
-    // Create or open the RevIndex database with the provided output path and colors flag
-    let db = RevIndex::create(output.as_ref(), colors);
-
-    // Index the signatures using the loaded template, threshold, and save_paths option
-    db.index(index_sigs, &template, 0.0, save_paths);
 
     Ok(())
 }

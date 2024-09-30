@@ -2,32 +2,45 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::signature::Signature;
-use sourmash::sketch::Sketch;
-use std::path::Path;
+use sourmash::prelude::ToWriter;
+use sourmash::{selection::Selection, signature::SigsTrait};
 
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use std::collections::BinaryHeap;
 
+use camino::Utf8Path as PathBuf;
+
+use std::collections::HashSet;
+use std::fs::File;
+
+use sourmash::signature::Signature;
+use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::sketch::Sketch;
+
 use crate::utils::{
-    consume_query_by_gather, load_sigpaths_from_zip_or_pathlist,
-    load_sketches_from_zip_or_pathlist, prepare_query, write_prefetch, PrefetchResult, ReportType,
+    consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
+    ReportType,
 };
 
-pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
-    query_filenames: P,
-    matchlist_filename: P,
+pub fn fastmultigather(
+    query_filepath: String,
+    against_filepath: String,
     threshold_bp: usize,
     scaled: usize,
-    template: Sketch,
+    selection: &Selection,
+    allow_failed_sigpaths: bool,
+    save_matches: bool,
+    create_empty_results: bool,
 ) -> Result<()> {
-    // load the list of query paths
-    let queryfile_name = query_filenames.as_ref().to_string_lossy().to_string();
-    let (querylist_paths, _temp_dir) =
-        load_sigpaths_from_zip_or_pathlist(&query_filenames, &template, ReportType::Query)?;
-    println!("Loaded {} sig paths in querylist", querylist_paths.len());
+    // load query collection
+    let query_collection = load_collection(
+        &query_filepath,
+        selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
@@ -42,86 +55,146 @@ pub fn fastmultigather<P: AsRef<Path> + std::fmt::Debug + Clone>(
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
-    // Load all the against sketches
-    let sketchlist =
-        load_sketches_from_zip_or_pathlist(&matchlist_filename, &template, ReportType::Against)?;
+    // load against collection
+    let against_collection = load_collection(
+        &against_filepath,
+        selection,
+        ReportType::Against,
+        allow_failed_sigpaths,
+    )?;
+    // load against sketches into memory, downsampling on the way
+    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    querylist_paths.par_iter().for_each(|q| {
-        // increment counter of # of queries
+    query_collection.par_iter().for_each(|(_idx, record)| {
+        // increment counter of # of queries. q: could we instead use the _idx from par_iter(), or will it vary based on thread?
         let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
+        // Load query sig (downsampling happens here)
+        match query_collection.sig_from_record(record) {
+            Ok(query_sig) => {
+                let name = query_sig.name();
+                let prefix = name.split(' ').next().unwrap_or_default().to_string();
+                let location = PathBuf::new(&prefix).file_name().unwrap();
+                if let Some(query_mh) = query_sig.minhash() {
+                    let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
+                    let matchlist: BinaryHeap<PrefetchResult> = against
+                        .iter()
+                        .filter_map(|against| {
+                            let mut mm: Option<PrefetchResult> = None;
+                            if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
+                                if overlap >= threshold_hashes {
+                                    if save_matches {
+                                        if let Ok(intersection) =
+                                            against.minhash.intersection(query_mh)
+                                        {
+                                            matching_hashes
+                                                .as_mut()
+                                                .unwrap()
+                                                .extend(intersection.0);
+                                        }
+                                    }
+                                    let result = PrefetchResult {
+                                        name: against.name.clone(),
+                                        md5sum: against.md5sum.clone(),
+                                        minhash: against.minhash.clone(),
+                                        location: against.location.clone(),
+                                        overlap,
+                                    };
+                                    mm = Some(result);
+                                }
+                            }
+                            mm
+                        })
+                        .collect();
+                    if !matchlist.is_empty() {
+                        let prefetch_output = format!("{}.prefetch.csv", location);
+                        let gather_output = format!("{}.gather.csv", location);
 
-        // set query_label to the last path element.
-        let location = q.clone().into_os_string().into_string().unwrap();
-        let location = location.split('/').last().unwrap().to_string();
+                        // Save initial list of matches to prefetch output
+                        write_prefetch(&query_sig, Some(prefetch_output), &matchlist).ok();
 
-        let query = match Signature::from_path(dbg!(q)) {
-            Ok(sigs) => {
-                let mm = prepare_query(&sigs, &template, &location);
+                        // Now, do the gather!
+                        consume_query_by_gather(
+                            query_sig.clone(),
+                            scaled as u64,
+                            matchlist,
+                            threshold_hashes,
+                            Some(gather_output),
+                        )
+                        .ok();
 
-                if mm.is_none() {
-                    if !queryfile_name.ends_with(".zip") {
-                        eprintln!("WARNING: no compatible sketches in path '{}'", q.display());
-                    }
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                }
-                mm
-            }
-            Err(err) => {
-                eprintln!("Sketch loading error: {}", err);
-                eprintln!(
-                    "WARNING: could not load sketches from path '{}'",
-                    q.display()
-                );
-                let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                None
-            }
-        };
-
-        if let Some(query) = query {
-            // filter first set of matches out of sketchlist
-            let matchlist: BinaryHeap<PrefetchResult> = sketchlist
-                .par_iter()
-                .filter_map(|sm| {
-                    let mut mm = None;
-
-                    if let Ok(overlap) = sm.minhash.count_common(&query.minhash, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: sm.name.clone(),
-                                md5sum: sm.md5sum.clone(),
-                                minhash: sm.minhash.clone(),
-                                overlap,
-                            };
-                            mm = Some(result);
+                        // Save matching hashes to .sig file if save_matches is true
+                        if save_matches {
+                            if let Some(hashes) = matching_hashes {
+                                let sig_filename = format!("{}.matches.sig", name);
+                                if let Ok(mut file) = File::create(&sig_filename) {
+                                    let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
+                                    let mut new_mh = KmerMinHash::new(
+                                        query_mh.scaled().try_into().unwrap(),
+                                        query_mh.ksize().try_into().unwrap(),
+                                        query_mh.hash_function().clone(),
+                                        query_mh.seed(),
+                                        false,
+                                        query_mh.num(),
+                                    );
+                                    new_mh
+                                        .add_many(&unique_hashes.into_iter().collect::<Vec<_>>())
+                                        .ok();
+                                    let mut signature = Signature::default();
+                                    signature.push(Sketch::MinHash(new_mh));
+                                    signature.set_filename(&name);
+                                    if let Err(e) = signature.to_writer(&mut file) {
+                                        eprintln!("Error writing signature file: {}", e);
+                                    }
+                                } else {
+                                    eprintln!("Error creating signature file: {}", sig_filename);
+                                }
+                            }
+                        }
+                    } else {
+                        println!("No matches to '{}'", location);
+                        if create_empty_results {
+                            let prefetch_output = format!("{}.prefetch.csv", location);
+                            let gather_output = format!("{}.gather.csv", location);
+                            // touch output files
+                            match std::fs::File::create(&prefetch_output) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("Failed to create empty prefetch output: {}", e)
+                                }
+                            }
+                            match std::fs::File::create(&gather_output) {
+                                Ok(_) => {}
+                                Err(e) => eprintln!("Failed to create empty gather output: {}", e),
+                            }
                         }
                     }
-                    mm
-                })
-                .collect();
-
-            if !matchlist.is_empty() {
-                let prefetch_output = format!("{location}.prefetch.csv");
-                let gather_output = format!("{location}.gather.csv");
-
-                // save initial list of matches to prefetch output
-                write_prefetch(&query, Some(prefetch_output), &matchlist).ok();
-
-                // now, do the gather!
-                consume_query_by_gather(query, matchlist, threshold_hashes, Some(gather_output))
-                    .ok();
-            } else {
-                println!("No matches to '{}'", location);
+                } else {
+                    // different warning here? Could not load sig from record??
+                    eprintln!(
+                        "WARNING: no compatible sketches in path '{}'",
+                        record.internal_location()
+                    );
+                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                }
+            }
+            Err(_) => {
+                // different warning here? Could not load sig from record??
+                eprintln!(
+                    "WARNING: no compatible sketches in path '{}'",
+                    record.internal_location()
+                );
+                let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
             }
         }
     });
 
     println!(
-        "Processed {} queries total.",
+        "DONE. Processed {} queries total.",
         processed_queries.into_inner()
     );
 

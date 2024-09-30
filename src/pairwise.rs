@@ -1,88 +1,135 @@
-use anyhow::Result;
 /// pairwise: massively parallel in-memory pairwise comparisons.
+use anyhow::Result;
 use rayon::prelude::*;
-
-use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::path::Path;
-
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use crate::utils::{
+    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
+};
+use sourmash::ani_utils::ani_from_containment;
+use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
-use sourmash::sketch::Sketch;
-
-use crate::utils::{load_sketches_from_zip_or_pathlist, ReportType};
 
 /// Perform pairwise comparisons of all signatures in a list.
 ///
 /// Note: this function loads all _signatures_ into memory.
 
-pub fn pairwise<P: AsRef<Path>>(
-    siglist: P,
+pub fn pairwise(
+    siglist: String,
     threshold: f64,
-    template: Sketch,
-    output: Option<P>,
+    selection: &Selection,
+    allow_failed_sigpaths: bool,
+    estimate_ani: bool,
+    write_all: bool,
+    output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
-    let sigs = load_sketches_from_zip_or_pathlist(&siglist, &template, ReportType::Query)?;
+    let collection = load_collection(
+        &siglist,
+        selection,
+        ReportType::General,
+        allow_failed_sigpaths,
+    )?;
+
+    if collection.len() <= 1 {
+        bail!(
+            "Pairwise requires two or more sketches. Check input: '{:?}'",
+            &siglist
+        )
+    }
+    let sketches = load_sketches(collection, selection, ReportType::General).unwrap();
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
 
-    // & spawn a thread that is dedicated to printing to a buffered output
-    let out: Box<dyn Write + Send> = match output {
-        Some(path) => Box::new(BufWriter::new(File::create(path).unwrap())),
-        None => Box::new(std::io::stdout()),
-    };
-    let thrd = std::thread::spawn(move || {
-        let mut writer = BufWriter::new(out);
-        writeln!(&mut writer, "query_name,query_md5,match_name,match_md5,containment,max_containment,jaccard,intersect_hashes").unwrap();
-        for (query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap) in recv.into_iter() {
-            writeln!(
-                &mut writer,
-                "\"{}\",{},\"{}\",{},{},{},{},{}",
-                query, query_md5, m, m_md5, cont, max_cont, jaccard, overlap
-            )
-            .ok();
-        }
-    });
+    // // & spawn a thread that is dedicated to printing to a buffered output
+    let thrd = csvwriter_thread(recv, output);
 
     //
     // Main loop: iterate (in parallel) over all signature,
     // Results written to the writer thread above.
 
     let processed_cmp = AtomicUsize::new(0);
+    let ksize = selection.ksize().unwrap() as f64;
 
-    sigs.par_iter().enumerate().for_each(|(i, q1)| {
-        for q2 in &sigs[(i + 1)..] {
-            let overlap = q1.minhash.count_common(&q2.minhash, false).unwrap() as f64;
-            let query1_size = q1.minhash.size() as f64;
-            let query2_size = q2.minhash.size() as f64;
+    sketches.par_iter().enumerate().for_each(|(idx, query)| {
+        for against in sketches.iter().skip(idx + 1) {
+            let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
+            let query1_size = query.minhash.size() as f64;
+            let query2_size = against.minhash.size() as f64;
 
             let containment_q1_in_q2 = overlap / query1_size;
             let containment_q2_in_q1 = overlap / query2_size;
-            let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
-            let jaccard = overlap / (query1_size + query2_size - overlap);
 
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
-                send.send((
-                    q1.name.clone(),
-                    q1.md5sum.clone(),
-                    q2.name.clone(),
-                    q2.md5sum.clone(),
-                    containment_q1_in_q2,
+                let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
+                let jaccard = overlap / (query1_size + query2_size - overlap);
+                let mut query_containment_ani = None;
+                let mut match_containment_ani = None;
+                let mut average_containment_ani = None;
+                let mut max_containment_ani = None;
+
+                // estimate ANI values
+                if estimate_ani {
+                    let qani = ani_from_containment(containment_q1_in_q2, ksize);
+                    let mani = ani_from_containment(containment_q2_in_q1, ksize);
+                    query_containment_ani = Some(qani);
+                    match_containment_ani = Some(mani);
+                    average_containment_ani = Some((qani + mani) / 2.);
+                    max_containment_ani = Some(f64::max(qani, mani));
+                }
+                send.send(MultiSearchResult {
+                    query_name: query.name.clone(),
+                    query_md5: query.md5sum.clone(),
+                    match_name: against.name.clone(),
+                    match_md5: against.md5sum.clone(),
+                    containment: containment_q1_in_q2,
                     max_containment,
                     jaccard,
-                    overlap,
-                ))
+                    intersect_hashes: overlap,
+                    query_containment_ani,
+                    match_containment_ani,
+                    average_containment_ani,
+                    max_containment_ani,
+                })
                 .unwrap();
             }
 
             let i = processed_cmp.fetch_add(1, atomic::Ordering::SeqCst);
-            if i % 100000 == 0 {
+            if i % 100000 == 0 && i > 0 {
                 eprintln!("Processed {} comparisons", i);
             }
+        }
+        if write_all {
+            let mut query_containment_ani = None;
+            let mut match_containment_ani = None;
+            let mut average_containment_ani = None;
+            let mut max_containment_ani = None;
+
+            if estimate_ani {
+                query_containment_ani = Some(1.0);
+                match_containment_ani = Some(1.0);
+                average_containment_ani = Some(1.0);
+                max_containment_ani = Some(1.0);
+            }
+
+            send.send(MultiSearchResult {
+                query_name: query.name.clone(),
+                query_md5: query.md5sum.clone(),
+                match_name: query.name.clone(),
+                match_md5: query.md5sum.clone(),
+                containment: 1.0,
+                max_containment: 1.0,
+                jaccard: 1.0,
+                intersect_hashes: query.minhash.size() as f64,
+                query_containment_ani,
+                match_containment_ani,
+                average_containment_ani,
+                max_containment_ani,
+            })
+            .unwrap();
         }
     });
 

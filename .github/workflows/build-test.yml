@@ -4,43 +4,30 @@ on:
   push:
     branches: [latest]
 jobs:
-  mamba:
+  tests_on_linux:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: Install latest stable rust
-      uses: actions-rs/toolchain@v1
-      with:
-         toolchain: stable
-         override: true
-         components: rustfmt, clippy
-
-    - name: Run cargo fmt
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
-
-    - name: cache rust
-      uses: Swatinem/rust-cache@v2
-
     - name: cache conda
       uses: actions/cache@v4
       env:
-        CACHE_NUMBER: 0
+        CACHE_NUMBER: 1
       with:
         path: ~/conda_pkgs_dir
         key:
           ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
 
+    - name: cache rust
+      uses: Swatinem/rust-cache@v2
+
     - name: setup conda
-      uses: conda-incubator/setup-miniconda@11b562958363ec5770fef326fe8ef0366f8cbf8a
+      uses: conda-incubator/setup-miniconda@v3
       with:
         auto-update-conda: true
-        python-version: 3.11
+        python-version: 3.12
         channels: conda-forge,bioconda
         miniforge-variant: Mambaforge
         miniforge-version: latest
@@ -48,11 +35,24 @@ jobs:
         mamba-version: "*"
         activate-environment: sourmash_dev
         auto-activate-base: false
-        use-only-tar-bz2: true
+#        use-only-tar-bz2: true
+
+    - run: conda info
+    - run: conda list
+    - run: conda config --show
+
+    - run: mamba search rust
 
     - name: install dependencies
       shell: bash -l {0}
-      run: mamba install git compilers maturin pytest pandas
+      run: mamba install rust==1.75.0
+
+    - name: install dependencies 2
+      shell: bash -l {0}
+      run: mamba install compilers maturin pytest pandas
+
+    - name: Run cargo fmt
+      run: cargo fmt --all -- --check --verbose
 
     - name: build
       shell: bash -l {0}
