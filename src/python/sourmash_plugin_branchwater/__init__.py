@@ -341,6 +341,40 @@ class Branchwater_Pairwise(CommandLinePlugin):
             notify(f"...pairwise is done! results in '{args.output}'")
         return status
 
+class Branchwater_SingleSketch(CommandLinePlugin):
+    command = 'singlesketch'
+    description = 'sketch a single sequence file'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('moltype', choices=["dna", "protein", "dayhoff", "hp"],
+                       help='molecule type (dna, protein, dayhoff, or hp)')
+        p.add_argument('input_filename', help="input FASTA file or '-' for stdin")
+        p.add_argument('-p', '--param-string', action='append', type=str, default=[],
+                       help='parameter string for sketching (default: k=31,scaled=1000)')
+        p.add_argument('-o', '--output', required=True,
+                       help='output file for the signature')
+
+    def main(self, args):
+        print_version()
+        if not args.param_string:
+            args.param_string = ["k=31,scaled=1000"]
+        notify(f"params: {args.param_string}")
+
+        # Convert to a single string for easier Rust handling
+        args.param_string = "_".join(args.param_string)
+        # Lowercase the param string
+        args.param_string = args.param_string.lower()
+
+        super().main(args)
+        status = sourmash_plugin_branchwater.do_singlesketch(args.input_filename,
+                                                       args.moltype.lower(),
+                                                       args.param_string,
+                                                       args.output)
+        if status == 0:
+            notify(f"...sketch is done! results in '{args.output}'")
+        return status
+
 
 class Branchwater_Manysketch(CommandLinePlugin):
     command = 'manysketch'

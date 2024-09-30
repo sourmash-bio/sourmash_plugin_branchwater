@@ -1,5 +1,6 @@
 /// Python interface Rust code for sourmash_plugin_branchwater.
 use pyo3::prelude::*;
+use singlesketch::singlesketch;
 
 #[macro_use]
 extern crate simple_error;
@@ -18,6 +19,7 @@ mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
+mod singlesketch;
 
 use camino::Utf8PathBuf as PathBuf;
 
@@ -301,6 +303,23 @@ fn do_manysketch(
 }
 
 #[pyfunction]
+#[pyo3(signature = (input_filename, moltype, param_str, output))]
+fn do_singlesketch(
+    input_filename: String,
+    moltype: String,
+    param_str: String,
+    output: String,
+) -> anyhow::Result<u8> {
+    match singlesketch::singlesketch(input_filename, moltype, param_str, output) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
+#[pyfunction]
 #[pyo3(signature = (pairwise_csv, output_clusters, similarity_column, similarity_threshold, cluster_sizes=None))]
 fn do_cluster(
     pairwise_csv: String,
@@ -336,5 +355,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
+    m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
     Ok(())
 }
