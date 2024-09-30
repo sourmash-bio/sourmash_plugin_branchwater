@@ -3,6 +3,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
+use sourmash::sketch::minhash::KmerMinHash;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -46,8 +47,8 @@ pub fn multisearch(
     let against: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
 
-    let queries_merged = Some(merge_all_minhashes(&queries));
-    let against_merged = Some(merge_all_minhashes(&against));
+    let queries_merged_mh: KmerMinHash = merge_all_minhashes(&queries).unwrap();
+    let against_merged_mh: KmerMinHash = merge_all_minhashes(&against).unwrap();
     // Combine all the queries and against into a single signature
     // maybe use minhash.merged?
     // let queries_combined = make_new_signature(queries.iter());
@@ -68,6 +69,7 @@ pub fn multisearch(
 
     let processed_cmp = AtomicUsize::new(0);
     let ksize = selection.ksize().unwrap() as f64;
+    let logged = true;
 
     let send = against
         .par_iter()
@@ -101,7 +103,13 @@ pub fn multisearch(
                     let mut prob_overlap_log10 = None;
                     let prob_weighted_containment = None;
 
-                    prob_overlap_log10 = Some(get_prob_overlap(&query.minhash, &against.minhash));
+                    let intersection: Vec<u64> = query.minhash.intersection(
+                        &against.minhash
+                    )
+                        .unwrap().0;
+
+                    prob_overlap_log10 = Some(get_prob_overlap(&intersection, &queries_merged_mh, &against_merged_mh, logged));
+                    prob_weighted_containment = prob_overlap_log10 * containment_query_in_target;
 
                     // estimate ANI values
                     if estimate_ani {
@@ -129,7 +137,7 @@ pub fn multisearch(
                         prob_overlap_log10,
                         prob_weighted_containment,
                     })
-                }
+                }    
             }
             if results.is_empty() {
                 None
