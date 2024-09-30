@@ -303,13 +303,14 @@ fn do_manysketch(
 }
 
 #[pyfunction]
-#[pyo3(signature = (input_filename, param_str, output))]
+#[pyo3(signature = (input_filename, param_str, output, name))]
 fn do_singlesketch(
     input_filename: String,
     param_str: String,
     output: String,
+    name: String,
 ) -> anyhow::Result<u8> {
-    match singlesketch::singlesketch(input_filename, param_str, output) {
+    match singlesketch::singlesketch(input_filename, param_str, output, name) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

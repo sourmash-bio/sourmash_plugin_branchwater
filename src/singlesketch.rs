@@ -5,7 +5,12 @@ use needletail::{parse_fastx_file, parse_fastx_reader};
 use std::fs::File;
 use std::io::BufWriter;
 
-pub fn singlesketch(input_filename: String, param_str: String, output: String) -> Result<()> {
+pub fn singlesketch(
+    input_filename: String,
+    param_str: String,
+    output: String,
+    name: String,
+) -> Result<()> {
     // Parse parameter string into params_vec
     let param_result = parse_params_str(param_str.clone());
     let params_vec = match param_result {
@@ -30,13 +35,11 @@ pub fn singlesketch(input_filename: String, param_str: String, output: String) -
     };
 
     // Build signature templates based on parsed parameters and detected moltype
-    let sig_templates = crate::manysketch::build_siginfo(&params_vec, &moltype);
+    let mut sigs = crate::manysketch::build_siginfo(&params_vec, &moltype);
 
-    if sig_templates.is_empty() {
+    if sigs.is_empty() {
         bail!("No signatures to build for the given parameters.");
     }
-
-    let mut sigs = sig_templates.clone();
 
     // Open FASTA file reader
     let mut reader = if input_filename == "-" {
@@ -66,7 +69,7 @@ pub fn singlesketch(input_filename: String, param_str: String, output: String) -
 
     // Set name and filename for signatures
     sigs.iter_mut().for_each(|sig| {
-        sig.set_name(&input_filename);
+        sig.set_name(&name); // Use the provided name
         sig.set_filename(&input_filename);
     });
 

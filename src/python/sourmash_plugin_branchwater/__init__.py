@@ -352,6 +352,7 @@ class Branchwater_SingleSketch(CommandLinePlugin):
                        help='output file for the signature')
         p.add_argument('-p', '--param-string', action='append', type=str, default=[],
                        help='parameter string for sketching (default: k=31,scaled=1000)')
+        p.add_argument('-n', '--name', help="optional name for the signature")
 
     def main(self, args):
         print_version()
@@ -373,12 +374,15 @@ class Branchwater_SingleSketch(CommandLinePlugin):
         # Convert the list of param strings to a single string
         args.param_string = "_".join(updated_param_strings).lower()
 
-        notify(f"sketching file '{args.input_filename}' with params '{args.param_string}'")
+        # If --name is not provided, default to input_filename
+        signature_name = args.name if args.name else args.input_filename
+        notify(f"sketching file '{args.input_filename}' with params '{args.param_string}' and name '{signature_name}'")
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_singlesketch(args.input_filename,
                                                              args.param_string,
-                                                             args.output)
+                                                             args.output,
+                                                             signature_name)  # Pass the name to Rust
         if status == 0:
             notify(f"...singlesketch is done! results in '{args.output}'")
         return status
