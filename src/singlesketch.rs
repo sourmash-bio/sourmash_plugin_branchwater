@@ -3,7 +3,7 @@ use anyhow::{bail, Result};
 use camino::Utf8Path as Path;
 use needletail::{parse_fastx_file, parse_fastx_reader};
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{self, BufWriter, Write};
 
 pub fn singlesketch(
     input_filename: String,
@@ -73,13 +73,22 @@ pub fn singlesketch(
         sig.set_filename(&input_filename);
     });
 
-    // Write signatures to output file
-    let outpath = Path::new(&output);
-    let file = File::create(outpath)?;
-    let mut writer = BufWriter::new(file);
+    // Check if the output is stdout or a file
+    if output == "-" {
+        // Write signatures to stdout
+        let stdout = io::stdout();
+        let mut handle = stdout.lock();
+        serde_json::to_writer(&mut handle, &sigs)?;
+        handle.flush()?;
+    } else {
+        // Write signatures to output file
+        let outpath = Path::new(&output);
+        let file = File::create(outpath)?;
+        let mut writer = BufWriter::new(file);
 
-    // Write in JSON format
-    serde_json::to_writer(&mut writer, &sigs)?;
+        // Write in JSON format
+        serde_json::to_writer(&mut writer, &sigs)?;
+    }
 
     Ok(())
 }

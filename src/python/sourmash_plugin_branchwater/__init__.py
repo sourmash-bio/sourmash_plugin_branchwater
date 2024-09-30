@@ -349,15 +349,15 @@ class Branchwater_SingleSketch(CommandLinePlugin):
         super().__init__(p)
         p.add_argument('input_filename', help="input FASTA file or '-' for stdin")
         p.add_argument('-o', '--output', required=True,
-                       help='output file for the signature')
+                       help='output file for the signature or - for stdout')
         p.add_argument('-p', '--param-string', action='append', type=str, default=[],
                        help='parameter string for sketching (default: k=31,scaled=1000)')
-        p.add_argument('-n', '--name', help="optional name for the signature")
+        p.add_argument('-n', '--name', help="optional name for the signature, default is the basename of input path")
 
     def main(self, args):
         print_version()
         if not args.param_string:
-            args.param_string = ["k=31,scaled=1000"]
+            args.param_string = ["k=31,scaled=1000,dna"]
 
         # Check and append 'dna' if no moltype is found in a param string
         moltypes = ["dna", "protein", "dayhoff", "hp"]
@@ -374,8 +374,9 @@ class Branchwater_SingleSketch(CommandLinePlugin):
         # Convert the list of param strings to a single string
         args.param_string = "_".join(updated_param_strings).lower()
 
-        # If --name is not provided, default to input_filename
-        signature_name = args.name if args.name else args.input_filename
+        # If --name is not provided, default to input_filename, but if the source file is -, set name to empty string
+        signature_name = args.name if args.name else os.path.basename(args.input_filename) if args.input_filename != "-" else ""
+
         notify(f"sketching file '{args.input_filename}' with params '{args.param_string}' and name '{signature_name}'")
 
         super().main(args)
