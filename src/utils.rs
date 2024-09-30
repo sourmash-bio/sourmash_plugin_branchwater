@@ -1,7 +1,6 @@
 /// Utility functions for sourmash_plugin_branchwater.
 use rayon::prelude::*;
 use sourmash::encodings::HashFunctions;
-use sourmash::ffi::signature::SourmashSignature;
 use sourmash::selection::Select;
 
 use anyhow::{anyhow, Context, Result};
@@ -9,7 +8,9 @@ use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use glob::glob;
+use logsumexp::LogSumExp;
 use serde::{Deserialize, Serialize};
+use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, File};
@@ -27,9 +28,9 @@ use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
+use sourmash::Error;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
-use sourmash::Error;
 
 /// Track a name/minhash.
 
@@ -1394,29 +1395,72 @@ pub fn write_signature(
     zip.write_all(&gzipped_buffer).unwrap();
 }
 
+// #[cfg(feature = "maths")]
+pub fn get_freq_intersecting_hashes(
+    intersection: &Vec<u64>,
+    minhash: &KmerMinHash,
+    logged: bool,
+) -> HashMap<u64, Decimal> {
+    let sum_abunds = minhash.sum_abunds() as f64;
+    let minhash_abunds: HashMap<u64, u64> = minhash.to_vec_abunds().into_iter().map(|(hashval, abund)| (hashval, abund)).collect();
 
-pub fn get_prob_overlap(
-    query_mh: &KmerMinHash,
-    database_mh: &KmerMinHash,
-) -> Result<f64, Error> {
-    let _query_intersection = Some(query_mh.intersection(database_mh));
+    let mut frequencies: HashMap<u64, Decimal> = HashMap::from(intersection
+        .par_iter()
+        .map(|hashval| 
+            (hashval, 
+                Decimal::from_f64_retain(minhash_abunds[hashval] as f64 / sum_abunds)
+            )
+        ).collect::<HashMap<u64, Decimal>>()
+    );
 
-    return Ok(0.0);
+    if logged {
+        frequencies
+            .values_mut()
+            .map(| freq| 
+                freq.ln()
+            );
+    } 
+
+    return frequencies;
 }
 
-pub fn merge_all_minhashes(
-    sigs: &Vec<SourmashSignature>,
-) -> Result<KmerMinHash, Error> {
+// #[cfg(feature = "maths")]
+pub fn get_prob_overlap(intersection: &Vec<u64>, queries_merged_mh: &KmerMinHash, database_merged_mh: &KmerMinHash, logged: bool) -> Decimal {
+    let query_frequencies = get_freq_intersecting_hashes(intersection, queries_merged_mh, logged);
+    let database_frequencies = get_freq_intersecting_hashes(intersection, database_merged_mh, logged);
+
+    // It's not guaranteed to me that the MinHashes from the query and database are in the same order, so iterate over one of them
+    // and use a hashmap to retrieve the frequency value of the other
+    let mut prob_overlap: f64;
+    if logged {
+        prob_overlap = query_frequencies
+            .values()
+            // .map(|(hashval, prob)| prob)
+            .ln_sum_exp();
+        // ln_sum_exp uses natural log
+        // -> change of base to log 10 for interpretability
+        prob_overlap = prob_overlap.ln() / 10_f64.ln();
+    } else {
+        prob_overlap = query_frequencies
+            .par_iter()
+            .map(|(hashval, freq)| freq * database_frequencies[hashval]).sum();
+    }
+
+    return prob_overlap;
+}
+
+pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Error> {
     if sigs.is_empty() {
-        return Err(Error::new("Signature list is empty"));
+        eprintln!("Signature list is empty");
+        std::process::exit(1);
     }
 
     let first_sig = &sigs[0];
 
     // Use the first signature to create the combination
     let mut combined_mh = KmerMinHash::new(
-        first_sig.minhash.scaled(),
-        first_sig.minhash.ksize(),
+        first_sig.minhash.scaled().try_into().unwrap(),
+        first_sig.minhash.ksize().try_into().unwrap(),
         first_sig.minhash.hash_function().clone(),
         first_sig.minhash.seed(),
         first_sig.minhash.abunds().is_some(),
@@ -1424,7 +1468,10 @@ pub fn merge_all_minhashes(
     );
 
     for sig in sigs.iter().skip(1) {
-        combined_mh = Some(combined_mh.merge(sig.minhash));
+        // Merging happens in place
+        // Rust Question: Does par_iter() make sense here or does that 
+        // mess with the combined_mh state, since the merging happens in-place?
+        combined_mh.merge(&sig.minhash);
     }
     Ok(combined_mh)
 }
