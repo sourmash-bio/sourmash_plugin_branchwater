@@ -1427,7 +1427,7 @@ pub fn get_hash_frequencies<'a>(
 
     eprintln!("--- minhash_abunds ---");
     for (key, value) in &minhash_abunds {
-        if (value != 1) {
+        if (*value != 1.0) {
             // Print only abundances that are greater than 1
             eprintln!("{}:\t{}", key, value);
         }

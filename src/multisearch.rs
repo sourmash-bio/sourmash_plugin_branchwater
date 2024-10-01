@@ -112,7 +112,7 @@ pub fn multisearch(
                     // Do simple, conservative Bonferroni correction
                     let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
                     let containment_adjusted = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
-                    let containment_adjusted_log10 = containment_adjusted.unwrap().log10();
+                    let containment_adjusted_log10 = Some(containment_adjusted.unwrap().log10());
 
                     // estimate ANI values
                     if estimate_ani {
