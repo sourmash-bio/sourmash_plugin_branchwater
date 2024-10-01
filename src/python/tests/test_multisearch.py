@@ -51,6 +51,8 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             assert float(row['containment'] == 1.0)
             assert float(row['jaccard'] == 1.0)
             assert float(row['max_containment'] == 1.0)
+            assert float(row['prob_overlap'] == 1.0)
+            assert float(row['prob_weighted_containment'] == 1.0)
             assert 'query_containment_ani' not in row
             assert 'match_containment_ani' not in row
             assert 'average_containment_ani' not in row
@@ -63,6 +65,8 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             cont = float(row['containment'])
             jaccard = float(row['jaccard'])
             maxcont = float(row['max_containment'])
+            prob_overlap = float(row['prob_overlap'])
+            prob_weighted_containment = float(row['prob_weighted_containment'])
             intersect_hashes = int(row['intersect_hashes'])
 
             jaccard = round(jaccard, 4)
@@ -75,12 +79,16 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert cont == 0.4828
                 assert maxcont == 0.4885
                 assert intersect_hashes == 2529
+                assert prob_overlap == 0
+                assert prob_weighted_containment == 0
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
                 assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert maxcont == 0.4885
                 assert intersect_hashes == 2529
+                assert prob_overlap == 0
+                assert prob_weighted_containment == 0
 
 
 def test_simple_ani(runtmp, zip_query, zip_db):
