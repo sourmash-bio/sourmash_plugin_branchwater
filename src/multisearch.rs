@@ -46,14 +46,12 @@ pub fn multisearch(
     )?;
     let against: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
-    let n_comparisons: u64 = against.len() * queries.len();
+    let n_comparisons: f64 = (against.len() * queries.len()).try_into().unwrap();
 
+    // Combine all the queries and against into a single signature each, to get their 
+    // underlying distribution of hashes across the whole input
     let queries_merged_mh: KmerMinHash = merge_all_minhashes(&queries).unwrap();
     let against_merged_mh: KmerMinHash = merge_all_minhashes(&against).unwrap();
-    // Combine all the queries and against into a single signature
-    // maybe use minhash.merged?
-    // let queries_combined = make_new_signature(queries.iter());
-    // let against_combined = make_new_signature(against.iter());
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -109,7 +107,7 @@ pub fn multisearch(
                     let prob_overlap = Some(get_prob_overlap(&intersection, &queries_merged_mh, &against_merged_mh, logged));
                     // Do simple, conservative Bonferroni correction
                     let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
-                    let prob_weighted_containment = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
+                    let containment_adjusted = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
 
                     // estimate ANI values
                     if estimate_ani {
@@ -121,7 +119,7 @@ pub fn multisearch(
                         max_containment_ani = Some(f64::max(qani, mani));
                     }
 
-                    results.push(MultiSearchResult {
+                    results.push(MultiSn_comparisonsearchResult {
                         query_name: query.name.clone(),
                         query_md5: query.md5sum.clone(),
                         match_name: against.name.clone(),
