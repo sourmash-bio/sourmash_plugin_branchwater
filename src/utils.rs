@@ -9,7 +9,6 @@ use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use glob::glob;
 use logsumexp::LogSumExp;
-use std::primitive::f64::ln;
 use serde::{Deserialize, Serialize};
 // use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{Ordering, PartialOrd};
@@ -1248,10 +1247,12 @@ pub struct MultiSearchResult {
     pub max_containment_ani: Option<f64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prob_overlap_log10: Option<f64>,
+    pub prob_overlap: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prob_overlap_adjusted: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     // max_containment / prob_overlap -> Bigger means less likely to be random
-    pub prob_weighted_containment: Option<f64>,
+    pub containment_adjusted: Option<f64>,
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
@@ -1397,21 +1398,23 @@ pub fn write_signature(
 }
 
 // #[cfg(feature = "maths")]
-pub fn get_freq_intersecting_hashes(
-    intersection: &Vec<u64>,
+pub fn get_freq_intersecting_hashes<'a>(
+    intersection: &'a Vec<u64>,
     minhash: &KmerMinHash,
     logged: bool,
-) -> HashMap<u64, f64> {
+    // Output hashmap borrows the hashvalues from intersection input
+) -> HashMap<&'a u64, f64> {
+    
     let sum_abunds: f64 = minhash.sum_abunds() as f64;
     let minhash_abunds: HashMap<u64, u64> = minhash.to_vec_abunds().into_iter().map(|(hashval, abund)| (hashval, abund)).collect();
 
-    let mut frequencies: HashMap<u64, f64> = HashMap::from(intersection
+    let mut frequencies: HashMap<&u64, f64> = HashMap::from(intersection
         .par_iter()
         .map(|hashval| 
             (hashval, 
                 minhash_abunds[hashval] as f64 / sum_abunds
             )
-        ).collect::<HashMap<u64, f64>>()
+        ).collect::<HashMap<&u64, f64>>()
     );
 
     if logged {
@@ -1426,16 +1429,17 @@ pub fn get_freq_intersecting_hashes(
 }
 
 // #[cfg(feature = "maths")]
-pub fn get_prob_overlap(intersection: &Vec<u64>, queries_merged_mh: &KmerMinHash, database_merged_mh: &KmerMinHash, logged: bool) -> Decimal {
-    let query_frequencies: HashMap<u64, f64> = get_freq_intersecting_hashes(intersection, queries_merged_mh, logged);
-    let database_frequencies: HashMap<u64, f64> = get_freq_intersecting_hashes(intersection, database_merged_mh, logged);
+pub fn get_prob_overlap(intersection: &Vec<u64>, queries_merged_mh: &KmerMinHash, database_merged_mh: &KmerMinHash, logged: bool) -> f64 {
+    let query_frequencies: HashMap<&u64, f64> = get_freq_intersecting_hashes(intersection, queries_merged_mh, logged);
+    let database_frequencies: HashMap<&u64, f64> = get_freq_intersecting_hashes(intersection, database_merged_mh, logged);
 
     // It's not guaranteed to me that the MinHashes from the query and database are in the same order, so iterate over one of them
     // and use a hashmap to retrieve the frequency value of the other
     let mut prob_overlap: f64;
     if logged {
         prob_overlap = query_frequencies
-            .values()
+            .iter()
+            .map(|(hashval, freq)| freq + database_frequencies[hashval])
             .ln_sum_exp();
         // ln_sum_exp uses natural log
         // -> change of base to log 10 for interpretability
@@ -1449,6 +1453,9 @@ pub fn get_prob_overlap(intersection: &Vec<u64>, queries_merged_mh: &KmerMinHash
     return prob_overlap;
 }
 
+// TODO: How to accept SourmashSignature objects? Signature.minhash is Option<&KmerMinHash>, 
+// so it's not guaranteed for a SourmashSignature to have a minhash object. Is there a way to 
+// only accept SourmashSignature objects that have `.minhash` present?
 pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Error> {
     if sigs.is_empty() {
         eprintln!("Signature list is empty");
@@ -1457,7 +1464,7 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
 
     let first_sig = &sigs[0];
 
-    // Use the first signature to create the combination
+    // Use the first signature to instantiate the merging of all minhashes
     let mut combined_mh = KmerMinHash::new(
         first_sig.minhash.scaled().try_into().unwrap(),
         first_sig.minhash.ksize().try_into().unwrap(),
