@@ -1253,6 +1253,9 @@ pub struct MultiSearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     // max_containment / prob_overlap -> Bigger means less likely to be random
     pub containment_adjusted: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    // logged version is easier to plot/prioritize
+    pub containment_adjusted_log10: Option<f64>,
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
@@ -1398,27 +1401,51 @@ pub fn write_signature(
 }
 
 // #[cfg(feature = "maths")]
-pub fn get_freq_intersecting_hashes<'a>(
-    intersection: &'a Vec<u64>,
+pub fn get_hash_frequencies<'a>(
+    hashvals: &'a Vec<u64>,
     minhash: &KmerMinHash,
     logged: bool,
     // Output hashmap borrows the hashvalues from intersection input
 ) -> HashMap<&'a u64, f64> {
+
+// pub fn get_hash_frequency(
+// hashvals: &Vec<u64>,
+// minhash: &KmerMinHash,
+// logged: bool,
+// // Output hashmap borrows the hashvalues from hashvals input
+// ) -> HashMap<u64, f64> {
     
     let sum_abunds: f64 = minhash.sum_abunds() as f64;
-    let minhash_abunds: HashMap<u64, u64> = minhash.to_vec_abunds().into_iter().map(|(hashval, abund)| (hashval, abund)).collect();
+    let minhash_abunds: HashMap<u64, f64> = minhash.to_vec_abunds().into_iter().map(|(hashval, abund)| (hashval, abund as f64)).collect();
 
-    let mut frequencies: HashMap<&u64, f64> = HashMap::from(intersection
+    eprintln!("--- hashvals, length: {} ---", hashvals.len());
+    // for value in intersection {
+    //     eprintln!("{}", value);
+    // }
+
+    eprintln!("--- sum_abunds: {} ---", sum_abunds);
+
+    eprintln!("--- minhash_abunds ---");
+    for (key, value) in &minhash_abunds {
+        if (value != 1) {
+            // Print only abundances that are greater than 1
+            eprintln!("{}:\t{}", key, value);
+        }
+    }
+
+    let mut frequencies: HashMap<&u64, f64> = HashMap::from(hashvals
         .par_iter()
         .map(|hashval| 
+            // TODO: add a match statement here to error out properly if the hashval was not found 
+            // in the minhash_abunds for some reason (shouldn't happen but ... computers be crazy)
             (hashval, 
-                minhash_abunds[hashval] as f64 / sum_abunds
+                minhash_abunds[hashval] / sum_abunds
             )
         ).collect::<HashMap<&u64, f64>>()
     );
 
     if logged {
-        frequencies
+        let _ = frequencies
             .values_mut()
             .map(| freq| 
                 freq.ln()
@@ -1430,12 +1457,12 @@ pub fn get_freq_intersecting_hashes<'a>(
 
 // #[cfg(feature = "maths")]
 pub fn get_prob_overlap(intersection: &Vec<u64>, queries_merged_mh: &KmerMinHash, database_merged_mh: &KmerMinHash, logged: bool) -> f64 {
-    let query_frequencies: HashMap<&u64, f64> = get_freq_intersecting_hashes(intersection, queries_merged_mh, logged);
-    let database_frequencies: HashMap<&u64, f64> = get_freq_intersecting_hashes(intersection, database_merged_mh, logged);
+    let query_frequencies: HashMap<&u64, f64> = get_hash_frequencies(intersection, queries_merged_mh, logged);
+    let database_frequencies: HashMap<&u64, f64> = get_hash_frequencies(intersection, database_merged_mh, logged);
 
     // It's not guaranteed to me that the MinHashes from the query and database are in the same order, so iterate over one of them
     // and use a hashmap to retrieve the frequency value of the other
-    let mut prob_overlap: f64;
+    let mut prob_overlap: f64 = 0.0;
     if logged {
         prob_overlap = query_frequencies
             .iter()
@@ -1462,6 +1489,8 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
         std::process::exit(1);
     }
 
+    eprintln!("\n--- in merge_all_minhashes ---");
+
     let first_sig = &sigs[0];
 
     // Use the first signature to instantiate the merging of all minhashes
@@ -1474,11 +1503,18 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
         first_sig.minhash.num(),
     );
 
-    for sig in sigs.iter().skip(1) {
-        // Merging happens in place
+    // Maybe should be using add_many_with_abund?
+    // `merge` is a pretty heavy operation
+    for sig in sigs.iter() {
+        // Merging of signatures happens in place with KmerMinHash objects
         // Rust Question: Does par_iter() make sense here or does that 
         // mess with the combined_mh state, since the merging happens in-place?
-        combined_mh.merge(&sig.minhash);
+        eprintln!("Adding signature, sig.name: {}, sig.md5sum: {}, sig.location: {}", sig.name, sig.md5sum, sig.location);
+        eprintln!("combined_mh.n_unique_kmers(): {}", combined_mh.n_unique_kmers());
+        let _ = combined_mh.merge(&sig.minhash);
     }
+    eprintln!("Final combined_mh.n_unique_kmers(): {}", combined_mh.n_unique_kmers());
     Ok(combined_mh)
 }
+
+// pub fn get_inverse_document_frequency
