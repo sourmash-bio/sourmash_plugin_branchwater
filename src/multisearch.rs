@@ -50,8 +50,12 @@ pub fn multisearch(
 
     // Combine all the queries and against into a single signature each, to get their 
     // underlying distribution of hashes across the whole input
+    eprintln!("Merging queries ...");
     let queries_merged_mh: KmerMinHash = merge_all_minhashes(&queries).unwrap();
+    eprintln!("\tDone.\n");
+    eprintln!("Merging against ...");
     let against_merged_mh: KmerMinHash = merge_all_minhashes(&against).unwrap();
+    eprintln!("\tDone.\n");
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -108,6 +112,7 @@ pub fn multisearch(
                     // Do simple, conservative Bonferroni correction
                     let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
                     let containment_adjusted = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
+                    let containment_adjusted_log10 = containment_adjusted.unwrap().log10();
 
                     // estimate ANI values
                     if estimate_ani {
@@ -135,6 +140,7 @@ pub fn multisearch(
                         prob_overlap,
                         prob_overlap_adjusted,
                         containment_adjusted,
+                        containment_adjusted_log10,
                     })
                 }    
             }
