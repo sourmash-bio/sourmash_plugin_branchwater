@@ -46,7 +46,7 @@ pub fn multisearch(
     )?;
     let against: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
-    let n_comparisons: f64 = (against.len() * queries.len()).try_into().unwrap();
+    let n_comparisons: f64 = against.len() as f64 * queries.len() as f64;
 
     // Combine all the queries and against into a single signature each, to get their 
     // underlying distribution of hashes across the whole input
@@ -119,7 +119,7 @@ pub fn multisearch(
                         max_containment_ani = Some(f64::max(qani, mani));
                     }
 
-                    results.push(MultiSn_comparisonsearchResult {
+                    results.push(MultiSearchResult {
                         query_name: query.name.clone(),
                         query_md5: query.md5sum.clone(),
                         match_name: against.name.clone(),
