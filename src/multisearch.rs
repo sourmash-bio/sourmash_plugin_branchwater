@@ -46,6 +46,7 @@ pub fn multisearch(
     )?;
     let against: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
+    let n_comparisons: u64 = against.len() * queries.len();
 
     let queries_merged_mh: KmerMinHash = merge_all_minhashes(&queries).unwrap();
     let against_merged_mh: KmerMinHash = merge_all_minhashes(&against).unwrap();
@@ -69,7 +70,7 @@ pub fn multisearch(
 
     let processed_cmp = AtomicUsize::new(0);
     let ksize = selection.ksize().unwrap() as f64;
-    let logged = true;
+    let logged = false;
 
     let send = against
         .par_iter()
@@ -99,17 +100,16 @@ pub fn multisearch(
                     let mut average_containment_ani = None;
                     let mut max_containment_ani = None;
 
-                    // Related to getting the probability of overlap between query and target
-                    let mut prob_overlap_log10 = None;
-                    let prob_weighted_containment = None;
-
                     let intersection: Vec<u64> = query.minhash.intersection(
                         &against.minhash
                     )
                         .unwrap().0;
 
-                    prob_overlap_log10 = Some(get_prob_overlap(&intersection, &queries_merged_mh, &against_merged_mh, logged));
-                    prob_weighted_containment = prob_overlap_log10 * containment_query_in_target;
+                    // Related to getting the probability of overlap between query and target
+                    let prob_overlap = Some(get_prob_overlap(&intersection, &queries_merged_mh, &against_merged_mh, logged));
+                    // Do simple, conservative Bonferroni correction
+                    let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
+                    let prob_weighted_containment = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
 
                     // estimate ANI values
                     if estimate_ani {
@@ -134,8 +134,9 @@ pub fn multisearch(
                         match_containment_ani,
                         average_containment_ani,
                         max_containment_ani,
-                        prob_overlap_log10,
-                        prob_weighted_containment,
+                        prob_overlap,
+                        prob_overlap_adjusted,
+                        containment_adjusted,
                     })
                 }    
             }
