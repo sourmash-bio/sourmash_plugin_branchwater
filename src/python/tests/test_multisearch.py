@@ -51,12 +51,20 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             assert float(row['containment'] == 1.0)
             assert float(row['jaccard'] == 1.0)
             assert float(row['max_containment'] == 1.0)
-            assert float(row['prob_overlap'] == 1.0)
-            assert float(row['prob_weighted_containment'] == 1.0)
+            # assert float(row['prob_overlap'] == 1.0)
+            # assert float(row['prob_overlap_adjusted'] == 1.0)
+            # assert float(row['containment_adjusted'] == 1.0)
             assert 'query_containment_ani' not in row
             assert 'match_containment_ani' not in row
             assert 'average_containment_ani' not in row
             assert 'max_containment_ani' not in row
+
+            if row['match_name'] == 'NC_011665.1':
+                assert float(row['prob_overlap'] == 4.67E-05)
+                assert float(row['prob_overlap_adjusted'] == 0.0004205931327)
+                assert float(row['containment_adjusted'] == 2377.594693)
+                assert float(row['containment_adjusted_log10'] == 2377.594693)
+
 
         else:
             # confirm hand-checked numbers
@@ -66,12 +74,19 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             jaccard = float(row['jaccard'])
             maxcont = float(row['max_containment'])
             prob_overlap = float(row['prob_overlap'])
-            prob_weighted_containment = float(row['prob_weighted_containment'])
+            prob_overlap_adjusted = float(row['prob_overlap_adjusted'])
+            containment_adjusted = float(row['containment_adjusted'])
+            containment_adjusted_log10 = float(row['containment_adjusted_log10'])
             intersect_hashes = int(row['intersect_hashes'])
 
             jaccard = round(jaccard, 4)
             cont = round(cont, 4)
             maxcont = round(maxcont, 4)
+            prob_overlap = round(prob_overlap, 4)
+            prob_overlap_adjusted = round(prob_overlap_adjusted, 4)
+            containment_adjusted = round(containment_adjusted, 4)
+            containment_adjusted_log10 = round(containment_adjusted_log10, 4)
+
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
             if q == 'NC_011665.1' and m == 'NC_009661.1':
@@ -79,16 +94,20 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert cont == 0.4828
                 assert maxcont == 0.4885
                 assert intersect_hashes == 2529
-                assert prob_overlap == 0
-                assert prob_weighted_containment == 0
+                assert prob_overlap == 2.26E-05
+                assert prob_overlap_adjusted == 0.0002030698802
+                assert containment_adjusted == 2377
+                assert containment_adjusted_log10 == 3.3760291817281805
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
                 assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert maxcont == 0.4885
                 assert intersect_hashes == 2529
-                assert prob_overlap == 0
-                assert prob_weighted_containment == 0
+                assert prob_overlap == 2.26E-05
+                assert prob_overlap_adjusted == 0.0002030698802
+                assert containment_adjusted == 2405
+                assert containment_adjusted_log10 == 3.3811150807098507
 
 
 def test_simple_ani(runtmp, zip_query, zip_db):
