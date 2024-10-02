@@ -8,8 +8,9 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType, get_prob_overlap, merge_all_minhashes
+    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType
 };
+use crate::search_significance::{get_prob_overlap, merge_all_minhashes};
 use sourmash::ani_utils::ani_from_containment;
 
 

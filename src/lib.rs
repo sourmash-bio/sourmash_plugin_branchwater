@@ -18,6 +18,7 @@ mod mastiff_manygather;
 mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
+mod search_significance;
 
 use camino::Utf8PathBuf as PathBuf;
 
