@@ -21,6 +21,7 @@ pub fn manysearch(
     threshold: f64,
     output: Option<String>,
     allow_failed_sigpaths: bool,
+    ignore_abundance: bool,
 ) -> Result<()> {
     // Load query collection
     let query_collection = load_collection(
@@ -72,7 +73,7 @@ pub fn manysearch(
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {
                             // to do - let user choose?
-                            let calc_abund_stats = against_mh.track_abundance();
+                            let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
 
                             let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).unwrap();
                             let overlap =

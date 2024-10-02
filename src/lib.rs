@@ -24,7 +24,7 @@ mod singlesketch;
 use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None))]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false))]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,
@@ -33,14 +33,18 @@ fn do_manysearch(
     scaled: usize,
     moltype: String,
     output_path: Option<String>,
+    ignore_abundance: Option<bool>
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
 
+    let ignore_abundance = ignore_abundance.unwrap_or(false);
+
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
     if is_revindex_database(&againstfile_path) {
+        // note: mastiff_manysearch ignores abundance automatically.
         match mastiff_manysearch::mastiff_manysearch(
             querylist_path,
             againstfile_path,
@@ -63,6 +67,7 @@ fn do_manysearch(
             threshold,
             output_path,
             allow_failed_sigpaths,
+            ignore_abundance,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
