@@ -33,7 +33,7 @@ fn do_manysearch(
     scaled: usize,
     moltype: String,
     output_path: Option<String>,
-    ignore_abundance: Option<bool>
+    ignore_abundance: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
