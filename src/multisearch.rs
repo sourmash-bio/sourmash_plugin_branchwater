@@ -109,7 +109,14 @@ pub fn multisearch(
                         .unwrap().0;
 
                     // Related to getting the probability of overlap between query and target
-                    let prob_overlap = Some(get_prob_overlap(&intersection, &queries_merged_mh, &against_merged_mh, logged));
+                    let prob_overlap = Some(
+                        get_prob_overlap(
+                            &intersection, 
+                            &queries_merged_mh, 
+                            &against_merged_mh, 
+                            Some(logged),
+                        )
+                    );
                     // Do simple, conservative Bonferroni correction
                     let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
                     let containment_adjusted = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
@@ -119,7 +126,7 @@ pub fn multisearch(
                             &intersection, 
                             query, 
                             &againsts,
-                            true,
+                            Some(true),
                         )
                     );
 
