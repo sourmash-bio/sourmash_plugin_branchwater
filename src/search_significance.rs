@@ -63,7 +63,8 @@ pub fn get_hash_frequencies<'a>(
                 // .collect::<Vec<f64>>()
                 .sum() as f64
             }
-        _ => eprintln!("Invalid Normalization")
+        // TODO: this should probably be an error
+        _ => 0.0,
     };
 
     let mut frequencies: HashMap<&u64, f64> = HashMap::from(hashvals
@@ -126,6 +127,7 @@ pub fn get_prob_overlap(
                 .map(|(hashval, freq)| freq * database_frequencies[hashval]).sum();
             p_overlap
         },
+        // TODO: this should probably be an error
         _ => 0.0,
     };
 
@@ -140,8 +142,6 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
         eprintln!("Signature list is empty");
         std::process::exit(1);
     }
-
-    eprintln!("\n--- in merge_all_minhashes ---");
 
     let first_sig = &sigs[0];
 
@@ -162,24 +162,7 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
         .flatten()
         .collect();
 
-    eprintln!("combined_mh.track_abundance(): {}", combined_mh.track_abundance());
-    eprintln!("Before adding any hashes: combined_mh.n_unique_kmers(): {}", combined_mh.n_unique_kmers());
     _ = combined_mh.add_many_with_abund(&hashes_with_abund);
-
-    // // Maybe should be using add_many_with_abund?
-    // // `merge` is a pretty heavy operation
-    // for sig in sigs.iter() {
-    //     // Merging of signatures happens in place with KmerMinHash objects
-    //     // Rust Question: Does par_iter() make sense here or does that 
-    //     // mess with the combined_mh state, since the merging happens in-place?
-    //     eprintln!("Adding signature, sig.name: {}, sig.md5sum: {}, sig.location: {}", sig.name, sig.md5sum, sig.location);
-    //     eprintln!("combined_mh.n_unique_kmers(): {}", combined_mh.n_unique_kmers());
-    //     let _ = combined_mh.merge(&sig.minhash);
-    // }
-    // combined_mh.reset_md5sum();
-
-    // eprintln!("Final combined_mh.n_unique_kmers(): {}", combined_mh.n_unique_kmers());
-    eprintln!("Final combined_mh.mins().len(): {}", combined_mh.mins().len());
 
     let _  = value_count(combined_mh.to_vec_abunds());
 
