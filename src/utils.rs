@@ -1254,6 +1254,9 @@ pub struct MultiSearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     // logged version is easier to plot/prioritize
     pub containment_adjusted_log10: Option<f64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tf_idf_score: Option<f64>,
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {

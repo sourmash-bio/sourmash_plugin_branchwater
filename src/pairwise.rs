@@ -67,6 +67,7 @@ pub fn pairwise(
             let prob_overlap_adjusted = None;
             let containment_adjusted = None;
             let containment_adjusted_log10 = None;
+            let tf_idf_score = None;
 
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
@@ -102,6 +103,7 @@ pub fn pairwise(
                     prob_overlap_adjusted,
                     containment_adjusted,
                     containment_adjusted_log10,
+                    tf_idf_score,
                 })
                 .unwrap();
             }
@@ -119,7 +121,8 @@ pub fn pairwise(
             let prob_overlap = None;
             let prob_overlap_adjusted = None;        
             let containment_adjusted = None;   
-            let containment_adjusted_log10 = None;     
+            let containment_adjusted_log10 = None; 
+            let tf_idf_score = None;    
 
             if estimate_ani {
                 query_containment_ani = Some(1.0);
@@ -145,7 +148,7 @@ pub fn pairwise(
                 prob_overlap_adjusted,
                 containment_adjusted,
                 containment_adjusted_log10,
-
+                tf_idf_score,
             })
             .unwrap();
         }
