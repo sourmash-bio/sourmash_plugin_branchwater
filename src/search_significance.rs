@@ -48,45 +48,23 @@ pub fn get_hash_frequencies<'a>(
     // Output hashmap borrows the hashvalues from intersection input
 ) -> HashMap<&'a u64, f64> {
 
-// pub fn get_hash_frequency(
-// hashvals: &Vec<u64>,
-// minhash: &KmerMinHash,
-// logged: bool,
-// // Output hashmap borrows the hashvalues from hashvals input
-// ) -> HashMap<u64, f64> {
-    
     let minhash_abunds: HashMap<u64, f64> = minhash
         .to_vec_abunds()
         .into_iter()
         .map(|(hashval, abund)| (hashval, abund as f64))
         .collect();
 
-    let abund_normalization = match normalization {
-        Some(Normalization::L1) => minhash.sum_abunds(),
+    let abund_normalization: f64 = match normalization {
+        Some(Normalization::L1) => minhash.sum_abunds() as f64,
         Some(Normalization::L2) => { 
             minhash_abunds
                 .values()
                 .map(|abund| abund * abund )
-                .collect<Vec<f64>>()
+                // .collect::<Vec<f64>>()
                 .sum() as f64
             }
         _ => eprintln!("Invalid Normalization")
     };
-
-    eprintln!("--- hashvals, length: {} ---", hashvals.len());
-    // for value in intersection {
-    //     eprintln!("{}", value);
-    // }
-
-    eprintln!("--- abund_normalization: {} ---", abund_normalization);
-
-    eprintln!("--- minhash_abunds ---");
-    // for (key, value) in &minhash_abunds {
-    //     if *value != 1.0 {
-    //         // Print only abundances that are greater than 1
-    //         eprintln!("{}:\t{}", key, value);
-    //     } 
-    // }
 
     let mut frequencies: HashMap<&u64, f64> = HashMap::from(hashvals
         .par_iter()
