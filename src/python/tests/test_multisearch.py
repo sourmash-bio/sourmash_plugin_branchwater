@@ -77,6 +77,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             prob_overlap_adjusted = float(row['prob_overlap_adjusted'])
             containment_adjusted = float(row['containment_adjusted'])
             containment_adjusted_log10 = float(row['containment_adjusted_log10'])
+            tf_idf_score = float(row['tf_idf_score'])
             intersect_hashes = int(row['intersect_hashes'])
 
             jaccard = round(jaccard, 4)
@@ -86,6 +87,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             prob_overlap_adjusted = round(prob_overlap_adjusted, 7)
             containment_adjusted = round(containment_adjusted, 4)
             containment_adjusted_log10 = round(containment_adjusted_log10, 4)
+            tf_idf_score = round(tf_idf_score, 4)
 
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
@@ -98,6 +100,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert prob_overlap_adjusted == 0.0002031
                 assert containment_adjusted == 2377.5947
                 assert containment_adjusted_log10 == 3.3761
+                assert tf_idf_score == 1.497381
 
             if q == 'NC_009661.1' and m == 'NC_011665.1':
                 assert jaccard == 0.3207
@@ -108,6 +111,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert prob_overlap_adjusted == 0.0002031
                 assert containment_adjusted == 2405.6096
                 assert containment_adjusted_log10 == 3.3812
+                assert tf_idf_score == 1.495075
 
 
 def test_simple_ani(runtmp, zip_query, zip_db):
