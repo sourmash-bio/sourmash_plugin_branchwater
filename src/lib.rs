@@ -1,6 +1,5 @@
 /// Python interface Rust code for sourmash_plugin_branchwater.
 use pyo3::prelude::*;
-use singlesketch::singlesketch;
 
 #[macro_use]
 extern crate simple_error;

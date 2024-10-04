@@ -72,15 +72,14 @@ pub fn manysearch(
                 Ok(against_sig) => {
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {
-                            // to do - let user choose?
-                            let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
-
-                            let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).unwrap();
-                            let overlap =
-                                query.minhash.count_common(&against_mh_ds, false).unwrap() as f64;
+                            // avoid calculating details unless there is overlap
+                            let overlap = query.minhash.count_common(against_mh, false).expect("incompatible sketches") as f64;
 
                             // only calculate results if we have shared hashes
                             if overlap > 0.0 {
+                                let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
+
+                                let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).expect("cannot downsample sketch");
                                 let query_size = query.minhash.size() as f64;
                                 let containment_query_in_target = overlap / query_size;
                                 if containment_query_in_target > threshold {
