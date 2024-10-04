@@ -10,7 +10,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::utils::{
     csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType
 };
-use crate::search_significance::{get_prob_overlap, merge_all_minhashes};
+use crate::search_significance::{get_prob_overlap, get_term_frequency_inverse_document_frequency, merge_all_minhashes};
 use sourmash::ani_utils::ani_from_containment;
 
 
@@ -45,9 +45,9 @@ pub fn multisearch(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    let against: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let againsts: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
-    let n_comparisons: f64 = against.len() as f64 * queries.len() as f64;
+    let n_comparisons: f64 = againsts.len() as f64 * queries.len() as f64;
 
     // Combine all the queries and against into a single signature each, to get their 
     // underlying distribution of hashes across the whole input
@@ -55,7 +55,7 @@ pub fn multisearch(
     let queries_merged_mh: KmerMinHash = merge_all_minhashes(&queries).unwrap();
     eprintln!("\tDone.\n");
     eprintln!("Merging against ...");
-    let against_merged_mh: KmerMinHash = merge_all_minhashes(&against).unwrap();
+    let against_merged_mh: KmerMinHash = merge_all_minhashes(&againsts).unwrap();
     eprintln!("\tDone.\n");
 
     // set up a multi-producer, single-consumer channel.
@@ -75,7 +75,7 @@ pub fn multisearch(
     let ksize = selection.ksize().unwrap() as f64;
     let logged = false;
 
-    let send = against
+    let send = againsts
         .par_iter()
         .filter_map(|against| {
             let mut results = vec![];
@@ -114,6 +114,14 @@ pub fn multisearch(
                     let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
                     let containment_adjusted = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
                     let containment_adjusted_log10 = Some(containment_adjusted.unwrap().log10());
+                    let tf_idf_score = Some(
+                        get_term_frequency_inverse_document_frequency(
+                            &intersection, 
+                            query, 
+                            &againsts,
+                            true,
+                        )
+                    );
 
                     // estimate ANI values
                     if estimate_ani {
@@ -142,6 +150,7 @@ pub fn multisearch(
                         prob_overlap_adjusted,
                         containment_adjusted,
                         containment_adjusted_log10,
+                        tf_idf_score,
                     })
                 }    
             }
