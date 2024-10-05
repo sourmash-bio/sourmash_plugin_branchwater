@@ -13,6 +13,9 @@ use crate::utils::{csvwriter_thread, load_collection, load_sketches, ReportType,
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
+use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::errors::SourmashError;
+
 
 pub fn manysearch(
     query_filepath: String,
@@ -101,21 +104,11 @@ pub fn manysearch(
 
                                 let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
                                 let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
-                                    let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).expect("cannot downsample sketch");
-
-                                    match query.minhash.inflated_abundances(&against_mh_ds) {
-                                        Ok((abunds, sum_weighted_overlap)) => {
-                                            let sum_all_abunds = against_mh_ds.sum_abunds() as usize;
-                                            let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
-                                            let median_abund = median(abunds.iter().cloned()).unwrap();
-                                            let std_abund = stddev(abunds.iter().cloned());
-                                            (Some(sum_all_abunds), Some(sum_weighted_overlap as usize), Some(average_abund), Some(median_abund), Some(std_abund))
-                                        }
-                                        Err(e) => {
-                                            eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
-                                            continue;
-                                        }
-                                    }
+                                    downsample_and_inflate_abundances(&query.minhash, against_mh).ok()?
+//                                        Err(e) => {
+//                                            eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
+//                                            continue;
+//                                        }
                                 } else {
                                     (None, None, None, None, None)
                                 };
@@ -194,4 +187,30 @@ pub fn manysearch(
     }
 
     Ok(())
+}
+
+
+fn downsample_and_inflate_abundances(query: &KmerMinHash, against: &KmerMinHash) -> Result<(Option<usize>, Option<usize>, Option<f64>, Option<f64>, Option<f64>), SourmashError> {
+    let query_scaled = query.scaled();
+    let against_scaled = against.scaled();
+
+    let abunds: Vec<u64>;
+    let sum_weighted: u64;
+    let sum_all_abunds : usize;
+
+    // avoid downsampling if we can
+    if against_scaled != query_scaled {
+        let against_ds = against.downsample_scaled(query.scaled()).expect("cannot downsample sketch");
+        (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;
+        sum_all_abunds = against_ds.sum_abunds() as usize;
+    } else {
+        (abunds, sum_weighted) = query.inflated_abundances(against)?;
+        sum_all_abunds = against.sum_abunds() as usize;
+    }
+
+    let average_abund = sum_weighted as f64 / abunds.len() as f64;
+    let median_abund = median(abunds.iter().cloned()).expect("error");
+    let std_abund = stddev(abunds.iter().cloned());
+
+    Ok((Some(sum_all_abunds), Some(sum_weighted as usize), Some(average_abund), Some(median_abund), Some(std_abund)))
 }
