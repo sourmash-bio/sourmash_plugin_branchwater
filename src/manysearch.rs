@@ -75,74 +75,70 @@ pub fn manysearch(
                             // avoid calculating details unless there is overlap
                             let overlap = query.minhash.count_common(against_mh, true).expect("incompatible sketches") as f64;
 
+                            let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
+                            let query_size = query.minhash.size() as f64;
+                            let containment_query_in_target = overlap / query_size;
                             // only calculate results if we have shared hashes
-                            if overlap > 0.0 {
-                                let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
+                            if containment_query_in_target > threshold {
+                                let target_size = against_mh.size() as f64;
+                                let containment_target_in_query = overlap / target_size;
 
-                                let query_size = query.minhash.size() as f64;
-                                let containment_query_in_target = overlap / query_size;
-                                if containment_query_in_target > threshold {
-                                    let target_size = against_mh.size() as f64;
-                                    let containment_target_in_query = overlap / target_size;
+                                let max_containment =
+                                    containment_query_in_target.max(containment_target_in_query);
+                                let jaccard = overlap / (target_size + query_size - overlap);
 
-                                    let max_containment =
-                                        containment_query_in_target.max(containment_target_in_query);
-                                    let jaccard = overlap / (target_size + query_size - overlap);
+                                let qani = ani_from_containment(
+                                    containment_query_in_target,
+                                    against_mh.ksize() as f64,
+                                );
+                                let mani = ani_from_containment(
+                                    containment_target_in_query,
+                                    against_mh.ksize() as f64,
+                                );
+                                let query_containment_ani = Some(qani);
+                                let match_containment_ani = Some(mani);
+                                let average_containment_ani = Some((qani + mani) / 2.);
+                                let max_containment_ani = Some(f64::max(qani, mani));
 
-                                    let qani = ani_from_containment(
-                                        containment_query_in_target,
-                                        against_mh.ksize() as f64,
-                                    );
-                                    let mani = ani_from_containment(
-                                        containment_target_in_query,
-                                        against_mh.ksize() as f64,
-                                    );
-                                    let query_containment_ani = Some(qani);
-                                    let match_containment_ani = Some(mani);
-                                    let average_containment_ani = Some((qani + mani) / 2.);
-                                    let max_containment_ani = Some(f64::max(qani, mani));
+                                let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
+                                    let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).expect("cannot downsample sketch");
 
-                                    let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
-                                        panic!("should not be reached.");
-                                        let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).expect("cannot downsample sketch");
-
-                                        match query.minhash.inflated_abundances(&against_mh_ds) {
-                                            Ok((abunds, sum_weighted_overlap)) => {
-                                                let sum_all_abunds = against_mh_ds.sum_abunds() as usize;
-                                                let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
-                                                let median_abund = median(abunds.iter().cloned()).unwrap();
-                                                let std_abund = stddev(abunds.iter().cloned());
-                                                (Some(sum_all_abunds), Some(sum_weighted_overlap as usize), Some(average_abund), Some(median_abund), Some(std_abund))
-                                            }
-                                            Err(e) => {
-                                                eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
-                                                continue;
-                                            }
+                                    match query.minhash.inflated_abundances(&against_mh_ds) {
+                                        Ok((abunds, sum_weighted_overlap)) => {
+                                            let sum_all_abunds = against_mh_ds.sum_abunds() as usize;
+                                            let average_abund = sum_weighted_overlap as f64 / abunds.len() as f64;
+                                            let median_abund = median(abunds.iter().cloned()).unwrap();
+                                            let std_abund = stddev(abunds.iter().cloned());
+                                            (Some(sum_all_abunds), Some(sum_weighted_overlap as usize), Some(average_abund), Some(median_abund), Some(std_abund))
                                         }
-                                    } else {
-                                        (None, None, None, None, None)
-                                    };
+                                        Err(e) => {
+                                            eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
+                                            continue;
+                                        }
+                                    }
+                                } else {
+                                    (None, None, None, None, None)
+                                };
 
-                                    results.push(SearchResult {
-                                        query_name: query.name.clone(),
-                                        query_md5: query.md5sum.clone(),
-                                        match_name: against_sig.name(),
-                                        containment: containment_query_in_target,
-                                        intersect_hashes: overlap as usize,
-                                        match_md5: Some(against_sig.md5sum()),
-                                        jaccard: Some(jaccard),
-                                        max_containment: Some(max_containment),
-                                        average_abund,
-                                        median_abund,
-                                        std_abund,
-                                        query_containment_ani,
-                                        match_containment_ani,
-                                        average_containment_ani,
-                                        max_containment_ani,
-                                        n_weighted_found,
-                                        total_weighted_hashes,
-                                    });
-                                }
+                                results.push(SearchResult {
+                                    query_name: query.name.clone(),
+                                    query_md5: query.md5sum.clone(),
+                                    match_name: against_sig.name(),
+                                    containment: containment_query_in_target,
+                                    intersect_hashes: overlap as usize,
+                                    match_md5: Some(against_sig.md5sum()),
+                                    jaccard: Some(jaccard),
+                                    max_containment: Some(max_containment),
+                                    average_abund,
+                                    median_abund,
+                                    std_abund,
+                                    query_containment_ani,
+                                    match_containment_ani,
+                                    average_containment_ani,
+                                    max_containment_ani,
+                                    n_weighted_found,
+                                    total_weighted_hashes,
+                                });
                             }
                         }
                     } else {
