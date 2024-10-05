@@ -11,16 +11,16 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.22.3", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
-sourmash = { version = "0.15.2", features = ["branchwater"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
+sourmash = { version = "0.15.2", features = ["branchwater"] }
 niffler = "2.4.0"
 log = "0.4.22"
 env_logger = { version = "0.11.5" }
 simple-error = "0.3.1"
 anyhow = "1.0.89"
 zip = { version = "2.0", default-features = false }
-tempfile = "3.12"
+tempfile = "3.13"
 needletail = "0.5.1"
 csv = "1.3.0"
 camino = "1.1.9"
@@ -32,7 +32,7 @@ streaming-stats = "0.2.3"
 assert_cmd = "2.0.16"
 assert_matches = "1.5.0"
 predicates = "3.1.2"
-tempfile = "3.12.0"
+tempfile = "3.13.0"
 
 [profile.release]
 #target-cpu=native

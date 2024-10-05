@@ -14,6 +14,7 @@ authors = [
   { name="N. Tessa Pierce-Ward", orcid="0000-0002-2942-5331" },
   { name="Luiz Irber", orcid="0000-0003-4371-9659" },
   { name="Mohamed Abuelanin", orcid="0000-0002-3419-4785" },
+  { name="Olga Botvinnik", orcid="0000-0003-4412-7970" },
   { name="C. Titus Brown", orcid="0000-0001-6001-2677" },
 ]
 
@@ -31,6 +32,7 @@ check = "sourmash_plugin_branchwater:Branchwater_Check"
 manysketch = "sourmash_plugin_branchwater:Branchwater_Manysketch"
 pairwise = "sourmash_plugin_branchwater:Branchwater_Pairwise"
 cluster = "sourmash_plugin_branchwater:Branchwater_Cluster"
+singlesketch = "sourmash_plugin_branchwater:Branchwater_SingleSketch"
 
 [project.optional-dependencies]
 test = [

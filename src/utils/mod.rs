@@ -28,6 +28,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 
 pub mod multicollection;
 use multicollection::MultiCollection;
@@ -1128,10 +1129,10 @@ pub struct Params {
     pub scaled: u64,
     pub seed: u32,
     pub is_protein: bool,
+    pub is_dayhoff: bool,
+    pub is_hp: bool,
     pub is_dna: bool,
 }
-use std::hash::Hash;
-use std::hash::Hasher;
 
 impl Hash for Params {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -1141,6 +1142,8 @@ impl Hash for Params {
         self.scaled.hash(state);
         self.seed.hash(state);
         self.is_protein.hash(state);
+        self.is_dayhoff.hash(state);
+        self.is_hp.hash(state);
         self.is_dna.hash(state);
     }
 }
@@ -1242,4 +1245,88 @@ pub fn write_signature(
 
     zip.start_file(sig_filename, zip_options).unwrap();
     zip.write_all(&gzipped_buffer).unwrap();
+}
+
+pub fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
+    let mut unique_params: std::collections::HashSet<Params> = std::collections::HashSet::new();
+
+    // split params_strs by _ and iterate over each param
+    for p_str in params_strs.split('_').collect::<Vec<&str>>().iter() {
+        let items: Vec<&str> = p_str.split(',').collect();
+
+        let mut ksizes = Vec::new();
+        let mut track_abundance = false;
+        let mut num = 0;
+        let mut scaled = 1000;
+        let mut seed = 42;
+        let mut is_dna = false;
+        let mut is_protein = false;
+        let mut is_dayhoff = false;
+        let mut is_hp = false;
+
+        for item in items.iter() {
+            match *item {
+                _ if item.starts_with("k=") => {
+                    let k_value = item[2..]
+                        .parse()
+                        .map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
+                    ksizes.push(k_value);
+                }
+                "abund" => track_abundance = true,
+                "noabund" => track_abundance = false,
+                _ if item.starts_with("num=") => {
+                    num = item[4..]
+                        .parse()
+                        .map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
+                }
+                _ if item.starts_with("scaled=") => {
+                    scaled = item[7..]
+                        .parse()
+                        .map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
+                }
+                _ if item.starts_with("seed=") => {
+                    seed = item[5..]
+                        .parse()
+                        .map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
+                }
+                "protein" => {
+                    is_protein = true;
+                }
+                "dna" => {
+                    is_dna = true;
+                }
+                "dayhoff" => {
+                    is_dayhoff = true;
+                }
+                "hp" => {
+                    is_hp = true;
+                }
+                _ => return Err(format!("unknown component '{}' in params string", item)),
+            }
+        }
+
+        if !is_dna && !is_protein && !is_dayhoff && !is_hp {
+            return Err(format!("No moltype provided in params string {}", p_str));
+        }
+        if ksizes.is_empty() {
+            return Err(format!("No ksizes provided in params string {}", p_str));
+        }
+
+        for &k in &ksizes {
+            let param = Params {
+                ksize: k,
+                track_abundance,
+                num,
+                scaled,
+                seed,
+                is_protein,
+                is_dna,
+                is_dayhoff,
+                is_hp,
+            };
+            unique_params.insert(param);
+        }
+    }
+
+    Ok(unique_params.into_iter().collect())
 }
