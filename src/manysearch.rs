@@ -11,11 +11,10 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{csvwriter_thread, load_collection, load_sketches, ReportType, SearchResult};
 use sourmash::ani_utils::ani_from_containment;
+use sourmash::errors::SourmashError;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::errors::SourmashError;
-
 
 pub fn manysearch(
     query_filepath: String,
@@ -76,7 +75,11 @@ pub fn manysearch(
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {
                             // avoid calculating details unless there is overlap
-                            let overlap = query.minhash.count_common(against_mh, true).expect("incompatible sketches") as f64;
+                            let overlap = query
+                                .minhash
+                                .count_common(against_mh, true)
+                                .expect("incompatible sketches")
+                                as f64;
 
                             let query_size = query.minhash.size() as f64;
                             let containment_query_in_target = overlap / query_size;
@@ -102,9 +105,17 @@ pub fn manysearch(
                                 let average_containment_ani = Some((qani + mani) / 2.);
                                 let max_containment_ani = Some(f64::max(qani, mani));
 
-                                let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
-                                let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
-                                    downsample_and_inflate_abundances(&query.minhash, against_mh).ok()?
+                                let calc_abund_stats =
+                                    against_mh.track_abundance() && !ignore_abundance;
+                                let (
+                                    total_weighted_hashes,
+                                    n_weighted_found,
+                                    average_abund,
+                                    median_abund,
+                                    std_abund,
+                                ) = if calc_abund_stats {
+                                    downsample_and_inflate_abundances(&query.minhash, against_mh)
+                                        .ok()?
                                 } else {
                                     (None, None, None, None, None)
                                 };
@@ -185,18 +196,31 @@ pub fn manysearch(
     Ok(())
 }
 
-
-fn downsample_and_inflate_abundances(query: &KmerMinHash, against: &KmerMinHash) -> Result<(Option<usize>, Option<usize>, Option<f64>, Option<f64>, Option<f64>), SourmashError> {
+fn downsample_and_inflate_abundances(
+    query: &KmerMinHash,
+    against: &KmerMinHash,
+) -> Result<
+    (
+        Option<usize>,
+        Option<usize>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+    ),
+    SourmashError,
+> {
     let query_scaled = query.scaled();
     let against_scaled = against.scaled();
 
     let abunds: Vec<u64>;
     let sum_weighted: u64;
-    let sum_all_abunds : usize;
+    let sum_all_abunds: usize;
 
     // avoid downsampling if we can
     if against_scaled != query_scaled {
-        let against_ds = against.downsample_scaled(query.scaled()).expect("cannot downsample sketch");
+        let against_ds = against
+            .downsample_scaled(query.scaled())
+            .expect("cannot downsample sketch");
         (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;
         sum_all_abunds = against_ds.sum_abunds() as usize;
     } else {
@@ -208,5 +232,11 @@ fn downsample_and_inflate_abundances(query: &KmerMinHash, against: &KmerMinHash)
     let median_abund = median(abunds.iter().cloned()).expect("error");
     let std_abund = stddev(abunds.iter().cloned());
 
-    Ok((Some(sum_all_abunds), Some(sum_weighted as usize), Some(average_abund), Some(median_abund), Some(std_abund)))
+    Ok((
+        Some(sum_all_abunds),
+        Some(sum_weighted as usize),
+        Some(average_abund),
+        Some(median_abund),
+        Some(std_abund),
+    ))
 }
