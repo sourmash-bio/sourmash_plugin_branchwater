@@ -75,7 +75,6 @@ pub fn manysearch(
                             // avoid calculating details unless there is overlap
                             let overlap = query.minhash.count_common(against_mh, true).expect("incompatible sketches") as f64;
 
-                            let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
                             let query_size = query.minhash.size() as f64;
                             let containment_query_in_target = overlap / query_size;
                             // only calculate results if we have shared hashes
@@ -100,6 +99,7 @@ pub fn manysearch(
                                 let average_containment_ani = Some((qani + mani) / 2.);
                                 let max_containment_ani = Some(f64::max(qani, mani));
 
+                                let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
                                 let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
                                     let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).expect("cannot downsample sketch");
 
