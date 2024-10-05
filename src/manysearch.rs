@@ -79,7 +79,6 @@ pub fn manysearch(
                             if overlap > 0.0 {
                                 let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
 
-                                let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).expect("cannot downsample sketch");
                                 let query_size = query.minhash.size() as f64;
                                 let containment_query_in_target = overlap / query_size;
                                 if containment_query_in_target > threshold {
@@ -105,6 +104,8 @@ pub fn manysearch(
 
                                     let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
                                         panic!("should not be reached.");
+                                        let against_mh_ds = against_mh.downsample_scaled(query.minhash.scaled()).expect("cannot downsample sketch");
+
                                         match query.minhash.inflated_abundances(&against_mh_ds) {
                                             Ok((abunds, sum_weighted_overlap)) => {
                                                 let sum_all_abunds = against_mh_ds.sum_abunds() as usize;
