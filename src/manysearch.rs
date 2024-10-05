@@ -105,10 +105,6 @@ pub fn manysearch(
                                 let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
                                 let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) = if calc_abund_stats {
                                     downsample_and_inflate_abundances(&query.minhash, against_mh).ok()?
-//                                        Err(e) => {
-//                                            eprintln!("Error calculating abundances for query: {}, against: {}; Error: {}", query.name, against_sig.name(), e);
-//                                            continue;
-//                                        }
                                 } else {
                                     (None, None, None, None, None)
                                 };
