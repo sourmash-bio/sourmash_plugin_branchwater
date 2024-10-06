@@ -1,6 +1,9 @@
-/// Python interface Rust code for sourmash_plugin_branchwater.
+//! Rust-to-Python interface code for sourmash_plugin_branchwater, using pyo3.
+//!
+//! If you're using Rust, you're probably most interested in
+//! [utils](utils/index.html)
+
 use pyo3::prelude::*;
-use singlesketch::singlesketch;
 
 #[macro_use]
 extern crate simple_error;
@@ -24,7 +27,7 @@ mod singlesketch;
 use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None))]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false))]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,
@@ -33,14 +36,18 @@ fn do_manysearch(
     scaled: usize,
     moltype: String,
     output_path: Option<String>,
+    ignore_abundance: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
 
+    let ignore_abundance = ignore_abundance.unwrap_or(false);
+
     // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
     if is_revindex_database(&againstfile_path) {
+        // note: mastiff_manysearch ignores abundance automatically.
         match mastiff_manysearch::mastiff_manysearch(
             querylist_path,
             againstfile_path,
@@ -63,6 +70,7 @@ fn do_manysearch(
             threshold,
             output_path,
             allow_failed_sigpaths,
+            ignore_abundance,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -108,6 +116,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false, create_empty_results=false))]
 fn do_fastmultigather(
     query_filenames: String,
@@ -233,6 +242,8 @@ fn do_multisearch(
     estimate_ani: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    let _ = env_logger::try_init();
+
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
@@ -342,6 +353,8 @@ fn do_cluster(
         }
     }
 }
+
+/// Module interface for the `sourmash_plugin_branchwater` extension module.
 
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -2,7 +2,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::prelude::ToWriter;
+use sourmash::prelude::{Storage, ToWriter};
 use sourmash::{selection::Selection, signature::SigsTrait};
 
 use std::sync::atomic;
@@ -15,13 +15,14 @@ use camino::Utf8Path as PathBuf;
 use std::collections::HashSet;
 use std::fs::File;
 
+use log::trace;
+
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_sketches, write_prefetch, PrefetchResult,
-    ReportType,
+    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
 };
 
 pub fn fastmultigather(
@@ -34,6 +35,8 @@ pub fn fastmultigather(
     save_matches: bool,
     create_empty_results: bool,
 ) -> Result<()> {
+    let _ = env_logger::try_init();
+
     // load query collection
     let query_collection = load_collection(
         &query_filepath,
@@ -50,8 +53,7 @@ pub fn fastmultigather(
             1
         }
     }
-    .try_into()
-    .unwrap();
+    .try_into()?;
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
@@ -63,18 +65,24 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let against = against_collection.load_sketches(selection)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    query_collection.par_iter().for_each(|(_idx, record)| {
+    query_collection.par_iter().for_each(|(c, _idx, record)| {
         // increment counter of # of queries. q: could we instead use the _idx from par_iter(), or will it vary based on thread?
         let _i = processed_queries.fetch_add(1, atomic::Ordering::SeqCst);
         // Load query sig (downsampling happens here)
-        match query_collection.sig_from_record(record) {
+        trace!(
+            "fastmultigather query load: from:{} idx:{} loc:{}",
+            c.storage().spec(),
+            _idx,
+            record.internal_location()
+        );
+        match c.sig_from_record(record) {
             Ok(query_sig) => {
                 let name = query_sig.name();
                 let prefix = name.split(' ').next().unwrap_or_default().to_string();
@@ -134,7 +142,7 @@ pub fn fastmultigather(
                                 if let Ok(mut file) = File::create(&sig_filename) {
                                     let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
                                     let mut new_mh = KmerMinHash::new(
-                                        query_mh.scaled().try_into().unwrap(),
+                                        query_mh.scaled(),
                                         query_mh.ksize().try_into().unwrap(),
                                         query_mh.hash_function().clone(),
                                         query_mh.seed(),

@@ -5,7 +5,8 @@ import pandas
 import sourmash
 
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):
@@ -15,7 +16,7 @@ def test_installed(runtmp):
     assert 'usage:  pairwise' in runtmp.last_result.err
 
 
-def test_simple_no_ani(runtmp, zip_query):
+def test_simple_no_ani(runtmp, capfd, zip_query, indexed):
     # test basic execution!
     query_list = runtmp.output('query.txt')
 
@@ -29,6 +30,9 @@ def test_simple_no_ani(runtmp, zip_query):
 
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    if indexed:
+        query_list = index_siglist(runtmp, query_list, runtmp.output('db'))
 
     runtmp.sourmash('scripts', 'pairwise', query_list,
                     '-o', output, '-t', '-1')
@@ -63,6 +67,12 @@ def test_simple_no_ani(runtmp, zip_query):
             assert cont == 0.4828
             assert maxcont == 0.4885
             assert intersect_hashes == 2529
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    if indexed:
+        assert "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
 
 
 def test_simple_ani(runtmp, zip_query):
@@ -251,7 +261,7 @@ def test_missing_query(runtmp, capfd, zip_db):
 
 
 
-def test_empty_query(runtmp):
+def test_empty_query(runtmp, capfd):
     # test with an empty query list
     query_list = runtmp.output('query.txt')
 
@@ -267,11 +277,11 @@ def test_empty_query(runtmp):
         runtmp.sourmash('scripts', 'pairwise', query_list,
                         '-o', output)
 
-    print(runtmp.last_result.err)
-    # @CTB
+    captured = capfd.readouterr()
+    assert 'Error: No analysis signatures loaded, exiting.' in captured.err
 
 
-def test_nomatch_query(runtmp, capfd, zip_query):
+def test_nomatch_query_warn(runtmp, capfd, zip_query):
     # test a non-matching (diff ksize) in query; do we get warning message?
     query_list = runtmp.output('query.txt')
 
@@ -295,6 +305,31 @@ def test_nomatch_query(runtmp, capfd, zip_query):
     print(captured.err)
 
     assert 'WARNING: skipped 1 analysis paths - no compatible signatures' in captured.err
+
+
+def test_nomatch_query_exit(runtmp, capfd, zip_query):
+    # test a non-matching (diff ksize) in query; do we get warning message?
+    query_list = runtmp.output('query.txt')
+
+    sig1 = get_test_data('1.fa.k21.sig.gz')
+    sig2 = get_test_data('2.fa.k21.sig.gz')
+
+    make_file_list(query_list, [sig1, sig2])
+
+    output = runtmp.output('out.csv')
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'pairwise', query_list,
+                        '-o', output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert 'WARNING: skipped 2 analysis paths - no compatible signatures' in captured.err
+    assert 'Error: No analysis signatures loaded, exiting.' in captured.err
 
 
 def test_load_only_one_bug(runtmp, capfd, zip_db):

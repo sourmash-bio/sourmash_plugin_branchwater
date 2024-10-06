@@ -4,9 +4,7 @@ use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
-};
+use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
@@ -38,7 +36,8 @@ pub fn pairwise(
             &siglist
         )
     }
-    let sketches = load_sketches(collection, selection, ReportType::General).unwrap();
+
+    let sketches = collection.load_sketches(selection)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

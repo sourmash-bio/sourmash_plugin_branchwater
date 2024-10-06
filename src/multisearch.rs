@@ -6,9 +6,7 @@ use sourmash::signature::SigsTrait;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
-};
+use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
 /// Search many queries against a list of signatures.
@@ -26,14 +24,14 @@ pub fn multisearch(
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
-
     let query_collection = load_collection(
         &query_filepath,
         selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    let queries = load_sketches(query_collection, selection, ReportType::Query).unwrap();
+
+    let queries = query_collection.load_sketches(selection)?;
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
@@ -42,7 +40,8 @@ pub fn multisearch(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    let against = load_sketches(against_collection, selection, ReportType::Against).unwrap();
+
+    let against = against_collection.load_sketches(selection)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

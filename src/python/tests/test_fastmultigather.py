@@ -8,16 +8,8 @@ import shutil
 
 import sourmash
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
-
-
-def index_siglist(runtmp, siglist, db, *, ksize=31, scaled=1000, moltype='DNA',
-                  toggle_internal_storage='--internal-storage'):
-    # build index
-    runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', db, '-k', str(ksize), '--scaled', str(scaled),
-                    '--moltype', moltype, toggle_internal_storage)
-    return db
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):
@@ -46,6 +38,47 @@ def test_simple(runtmp, zip_against):
 
     runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
                         '-s', '100000', '-t', '0', in_directory=runtmp.output(''))
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
+    assert os.path.exists(p_output)
+
+    # check prefetch output (only non-indexed gather)
+    df = pandas.read_csv(p_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
+
+    assert os.path.exists(g_output)
+    df = pandas.read_csv(g_output)
+    print(df)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp', 'gather_result_rank'}.issubset(keys)
+
+
+def test_simple_list_of_zips(runtmp):
+    # test basic execution!
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(runtmp.output(''))
+        runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                        '-s', '100000', '-t', '0')
+    finally:
+        os.chdir(cwd)
 
     print(os.listdir(runtmp.output('')))
 
@@ -1141,7 +1174,6 @@ def test_rocksdb_no_internal_storage_gather_fails(runtmp, capfd):
                                   "47.fa.sig.gz",
                                   "63.fa.sig.gz"])
 
-    # index!
     runtmp.sourmash('scripts', 'index', against_list, '--no-internal-storage',
                     '-o', 'subdir/against.rocksdb')
 

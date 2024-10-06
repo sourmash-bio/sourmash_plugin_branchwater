@@ -4,7 +4,8 @@ import pandas
 import sourmash
 
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist,
+                                 index_siglist)
 
 
 def test_installed(runtmp):
@@ -13,13 +14,6 @@ def test_installed(runtmp):
 
     assert 'usage:  manysearch' in runtmp.last_result.err
 
-
-def index_siglist(runtmp, siglist, db, ksize=31, scaled=1000, moltype='DNA'):
-    # build index
-    runtmp.sourmash('scripts', 'index', siglist,
-                    '-o', db, '-k', str(ksize), '--scaled', str(scaled),
-                    '--moltype', moltype)
-    return db
 
 def test_simple(runtmp, zip_query, zip_against):
     # test basic execution!
@@ -176,7 +170,7 @@ def test_simple_abund(runtmp):
     assert total_weighted_hashes == 73489
 
 
-def test_simple_indexed(runtmp, zip_query):
+def test_simple_indexed(runtmp, zip_query, indexed_query):
     # test basic execution!
     query_list = runtmp.output('query.txt')
     against_list = runtmp.output('against.txt')
@@ -188,12 +182,67 @@ def test_simple_indexed(runtmp, zip_query):
     make_file_list(query_list, [sig2, sig47, sig63])
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+
+    if indexed_query:
+        query_list = index_siglist(runtmp, query_list, runtmp.output('query_db'))
+
     output = runtmp.output('out.csv')
 
     against_list = index_siglist(runtmp, against_list, runtmp.output('db'))
 
-    if zip_query:
-        query_list = zip_siglist(runtmp, query_list, runtmp.output('query.zip'))
+    print('query_list is:', query_list)
+    runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
+                    '-o', output, '-t', '0.01')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert float(row['containment'] == 1.0)
+            assert float(row['query_containment_ani'] == 1.0)
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+            query_ani = float(row['query_containment_ani'])
+            cont = round(cont, 4)
+            query_ani = round(query_ani, 4)
+            print(q, m, f"{cont:.04}", f"{query_ani:.04}")
+
+            if q == 'NC_011665.1' and m == 'NC_009661.1':
+                assert cont == 0.4828
+                assert intersect_hashes == 2529
+                assert query_ani == 0.9768
+
+            if q == 'NC_009661.1' and m == 'NC_011665.1':
+                assert cont == 0.4885
+                assert intersect_hashes == 2529
+                assert query_ani == 0.9772
+
+
+def test_simple_list_of_zips(runtmp):
+    # test basic execution!
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    sig2 = get_test_data('2.sig.zip')
+    sig47 = get_test_data('47.sig.zip')
+    sig63 = get_test_data('63.sig.zip')
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'manysearch', query_list, against_list,
                     '-o', output, '-t', '0.01')

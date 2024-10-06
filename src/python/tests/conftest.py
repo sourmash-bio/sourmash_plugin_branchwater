@@ -27,3 +27,11 @@ def zip_against(request):
 @pytest.fixture(params=[True, False])
 def indexed(request):
     return request.param
+
+@pytest.fixture(params=[True, False])
+def indexed_query(request):
+    return request.param
+
+@pytest.fixture(params=[True, False])
+def indexed_against(request):
+    return request.param
