@@ -657,19 +657,19 @@ def test_simple_prot(runtmp):
                 assert max_ani == 0.886
 
 
-def test_prot_with_abundance(runtmp):
+def test_prob_overlap_prot_with_abundance(runtmp):
     # test basic execution with protein sigs
-    sigs = get_test_data('uniprotkb_Synaptosomal_associated_2024_05_11.fasta.protein.k5.sig.zip')
+    sigs = get_test_data('snap25.protein.k5.sig')
 
     output = runtmp.output('out.csv')
 
     runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
                     '-o', output, '--moltype', 'protein',
-                    '-k', '5', '--scaled', '1', '--ani')
+                    '-k', '5', '--scaled', '1', '--prob')
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
-    assert len(df) == 4
+    assert len(df) == 16
 
     dd = df.to_dict(orient='index')
     print(dd)
@@ -681,10 +681,6 @@ def test_prot_with_abundance(runtmp):
             assert float(row['containment'] == 1.0)
             assert float(row['jaccard'] == 1.0)
             assert float(row['max_containment'] == 1.0)
-            assert float(row['query_containment_ani'] == 1.0)
-            assert float(row['match_containment_ani'] == 1.0)
-            assert float(row['average_containment_ani'] == 1.0)
-            assert float(row['max_containment_ani'] == 1.0)
 
         else:
             # confirm hand-checked numbers
@@ -694,39 +690,93 @@ def test_prot_with_abundance(runtmp):
             jaccard = float(row['jaccard'])
             maxcont = float(row['max_containment'])
             intersect_hashes = int(row['intersect_hashes'])
-            q1_ani = float(row['query_containment_ani'])
-            q2_ani = float(row['match_containment_ani'])
-            avg_ani = float(row['average_containment_ani'])
-            max_ani = float(row['max_containment_ani'])
+            prob_overlap = float(row['prob_overlap'])
+            prob_overlap_adjusted = float(row['prob_overlap_adjusted'])
+            containment_adjusted = float(row['containment_adjusted'])
+            containment_adjusted_log10 = float(row['containment_adjusted_log10'])
+            tf_idf_score = float(row['tf_idf_score'])
 
             jaccard = round(jaccard, 4)
             cont = round(cont, 4)
             maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
-            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes, f"{q1_ani:.04}", f"{q2_ani:.04}", f"{avg_ani:.04}", f"{max_ani:.04}")
+            prob_overlap = round(prob_overlap, 8)
+            prob_overlap_adjusted = round(prob_overlap_adjusted, 8)
+            containment_adjusted = round(containment_adjusted, 4)
+            containment_adjusted_log10 = round(containment_adjusted_log10, 4)
+            tf_idf_score = round(tf_idf_score, 4)
+            print(
+                q, 
+                m, 
+                f"{jaccard:.04}", 
+                f"{cont:.04}", 
+                f"{maxcont:.04}", 
+                intersect_hashes, 
+                f"{prob_overlap:.04}",
+                f"{prob_overlap_adjusted:.04}",
+                f"{containment_adjusted:.04}",
+                f"{containment_adjusted_log10:.04}",
+                f"{tf_idf_score:.04}"
+            )
 
-            if q == 'GCA_001593925' and m == 'GCA_001593935':
-                assert jaccard == 0.0434
-                assert cont == 0.1003
-                assert maxcont == 0.1003
-                assert intersect_hashes == 342
-                assert q1_ani == 0.886
-                assert q2_ani == 0.8702
-                assert avg_ani == 0.8781
-                assert max_ani == 0.886
+            if q == 'snap25a_mxe_exon_human' and m == 'snap25b_mxe_exon_human':
+                assert jaccard == 0.098
+                assert cont == 0.1786
+                assert maxcont == 0.1786
+                assert intersect_hashes == 5
+                assert prob_overlap == 9.21e-05
+                assert prob_overlap_adjusted == 0.0014736
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 0.1786
 
-            if q == 'GCA_001593935' and m == 'GCA_001593925':
-                assert jaccard == 0.0434
-                assert cont == 0.0712
-                assert maxcont == 0.1003
-                assert intersect_hashes == 342
-                assert q1_ani == 0.8702
-                assert q2_ani == 0.886
-                assert avg_ani == 0.8781
-                assert max_ani == 0.886
+            if q == 'snap25b_mxe_exon_human' and m == 'snap25a_mxe_exon_human':
+                # Check that inverse for snap25b vs snap25a exon is true
+                assert jaccard == 0.098
+                assert cont == 0.1786
+                assert maxcont == 0.1786
+                assert intersect_hashes == 5
+                assert prob_overlap == 9.21e-05
+                assert prob_overlap_adjusted == 0.0014736
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 0.1786
+
+            if q == 'snap25a_mxe_exon_human' and m == 'sp|P60880-2|SNP25_HUMAN':
+                # P60880-2 is isoform SNAP25A, including the snap25a exon
+                assert jaccard == 0.1386
+                assert cont == 1.0
+                assert maxcont == 1.0
+                assert intersect_hashes == 28
+                assert prob_overlap == 0.00051576
+                assert prob_overlap_adjusted == 0.00825213
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 1.4196
+
+            if q == 'snap25b_mxe_exon_human' and m == 'sp|P60880|SNP25_HUMAN':
+                # P60880 is isoform SNAP25B, including the snap25b exon
+                assert jaccard == 0.1386
+                assert cont == 1.0
+                assert maxcont == 1.0
+                assert intersect_hashes == 28
+                assert prob_overlap == 0.00051576
+                assert prob_overlap_adjusted == 0.00825213
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 1.4196
+
+            if q == 'sp|P60880-2|SNP25_HUMAN' and m == 'sp|P60880|SNP25_HUMAN':
+                # P60880 is isoform SNAP25B, including the snap25b exon
+                assert jaccard == 0.7339
+                assert cont == 0.8465
+                assert maxcont == 0.8465
+                assert intersect_hashes == 171
+                assert prob_overlap == 0.00314981
+                assert prob_overlap_adjusted == 0.05039695
+                assert containment_adjusted == 16.7973
+                assert containment_adjusted_log10 == 1.2252
+                assert tf_idf_score == 1.2663
+
 
 def test_simple_dayhoff(runtmp):
     # test basic execution with dayhoff sigs
