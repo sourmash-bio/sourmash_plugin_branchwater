@@ -657,6 +657,77 @@ def test_simple_prot(runtmp):
                 assert max_ani == 0.886
 
 
+def test_prot_with_abundance(runtmp):
+    # test basic execution with protein sigs
+    sigs = get_test_data('uniprotkb_Synaptosomal_associated_2024_05_11.part_001.fasta.protein.k5.sig.zip')
+
+    output = runtmp.output('out.csv')
+
+    runtmp.sourmash('scripts', 'multisearch', sigs, sigs,
+                    '-o', output, '--moltype', 'protein',
+                    '-k', '5', '--scaled', '1', '--ani')
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 4
+
+    dd = df.to_dict(orient='index')
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row['match_name'] == row['query_name']:
+            assert row['query_md5'] == row['match_md5'], row
+            assert float(row['containment'] == 1.0)
+            assert float(row['jaccard'] == 1.0)
+            assert float(row['max_containment'] == 1.0)
+            assert float(row['query_containment_ani'] == 1.0)
+            assert float(row['match_containment_ani'] == 1.0)
+            assert float(row['average_containment_ani'] == 1.0)
+            assert float(row['max_containment_ani'] == 1.0)
+
+        else:
+            # confirm hand-checked numbers
+            q = row['query_name'].split()[0]
+            m = row['match_name'].split()[0]
+            cont = float(row['containment'])
+            jaccard = float(row['jaccard'])
+            maxcont = float(row['max_containment'])
+            intersect_hashes = int(row['intersect_hashes'])
+            q1_ani = float(row['query_containment_ani'])
+            q2_ani = float(row['match_containment_ani'])
+            avg_ani = float(row['average_containment_ani'])
+            max_ani = float(row['max_containment_ani'])
+
+            jaccard = round(jaccard, 4)
+            cont = round(cont, 4)
+            maxcont = round(maxcont, 4)
+            q1_ani = round(q1_ani, 4)
+            q2_ani = round(q2_ani, 4)
+            avg_ani = round(avg_ani, 4)
+            max_ani = round(max_ani, 4)
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}", intersect_hashes, f"{q1_ani:.04}", f"{q2_ani:.04}", f"{avg_ani:.04}", f"{max_ani:.04}")
+
+            if q == 'GCA_001593925' and m == 'GCA_001593935':
+                assert jaccard == 0.0434
+                assert cont == 0.1003
+                assert maxcont == 0.1003
+                assert intersect_hashes == 342
+                assert q1_ani == 0.886
+                assert q2_ani == 0.8702
+                assert avg_ani == 0.8781
+                assert max_ani == 0.886
+
+            if q == 'GCA_001593935' and m == 'GCA_001593925':
+                assert jaccard == 0.0434
+                assert cont == 0.0712
+                assert maxcont == 0.1003
+                assert intersect_hashes == 342
+                assert q1_ani == 0.8702
+                assert q2_ani == 0.886
+                assert avg_ani == 0.8781
+                assert max_ani == 0.886
+
 def test_simple_dayhoff(runtmp):
     # test basic execution with dayhoff sigs
     sigs = get_test_data('dayhoff.zip')
