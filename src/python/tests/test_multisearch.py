@@ -659,7 +659,7 @@ def test_simple_prot(runtmp):
 
 def test_prot_with_abundance(runtmp):
     # test basic execution with protein sigs
-    sigs = get_test_data('uniprotkb_Synaptosomal_associated_2024_05_11.part_001.fasta.protein.k5.sig.zip')
+    sigs = get_test_data('uniprotkb_Synaptosomal_associated_2024_05_11.fasta.protein.k5.sig.zip')
 
     output = runtmp.output('out.csv')
 
