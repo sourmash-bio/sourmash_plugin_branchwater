@@ -7,7 +7,8 @@ use logsumexp::LogSumExp;
 use std::collections::HashMap;
 use sourmash::Error;
 use sourmash::signature::SigsTrait;
-
+use std::fmt::{self, Display, Formatter};
+use crate::utils::SmallSignature;
 
 pub enum Normalization {
     // L1 norm is the equivalent of frequencies/probabilities, as the counts
@@ -21,9 +22,18 @@ pub enum Normalization {
     L2
 }
 
-use crate::utils::SmallSignature;
+impl Display for Normalization {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::L1 => write!(f, "L1 Normalization"),
+            Self::L2 => write!(f, "L2 Normalization"),
+        }
+    }
+}
 
-pub fn value_count(hashes_with_abund: Vec<(u64, u64)>) -> HashMap<u64, u64> {
+
+
+pub fn print_value_count(hashes_with_abund: Vec<(u64, u64)>) -> HashMap<u64, u64> {
     // Coun the number of times the abundances appear in a hashes with abundance output
     let mut value_counts: HashMap<u64, u64>  = HashMap::new();
 
@@ -39,13 +49,29 @@ pub fn value_count(hashes_with_abund: Vec<(u64, u64)>) -> HashMap<u64, u64> {
     return value_counts;
 }
 
+pub fn print_freq_count(frequencies: HashMap<&u64, f64>, freq_type: &str, query_name: &str, n_hashes: usize) -> HashMap<String, u64> {
+    // Coun the number of times the abundances appear in a hashes with abundance output
+    let mut freq_counts: HashMap<String, u64>  = HashMap::new();
+
+    for (_key, value) in frequencies.iter() {
+        // Count number of times we see each value
+        *freq_counts.entry(value.to_string()).or_insert(0) += 1;
+    }
+
+    for (freq, count) in freq_counts.iter() {
+        eprintln!("{}\t{}\tn_hashes: {}\tfreq: {}, count: {}", freq_type, query_name, n_hashes, freq, count);
+    }
+
+    return freq_counts;
+}
+
 // #[cfg(feature = "maths")]
 pub fn get_hash_frequencies<'a>(
     hashvals: &'a Vec<u64>,
     minhash: &KmerMinHash,
     normalization: Option<Normalization>,
     logged: Option<bool>,
-    // Output hashmap borrows the hashvalues from intersection input
+    // Output hashmap borrows /home/ec2-user/nf-core-kmerseek/results/sourmash/sigsthe hashvalues from intersection input
 ) -> HashMap<&'a u64, f64> {
 
     let minhash_abunds: HashMap<u64, f64> = minhash
@@ -60,12 +86,13 @@ pub fn get_hash_frequencies<'a>(
             minhash_abunds
                 .values()
                 .map(|abund| abund * abund )
-                // .collect::<Vec<f64>>()
-                .sum() as f64
+                .sum::<f64>() as f64
             }
         // TODO: this should probably be an error
         _ => 0.0,
     };
+
+    eprintln!("abund_normalization ({}): {}", normalization.unwrap(), abund_normalization);
 
     let mut frequencies: HashMap<&u64, f64> = HashMap::from(hashvals
         .par_iter()
@@ -164,8 +191,6 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
 
     _ = combined_mh.add_many_with_abund(&hashes_with_abund);
 
-    let _  = value_count(combined_mh.to_vec_abunds());
-
     Ok(combined_mh)
 }
 
@@ -192,7 +217,7 @@ pub fn get_inverse_document_frequency(hashval: u64, signatures: &Vec<SmallSignat
         // > "The effect of adding “1” to the idf in the equation above is that terms with zero idf,
         // > i.e., terms that occur in all documents in a training set, will not be entirely ignored."
         // Source: https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
-        Some(true) => ( (1.0 + n_signatures) / (n_sigs_with_hashval) ).ln() + 1.0,
+        Some(true) => ( (1.0 + n_signatures) / (1.0 + n_sigs_with_hashval) ).ln() + 1.0,
         Some(false) => (n_signatures / (n_sigs_with_hashval) ).ln() + 1.0,
         _ => 1.0
     };
@@ -212,6 +237,8 @@ pub fn get_term_frequency_inverse_document_frequency(
     // Because this is the default setting in scikit-learn's battle-tested tf-idf methods:
     // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
     // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
+    eprintln!("--- In get_term_frequency_inverse_document_frequency ---");
+    eprintln!("query.name: {}", query.name);
     let term_frequencies: HashMap<&u64, f64> = get_hash_frequencies(
         hashvals, 
         &query.minhash, 
@@ -219,18 +246,33 @@ pub fn get_term_frequency_inverse_document_frequency(
         Some(false),
     );
 
+    let query_name = query.name.split(' ').collect::<Vec<_>>()[0];
+    
+    let _ = print_freq_count(term_frequencies.clone(), &"tf", query_name, hashvals.len());
+
     let inverse_document_frequencies: HashMap<&u64, f64> = HashMap::from(hashvals
         .par_iter()
         .map(|hashval| 
             (hashval, get_inverse_document_frequency(*hashval, againsts, smooth_idf))
         ).collect::<HashMap<&u64, f64>>()
     );
+
+    // eprintln!("- inverse_document_frequencies: {} -", query.name);
+    let _ = print_freq_count(inverse_document_frequencies.clone(), &"idf", query_name, hashvals.len());
         
     // Multiply each hashval's term frequency and inverse document frequency, and sum the products
-    let tf_idf_score: f64 = term_frequencies.par_iter().map(
-        |(hashval, term_frequency)| 
-        term_frequency * inverse_document_frequencies[hashval]
-    ).sum();
+    let tf_idf: HashMap<&u64, f64> = HashMap::from(
+        term_frequencies.par_iter().map(
+        |(&hashval, &term_frequency)| 
+            (hashval, term_frequency * inverse_document_frequencies[hashval])
+        ).collect::<HashMap<&u64, f64>>()
+    );
+
+    let _ = print_freq_count(tf_idf.clone(), &"tf-idf", query_name, tf_idf.len());
+
+    let tf_idf_score: f64 = tf_idf.values().sum();
+
+    eprintln!("\tquery: {}\tn_hashes: {}\ttf_idf_score: {}", query_name, hashvals.len(), tf_idf_score);
 
     return tf_idf_score;
 }

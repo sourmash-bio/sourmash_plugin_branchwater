@@ -26,6 +26,7 @@ pub fn multisearch(
     selection: &Selection,
     allow_failed_sigpaths: bool,
     estimate_ani: bool,
+    estimate_prob_overlap: bool,
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
@@ -45,10 +46,12 @@ pub fn multisearch(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
     let againsts: Vec<crate::utils::SmallSignature> = load_sketches(against_collection, selection, ReportType::Against).unwrap();
 
-    let n_comparisons: f64 = againsts.len() as f64 * queries.len() as f64;
 
+    // if estimate_prob_overlap {
+    let n_comparisons: f64 = againsts.len() as f64 * queries.len() as f64;
     // Combine all the queries and against into a single signature each, to get their 
     // underlying distribution of hashes across the whole input
     eprintln!("Merging queries ...");
@@ -56,7 +59,13 @@ pub fn multisearch(
     eprintln!("\tDone.\n");
     eprintln!("Merging against ...");
     let against_merged_mh: KmerMinHash = merge_all_minhashes(&againsts).unwrap();
-    eprintln!("\tDone.\n");
+    eprintln!("\tDone.\n");        
+    // } else {
+    //     let mut n_comparisons = 0.0;
+    //     let mut queries_merged_mh: KmerMinHash = Default::default();
+    //     let mut against_merged_mh: KmerMinHash = Default::default();
+    // };
+
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -102,7 +111,13 @@ pub fn multisearch(
                     let mut match_containment_ani = None;
                     let mut average_containment_ani = None;
                     let mut max_containment_ani = None;
+                    let mut prob_overlap: Option<f64> = None;
+                    let mut prob_overlap_adjusted: Option<f64> = None;
+                    let mut containment_adjusted: Option<f64>= None;
+                    let mut containment_adjusted_log10: Option<f64>= None;
+                    let mut tf_idf_score: Option<f64> = None;
 
+                    // if estimate_prob_overlap {
                     let intersection: Vec<u64> = query.minhash.intersection(
                         &against.minhash
                     )
@@ -119,6 +134,9 @@ pub fn multisearch(
                     );
                     // Do simple, conservative Bonferroni correction
                     let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
+
+                    // Rescale the containment based on the probability of overlap, 
+                    // such that smaller probability -> higher containment
                     let containment_adjusted = Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
                     let containment_adjusted_log10 = Some(containment_adjusted.unwrap().log10());
                     let tf_idf_score = Some(
@@ -129,6 +147,10 @@ pub fn multisearch(
                             Some(true),
                         )
                     );
+                    // } else {
+
+                    // }
+
 
                     // estimate ANI values
                     if estimate_ani {

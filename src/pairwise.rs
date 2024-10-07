@@ -63,11 +63,11 @@ pub fn pairwise(
             let containment_q1_in_q2 = overlap / query1_size;
             let containment_q2_in_q1 = overlap / query2_size;
 
-            let prob_overlap = None;
-            let prob_overlap_adjusted = None;
-            let containment_adjusted = None;
-            let containment_adjusted_log10 = None;
-            let tf_idf_score = None;
+            let mut prob_overlap = None;
+            let mut prob_overlap_adjusted = None;
+            let mut containment_adjusted = None;
+            let mut containment_adjusted_log10 = None;
+            let mut tf_idf_score = None;
 
             if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);

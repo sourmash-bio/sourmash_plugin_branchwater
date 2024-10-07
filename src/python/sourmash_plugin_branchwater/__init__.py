@@ -273,6 +273,8 @@ class Branchwater_Multisearch(CommandLinePlugin):
                        help='number of cores to use (default is all available)')
         p.add_argument('-a', '--ani', action='store_true',
                        help='estimate ANI from containment')
+        p.add_argument('-p', '--prob', action='store_true',
+                       help='estimate probability of overlap for significance ranking of search results')
 
     def main(self, args):
         print_version()
@@ -281,6 +283,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
         num_threads = set_thread_pool(args.cores)
 
         notify(f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads")
+        notify(f'estimate ani? {args.ani} / estimate probability of overlap? {args.prob}')
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_multisearch(args.query_paths,
@@ -290,6 +293,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
                                                             args.scaled,
                                                             args.moltype,
                                                             args.ani,
+                                                            args.prob,
                                                             args.output)
         if status == 0:
             notify(f"...multisearch is done! results in '{args.output}'")
