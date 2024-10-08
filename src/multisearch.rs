@@ -6,11 +6,20 @@ use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
+use std::collections::HashMap;
+
 
 use crate::utils::{
     csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType
 };
-use crate::search_significance::{get_prob_overlap, get_term_frequency_inverse_document_frequency, merge_all_minhashes};
+use crate::search_significance::{
+    compute_inverse_document_frequency, 
+    get_prob_overlap, 
+    get_term_frequency_inverse_document_frequency, 
+    merge_all_minhashes,
+    get_hash_frequencies,
+    Normalization,
+};
 use sourmash::ani_utils::ani_from_containment;
 
 
@@ -59,7 +68,76 @@ pub fn multisearch(
     eprintln!("\tDone.\n");
     eprintln!("Merging against ...");
     let against_merged_mh: KmerMinHash = merge_all_minhashes(&againsts).unwrap();
-    eprintln!("\tDone.\n");        
+    eprintln!("\tDone.\n");       
+
+    // Precompute
+    eprintln!("Computing Inverse Document Frequency (IDF) of hashes in all againsts ...");
+    let inverse_document_frequency =  compute_inverse_document_frequency(
+        &against_merged_mh, 
+        &againsts,
+        Some(true),
+    );
+    eprintln!("\tDone.\n");
+
+    eprintln!("Computing frequency of hashvals across all againsts ...");
+    let against_merged_frequencies: HashMap<u64, f64> = get_hash_frequencies(
+        &against_merged_mh, 
+        Some(Normalization::L1), 
+    );
+    eprintln!("\tDone.\n");
+
+    eprintln!("Computing frequency of hashvals across all queries ...");
+    let query_merged_frequencies: HashMap<u64, f64> = get_hash_frequencies(
+        &queries_merged_mh, 
+        Some(Normalization::L1), 
+    );
+    eprintln!("\tDone.\n");
+
+    eprintln!("Computing hashval term frequencies within each query ...");
+    let query_term_frequencies: HashMap<String, HashMap<u64, f64>> = HashMap::from(
+        queries
+        .par_iter()
+        .map(|query|
+             (
+                query.md5sum.clone(), 
+                get_hash_frequencies(
+                    &query.minhash, 
+                    Some(Normalization::L1)
+                )
+            )
+        ).collect::<HashMap<String, HashMap<u64, f64>>>()
+    );
+    eprintln!("\tDone.\n");
+
+
+    // Can't get below to work because then get "cannot find value `variable_name` in this scope" error:
+    // --- begin error ---
+    // error[E0425]: cannot find value `queries_merged_mh` in this scope
+    //    --> src/multisearch.rs:138:30
+    //     |
+    // 138 | ...                   &queries_merged_mh, 
+    //     |                        ^^^^^^^^^^^^^^^^^ not found in this scope
+
+    // error[E0425]: cannot find value `against_merged_mh` in this scope
+    //    --> src/multisearch.rs:139:30
+    //     |
+    // 139 | ...                   &against_merged_mh, 
+    //     |                        ^^^^^^^^^^^^^^^^^ not found in this scope
+
+    // error[E0425]: cannot find value `n_comparisons` in this scope
+    //    --> src/multisearch.rs:144:78
+    //     |
+    // 144 |                     let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
+    //     |                                                                              ^^^^^^^^^^^^^ not found in this scope
+
+    // error[E0425]: cannot find value `inverse_document_frequency` in this scope
+    //    --> src/multisearch.rs:154:30
+    //     |
+    // 154 |   ...                   &inverse_document_frequency
+    //     |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: a function with a similar name exists: `compute_inverse_document_frequency`
+    //     |
+    //    ::: src/search_significance.rs:197:1
+    // --- end   error ---
     // } else {
     //     let mut n_comparisons = 0.0;
     //     let mut queries_merged_mh: KmerMinHash = Default::default();
@@ -118,7 +196,7 @@ pub fn multisearch(
                     let mut tf_idf_score: Option<f64> = None;
 
                     // if estimate_prob_overlap {
-                    let intersection: Vec<u64> = query.minhash.intersection(
+                    let overlapping_hashvals: Vec<u64> = query.minhash.intersection(
                         &against.minhash
                     )
                         .unwrap().0;
@@ -126,10 +204,9 @@ pub fn multisearch(
                     // Related to getting the probability of overlap between query and target
                     let prob_overlap = Some(
                         get_prob_overlap(
-                            &intersection, 
-                            &queries_merged_mh, 
-                            &against_merged_mh, 
-                            Some(logged),
+                            &overlapping_hashvals, 
+                            &query_merged_frequencies, 
+                            &against_merged_frequencies, 
                         )
                     );
                     // Do simple, conservative Bonferroni correction
@@ -141,10 +218,9 @@ pub fn multisearch(
                     let containment_adjusted_log10 = Some(containment_adjusted.unwrap().log10());
                     let tf_idf_score = Some(
                         get_term_frequency_inverse_document_frequency(
-                            &intersection, 
-                            query, 
-                            &againsts,
-                            Some(true),
+                            &overlapping_hashvals, 
+                            &query_term_frequencies[&query.md5sum], 
+                            &inverse_document_frequency
                         )
                     );
                     // } else {
