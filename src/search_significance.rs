@@ -73,7 +73,7 @@ pub fn get_hash_frequencies<'a>(
 
     let minhash_abunds: HashMap<u64, f64> = minhash
         .to_vec_abunds()
-        .into_iter()
+        .into_par_iter()
         .map(|(hashval, abund)| (hashval, abund as f64))
         .collect();
 
@@ -81,8 +81,8 @@ pub fn get_hash_frequencies<'a>(
         Some(Normalization::L1) => minhash.sum_abunds() as f64,
         Some(Normalization::L2) => { 
             minhash_abunds
-                .values()
-                .map(|abund| abund * abund )
+                .par_iter()
+                .map(|(hashval, abund)| abund * abund )
                 .sum::<f64>() as f64
             }
         // TODO: this should probably be an error
@@ -186,7 +186,7 @@ pub fn compute_inverse_document_frequency(
             .iter_mins()
             .map(|hashval| 
                 (hashval, againsts_hashes
-                    .iter()
+                    .par_iter()
                     .map(|hashset| 
                         f64::from(u32::from(hashset.contains(&hashval)))
                     ).sum()
