@@ -79,21 +79,25 @@ pub fn multisearch(
     );
     eprintln!("\tDone.\n");
 
-    eprintln!("Computing frequency of hashvals across all againsts ...");
+    eprintln!("Computing frequency of hashvals across all againsts (L1 Norm) ...");
     let against_merged_frequencies: HashMap<u64, f64> = get_hash_frequencies(
         &against_merged_mh, 
         Some(Normalization::L1), 
     );
     eprintln!("\tDone.\n");
 
-    eprintln!("Computing frequency of hashvals across all queries ...");
+    eprintln!("Computing frequency of hashvals across all queries (L1 Norm) ...");
     let query_merged_frequencies: HashMap<u64, f64> = get_hash_frequencies(
         &queries_merged_mh, 
         Some(Normalization::L1), 
     );
     eprintln!("\tDone.\n");
 
-    eprintln!("Computing hashval term frequencies within each query ...");
+    eprintln!("Computing hashval term frequencies within each query (L2 Norm) ...");
+    // Use L2 norm for each query's hashval abundances to match scikit-learn's TfidfTransformer module
+    // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
+    // L2 norm is consistent with cosine similarity: 
+    // -> Cosine similarity is the angle between two L2 normed hashval abundance vectors
     let query_term_frequencies: HashMap<String, HashMap<u64, f64>> = HashMap::from(
         queries
         .par_iter()
@@ -102,7 +106,7 @@ pub fn multisearch(
                 query.md5sum.clone(), 
                 get_hash_frequencies(
                     &query.minhash, 
-                    Some(Normalization::L1)
+                    Some(Normalization::L2)
                 )
             )
         ).collect::<HashMap<String, HashMap<u64, f64>>>()
