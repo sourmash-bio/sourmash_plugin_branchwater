@@ -220,6 +220,7 @@ fn downsample_and_inflate_abundances(
     // avoid downsampling if we can
     if against_scaled != query_scaled {
         let against_ds = against
+            .clone()
             .downsample_scaled(query.scaled())
             .expect("cannot downsample sketch");
         (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;

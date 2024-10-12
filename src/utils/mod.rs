@@ -452,7 +452,10 @@ pub fn load_sketches_above_threshold(
             if let Ok(against_sig) = coll.sig_from_record(against_record) {
                 if let Some(against_mh) = against_sig.minhash() {
                     // downsample against_mh, but keep original md5sum
-                    let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
+                    let against_mh_ds = against_mh
+                        .clone()
+                        .downsample_scaled(query.scaled())
+                        .unwrap();
                     if let Ok(overlap) = against_mh_ds.count_common(query, false) {
                         if overlap >= threshold_hashes {
                             let result = PrefetchResult {
