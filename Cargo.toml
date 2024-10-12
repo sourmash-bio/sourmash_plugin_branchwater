@@ -15,7 +15,6 @@ serde = { version = "1.0.210", features = ["derive"] }
 #sourmash = { version = "0.15.2", features = ["branchwater"] }
 sourmash = { git = "https://github.com/sourmash-bio/sourmash.git", branch = "refactor_rs_downsample", features = ["branchwater"] }
 serde_json = "1.0.128"
-sourmash = { version = "0.15.2", features = ["branchwater"] }
 niffler = "2.4.0"
 log = "0.4.22"
 env_logger = { version = "0.11.5" }
