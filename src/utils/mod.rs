@@ -25,7 +25,6 @@ use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -122,12 +121,7 @@ pub fn write_prefetch(
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
-            query_filename,
-            query_name,
-            query_md5,
-            m.name,
-            m.md5sum,
-            m.overlap
+            query_filename, query_name, query_md5, m.name, m.md5sum, m.overlap
         )
         .ok();
     }
@@ -793,7 +787,9 @@ pub fn branchwater_calculate_gather_stats(
 /// removing matches in 'matchlist' from 'query'.
 
 pub fn consume_query_by_gather(
-    query: SigStore,            // @CTB could avoid...
+    query_name: String,
+    query_filename: String,
+    orig_query_mh: KmerMinHash,
     scaled: u64,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
@@ -822,9 +818,6 @@ pub fn consume_query_by_gather(
 
     let mut last_matches = matching_sketches.len();
 
-    let query_filename = query.filename();
-
-    let orig_query_mh = query.minhash().unwrap();
     let query_bp = orig_query_mh.n_unique_kmers() as usize;
     let query_n_hashes = orig_query_mh.size();
     let mut query_moltype = orig_query_mh.hash_function().to_string();
@@ -832,7 +825,6 @@ pub fn consume_query_by_gather(
         query_moltype = query_moltype.to_uppercase();
     }
     let query_md5sum: String = orig_query_mh.md5sum().clone();
-    let query_name = query.name().clone();
     let query_scaled = orig_query_mh.scaled() as usize;
 
     // @CTB
@@ -870,7 +862,7 @@ pub fn consume_query_by_gather(
         //calculate full gather stats
         let match_ = branchwater_calculate_gather_stats(
             &orig_query_ds,
-            query_mh.clone(),   // @CTB
+            query_mh.clone(),             // @CTB
             best_element.minhash.clone(), // @CTB
             best_element.name.clone(),
             best_element.md5sum.clone(),
@@ -929,7 +921,7 @@ pub fn consume_query_by_gather(
 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
-        // to do -- switch to KmerMinHashTree, for faster removal.
+        // to do -- switch to KmerMinHashTree, for faster removal. @CTB
         //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
 
         // recalculate remaining overlaps between query and all sketches.

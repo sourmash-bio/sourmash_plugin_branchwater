@@ -109,13 +109,9 @@ pub fn fastmultigather(
                         if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
                             if overlap >= threshold_hashes {
                                 if save_matches {
-                                    if let Ok(intersection) =
-                                        against.minhash.intersection(query_mh)
+                                    if let Ok(intersection) = against.minhash.intersection(query_mh)
                                     {
-                                        matching_hashes
-                                            .as_mut()
-                                            .unwrap()
-                                            .extend(intersection.0);
+                                        matching_hashes.as_mut().unwrap().extend(intersection.0);
                                     }
                                 }
                                 let result = PrefetchResult {
@@ -137,17 +133,26 @@ pub fn fastmultigather(
                     let gather_output = format!("{}.gather.csv", location);
 
                     // Save initial list of matches to prefetch output
-                    write_prefetch(query_filename, query_name, query_md5, Some(prefetch_output), &matchlist).ok();
+                    write_prefetch(
+                        query_filename,
+                        query_name,
+                        query_md5,
+                        Some(prefetch_output),
+                        &matchlist,
+                    )
+                    .ok();
 
                     // Now, do the gather!
                     consume_query_by_gather(
-                        query_sig,
+                        query_sig.name(),
+                        query_sig.filename(),
+                        query_sig.minhash().unwrap().clone(),
                         scaled as u64,
                         matchlist,
                         threshold_hashes,
                         Some(gather_output),
                     )
-                        .ok();
+                    .ok();
 
                     // Save matching hashes to .sig file if save_matches is true
                     if save_matches {
