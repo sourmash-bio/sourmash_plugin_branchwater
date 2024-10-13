@@ -754,7 +754,7 @@ pub fn branchwater_calculate_gather_stats(
         average_abund = n_unique_weighted_found as f64 / abunds.len() as f64;
 
         // todo: try to avoid clone for these?
-        median_abund = median(abunds.iter().cloned()).unwrap();
+        median_abund = median(abunds.iter().cloned()).expect("cannot calculate median");
         std_abund = stddev(abunds.iter().cloned());
     }
 
