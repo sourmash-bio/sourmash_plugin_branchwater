@@ -61,8 +61,12 @@ pub fn mastiff_manygather(
             // query downsampling happens here
             match coll.sig_from_record(record) {
                 Ok(query_sig) => {
+                    let query_filename = query_sig.filename();
+                    let query_name = query_sig.name();
+                    let query_md5 = query_sig.md5sum();
+
                     let mut results = vec![];
-                    if let Some(query_mh) = query_sig.minhash() {
+                    if let Ok(query_mh) = query_sig.try_into() {
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
@@ -94,9 +98,9 @@ pub fn mastiff_manygather(
                                     unique_intersect_bp: match_.unique_intersect_bp(),
                                     gather_result_rank: match_.gather_result_rank(),
                                     remaining_bp: match_.remaining_bp(),
-                                    query_filename: query_sig.filename(),
-                                    query_name: query_sig.name().clone(),
-                                    query_md5: query_sig.md5sum().clone(),
+                                    query_filename: query_filename.clone(),
+                                    query_name: query_name.clone(),
+                                    query_md5: query_md5.clone(),
                                     query_bp: query_mh.n_unique_kmers() as usize,
                                     ksize: ksize as usize,
                                     moltype: query_mh.hash_function().to_string(),
