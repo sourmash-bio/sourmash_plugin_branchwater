@@ -92,8 +92,15 @@ pub fn fastmultigather(
                 let query_name = query_sig.name();
                 let query_md5 = query_sig.md5sum();
 
-                // @CTB minhash
                 let query_mh = query_sig.minhash().expect("cannot get sketch");
+
+                // CTB refactor
+                let query_scaled = query_mh.scaled();
+                let query_ksize = query_mh.ksize().try_into().unwrap();
+                let query_hash_function = query_mh.hash_function().clone();
+                let query_seed = query_mh.seed();
+                let query_num = query_mh.num();
+
                 let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
                 let matchlist: BinaryHeap<PrefetchResult> = against
                     .iter()
@@ -134,7 +141,7 @@ pub fn fastmultigather(
 
                     // Now, do the gather!
                     consume_query_by_gather(
-                        query_sig.clone(),
+                        query_sig,
                         scaled as u64,
                         matchlist,
                         threshold_hashes,
@@ -149,12 +156,12 @@ pub fn fastmultigather(
                             if let Ok(mut file) = File::create(&sig_filename) {
                                 let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
                                 let mut new_mh = KmerMinHash::new(
-                                    query_mh.scaled(),
-                                    query_mh.ksize().try_into().unwrap(),
-                                    query_mh.hash_function().clone(),
-                                    query_mh.seed(),
+                                    query_scaled,
+                                    query_ksize,
+                                    query_hash_function,
+                                    query_seed,
                                     false,
-                                    query_mh.num(),
+                                    query_num,
                                 );
                                 new_mh
                                     .add_many(&unique_hashes.into_iter().collect::<Vec<_>>())
