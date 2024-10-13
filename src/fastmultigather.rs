@@ -92,7 +92,7 @@ pub fn fastmultigather(
                 let query_name = query_sig.name();
                 let query_md5 = query_sig.md5sum();
 
-                let query_mh = query_sig.minhash().expect("cannot get sketch");
+                let query_mh: KmerMinHash = query_sig.try_into().expect("cannot get sketch");
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();
@@ -106,10 +106,10 @@ pub fn fastmultigather(
                     .iter()
                     .filter_map(|against| {
                         let mut mm: Option<PrefetchResult> = None;
-                        if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
+                        if let Ok(overlap) = against.minhash.count_common(&query_mh, false) {
                             if overlap >= threshold_hashes {
                                 if save_matches {
-                                    if let Ok(intersection) = against.minhash.intersection(query_mh)
+                                    if let Ok(intersection) = against.minhash.intersection(&query_mh)
                                     {
                                         matching_hashes.as_mut().unwrap().extend(intersection.0);
                                     }
@@ -134,8 +134,8 @@ pub fn fastmultigather(
 
                     // Save initial list of matches to prefetch output
                     write_prefetch(
-                        query_filename,
-                        query_name,
+                        query_filename.clone(),
+                        query_name.clone(),
                         query_md5,
                         Some(prefetch_output),
                         &matchlist,
@@ -144,9 +144,9 @@ pub fn fastmultigather(
 
                     // Now, do the gather!
                     consume_query_by_gather(
-                        query_sig.name(),
-                        query_sig.filename(),
-                        query_sig.minhash().unwrap().clone(),
+                        query_name,
+                        query_filename,
+                        query_mh,
                         scaled as u64,
                         matchlist,
                         threshold_hashes,
