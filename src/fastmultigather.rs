@@ -171,31 +171,24 @@ pub fn fastmultigather(
                                 eprintln!("Error creating signature file: {}", sig_filename);
                             }
                         }
-                    } else {
-                        println!("No matches to '{}'", location);
-                        if create_empty_results {
-                            let prefetch_output = format!("{}.prefetch.csv", location);
-                            let gather_output = format!("{}.gather.csv", location);
-                            // touch output files
-                            match std::fs::File::create(&prefetch_output) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    eprintln!("Failed to create empty prefetch output: {}", e)
-                                }
-                            }
-                            match std::fs::File::create(&gather_output) {
-                                Ok(_) => {}
-                                Err(e) => eprintln!("Failed to create empty gather output: {}", e),
-                            }
-                        }
                     }
                 } else {
-                    // different warning here? Could not load sig from record??
-                    eprintln!(
-                        "WARNING: no compatible sketches in path '{}'",
-                        record.internal_location()
-                    );
-                    let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    println!("No matches to '{}'", location);
+                    if create_empty_results {
+                        let prefetch_output = format!("{}.prefetch.csv", location);
+                        let gather_output = format!("{}.gather.csv", location);
+                        // touch output files
+                        match std::fs::File::create(&prefetch_output) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                eprintln!("Failed to create empty prefetch output: {}", e)
+                            }
+                        }
+                        match std::fs::File::create(&gather_output) {
+                            Ok(_) => {}
+                            Err(e) => eprintln!("Failed to create empty gather output: {}", e),
+                        }
+                    }
                 }
             }
             Err(_) => {
