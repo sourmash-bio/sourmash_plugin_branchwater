@@ -70,14 +70,14 @@ pub fn mastiff_manygather(
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(query_mh);
+                            db.prepare_gather_counters(&query_mh);
 
                         let matches = db.gather(
                             counter,
                             query_colors,
                             hash_to_color,
                             threshold,
-                            query_mh,
+                            &query_mh,
                             Some(selection.clone()),
                         );
                         if let Ok(matches) = matches {
@@ -132,7 +132,7 @@ pub fn mastiff_manygather(
                     } else {
                         eprintln!(
                             "WARNING: no compatible sketches in path '{}'",
-                            query_sig.filename()
+                            query_filename
                         );
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
