@@ -835,6 +835,7 @@ pub fn consume_query_by_gather(
     let query_name = query.name().clone();
     let query_scaled = orig_query_mh.scaled() as usize;
 
+    // @CTB
     let mut query_mh = orig_query_mh.clone();
     let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
     // to do == use this to subtract hashes instead
@@ -869,9 +870,8 @@ pub fn consume_query_by_gather(
         //calculate full gather stats
         let match_ = branchwater_calculate_gather_stats(
             &orig_query_ds,
-            query_mh.clone(),
-            // KmerMinHash::from(query.clone()),
-            best_element.minhash.clone(),
+            query_mh.clone(),   // @CTB
+            best_element.minhash.clone(), // @CTB
             best_element.name.clone(),
             best_element.md5sum.clone(),
             best_element.overlap as usize,
