@@ -827,21 +827,23 @@ pub fn consume_query_by_gather(
     let query_md5sum: String = orig_query_mh.md5sum().clone();
     let query_scaled = orig_query_mh.scaled() as usize;
 
-    // @CTB
     let total_weighted_hashes = orig_query_mh.sum_abunds();
     let ksize = orig_query_mh.ksize();
     let calc_abund_stats = orig_query_mh.track_abundance();
     let orig_query_size = orig_query_mh.size();
     let mut last_hashes = orig_query_size;
 
-    let mut query_mh = orig_query_mh.clone();
-    let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
+    // @CTB
+    // this clone is necessary because we iteratively change things!
     // to do == use this to subtract hashes instead
     // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
+    let mut query_mh = orig_query_mh.clone();
 
-    // some items for full gather results
+    let mut orig_query_ds = orig_query_mh.downsample_scaled(scaled)?;
 
+    // track for full gather results
     let mut sum_weighted_found = 0;
+
     // set some bools
     let calc_ani_ci = false;
     let ani_confidence_interval_fraction = None;
@@ -858,7 +860,10 @@ pub fn consume_query_by_gather(
         let best_element = matching_sketches.peek().unwrap();
 
         query_mh = query_mh.downsample_scaled(best_element.minhash.scaled())?;
-        orig_query_ds = orig_query_ds.downsample_scaled(best_element.minhash.scaled())?;
+
+        // CTB: won't need this if we do not allow multiple scaleds;
+        // see sourmash-bio/sourmash#2951
+        orig_query_ds = orig_query_ds.downsample_scaled(best_element.minhash.scaled()).expect("cannot downsample");
 
         //calculate full gather stats
         let match_ = branchwater_calculate_gather_stats(
