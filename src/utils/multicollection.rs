@@ -308,7 +308,7 @@ impl MultiCollection {
 
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
-    pub fn load_sketches(&self, selection: &Selection) -> Result<Vec<SmallSignature>> {
+    pub fn load_sketches(self, selection: &Selection) -> Result<Vec<SmallSignature>> {
         if self.contains_revindex {
             eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
         }
