@@ -35,9 +35,8 @@ pub fn fastgather(
     // get single query sig and minhash
     let query_sig = query_collection.get_first_sig().expect("no queries!?");
 
-    // @CTB avoid clone?
     let query_sig_ds = query_sig.clone().select(selection)?; // downsample
-    let query_mh = match query_sig_ds.minhash() {            // @CTB minhash()
+    let query_mh = match query_sig_ds.minhash() {
         Some(query_mh) => query_mh,
         None => {
             bail!("No query sketch matching selection parameters.");
