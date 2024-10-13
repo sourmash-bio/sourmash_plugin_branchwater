@@ -793,7 +793,7 @@ pub fn branchwater_calculate_gather_stats(
 /// removing matches in 'matchlist' from 'query'.
 
 pub fn consume_query_by_gather(
-    query: SigStore,
+    query: SigStore,            // @CTB could avoid...
     scaled: u64,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
@@ -901,7 +901,7 @@ pub fn consume_query_by_gather(
             unique_intersect_bp: match_.unique_intersect_bp,
             gather_result_rank: match_.gather_result_rank,
             remaining_bp: match_.remaining_bp,
-            query_filename: query.filename(),
+            query_filename: location.clone(),
             query_name: query_name.clone(),
             query_md5: query_md5sum.clone(),
             query_bp,
