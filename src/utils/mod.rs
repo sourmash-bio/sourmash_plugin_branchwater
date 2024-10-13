@@ -90,7 +90,9 @@ pub fn prefetch(
 
 /// Write list of prefetch matches.
 pub fn write_prefetch(
-    query: &SigStore,
+    query_filename: String,
+    query_name: String,
+    query_md5: String,
     prefetch_output: Option<String>,
     matchlist: &BinaryHeap<PrefetchResult>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -120,9 +122,9 @@ pub fn write_prefetch(
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
-            query.filename(),
-            query.name(),
-            query.md5sum(),
+            query_filename,
+            query_name,
+            query_md5,
             m.name,
             m.md5sum,
             m.overlap

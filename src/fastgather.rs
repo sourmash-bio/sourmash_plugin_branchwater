@@ -34,6 +34,8 @@ pub fn fastgather(
     }
     // get single query sig and minhash
     let query_sig = query_collection.get_first_sig().expect("no queries!?");
+
+    // @CTB avoid clone?
     let query_sig_ds = query_sig.clone().select(selection)?; // downsample
     let query_mh = match query_sig_ds.minhash() {
         Some(query_mh) => query_mh,
@@ -89,7 +91,10 @@ pub fn fastgather(
     }
 
     if prefetch_output.is_some() {
-        write_prefetch(&query_sig, prefetch_output, &matchlist).ok();
+        let query_filename = query_sig.filename();
+        let query_name = query_sig.name();
+        let query_md5 = query_sig.md5sum();
+        write_prefetch(query_filename, query_name, query_md5, prefetch_output, &matchlist).ok();
     }
 
     // run the gather!
