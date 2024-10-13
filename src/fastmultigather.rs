@@ -109,7 +109,8 @@ pub fn fastmultigather(
                         if let Ok(overlap) = against.minhash.count_common(&query_mh, false) {
                             if overlap >= threshold_hashes {
                                 if save_matches {
-                                    if let Ok(intersection) = against.minhash.intersection(&query_mh)
+                                    if let Ok(intersection) =
+                                        against.minhash.intersection(&query_mh)
                                     {
                                         matching_hashes.as_mut().unwrap().extend(intersection.0);
                                     }

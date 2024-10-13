@@ -862,7 +862,9 @@ pub fn consume_query_by_gather(
 
         // CTB: won't need this if we do not allow multiple scaleds;
         // see sourmash-bio/sourmash#2951
-        orig_query_ds = orig_query_ds.downsample_scaled(best_element.minhash.scaled()).expect("cannot downsample");
+        orig_query_ds = orig_query_ds
+            .downsample_scaled(best_element.minhash.scaled())
+            .expect("cannot downsample");
 
         //calculate full gather stats
         let match_ = branchwater_calculate_gather_stats(
