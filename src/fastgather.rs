@@ -94,7 +94,14 @@ pub fn fastgather(
         let query_filename = query_sig.filename();
         let query_name = query_sig.name();
         let query_md5 = query_sig.md5sum();
-        write_prefetch(query_filename, query_name, query_md5, prefetch_output, &matchlist).ok();
+        write_prefetch(
+            query_filename,
+            query_name,
+            query_md5,
+            prefetch_output,
+            &matchlist,
+        )
+        .ok();
     }
 
     // run the gather!

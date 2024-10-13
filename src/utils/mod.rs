@@ -122,12 +122,7 @@ pub fn write_prefetch(
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
-            query_filename,
-            query_name,
-            query_md5,
-            m.name,
-            m.md5sum,
-            m.overlap
+            query_filename, query_name, query_md5, m.name, m.md5sum, m.overlap
         )
         .ok();
     }
