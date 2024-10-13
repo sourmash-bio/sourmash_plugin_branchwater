@@ -822,7 +822,7 @@ pub fn consume_query_by_gather(
 
     let mut last_matches = matching_sketches.len();
 
-    let location = query.filename();
+    let query_filename = query.filename();
 
     let orig_query_mh = query.minhash().unwrap();
     let query_bp = orig_query_mh.n_unique_kmers() as usize;
@@ -855,7 +855,7 @@ pub fn consume_query_by_gather(
 
     eprintln!(
         "{} iter {}: start: query hashes={} matches={}",
-        location,
+        query_filename,
         rank,
         orig_query_mh.size(),
         matching_sketches.len()
@@ -901,7 +901,7 @@ pub fn consume_query_by_gather(
             unique_intersect_bp: match_.unique_intersect_bp,
             gather_result_rank: match_.gather_result_rank,
             remaining_bp: match_.remaining_bp,
-            query_filename: location.clone(),
+            query_filename: query_filename.clone(),
             query_name: query_name.clone(),
             query_md5: query_md5sum.clone(),
             query_bp,
@@ -942,7 +942,7 @@ pub fn consume_query_by_gather(
 
         eprintln!(
             "{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})",
-            location,
+            query_filename,
             rank,
             query_mh.size(),
             sub_hashes,
