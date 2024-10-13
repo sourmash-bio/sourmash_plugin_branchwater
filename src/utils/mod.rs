@@ -833,10 +833,9 @@ pub fn consume_query_by_gather(
     let orig_query_size = orig_query_mh.size();
     let mut last_hashes = orig_query_size;
 
-    // @CTB
     // this clone is necessary because we iteratively change things!
     // to do == use this to subtract hashes instead
-    // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
+    // let mut query_mh = KmerMinHashBTree::from(orig_query_mh.clone());
     let mut query_mh = orig_query_mh.clone();
 
     let mut orig_query_ds = orig_query_mh.downsample_scaled(scaled)?;
@@ -927,7 +926,7 @@ pub fn consume_query_by_gather(
 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
-        // to do -- switch to KmerMinHashTree, for faster removal. @CTB
+        // to do -- switch to KmerMinHashTree, for faster removal.
         //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
 
         // recalculate remaining overlaps between query and all sketches.
