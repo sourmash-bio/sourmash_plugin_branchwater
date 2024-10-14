@@ -1549,7 +1549,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.16.0"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=refactor_rs_downsample#ceaea393d95b3b85575b51c20784d3b9442da149"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=gather_stats_refactor#0eeca48e07ac3d2f3a6f144785c9f7aeae00c3d8"
 dependencies = [
  "az",
  "byteorder",
