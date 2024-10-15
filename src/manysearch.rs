@@ -73,12 +73,15 @@ pub fn manysearch(
             // against downsampling happens here
             match coll.sig_from_record(record) {
                 Ok(against_sig) => {
-                    if let Some(against_mh) = against_sig.minhash() {
+                    let against_name = against_sig.name();
+                    let against_md5 = against_sig.md5sum();
+
+                    if let Ok(against_mh) = against_sig.try_into() {
                         for query in query_sketchlist.iter() {
                             // avoid calculating details unless there is overlap
                             let overlap = query
                                 .minhash
-                                .count_common(against_mh, true)
+                                .count_common(&against_mh, true)
                                 .expect("incompatible sketches")
                                 as f64;
 
@@ -115,7 +118,7 @@ pub fn manysearch(
                                     median_abund,
                                     std_abund,
                                 ) = if calc_abund_stats {
-                                    downsample_and_inflate_abundances(&query.minhash, against_mh)
+                                    downsample_and_inflate_abundances(&query.minhash, &against_mh)
                                         .ok()?
                                 } else {
                                     (None, None, None, None, None)
@@ -124,10 +127,10 @@ pub fn manysearch(
                                 results.push(SearchResult {
                                     query_name: query.name.clone(),
                                     query_md5: query.md5sum.clone(),
-                                    match_name: against_sig.name(),
+                                    match_name: against_name.clone(),
                                     containment: containment_query_in_target,
                                     intersect_hashes: overlap as usize,
-                                    match_md5: Some(against_sig.md5sum()),
+                                    match_md5: Some(against_md5.clone()),
                                     jaccard: Some(jaccard),
                                     max_containment: Some(max_containment),
                                     average_abund,

@@ -25,7 +25,6 @@ use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -662,9 +661,9 @@ pub fn report_on_collection_loading(
 #[allow(clippy::too_many_arguments)]
 pub fn branchwater_calculate_gather_stats(
     orig_query: &KmerMinHash,
-    query: KmerMinHash,
+    query: &KmerMinHash,
     // these are separate in PrefetchResult, so just pass them separately in here
-    match_mh: KmerMinHash,
+    match_mh: &KmerMinHash,
     match_name: String,
     match_md5: String,
     match_size: usize,
@@ -749,7 +748,7 @@ pub fn branchwater_calculate_gather_stats(
         average_abund = n_unique_weighted_found as f64 / abunds.len() as f64;
 
         // todo: try to avoid clone for these?
-        median_abund = median(abunds.iter().cloned()).unwrap();
+        median_abund = median(abunds.iter().cloned()).expect("cannot calculate median");
         std_abund = stddev(abunds.iter().cloned());
     }
 
@@ -788,7 +787,9 @@ pub fn branchwater_calculate_gather_stats(
 /// removing matches in 'matchlist' from 'query'.
 
 pub fn consume_query_by_gather(
-    query: SigStore,
+    query_name: String,
+    query_filename: String,
+    orig_query_mh: KmerMinHash,
     scaled: u64,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
@@ -817,9 +818,6 @@ pub fn consume_query_by_gather(
 
     let mut last_matches = matching_sketches.len();
 
-    let location = query.filename();
-
-    let orig_query_mh = query.minhash().unwrap();
     let query_bp = orig_query_mh.n_unique_kmers() as usize;
     let query_n_hashes = orig_query_mh.size();
     let mut query_moltype = orig_query_mh.hash_function().to_string();
@@ -827,31 +825,33 @@ pub fn consume_query_by_gather(
         query_moltype = query_moltype.to_uppercase();
     }
     let query_md5sum: String = orig_query_mh.md5sum().clone();
-    let query_name = query.name().clone();
     let query_scaled = orig_query_mh.scaled() as usize;
 
-    let mut query_mh = orig_query_mh.clone();
-    let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
-    // to do == use this to subtract hashes instead
-    // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
-
-    let mut last_hashes = orig_query_mh.size();
-
-    // some items for full gather results
-
-    let mut sum_weighted_found = 0;
     let total_weighted_hashes = orig_query_mh.sum_abunds();
     let ksize = orig_query_mh.ksize();
-    // set some bools
     let calc_abund_stats = orig_query_mh.track_abundance();
+    let orig_query_size = orig_query_mh.size();
+    let mut last_hashes = orig_query_size;
+
+    // this clone is necessary because we iteratively change things!
+    // to do == use this to subtract hashes instead
+    // let mut query_mh = KmerMinHashBTree::from(orig_query_mh.clone());
+    let mut query_mh = orig_query_mh.clone();
+
+    let mut orig_query_ds = orig_query_mh.downsample_scaled(scaled)?;
+
+    // track for full gather results
+    let mut sum_weighted_found = 0;
+
+    // set some bools
     let calc_ani_ci = false;
     let ani_confidence_interval_fraction = None;
 
     eprintln!(
         "{} iter {}: start: query hashes={} matches={}",
-        location,
+        query_filename,
         rank,
-        orig_query_mh.size(),
+        orig_query_size,
         matching_sketches.len()
     );
 
@@ -859,14 +859,18 @@ pub fn consume_query_by_gather(
         let best_element = matching_sketches.peek().unwrap();
 
         query_mh = query_mh.downsample_scaled(best_element.minhash.scaled())?;
-        orig_query_ds = orig_query_ds.downsample_scaled(best_element.minhash.scaled())?;
+
+        // CTB: won't need this if we do not allow multiple scaleds;
+        // see sourmash-bio/sourmash#2951
+        orig_query_ds = orig_query_ds
+            .downsample_scaled(best_element.minhash.scaled())
+            .expect("cannot downsample");
 
         //calculate full gather stats
         let match_ = branchwater_calculate_gather_stats(
             &orig_query_ds,
-            query_mh.clone(),
-            // KmerMinHash::from(query.clone()),
-            best_element.minhash.clone(),
+            &query_mh,
+            &best_element.minhash,
             best_element.name.clone(),
             best_element.md5sum.clone(),
             best_element.overlap as usize,
@@ -896,7 +900,7 @@ pub fn consume_query_by_gather(
             unique_intersect_bp: match_.unique_intersect_bp,
             gather_result_rank: match_.gather_result_rank,
             remaining_bp: match_.remaining_bp,
-            query_filename: query.filename(),
+            query_filename: query_filename.clone(),
             query_name: query_name.clone(),
             query_md5: query_md5sum.clone(),
             query_bp,
@@ -937,7 +941,7 @@ pub fn consume_query_by_gather(
 
         eprintln!(
             "{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})",
-            location,
+            query_filename,
             rank,
             query_mh.size(),
             sub_hashes,

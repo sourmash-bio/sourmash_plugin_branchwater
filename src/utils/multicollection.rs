@@ -322,13 +322,16 @@ impl MultiCollection {
                         _idx,
                         record.internal_location()
                     );
-                    let selected_sig = sig.clone().select(selection).ok()?;
-                    let minhash = selected_sig.minhash()?.clone();
+
+                    let sig_name = sig.name();
+                    let sig_md5 = sig.md5sum();
+                    let selected_sig = sig.select(selection).ok()?;
+                    let minhash = selected_sig.try_into().expect("cannot extract sketch");
 
                     Some(SmallSignature {
                         location: record.internal_location().to_string(),
-                        name: sig.name(),
-                        md5sum: sig.md5sum(),
+                        name: sig_name,
+                        md5sum: sig_md5,
                         minhash,
                     })
                 }
@@ -357,7 +360,7 @@ impl MultiCollection {
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
                 Ok(sig) => {
-                    let sig = sig.clone().select(selection).ok()?;
+                    let sig = sig.select(selection).ok()?;
                     Some(Signature::from(sig))
                 }
                 Err(_) => {

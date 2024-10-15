@@ -92,16 +92,25 @@ pub fn fastmultigather(
                 let query_name = query_sig.name();
                 let query_md5 = query_sig.md5sum();
 
-                let query_mh = query_sig.minhash().expect("cannot get sketch");
+                let query_mh: KmerMinHash = query_sig.try_into().expect("cannot get sketch");
+
+                // CTB refactor
+                let query_scaled = query_mh.scaled();
+                let query_ksize = query_mh.ksize().try_into().unwrap();
+                let query_hash_function = query_mh.hash_function().clone();
+                let query_seed = query_mh.seed();
+                let query_num = query_mh.num();
+
                 let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
                 let matchlist: BinaryHeap<PrefetchResult> = against
                     .iter()
                     .filter_map(|against| {
                         let mut mm: Option<PrefetchResult> = None;
-                        if let Ok(overlap) = against.minhash.count_common(query_mh, false) {
+                        if let Ok(overlap) = against.minhash.count_common(&query_mh, false) {
                             if overlap >= threshold_hashes {
                                 if save_matches {
-                                    if let Ok(intersection) = against.minhash.intersection(query_mh)
+                                    if let Ok(intersection) =
+                                        against.minhash.intersection(&query_mh)
                                     {
                                         matching_hashes.as_mut().unwrap().extend(intersection.0);
                                     }
@@ -126,8 +135,8 @@ pub fn fastmultigather(
 
                     // Save initial list of matches to prefetch output
                     write_prefetch(
-                        query_filename,
-                        query_name,
+                        query_filename.clone(),
+                        query_name.clone(),
                         query_md5,
                         Some(prefetch_output),
                         &matchlist,
@@ -136,7 +145,9 @@ pub fn fastmultigather(
 
                     // Now, do the gather!
                     consume_query_by_gather(
-                        query_sig.clone(),
+                        query_name,
+                        query_filename,
+                        query_mh,
                         scaled as u64,
                         matchlist,
                         threshold_hashes,
@@ -151,12 +162,12 @@ pub fn fastmultigather(
                             if let Ok(mut file) = File::create(&sig_filename) {
                                 let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
                                 let mut new_mh = KmerMinHash::new(
-                                    query_mh.scaled(),
-                                    query_mh.ksize().try_into().unwrap(),
-                                    query_mh.hash_function().clone(),
-                                    query_mh.seed(),
+                                    query_scaled,
+                                    query_ksize,
+                                    query_hash_function,
+                                    query_seed,
                                     false,
-                                    query_mh.num(),
+                                    query_num,
                                 );
                                 new_mh
                                     .add_many(&unique_hashes.into_iter().collect::<Vec<_>>())
