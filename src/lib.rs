@@ -1,4 +1,8 @@
-/// Python interface Rust code for sourmash_plugin_branchwater.
+//! Rust-to-Python interface code for sourmash_plugin_branchwater, using pyo3.
+//!
+//! If you're using Rust, you're probably most interested in
+//! [utils](utils/index.html)
+
 use pyo3::prelude::*;
 
 #[macro_use]
@@ -112,6 +116,7 @@ fn do_fastgather(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false, create_empty_results=false))]
 fn do_fastmultigather(
     query_filenames: String,
@@ -237,6 +242,8 @@ fn do_multisearch(
     estimate_ani: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
+    let _ = env_logger::try_init();
+
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
@@ -346,6 +353,8 @@ fn do_cluster(
         }
     }
 }
+
+/// Module interface for the `sourmash_plugin_branchwater` extension module.
 
 #[pymodule]
 fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {

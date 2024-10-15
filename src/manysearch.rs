@@ -9,7 +9,7 @@ use stats::{median, stddev};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{csvwriter_thread, load_collection, load_sketches, ReportType, SearchResult};
+use crate::utils::{csvwriter_thread, load_collection, ReportType, SearchResult};
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
 use sourmash::selection::Selection;
@@ -32,10 +32,11 @@ pub fn manysearch(
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    // load all query sketches into memory, downsampling on the way
-    let query_sketchlist = load_sketches(query_collection, selection, ReportType::Query).unwrap();
 
-    // Against: Load all _paths_, not signatures, into memory.
+    // load all query sketches into memory, downsampling on the way
+    let query_sketchlist = query_collection.load_sketches(selection)?;
+
+    // Against: Load collection, potentially off disk & not into memory.
     let against_collection = load_collection(
         &against_filepath,
         selection,
@@ -61,7 +62,7 @@ pub fn manysearch(
 
     let send = against_collection
         .par_iter()
-        .filter_map(|(_idx, record)| {
+        .filter_map(|(coll, _idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 && i > 0 {
                 eprintln!("Processed {} search sigs", i);
@@ -70,7 +71,7 @@ pub fn manysearch(
             let mut results = vec![];
 
             // against downsampling happens here
-            match against_collection.sig_from_record(record) {
+            match coll.sig_from_record(record) {
                 Ok(against_sig) => {
                     if let Some(against_mh) = against_sig.minhash() {
                         for query in query_sketchlist.iter() {

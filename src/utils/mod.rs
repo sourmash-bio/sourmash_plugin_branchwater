@@ -1,9 +1,10 @@
-/// Utility functions for sourmash_plugin_branchwater.
+//! Utility functions for `sourmash_plugin_branchwater`.
 use rayon::prelude::*;
+
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, File};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -20,25 +21,19 @@ use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
-use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
 use sourmash::signature::{Signature, SigsTrait};
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::{FSStorage, InnerStorage, SigStore};
+use sourmash::storage::SigStore;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-/// Track a name/minhash.
 
-pub struct SmallSignature {
-    pub location: String,
-    pub name: String,
-    pub md5sum: String,
-    pub minhash: KmerMinHash,
-}
+pub mod multicollection;
+use multicollection::MultiCollection;
+
 /// Structure to hold overlap information from comparisons.
-
 pub struct PrefetchResult {
     pub name: String,
     pub md5sum: String,
@@ -95,7 +90,9 @@ pub fn prefetch(
 
 /// Write list of prefetch matches.
 pub fn write_prefetch(
-    query: &SigStore,
+    query_filename: String,
+    query_name: String,
+    query_md5: String,
     prefetch_output: Option<String>,
     matchlist: &BinaryHeap<PrefetchResult>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -125,12 +122,7 @@ pub fn write_prefetch(
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
-            query.filename(),
-            query.name(),
-            query.md5sum(),
-            m.name,
-            m.md5sum,
-            m.overlap
+            query_filename, query_name, query_md5, m.name, m.md5sum, m.overlap
         )
         .ok();
     }
@@ -433,49 +425,28 @@ fn process_prefix_csv(
     Ok((results, n_fastas))
 }
 
-// Load all compatible minhashes from a collection into memory
-// also store sig name and md5 alongside, as we usually need those
-pub fn load_sketches(
-    collection: Collection,
-    selection: &Selection,
-    _report_type: ReportType,
-) -> Result<Vec<SmallSignature>> {
-    let sketchinfo: Vec<SmallSignature> = collection
-        .par_iter()
-        .filter_map(|(_idx, record)| {
-            let sig = collection.sig_from_record(record).ok()?;
-            let selected_sig = sig.clone().select(selection).ok()?;
-            let minhash = selected_sig.minhash()?.clone();
-
-            Some(SmallSignature {
-                location: record.internal_location().to_string(),
-                name: sig.name(),
-                md5sum: sig.md5sum(),
-                minhash,
-            })
-        })
-        .collect();
-
-    Ok(sketchinfo)
-}
+/////////
 
 /// Load a collection of sketches from a file, filtering to keep only
 /// those with a minimum overlap.
 
 pub fn load_sketches_above_threshold(
-    against_collection: Collection,
+    against_collection: MultiCollection,
     query: &KmerMinHash,
     threshold_hashes: u64,
 ) -> Result<(BinaryHeap<PrefetchResult>, usize, usize)> {
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
+    if against_collection.contains_revindex {
+        eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
+    }
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
-        .filter_map(|(_idx, against_record)| {
+        .filter_map(|(coll, _idx, against_record)| {
             let mut results = Vec::new();
             // Load against into memory
-            if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
+            if let Ok(against_sig) = coll.sig_from_record(against_record) {
                 let against_filename = against_sig.filename();
                 let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
                 let against_md5 = against_mh.md5sum(); // keep original md5sum
@@ -543,148 +514,25 @@ impl std::fmt::Display for ReportType {
     }
 }
 
-pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
-    match Collection::from_zipfile(sigpath) {
-        Ok(collection) => Ok(collection),
-        Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
-    }
-}
-
-fn collection_from_manifest(
-    sigpath: &Path,
-    report_type: &ReportType,
-) -> Result<Collection, anyhow::Error> {
-    let file = File::open(sigpath)
-        .with_context(|| format!("Failed to open {} file: '{}'", report_type, sigpath))?;
-
-    let reader = BufReader::new(file);
-    let manifest = Manifest::from_reader(reader).with_context(|| {
-        format!(
-            "Failed to read {} manifest from: '{}'",
-            report_type, sigpath
-        )
-    })?;
-
-    if manifest.is_empty() {
-        // If the manifest is empty, return an error constructed with the anyhow! macro
-        Err(anyhow!("could not read as manifest: '{}'", sigpath))
-    } else {
-        // If the manifest is not empty, proceed to create and return the Collection
-        Ok(Collection::new(
-            manifest,
-            InnerStorage::new(
-                FSStorage::builder()
-                    .fullpath("".into())
-                    .subdir("".into())
-                    .build(),
-            ),
-        ))
-    }
-}
-
-fn collection_from_pathlist(
-    sigpath: &Path,
-    report_type: &ReportType,
-) -> Result<(Collection, usize), anyhow::Error> {
-    let file = File::open(sigpath).with_context(|| {
-        format!(
-            "Failed to open {} pathlist file: '{}'",
-            report_type, sigpath
-        )
-    })?;
-    let reader = BufReader::new(file);
-
-    // load list of paths
-    let lines: Vec<_> = reader
-        .lines()
-        .filter_map(|line| match line {
-            Ok(path) => Some(path),
-            Err(_err) => None,
-        })
-        .collect();
-
-    // load sketches from paths in parallel.
-    let n_failed = AtomicUsize::new(0);
-    let records: Vec<Record> = lines
-        .par_iter()
-        .filter_map(|path| match Signature::from_path(path) {
-            Ok(signatures) => {
-                let recs: Vec<Record> = signatures
-                    .into_iter()
-                    .flat_map(|v| Record::from_sig(&v, path))
-                    .collect();
-                Some(recs)
-            }
-            Err(err) => {
-                eprintln!("Sketch loading error: {}", err);
-                eprintln!("WARNING: could not load sketches from path '{}'", path);
-                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
-                None
-            }
-        })
-        .flatten()
-        .collect();
-
-    if records.is_empty() {
-        eprintln!(
-            "No valid signatures found in {} pathlist '{}'",
-            report_type, sigpath
-        );
-    }
-
-    let manifest: Manifest = records.into();
-    let collection = Collection::new(
-        manifest,
-        InnerStorage::new(
-            FSStorage::builder()
-                .fullpath("".into())
-                .subdir("".into())
-                .build(),
-        ),
-    );
-    let n_failed = n_failed.load(atomic::Ordering::SeqCst);
-
-    Ok((collection, n_failed))
-}
-
-fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
-    let signatures = Signature::from_path(sigpath).with_context(|| {
-        format!(
-            "Failed to load {} signatures from: '{}'",
-            report_type, sigpath
-        )
-    })?;
-
-    Collection::from_sigs(signatures).with_context(|| {
-        format!(
-            "Loaded {} signatures but failed to load as collection: '{}'",
-            report_type, sigpath
-        )
-    })
-}
+/// Load a multi collection from a path - this is the new top-level load function.
 
 pub fn load_collection(
     siglist: &String,
     selection: &Selection,
     report_type: ReportType,
     allow_failed: bool,
-) -> Result<Collection> {
+) -> Result<MultiCollection> {
     let sigpath = PathBuf::from(siglist);
 
     if !sigpath.exists() {
         bail!("No such file or directory: '{}'", &sigpath);
     }
 
-    // disallow rocksdb input here
-    if is_revindex_database(&sigpath) {
-        bail!("Cannot load {} signatures from a 'rocksdb' database. Please use sig, zip, or pathlist.", report_type);
-    }
-
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
     let mut last_error = None;
 
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
-        match collection_from_zipfile(&sigpath, &report_type) {
+        match MultiCollection::from_zipfile(&sigpath) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
@@ -695,32 +543,40 @@ pub fn load_collection(
         None
     };
 
-    let collection =
-        collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
 
     let collection =
-        collection.or_else(|| match collection_from_signature(&sigpath, &report_type) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+        collection.or_else(
+            || match MultiCollection::from_standalone_manifest(&sigpath) {
+                Ok(coll) => Some((coll, 0)),
+                Err(e) => {
+                    last_error = Some(e);
+                    None
+                }
+            },
+        );
 
-    let collection =
-        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type) {
-            Ok((coll, n_failed)) => Some((coll, n_failed)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
+
+    let collection = collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
+        Ok((coll, n_failed)) => Some((coll, n_failed)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
 
     match collection {
         Some((coll, n_failed)) => {
@@ -772,7 +628,7 @@ pub fn load_collection(
 /// Returns an error if:
 /// * No signatures were successfully loaded.
 pub fn report_on_collection_loading(
-    collection: &Collection,
+    collection: &MultiCollection,
     skipped_paths: usize,
     failed_paths: usize,
     report_type: ReportType,
@@ -972,7 +828,7 @@ pub fn consume_query_by_gather(
     }
     let query_md5sum: String = orig_query_mh.md5sum().clone();
     let query_name = query.name().clone();
-    let query_scaled = orig_query_mh.scaled().clone() as usize; //query_mh.scaled() as usize
+    let query_scaled = orig_query_mh.scaled() as usize;
 
     let mut query_mh = orig_query_mh.clone();
     let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
@@ -1043,11 +899,11 @@ pub fn consume_query_by_gather(
             query_filename: query.filename(),
             query_name: query_name.clone(),
             query_md5: query_md5sum.clone(),
-            query_bp: query_bp.clone(),
+            query_bp,
             ksize,
             moltype: query_moltype.clone(),
-            scaled: query_scaled.clone(),
-            query_n_hashes: query_n_hashes,
+            scaled: query_scaled,
+            query_n_hashes,
             query_abundance: query_mh.track_abundance(),
             query_containment_ani: match_.query_containment_ani,
             match_containment_ani: match_.match_containment_ani,
