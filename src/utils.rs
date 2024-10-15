@@ -476,25 +476,30 @@ pub fn load_sketches_above_threshold(
             let mut results = Vec::new();
             // Load against into memory
             if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
-                if let Some(against_mh) = against_sig.minhash() {
-                    // downsample against_mh, but keep original md5sum
-                    let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
-                    if let Ok(overlap) = against_mh_ds.count_common(query, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: against_record.name().to_string(),
-                                md5sum: against_mh.md5sum(),
-                                minhash: against_mh_ds.clone(),
-                                location: against_record.internal_location().to_string(),
-                                overlap,
-                            };
-                            results.push(result);
-                        }
+                let against_filename = against_sig.filename();
+                let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
+                let against_md5 = against_mh.md5sum(); // keep original md5sum
+
+                let against_mh_ds = against_mh
+                    .downsample_scaled(query.scaled())
+                    .expect("cannot downsample sketch");
+
+                // good? ok, store as candidate from prefetch.
+                if let Ok(overlap) = against_mh_ds.count_common(query, false) {
+                    if overlap >= threshold_hashes {
+                        let result = PrefetchResult {
+                            name: against_record.name().to_string(),
+                            md5sum: against_md5,
+                            minhash: against_mh_ds,
+                            location: against_record.internal_location().to_string(),
+                            overlap,
+                        };
+                        results.push(result);
                     }
                 } else {
                     eprintln!(
                         "WARNING: no compatible sketches in path '{}'",
-                        against_sig.filename()
+                        against_filename
                     );
                     let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
