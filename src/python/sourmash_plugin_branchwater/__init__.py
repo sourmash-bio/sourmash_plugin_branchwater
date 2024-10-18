@@ -65,6 +65,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
         p.add_argument('-N', '--no-pretty-print', action='store_false',
                        dest='pretty_print',
                        help="do not display results (e.g. for large output)")
+        p.add_argument('--ignore-abundance', action='store_true',
+                       help="do not do expensive abundance calculations")
 
     def main(self, args):
         print_version()
@@ -80,7 +82,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                            args.ksize,
                                                            args.scaled,
                                                            args.moltype,
-                                                           args.output)
+                                                           args.output,
+                                                           args.ignore_abundance)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
 
