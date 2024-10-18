@@ -890,25 +890,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
 
 [[package]]
-name = "lnexp"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f98924c778103b33dcf6beb1af911977e5d65c6cae74b45e133b3c90bd6db948"
-
-[[package]]
 name = "log"
 version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
-
-[[package]]
-name = "logsumexp"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daa43db95f1a28b0f6430b755090b6a781e7577093e6ded4624bb806fa7166ec"
-dependencies = [
- "lnexp",
-]
 
 [[package]]
 name = "lz4-sys"
@@ -1836,7 +1821,6 @@ dependencies = [
  "env_logger",
  "glob",
  "log",
- "logsumexp",
  "needletail",
  "niffler",
  "predicates",
