@@ -3,7 +3,6 @@
 use rayon::prelude::*;
 
 use sourmash::sketch::minhash::KmerMinHash;
-use logsumexp::LogSumExp;
 use std::collections::{HashMap, HashSet};
 use sourmash::Error;
 use sourmash::signature::SigsTrait;
