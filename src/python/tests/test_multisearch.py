@@ -73,21 +73,11 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             cont = float(row["containment"])
             jaccard = float(row["jaccard"])
             maxcont = float(row["max_containment"])
-            prob_overlap = float(row["prob_overlap"])
-            prob_overlap_adjusted = float(row["prob_overlap_adjusted"])
-            containment_adjusted = float(row["containment_adjusted"])
-            containment_adjusted_log10 = float(row["containment_adjusted_log10"])
-            tf_idf_score = float(row["tf_idf_score"])
             intersect_hashes = int(row["intersect_hashes"])
 
             jaccard = round(jaccard, 4)
             cont = round(cont, 4)
             maxcont = round(maxcont, 4)
-            prob_overlap = round(prob_overlap, 7)
-            prob_overlap_adjusted = round(prob_overlap_adjusted, 7)
-            containment_adjusted = round(containment_adjusted, 4)
-            containment_adjusted_log10 = round(containment_adjusted_log10, 4)
-            tf_idf_score = round(tf_idf_score, 4)
 
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
@@ -130,7 +120,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db):
         against_list,
         "-o",
         output,
-        "--prob-overlap",
+        "--prob",
     )
     assert os.path.exists(output)
 

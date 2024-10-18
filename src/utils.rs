@@ -1244,7 +1244,7 @@ pub struct MultiSearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
 
-    // #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prob_overlap: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prob_overlap_adjusted: Option<f64>,
@@ -1400,6 +1400,3 @@ pub fn write_signature(
     zip.start_file(sig_filename, zip_options).unwrap();
     zip.write_all(&gzipped_buffer).unwrap();
 }
-
-
-
