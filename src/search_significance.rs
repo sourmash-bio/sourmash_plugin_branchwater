@@ -31,40 +31,6 @@ impl Display for Normalization {
 }
 
 
-
-pub fn print_value_count(hashes_with_abund: Vec<(u64, u64)>) -> HashMap<u64, u64> {
-    // Coun the number of times the abundances appear in a hashes with abundance output
-    let mut value_counts: HashMap<u64, u64>  = HashMap::new();
-
-    for (_key, value) in hashes_with_abund.iter() {
-        // Count number of times we see each value
-        *value_counts.entry(*value).or_insert(0) += 1;
-    }
-
-    for (value, count) in value_counts.iter() {
-        eprintln!("value: {}, count: {}", value, count);
-    }
-
-    return value_counts;
-}
-
-pub fn print_freq_count(frequencies: HashMap<&u64, f64>, freq_type: &str, query_name: &str, n_hashes: usize) -> HashMap<String, u64> {
-    // Coun the number of times the abundances appear in a hashes with abundance output
-    let mut freq_counts: HashMap<String, u64>  = HashMap::new();
-
-    for (_key, value) in frequencies.iter() {
-        // Count number of times we see each value
-        *freq_counts.entry(value.to_string()).or_insert(0) += 1;
-    }
-
-    for (freq, count) in freq_counts.iter() {
-        eprintln!("{}\t{}\tn_hashes: {}\tfreq: {}, count: {}", freq_type, query_name, n_hashes, freq, count);
-    }
-
-    return freq_counts;
-}
-
-// #[cfg(feature = "maths")]
 pub fn get_hash_frequencies<'a>(
     minhash: &KmerMinHash,
     normalization: Option<Normalization>,
@@ -87,8 +53,6 @@ pub fn get_hash_frequencies<'a>(
         // TODO: this should probably be an error
         _ => 0.0,
     };
-
-    // eprintln!("abund_normalization ({}): {}", normalization.unwrap(), abund_normalization);
 
     let mut frequencies: HashMap<u64, f64> = HashMap::from(
         minhash_abunds
@@ -211,51 +175,10 @@ pub fn compute_inverse_document_frequency(
         ).collect::<HashMap<u64, f64>>()
     );
 
-    //     match smooth_idf {
-    //     // Add 1 to not totally ignore terms that appear in all documents
-    //     // scikit-learn documentation (assumed to implement best practices for document classification): 
-    //     // > "The effect of adding “1” to the idf in the equation above is that terms with zero idf,
-    //     // > i.e., terms that occur in all documents in a training set, will not be entirely ignored."
-    //     // Source: https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
-    //     Some(true) => ( (1.0 + n_signatures) / (1.0 + n_sigs_with_hashval) ).ln() + 1.0,
-    //     Some(false) => (n_signatures / (n_sigs_with_hashval) ).ln() + 1.0,
-    //     _ => 1.0
-    // };
-
     return inverse_document_frequency;
 }
 
 
-pub fn get_hashval_inverse_document_frequency(hashval: u64, signatures: &Vec<SmallSignature>, smooth_idf: Option<bool>) -> f64 {
-    // Inverse document frequency tells us how unique this hashval is to the query database
-    // When the value is near 0, then this hashval appears in all signatures
-    // When the value is very large, equal to the number of signatures, then the hashval is 
-    // unique to a single signature
-
-    // Total number of documents in the corpus
-    let n_signatures = signatures.len() as f64;
-
-    // Number of documents where term t appears
-    let n_sigs_with_hashval: f64 = signatures.par_iter().map(|sig| -> f64 {
-        match sig.minhash.mins().contains(&hashval) {
-            true => 1.0,
-            false => 0.0,
-        }
-    }).sum();
-
-    let inverse_document_frequency = match smooth_idf {
-        // Add 1 to not totally ignore terms that appear in all documents
-        // scikit-learn documentation (assumed to implement best practices for document classification): 
-        // > "The effect of adding “1” to the idf in the equation above is that terms with zero idf,
-        // > i.e., terms that occur in all documents in a training set, will not be entirely ignored."
-        // Source: https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
-        Some(true) => ( (1.0 + n_signatures) / (1.0 + n_sigs_with_hashval) ).ln() + 1.0,
-        Some(false) => (n_signatures / (n_sigs_with_hashval) ).ln() + 1.0,
-        _ => 1.0
-    };
-
-    return inverse_document_frequency;
-}
 
 pub fn get_term_frequency_inverse_document_frequency(
     hashvals: &Vec<u64>, 
@@ -269,10 +192,6 @@ pub fn get_term_frequency_inverse_document_frequency(
     // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
     // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
     
-    // let _ = print_freq_count(term_frequencies.clone(), &"tf", query_name, hashvals.len());
-
-    // eprintln!("- inverse_document_frequencies: {} -", query.name);
-    // let _ = print_freq_count(inverse_document_frequencies.clone(), &"idf", query_name, hashvals.len());
         
     // Multiply each hashval's term frequency and inverse document frequency, and sum the products
     let tf_idf: HashMap<&u64, f64> = HashMap::from(
@@ -287,11 +206,7 @@ pub fn get_term_frequency_inverse_document_frequency(
         ).collect::<HashMap<&u64, f64>>()
     );
 
-    // let _ = print_freq_count(tf_idf.clone(), &"tf-idf", query_name, tf_idf.len());
-
     let tf_idf_score: f64 = tf_idf.values().sum();
-
-    // eprintln!("\tquery: {}\tn_hashes: {}\ttf_idf_score: {}", query_name, hashvals.len(), tf_idf_score);
 
     return tf_idf_score;
 }
