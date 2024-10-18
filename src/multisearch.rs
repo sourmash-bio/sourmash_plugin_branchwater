@@ -158,6 +158,8 @@ pub fn multisearch(
                     let mut containment_adjusted_log10: Option<f64> = None;
                     let mut tf_idf_score: Option<f64> = None;
 
+                    // Estimate probability of overlap between query sig and against sig, using
+                    // underlying distribution of hashvals for all queries and all againsts
                     if estimate_prob_overlap {
                         let overlapping_hashvals: Vec<u64> =
                             query.minhash.intersection(&against.minhash).unwrap().0;
