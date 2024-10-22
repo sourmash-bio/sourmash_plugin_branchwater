@@ -59,6 +59,7 @@ libclang = ">=16.0.6,<16.1"
 python = "3.10.*"
 rust = ">=1.80.0,<1.81"
 maturin = ">=1.7.4,<2"
+sourmash-minimal = ">=4.8.10,<5"
 
 [tool.pixi.feature.build.target.linux-64.dependencies]
 patchelf = ">=0.17.2,<0.18"
