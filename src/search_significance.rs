@@ -147,6 +147,7 @@ pub fn compute_inverse_document_frequency(
     let document_frequency: HashMap<&u64, f64> = HashMap::from(
         against_merged_mh
             .iter_mins()
+            .par_bridge()
             .map(|hashval| 
                 (hashval, againsts_hashes
                     .par_iter()
