@@ -54,7 +54,7 @@ pub fn get_hash_frequencies<'a>(
         _ => 0.0,
     };
 
-    let mut frequencies: HashMap<u64, f64> = HashMap::from(
+    let frequencies: HashMap<u64, f64> = HashMap::from(
         minhash_abunds
         .par_iter()
         .map(|(hashval, abund)| 
