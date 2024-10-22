@@ -64,7 +64,7 @@ pub fn multisearch(
     let mut inverse_document_frequency: HashMap<u64, f64> = Default::default();
 
     if estimate_prob_overlap {
-        let n_comparisons: f64 = againsts.len() as f64 * queries.len() as f64;
+        n_comparisons = againsts.len() as f64 * queries.len() as f64;
         // Combine all the queries and against into a single signature each, to get their
         // underlying distribution of hashes across the whole input
         eprintln!("Merging queries ...");
@@ -76,17 +76,17 @@ pub fn multisearch(
 
         // Precompute
         eprintln!("Computing Inverse Document Frequency (IDF) of hashes in all againsts ...");
-        let inverse_document_frequency =
+        inverse_document_frequency =
             compute_inverse_document_frequency(&against_merged_mh, &againsts, Some(true));
         eprintln!("\tDone.\n");
 
         eprintln!("Computing frequency of hashvals across all againsts (L1 Norm) ...");
-        let against_merged_frequencies: HashMap<u64, f64> =
+        against_merged_frequencies =
             get_hash_frequencies(&against_merged_mh, Some(Normalization::L1));
         eprintln!("\tDone.\n");
 
         eprintln!("Computing frequency of hashvals across all queries (L1 Norm) ...");
-        let query_merged_frequencies: HashMap<u64, f64> =
+        query_merged_frequencies =
             get_hash_frequencies(&queries_merged_mh, Some(Normalization::L1));
         eprintln!("\tDone.\n");
 
@@ -95,7 +95,7 @@ pub fn multisearch(
         // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
         // L2 norm is consistent with cosine similarity:
         // -> Cosine similarity is the angle between two L2 normed hashval abundance vectors
-        let query_term_frequencies: HashMap<String, HashMap<u64, f64>> = HashMap::from(
+        query_term_frequencies = HashMap::from(
             queries
                 .par_iter()
                 .map(|query| {
