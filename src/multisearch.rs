@@ -165,21 +165,20 @@ pub fn multisearch(
                             query.minhash.intersection(&against.minhash).unwrap().0;
 
                         // Related to getting the probability of overlap between query and target
-                        let prob_overlap = Some(get_prob_overlap(
+                        prob_overlap = Some(get_prob_overlap(
                             &overlapping_hashvals,
                             &query_merged_frequencies,
                             &against_merged_frequencies,
                         ));
                         // Do simple, conservative Bonferroni correction
-                        let prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
+                        prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
 
                         // Rescale the containment based on the probability of overlap,
                         // such that smaller probability -> higher containment
-                        let containment_adjusted =
+                        containment_adjusted =
                             Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
-                        let containment_adjusted_log10 =
-                            Some(containment_adjusted.unwrap().log10());
-                        let tf_idf_score = Some(get_term_frequency_inverse_document_frequency(
+                        containment_adjusted_log10 = Some(containment_adjusted.unwrap().log10());
+                        tf_idf_score = Some(get_term_frequency_inverse_document_frequency(
                             &overlapping_hashvals,
                             &query_term_frequencies[&query.md5sum],
                             &inverse_document_frequency,
