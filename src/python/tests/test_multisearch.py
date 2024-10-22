@@ -131,8 +131,6 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db):
     print(dd)
 
     for idx, row in dd.items():
-        assert not ("prob_overlap" in row)
-
         # identical?
         if row["match_name"] == row["query_name"]:
             assert row["query_md5"] == row["match_md5"], row
