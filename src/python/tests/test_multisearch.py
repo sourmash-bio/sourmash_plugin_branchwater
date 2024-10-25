@@ -131,9 +131,6 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
-            # assert float(row['prob_overlap'] == 1.0)
-            # assert float(row['prob_overlap_adjusted'] == 1.0)
-            # assert float(row['containment_adjusted'] == 1.0)
             assert "query_containment_ani" not in row
             assert "match_containment_ani" not in row
             assert "average_containment_ani" not in row
