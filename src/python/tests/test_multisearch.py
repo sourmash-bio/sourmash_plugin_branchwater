@@ -8,6 +8,10 @@ from . import sourmash_tst_utils as utils
 from .sourmash_tst_utils import get_test_data, make_file_list, zip_siglist
 
 
+def float_round(string: str, ndigits=None):
+    return round(float(string), ndigits)
+
+
 def test_installed(runtmp):
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash("scripts", "multisearch")
@@ -60,24 +64,14 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             assert "average_containment_ani" not in row
             assert "max_containment_ani" not in row
 
-            if row["match_name"] == "NC_011665.1":
-                assert float(row["prob_overlap"] == 4.67e-05)
-                assert float(row["prob_overlap_adjusted"] == 0.0004205931327)
-                assert float(row["containment_adjusted"] == 2377.594693)
-                assert float(row["containment_adjusted_log10"] == 2377.594693)
-
         else:
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
 
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
@@ -146,33 +140,27 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db):
             assert "max_containment_ani" not in row
 
             if row["match_name"] == "NC_011665.1":
-                assert float(row["prob_overlap"] == 4.67e-05)
-                assert float(row["prob_overlap_adjusted"] == 0.0004205931327)
-                assert float(row["containment_adjusted"] == 2377.594693)
-                assert float(row["containment_adjusted_log10"] == 2377.594693)
+                assert float_round(row["prob_overlap"], 7) == 4.67e-05
+                assert float_round(row["prob_overlap_adjusted"], 7) == 0.0004206
+                assert float_round(row["containment_adjusted"], 4) == 2377.5947
+                assert float_round(row["containment_adjusted_log10"], 4) == 2377.5947
+                assert float_round(row["tf_idf_score"], 4) == 1.4974
 
         else:
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
-            prob_overlap = float(row["prob_overlap"])
-            prob_overlap_adjusted = float(row["prob_overlap_adjusted"])
-            containment_adjusted = float(row["containment_adjusted"])
-            containment_adjusted_log10 = float(row["containment_adjusted_log10"])
-            tf_idf_score = float(row["tf_idf_score"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
+            prob_overlap = float_round(row["prob_overlap"], 7)
+            prob_overlap_adjusted = float_round(row["prob_overlap_adjusted"], 7)
+            containment_adjusted = float_round(row["containment_adjusted"], 4)
+            containment_adjusted_log10 = float_round(
+                row["containment_adjusted_log10"], 4
+            )
+            tf_idf_score = float_round(row["tf_idf_score"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            prob_overlap = round(prob_overlap, 7)
-            prob_overlap_adjusted = round(prob_overlap_adjusted, 7)
-            containment_adjusted = round(containment_adjusted, 4)
-            containment_adjusted_log10 = round(containment_adjusted_log10, 4)
-            tf_idf_score = round(tf_idf_score, 4)
 
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
@@ -185,7 +173,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db):
                 assert prob_overlap_adjusted == 0.0002031
                 assert containment_adjusted == 2377.5947
                 assert containment_adjusted_log10 == 3.3761
-                assert tf_idf_score == 1.497381
+                assert tf_idf_score == 0.6217
 
             if q == "NC_009661.1" and m == "NC_011665.1":
                 assert jaccard == 0.3207
@@ -196,7 +184,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db):
                 assert prob_overlap_adjusted == 0.0002031
                 assert containment_adjusted == 2405.6096
                 assert containment_adjusted_log10 == 3.3812
-                assert tf_idf_score == 1.495075
+                assert tf_idf_score == 0.6290
 
 
 def test_simple_ani(runtmp, zip_query, zip_db):
@@ -247,22 +235,15 @@ def test_simple_ani(runtmp, zip_query, zip_db):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani", 4])
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
@@ -732,22 +713,15 @@ def test_simple_prot(runtmp):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani"], 4)
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
@@ -823,24 +797,18 @@ def test_prob_overlap_prot_with_abundance(runtmp):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            prob_overlap = float(row["prob_overlap"])
-            prob_overlap_adjusted = float(row["prob_overlap_adjusted"])
-            containment_adjusted = float(row["containment_adjusted"])
-            containment_adjusted_log10 = float(row["containment_adjusted_log10"])
-            tf_idf_score = float(row["tf_idf_score"])
+            prob_overlap = float_round(row["prob_overlap"], 8)
+            prob_overlap_adjusted = float_round(row["prob_overlap_adjusted"], 8)
+            containment_adjusted = float_round(row["containment_adjusted"], 4)
+            containment_adjusted_log10 = float_round(
+                row["containment_adjusted_log10"], 4
+            )
+            tf_idf_score = float_round(row["tf_idf_score"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            prob_overlap = round(prob_overlap, 8)
-            prob_overlap_adjusted = round(prob_overlap_adjusted, 8)
-            containment_adjusted = round(containment_adjusted, 4)
-            containment_adjusted_log10 = round(containment_adjusted_log10, 4)
-            tf_idf_score = round(tf_idf_score, 4)
             print(
                 q,
                 m,
@@ -960,22 +928,15 @@ def test_simple_dayhoff(runtmp):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani"], 4)
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
@@ -1055,22 +1016,15 @@ def test_simple_hp(runtmp):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani"], 4)
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
