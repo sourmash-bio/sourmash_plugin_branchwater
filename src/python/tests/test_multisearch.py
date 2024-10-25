@@ -239,7 +239,7 @@ def test_simple_ani(runtmp, zip_query, zip_db):
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float_round(row["query_containment_ani", 4])
+            q1_ani = float_round(row["query_containment_ani"], 4)
             q2_ani = float_round(row["match_containment_ani"], 4)
             avg_ani = float_round(row["average_containment_ani"], 4)
             max_ani = float_round(row["max_containment_ani"], 4)
