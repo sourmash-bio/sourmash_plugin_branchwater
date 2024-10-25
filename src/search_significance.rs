@@ -47,7 +47,7 @@ pub fn get_hash_frequencies<'a>(
         Some(Normalization::L2) => { 
             minhash_abunds
                 .par_iter()
-                .map(|(hashval, abund)| abund * abund )
+                .map(|(_hashval, abund)| abund * abund )
                 .sum::<f64>() as f64
             }
         // TODO: this should probably be an error
