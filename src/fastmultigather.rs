@@ -48,12 +48,9 @@ pub fn fastmultigather(
     let scaled = match scaled {
         Some(s) => s,
         None => {
-            eprintln!("Determining desired scaled from first query sketch.");
-            let query_sig = query_collection.get_first_sig().expect("no queries!?");
-            let query_sig = query_sig.data().expect("cannot read first loaded sketch!?");
-            let query_sketch: KmerMinHash = query_sig.clone().try_into().expect("cannot foo");
-            let scaled = query_sketch.scaled() as usize;
-            eprintln!("Setting scaled={}", scaled);
+            let scaled = query_collection.max_scaled().expect("no records!?")
+                .clone() as usize;
+            eprintln!("Setting scaled={} based on max scaled in query collection", scaled);
             scaled
         }
     };
