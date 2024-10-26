@@ -581,10 +581,6 @@ pub fn load_collection(
         Some((coll, n_failed)) => {
             let n_total = coll.len();
 
-            let foo = selection.scaled();
-            if let Some(scaled) = foo {
-                eprintln!("AAA: {}", scaled);
-            }
             let selected = coll.select(selection)?;
             let n_skipped = n_total - selected.len();
             report_on_collection_loading(

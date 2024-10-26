@@ -2,7 +2,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::prelude::{Storage, ToWriter, ReadData};
+use sourmash::prelude::{ReadData, Storage, ToWriter};
 use sourmash::{selection::Selection, signature::SigsTrait};
 
 use std::sync::atomic;
@@ -38,7 +38,6 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
-    eprintln!("q");
     let query_collection = load_collection(
         &query_filepath,
         selection,
@@ -59,9 +58,9 @@ pub fn fastmultigather(
         }
     };
 
-    let mut selection = selection.clone();
-    selection.set_scaled(scaled as u32);
-    
+    let mut against_selection = selection.clone();
+    against_selection.set_scaled(scaled as u32);
+
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
         if x > 0 {
@@ -77,12 +76,12 @@ pub fn fastmultigather(
     // load against collection
     let against_collection = load_collection(
         &against_filepath,
-        &selection,
+        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = against_collection.load_sketches(&selection)?;
+    let against = against_collection.load_sketches(&against_selection)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
