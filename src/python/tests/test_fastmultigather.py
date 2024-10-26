@@ -1279,3 +1279,48 @@ def test_create_empty_results(runtmp):
     g_output = runtmp.output('CP001071.1.gather.csv')
     p_output = runtmp.output('CP001071.1.prefetch.csv')
     assert os.path.exists(p_output)
+
+
+def test_simple_against_scaled(runtmp, zip_against):
+    # we shouldn't automatically downsample query
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    downsampled_sigs = runtmp.output('ds.sig.zip')
+    runtmp.sourmash('sig', 'downsample',
+                    '--scaled', '120_000',
+                    sig2, sig47, sig63, '-o', downsampled_sigs)
+                                    
+    query_list = runtmp.output('query.txt')
+    make_file_list(query_list, [query])
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash('scripts', 'fastmultigather', query_list,
+                        downsampled_sigs,
+                        '-t', '0', in_directory=runtmp.output(''))
+
+
+def test_simple_query_scaled(runtmp):
+    # test basic execution w/automatic scaled selection based on query
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-t', '0', in_directory=runtmp.output(''))
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('SRR606249.gather.csv')
+    p_output = runtmp.output('SRR606249.prefetch.csv')
+    assert os.path.exists(g_output)
+    assert os.path.exists(p_output)
