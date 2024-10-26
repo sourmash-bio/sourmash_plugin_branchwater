@@ -34,9 +34,11 @@ pub fn multisearch(
     let scaled = match selection.scaled() {
         Some(s) => s,
         None => {
-            let scaled = query_collection.max_scaled().expect("no records!?")
-                .clone() as u32;
-            eprintln!("Setting scaled={} based on max scaled in query collection", scaled);
+            let scaled = query_collection.max_scaled().expect("no records!?").clone() as u32;
+            eprintln!(
+                "Setting scaled={} based on max scaled in query collection",
+                scaled
+            );
             scaled
         }
     };
@@ -84,7 +86,11 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
-                let overlap = query.minhash.count_common(&against.minhash, false).expect("cannot compare query and against!?") as f64;
+                let overlap = query
+                    .minhash
+                    .count_common(&against.minhash, false)
+                    .expect("cannot compare query and against!?")
+                    as f64;
                 // use downsampled sizes
                 let query_size = query.minhash.size() as f64;
                 let target_size = against.minhash.size() as f64;

@@ -48,9 +48,11 @@ pub fn fastmultigather(
     let scaled = match scaled {
         Some(s) => s,
         None => {
-            let scaled = query_collection.max_scaled().expect("no records!?")
-                .clone() as usize;
-            eprintln!("Setting scaled={} based on max scaled in query collection", scaled);
+            let scaled = query_collection.max_scaled().expect("no records!?").clone() as usize;
+            eprintln!(
+                "Setting scaled={} based on max scaled in query collection",
+                scaled
+            );
             scaled
         }
     };
