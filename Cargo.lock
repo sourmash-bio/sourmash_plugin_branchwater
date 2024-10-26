@@ -1549,7 +1549,8 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.16.0"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=fix_scaled_downsampling#f9afad548ac8e0224932c857ffb68d6669967b79"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "596f20eac8896a06ca65889399ea6f408deeba375aa44c4a2efb3b46e31a02c0"
 dependencies = [
  "az",
  "byteorder",
@@ -1595,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "sourmash_plugin_branchwater"
-version = "0.9.8"
+version = "0.9.9-dev"
 dependencies = [
  "anyhow",
  "assert_cmd",
