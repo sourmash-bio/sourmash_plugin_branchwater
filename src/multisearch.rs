@@ -41,7 +41,9 @@ pub fn multisearch(
         }
     };
 
-    let mut new_selection = selection.clone();
+    let ksize = selection.ksize().unwrap() as f64;
+
+    let mut new_selection = selection;
     new_selection.set_scaled(scaled as u32);
 
     let queries = query_collection.load_sketches(&new_selection)?;
@@ -70,7 +72,6 @@ pub fn multisearch(
     //
 
     let processed_cmp = AtomicUsize::new(0);
-    let ksize = selection.ksize().unwrap() as f64;
 
     let send = against
         .par_iter()
