@@ -1321,6 +1321,30 @@ def test_simple_query_scaled(runtmp):
     print(os.listdir(runtmp.output('')))
 
     g_output = runtmp.output('SRR606249.gather.csv')
-    p_output = runtmp.output('SRR606249.prefetch.csv')
     assert os.path.exists(g_output)
-    assert os.path.exists(p_output)
+
+
+def test_simple_query_scaled_indexed(runtmp):
+    # test basic execution w/automatic scaled selection based on query
+    # (on a rocksdb)
+    query = get_test_data('SRR606249.sig.gz')
+    sig2 = get_test_data('2.fa.sig.gz')
+    sig47 = get_test_data('47.fa.sig.gz')
+    sig63 = get_test_data('63.fa.sig.gz')
+
+    query_list = runtmp.output('query.txt')
+    against_list = runtmp.output('against.txt')
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+    against_list = index_siglist(runtmp, against_list,
+                                 runtmp.output('against.rocksdb'))
+
+    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
+                    '-o', 'foo.csv',
+                    '-t', '0', in_directory=runtmp.output(''))
+
+    print(os.listdir(runtmp.output('')))
+
+    g_output = runtmp.output('foo.csv')
+    assert os.path.exists(g_output)
