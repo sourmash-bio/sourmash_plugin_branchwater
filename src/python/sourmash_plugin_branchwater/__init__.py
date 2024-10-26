@@ -153,8 +153,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
                        help='threshold in estimated base pairs, for reporting matches (default: 50kb)')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to do comparisons (default: 31)')
-        p.add_argument('-s', '--scaled', default=1000, type=int,
-                       help='scaled factor at which to do comparisons (default: 1000)')
+        p.add_argument('-s', '--scaled', default=None, type=int,
+                       help='scaled factor at which to do comparisons (default: None)')
         p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,

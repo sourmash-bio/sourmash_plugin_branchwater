@@ -2,7 +2,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::prelude::{Storage, ToWriter};
+use sourmash::prelude::{Storage, ToWriter, ReadData};
 use sourmash::{selection::Selection, signature::SigsTrait};
 
 use std::sync::atomic;
@@ -29,7 +29,7 @@ pub fn fastmultigather(
     query_filepath: String,
     against_filepath: String,
     threshold_bp: usize,
-    scaled: usize,
+    scaled: Option<usize>,
     selection: &Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
@@ -38,6 +38,7 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
+    eprintln!("q");
     let query_collection = load_collection(
         &query_filepath,
         selection,
@@ -45,6 +46,22 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
+    let scaled = match scaled {
+        Some(s) => s,
+        None => {
+            eprintln!("Determining desired scaled from first query sketch.");
+            let query_sig = query_collection.get_first_sig().expect("no queries!?");
+            let query_sig = query_sig.data().expect("cannot read first loaded sketch!?");
+            let query_sketch: KmerMinHash = query_sig.clone().try_into().expect("cannot foo");
+            let scaled = query_sketch.scaled() as usize;
+            eprintln!("Setting scaled={}", scaled);
+            scaled
+        }
+    };
+
+    let mut selection = selection.clone();
+    selection.set_scaled(scaled as u32);
+    
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
         if x > 0 {
@@ -60,12 +77,12 @@ pub fn fastmultigather(
     // load against collection
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = against_collection.load_sketches(selection)?;
+    let against = against_collection.load_sketches(&selection)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
