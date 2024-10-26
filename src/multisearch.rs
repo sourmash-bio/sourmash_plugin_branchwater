@@ -84,9 +84,6 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
-                eprintln!("xxx q={} a={}", query.minhash.scaled(),
-                          against.minhash.scaled());
-
                 let overlap = query.minhash.count_common(&against.minhash, false).expect("cannot compare query and against!?") as f64;
                 // use downsampled sizes
                 let query_size = query.minhash.size() as f64;
