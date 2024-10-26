@@ -2,7 +2,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use sourmash::prelude::{ReadData, Storage, ToWriter};
+use sourmash::prelude::{Storage, ToWriter};
 use sourmash::{selection::Selection, signature::SigsTrait};
 
 use std::sync::atomic;
@@ -30,7 +30,7 @@ pub fn fastmultigather(
     against_filepath: String,
     threshold_bp: usize,
     scaled: Option<usize>,
-    selection: &Selection,
+    selection: Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
     create_empty_results: bool,
@@ -40,7 +40,7 @@ pub fn fastmultigather(
     // load query collection
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
@@ -55,7 +55,7 @@ pub fn fastmultigather(
         }
     };
 
-    let mut against_selection = selection.clone();
+    let mut against_selection = selection;
     against_selection.set_scaled(scaled as u32);
 
     let threshold_hashes: u64 = {

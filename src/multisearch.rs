@@ -18,7 +18,7 @@ pub fn multisearch(
     query_filepath: String,
     against_filepath: String,
     threshold: f64,
-    selection: &Selection,
+    selection: Selection,
     allow_failed_sigpaths: bool,
     estimate_ani: bool,
     output: Option<String>,
@@ -26,22 +26,35 @@ pub fn multisearch(
     // Load all queries into memory at once.
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
 
-    let queries = query_collection.load_sketches(selection)?;
+    let scaled = match selection.scaled() {
+        Some(s) => s,
+        None => {
+            let scaled = query_collection.max_scaled().expect("no records!?")
+                .clone() as u32;
+            eprintln!("Setting scaled={} based on max scaled in query collection", scaled);
+            scaled
+        }
+    };
+
+    let mut new_selection = selection.clone();
+    new_selection.set_scaled(scaled as u32);
+
+    let queries = query_collection.load_sketches(&new_selection)?;
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &new_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
 
-    let against = against_collection.load_sketches(selection)?;
+    let against = against_collection.load_sketches(&new_selection)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -70,7 +83,10 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
-                let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
+                eprintln!("xxx q={} a={}", query.minhash.scaled(),
+                          against.minhash.scaled());
+
+                let overlap = query.minhash.count_common(&against.minhash, false).expect("cannot compare query and against!?") as f64;
                 // use downsampled sizes
                 let query_size = query.minhash.size() as f64;
                 let target_size = against.minhash.size() as f64;

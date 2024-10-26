@@ -15,7 +15,7 @@ use crate::utils::{
 pub fn mastiff_manygather(
     queries_file: String,
     index: PathBuf,
-    selection: &Selection,
+    selection: Selection,
     threshold_bp: usize,
     output: Option<String>,
     allow_failed_sigpaths: bool,
@@ -29,7 +29,7 @@ pub fn mastiff_manygather(
 
     let query_collection = load_collection(
         &queries_file,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;

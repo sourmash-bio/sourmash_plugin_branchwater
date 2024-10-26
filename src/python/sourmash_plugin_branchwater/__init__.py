@@ -154,7 +154,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to do comparisons (default: 31)')
         p.add_argument('-s', '--scaled', default=None, type=int,
-                       help='scaled factor at which to do comparisons (default: None)')
+                       help='scaled factor at which to do comparisons (default: determined from query collection)')
         p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,
@@ -268,8 +268,8 @@ class Branchwater_Multisearch(CommandLinePlugin):
                        help='containment threshold for reporting matches (default: 0.01)')
         p.add_argument('-k', '--ksize', default=31, type=int,
                        help='k-mer size at which to select sketches')
-        p.add_argument('-s', '--scaled', default=1000, type=int,
-                       help='scaled factor at which to do comparisons')
+        p.add_argument('-s', '--scaled', default=None, type=int,
+                       help='scaled factor at which to do comparisons (default: determined from query collection)')
         p.add_argument('-m', '--moltype', default='DNA', choices = ["DNA", "protein", "dayhoff", "hp"],
                        help = 'molecule type (DNA, protein, dayhoff, or hp; default DNA)')
         p.add_argument('-c', '--cores', default=0, type=int,

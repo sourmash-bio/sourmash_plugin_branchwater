@@ -51,7 +51,7 @@ fn do_manysearch(
         match mastiff_manysearch::mastiff_manysearch(
             querylist_path,
             againstfile_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
@@ -66,7 +66,7 @@ fn do_manysearch(
         match manysearch::manysearch(
             querylist_path,
             siglist_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
@@ -102,7 +102,7 @@ fn do_fastgather(
         siglist_path,
         threshold_bp,
         scaled,
-        &selection,
+        selection,
         output_path_prefetch,
         output_path_gather,
         allow_failed_sigpaths,
@@ -138,7 +138,7 @@ fn do_fastmultigather(
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
             againstfile_path,
-            &selection,
+            selection.clone(),
             threshold_bp,
             output_path,
             allow_failed_sigpaths,
@@ -158,7 +158,7 @@ fn do_fastmultigather(
             siglist_path,
             threshold_bp,
             scaled,
-            &selection,
+            selection,
             allow_failed_sigpaths,
             save_matches,
             create_empty_results,
@@ -203,7 +203,7 @@ fn do_index(
     let allow_failed_sigpaths = false;
     match index::index(
         siglist,
-        &selection,
+        selection,
         output,
         colors,
         allow_failed_sigpaths,
@@ -237,21 +237,21 @@ fn do_multisearch(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<usize>,
     moltype: String,
     estimate_ani: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let _ = env_logger::try_init();
 
-    let selection = build_selection(ksize, Some(scaled), &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
     match multisearch::multisearch(
         querylist_path,
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
         output_path,
@@ -282,7 +282,7 @@ fn do_pairwise(
     match pairwise::pairwise(
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
         write_all,
