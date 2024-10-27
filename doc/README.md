@@ -3,6 +3,7 @@
 | command | functionality | docs |
 | -------- | -------- | -------- |
 | `manysketch` | Rapidly build sketches for many input files     | [link](#Running-manysketch)     |
+| `singlesketch` | Sketch a single sequence file | [link](#Running-singlesketch)
 | `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link](#Running-fastgather)
 | `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link](#Running-fastmultigather)
 | `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
@@ -225,6 +226,51 @@ sourmash sig summarize fa.zip
 ```
 The number of sketches per parameter combination should equal the total number of records in all input FASTA.
 The `name` column will not be used. Instead, each sketch will be named from the FASTA record name.
+
+#### Protein sketching: hp and dayhoff moltypes
+
+`manysketch` supports all sourmash moltypes: `protein`, `hp`, and `dayhoff`. See also [`sourmash` protein encoding documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) and [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
+
+`manysketch` does not translate DNA to protein, sorry. You'll need to do that ahead of time.
+
+If you have a `proteins.csv` file which looks like:
+
+```
+name,genome_filename,protein_filename
+protein1,,protein1.fa
+protein2,,protein2.fa
+```
+
+You can run:
+
+```
+sourmash scripts manysketch proteins.csv -o proteins.zip -p dayhoff,k=16 -p protein,k=10 -p hp,k=42
+```
+The output will be written to `proteins.zip`
+
+You can check if all signatures were written properly with
+
+```
+sourmash sig summarize proteins.zip
+```
+
+In this case, three sketches of `protein`, `dayhoff`, and `hp` moltypes were made for each file in `proteins.csv` and saved to `proteins.zip`.
+
+
+## Running `singlesketch`
+
+The `singlesketch` command generates a sketch for a single sequence file.
+
+### Basic Usage
+```bash
+sourmash scripts singlesketch input.fa -p k=21,scaled=1000,dna -o output.sig --name signature_name
+```
+### Using `stdin/stdout`
+You can use `-` for `stdin` and output the result to `stdout`:
+```bash
+cat input.fa | sourmash scripts singlesketch - -o -
+```
+
 
 ### Running `multisearch` and `pairwise`
 

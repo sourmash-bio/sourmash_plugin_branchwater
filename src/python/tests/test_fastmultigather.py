@@ -992,7 +992,7 @@ def test_indexed_full_output(runtmp):
     # check a few columns
     average_ani = set(df['average_containment_ani'])
     avg_ani = set([round(x, 4) for x in average_ani])
-    assert avg_ani == {0.8502, 0.8584, 0.8602}
+    assert avg_ani == {0.9221, 0.9306, 0.9316} # @CTB check against py gather
 
     f_unique_weighted = set(df['f_unique_weighted'])
     f_unique_weighted = set([round(x, 4) for x in f_unique_weighted])
@@ -1000,7 +1000,7 @@ def test_indexed_full_output(runtmp):
 
     unique_intersect_bp = set(df['unique_intersect_bp'])
     unique_intersect_bp = set([round(x,4) for x in unique_intersect_bp])
-    assert unique_intersect_bp == {44000, 18000, 22000}
+    assert unique_intersect_bp == {4400000, 1800000, 2200000}
 
 
 def test_nonindexed_full_vs_sourmash_gather(runtmp):

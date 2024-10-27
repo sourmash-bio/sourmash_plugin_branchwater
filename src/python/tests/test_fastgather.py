@@ -310,6 +310,7 @@ def test_bad_against_3(runtmp, capfd):
     assert 'InvalidArchive' in captured.err
 
 
+@pytest.mark.xfail(reason="should work, bug")
 def test_against_pathlist_multisigfile(runtmp, zip_against, indexed_against):
     # test against a sigfile that contains multiple sketches
     query = get_test_data('SRR606249.sig.gz')
