@@ -34,10 +34,16 @@ pub fn fastgather(
     }
     // get single query sig and minhash
     let query_sig = query_collection.get_first_sig().expect("no queries!?");
-    let query_sig_ds = query_sig.clone().select(selection)?; // downsample
-    let query_mh = match query_sig_ds.minhash() {
-        Some(query_mh) => query_mh,
-        None => {
+
+    let query_filename = query_sig.filename();
+    let query_name = query_sig.name();
+    let query_md5 = query_sig.md5sum();
+
+    // clone here is necessary b/c we use full query_sig in consume_query_by_gather
+    let query_sig_ds = query_sig.select(selection)?; // downsample
+    let query_mh = match query_sig_ds.try_into() {
+        Ok(query_mh) => query_mh,
+        Err(_) => {
             bail!("No query sketch matching selection parameters.");
         }
     };
@@ -48,14 +54,6 @@ pub fn fastgather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-
-    use sourmash::manifest::Record;
-    use sourmash::collection::Collection;
-    let cl: Collection = Collection::try_from(against_collection.clone()).unwrap().clone();
-    let binding = cl.manifest().clone();
-    let foo: Vec<&Record> = binding.iter().collect();
-    eprintln!("xxx {}", foo.len());
-    eprintln!("{:?}", foo);
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes: u64 = {
@@ -74,7 +72,7 @@ pub fn fastgather(
     );
 
     // load a set of sketches, filtering for those with overlaps > threshold
-    let result = load_sketches_above_threshold(against_collection, query_mh, threshold_hashes)?;
+    let result = load_sketches_above_threshold(against_collection, &query_mh, threshold_hashes)?;
     let matchlist = result.0;
     let skipped_paths = result.1;
     let failed_paths = result.2;
@@ -97,12 +95,21 @@ pub fn fastgather(
     }
 
     if prefetch_output.is_some() {
-        write_prefetch(&query_sig, prefetch_output, &matchlist).ok();
+        write_prefetch(
+            query_filename.clone(),
+            query_name.clone(),
+            query_md5,
+            prefetch_output,
+            &matchlist,
+        )
+        .ok();
     }
 
     // run the gather!
     consume_query_by_gather(
-        query_sig,
+        query_name,
+        query_filename,
+        query_mh,
         scaled as u64,
         matchlist,
         threshold_hashes,
