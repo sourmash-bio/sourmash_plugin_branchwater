@@ -118,10 +118,10 @@ pub fn pairwise(
             let mut average_containment_ani = None;
             let mut max_containment_ani = None;
             let prob_overlap = None;
-            let prob_overlap_adjusted = None;        
-            let containment_adjusted = None;   
-            let containment_adjusted_log10 = None; 
-            let tf_idf_score = None;    
+            let prob_overlap_adjusted = None;
+            let containment_adjusted = None;
+            let containment_adjusted_log10 = None;
+            let tf_idf_score = None;
 
             if estimate_ani {
                 query_containment_ani = Some(1.0);
