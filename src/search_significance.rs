@@ -5,7 +5,6 @@ use rayon::prelude::*;
 use sourmash::sketch::minhash::KmerMinHash;
 use std::collections::{HashMap, HashSet};
 use sourmash::Error;
-use sourmash::signature::SigsTrait;
 use std::fmt::{self, Display, Formatter};
 use crate::utils::SmallSignature;
 
