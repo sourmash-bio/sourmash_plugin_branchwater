@@ -65,6 +65,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
         p.add_argument('-N', '--no-pretty-print', action='store_false',
                        dest='pretty_print',
                        help="do not display results (e.g. for large output)")
+        p.add_argument('--ignore-abundance', action='store_true',
+                       help="do not do expensive abundance calculations")
 
     def main(self, args):
         print_version()
@@ -80,7 +82,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
                                                            args.ksize,
                                                            args.scaled,
                                                            args.moltype,
-                                                           args.output)
+                                                           args.output,
+                                                           args.ignore_abundance)
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
 
@@ -345,6 +348,53 @@ class Branchwater_Pairwise(CommandLinePlugin):
             notify(f"...pairwise is done! results in '{args.output}'")
         return status
 
+class Branchwater_SingleSketch(CommandLinePlugin):
+    command = 'singlesketch'
+    description = 'sketch a single sequence file'
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument('input_filename', help="input FASTA file or '-' for stdin")
+        p.add_argument('-o', '--output', required=True,
+                       help='output file for the signature or - for stdout')
+        p.add_argument('-p', '--param-string', action='append', type=str, default=[],
+                       help='parameter string for sketching (default: k=31,scaled=1000)')
+        p.add_argument('-n', '--name', help="optional name for the signature, default is the basename of input path")
+
+    def main(self, args):
+        print_version()
+        if not args.param_string:
+            args.param_string = ["k=31,scaled=1000,dna"]
+
+        # Check and append 'dna' if no moltype is found in a param string
+        moltypes = ["dna", "protein", "dayhoff", "hp"]
+        updated_param_strings = []
+
+        for param in args.param_string:
+            # If no moltype is found in the current param string, append 'dna'
+            if not any(mt in param for mt in moltypes):
+                param += ",dna"
+            updated_param_strings.append(param)
+
+        notify(f"params: {updated_param_strings}")
+
+        # Convert the list of param strings to a single string
+        args.param_string = "_".join(updated_param_strings).lower()
+
+        # If --name is not provided, default to input_filename, but if the source file is -, set name to empty string
+        signature_name = args.name if args.name else os.path.basename(args.input_filename) if args.input_filename != "-" else ""
+
+        notify(f"sketching file '{args.input_filename}' with params '{args.param_string}' and name '{signature_name}'")
+
+        super().main(args)
+        status = sourmash_plugin_branchwater.do_singlesketch(args.input_filename,
+                                                             args.param_string,
+                                                             args.output,
+                                                             signature_name)  # Pass the name to Rust
+        if status == 0:
+            notify(f"...singlesketch is done! results in '{args.output}'")
+        return status
+
 
 class Branchwater_Manysketch(CommandLinePlugin):
     command = 'manysketch'
@@ -368,7 +418,7 @@ class Branchwater_Manysketch(CommandLinePlugin):
     def main(self, args):
         print_version()
         if not args.param_string:
-            args.param_string = ["k=31,scaled=1000"]
+            args.param_string = ["dna,k=31,scaled=1000"]
         notify(f"params: {args.param_string}")
 
         # convert to a single string for easier rust handling

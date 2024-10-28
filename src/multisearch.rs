@@ -12,9 +12,7 @@ use crate::search_significance::{
     compute_inverse_document_frequency, get_hash_frequencies, get_prob_overlap,
     get_term_frequency_inverse_document_frequency, merge_all_minhashes, Normalization,
 };
-use crate::utils::{
-    csvwriter_thread, load_collection, load_sketches, MultiSearchResult, ReportType,
-};
+use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
 /// Search many queries against a list of signatures.
@@ -33,14 +31,14 @@ pub fn multisearch(
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
-
     let query_collection = load_collection(
         &query_filepath,
         selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
-    let queries = load_sketches(query_collection, selection, ReportType::Query).unwrap();
+
+    let queries = query_collection.load_sketches(selection)?;
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
@@ -50,8 +48,7 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-    let againsts: Vec<crate::utils::SmallSignature> =
-        load_sketches(against_collection, selection, ReportType::Against).unwrap();
+    let againsts: Vec<SmallSignature> = against_collection.load_sketches(selection)?;
 
     let mut n_comparisons = 0.0;
     // let mut queries_merged_mh: KmerMinHash = Default::default();

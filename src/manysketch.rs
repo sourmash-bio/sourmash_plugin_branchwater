@@ -2,7 +2,7 @@
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
-use crate::utils::{load_fasta_fromfile, sigwriter, Params};
+use crate::utils::{load_fasta_fromfile, parse_params_str, sigwriter, Params};
 use camino::Utf8Path as Path;
 use needletail::parse_fastx_file;
 use sourmash::cmd::ComputeParameters;
@@ -10,88 +10,19 @@ use sourmash::signature::Signature;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
-    let mut unique_params: std::collections::HashSet<Params> = std::collections::HashSet::new();
-
-    // split params_strs by _ and iterate over each param
-    for p_str in params_strs.split('_').collect::<Vec<&str>>().iter() {
-        let items: Vec<&str> = p_str.split(',').collect();
-
-        let mut ksizes = Vec::new();
-        let mut track_abundance = false;
-        let mut num = 0;
-        let mut scaled = 1000;
-        let mut seed = 42;
-        let mut is_protein = false;
-        let mut is_dna = true;
-
-        for item in items.iter() {
-            match *item {
-                _ if item.starts_with("k=") => {
-                    let k_value = item[2..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
-                    ksizes.push(k_value);
-                }
-                "abund" => track_abundance = true,
-                "noabund" => track_abundance = false,
-                _ if item.starts_with("num=") => {
-                    num = item[4..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
-                }
-                _ if item.starts_with("scaled=") => {
-                    scaled = item[7..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
-                }
-                _ if item.starts_with("seed=") => {
-                    seed = item[5..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
-                }
-                "protein" => {
-                    is_protein = true;
-                    is_dna = false;
-                }
-                "dna" => {
-                    is_protein = false;
-                    is_dna = true;
-                }
-                _ => return Err(format!("unknown component '{}' in params string", item)),
-            }
-        }
-
-        for &k in &ksizes {
-            let param = Params {
-                ksize: k,
-                track_abundance,
-                num,
-                scaled,
-                seed,
-                is_protein,
-                is_dna,
-            };
-            unique_params.insert(param);
-        }
-    }
-
-    Ok(unique_params.into_iter().collect())
-}
-
-fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
+pub fn build_siginfo(params: &[Params], input_moltype: &str) -> Vec<Signature> {
     let mut sigs = Vec::new();
 
     for param in params.iter().cloned() {
-        match moltype {
-            // if dna, only build dna sigs. if protein, only build protein sigs
+        match input_moltype {
+            // if dna, only build dna sigs. if protein, only build protein sigs, etc
             "dna" | "DNA" if !param.is_dna => continue,
-            "protein" if !param.is_protein => continue,
+            "protein" if !param.is_protein && !param.is_dayhoff && !param.is_hp => continue,
             _ => (),
         }
 
         // Adjust ksize value based on the is_protein flag
-        let adjusted_ksize = if param.is_protein {
+        let adjusted_ksize = if param.is_protein || param.is_dayhoff || param.is_hp {
             param.ksize * 3
         } else {
             param.ksize
@@ -102,6 +33,8 @@ fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
             .scaled(param.scaled)
             .protein(param.is_protein)
             .dna(param.is_dna)
+            .dayhoff(param.is_dayhoff)
+            .hp(param.is_hp)
             .num_hashes(param.num)
             .track_abundance(param.track_abundance)
             .build();

@@ -3,7 +3,7 @@ import pytest
 import pandas
 import sourmash
 from sourmash import index
-
+import io
 from . import sourmash_tst_utils as utils
 
 
@@ -209,6 +209,49 @@ def test_manysketch_mult_moltype(runtmp):
             ]
 
 
+def test_manysketch_mult_moltype_protein(runtmp):
+    fa_csv = runtmp.output("db-fa.csv")
+
+    protfa1 = get_test_data("short-protein.fa")
+
+    make_assembly_csv(fa_csv, [], [protfa1])
+
+    output = runtmp.output("db.zip")
+
+    runtmp.sourmash(
+        "scripts",
+        "manysketch",
+        fa_csv,
+        "-o",
+        output,
+        "--param-str",
+        "dayhoff,k=10,scaled=1",
+        "--param-str",
+        "hp,k=24,scaled=1",
+    )
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out  # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 2
+    # check moltypes, etc!
+    total_checked = 0
+    for sig in sigs:
+        print(sig.name)
+        assert sig.name == "short-protein"
+        if sig.minhash.dayhoff:
+            assert sig.md5sum() == "320464775fe704d9f938a8c63d8dd722"
+            total_checked += 1
+        elif sig.minhash.hp:
+            assert sig.md5sum() == "e8ccc6ca7ad560072f51be631d1c39c0"
+            total_checked += 1
+    assert total_checked == 2
+
+
 def test_manysketch_only_incompatible_fastas(runtmp, capfd):
     # provide dna, protein fastas, but only sketch protein (skip protein fastas!)
     fa_csv = runtmp.output("db-fa.csv")
@@ -323,6 +366,24 @@ def test_manysketch_bad_fa_csv(runtmp, capfd):
 
 
 def test_manysketch_bad_fa_csv_2(runtmp, capfd):
+    # bad file within filelist
+    siglist = runtmp.output("bad.txt")
+
+    # fa_file = runtmp.output("bad.fa")
+    make_assembly_csv(siglist, ["bad2.fa"])
+
+    output = runtmp.output("db.zip")
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash("scripts", "manysketch", siglist, "-o", output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "Could not load fasta files: no signatures created." in captured.err
+    assert "Error opening file bad2.fa: ParseError" in captured.err
+
+
+def test_manysketch_bad_fa_csv_3(runtmp, capfd):
     # test sketch with fasta provided instead of fa_csv
     output = runtmp.output("out.zip")
     fa1 = get_test_data("short.fa")
@@ -337,7 +398,7 @@ def test_manysketch_bad_fa_csv_2(runtmp, capfd):
     assert "Could not load fromfile csv" in captured.err
 
 
-def test_manysketch_bad_fa_csv_3(runtmp, capfd):
+def test_manysketch_bad_fa_csv_4(runtmp, capfd):
     # test sketch with improperly formatted fa_csv
     fa_csv = runtmp.output("db-fa.csv")
 
@@ -371,6 +432,56 @@ def test_manysketch_bad_fa_csv_3(runtmp, capfd):
     print(captured.err)
     assert "found record with 2 fields" in captured.err
     assert "Could not load fromfile csv" in captured.err
+
+
+def test_manysketch_bad_param_str_moltype(runtmp, capfd):
+    # no moltype provided in param str
+    fa_csv = runtmp.output("db-fa.txt")
+
+    fa1 = get_test_data("short.fa")
+    fa2 = get_test_data("short2.fa")
+    fa3 = get_test_data("short3.fa")
+
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
+    output = runtmp.output("out.zip")
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts", "manysketch", fa_csv, "-o", output, "-p", "k=31,scaled=100"
+        )
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert (
+        "Error parsing params string: No moltype provided in params string k=31,scaled=100"
+        in captured.err
+    )
+    assert "Failed to parse params string" in captured.err
+
+
+def test_manysketch_bad_param_str_ksize(runtmp, capfd):
+    # no ksize provided in param str
+    fa_csv = runtmp.output("db-fa.txt")
+
+    fa1 = get_test_data("short.fa")
+    fa2 = get_test_data("short2.fa")
+    fa3 = get_test_data("short3.fa")
+
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
+    output = runtmp.output("out.zip")
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts", "manysketch", fa_csv, "-o", output, "-p", "dna,scaled=100"
+        )
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert (
+        "Error parsing params string: No ksizes provided in params string dna,scaled=100"
+        in captured.err
+    )
+    assert "Failed to parse params string" in captured.err
 
 
 def test_manysketch_empty_fa_csv(runtmp, capfd):
@@ -1064,3 +1175,103 @@ def test_manysketch_prefix_duplicated_force(runtmp, capfd):
     print(sigs)
 
     assert len(sigs) == 3
+
+
+def test_singlesketch_simple(runtmp):
+    """Test basic single sketching with default parameters."""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short.sig")
+
+    # Run the singlesketch command
+    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output)
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sig = sourmash.load_one_signature(output)
+
+    assert sig.name == "short.fa"
+    assert sig.minhash.ksize == 31
+    assert sig.minhash.is_dna
+    assert sig.minhash.scaled == 1000
+
+
+def test_singlesketch_with_name(runtmp):
+    """Test single sketching with a custom name."""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short_named.sig")
+
+    # Run the singlesketch command with the --name option
+    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output, "-n", "custom_name")
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sig = sourmash.load_one_signature(output)
+
+    assert sig.name == "custom_name"
+    assert sig.minhash.ksize == 31
+    assert sig.minhash.is_dna
+    assert sig.minhash.scaled == 1000
+
+
+def test_singlesketch_mult_k(runtmp):
+    """Test single sketching with multiple k-mer sizes."""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short_mult_k.sig")
+
+    # Run the singlesketch command with multiple k sizes
+    runtmp.sourmash(
+        "scripts",
+        "singlesketch",
+        fa1,
+        "-o",
+        output,
+        "-p",
+        "k=21,scaled=100",
+        "-p",
+        "k=31,scaled=100",
+    )
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sigs = list(sourmash.load_signatures(output))
+
+    # Verify that two signatures with different k-mer sizes exist
+    assert len(sigs) == 2
+    assert any(sig.minhash.ksize == 21 for sig in sigs)
+    assert any(sig.minhash.ksize == 31 for sig in sigs)
+
+
+def test_singlesketch_mult_moltype(runtmp):
+    """Test single sketching with different molecule types."""
+    fa1 = get_test_data("short-protein.fa")
+    output = runtmp.output("short_mult_moltype.sig")
+
+    # Run the singlesketch command with multiple molecule types
+    runtmp.sourmash(
+        "scripts", "singlesketch", fa1, "-o", output, "-p", "protein,k=10,scaled=100"
+    )
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sig = sourmash.load_one_signature(output)
+
+    # Verify that the signature has the correct molecule type and parameters
+    assert sig.minhash.ksize == 10
+    assert sig.minhash.is_protein
+    assert sig.minhash.scaled == 100
+
+
+def test_singlesketch_invalid_params(runtmp, capfd):
+    """Test singlesketch command with invalid parameters."""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short_invalid.sig")
+
+    # Run the singlesketch command with an invalid parameter string
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts", "singlesketch", fa1, "-o", output, "-p", "invalid_param"
+        )
+
+    # Check that the error message is correct
+    captured = capfd.readouterr()
+    assert "Failed to parse params string" in captured.err

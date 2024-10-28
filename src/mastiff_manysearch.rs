@@ -1,6 +1,7 @@
 /// mastiff_manysearch: mastiff-indexed version of manysearch.
 use anyhow::Result;
 use camino::Utf8PathBuf as PathBuf;
+use log::debug;
 use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -26,6 +27,7 @@ pub fn mastiff_manysearch(
         bail!("'{}' is not a valid RevIndex database", index);
     }
     // Open database once
+    debug!("Opened revindex: '{index}')");
     let db = RevIndex::open(index, true, None)?;
 
     println!("Loaded DB");
@@ -56,7 +58,7 @@ pub fn mastiff_manysearch(
 
     let send_result = query_collection
         .par_iter()
-        .filter_map(|(_idx, record)| {
+        .filter_map(|(coll, _idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
             if i % 1000 == 0 && i > 0 {
                 eprintln!("Processed {} search sigs", i);
@@ -64,7 +66,7 @@ pub fn mastiff_manysearch(
 
             let mut results = vec![];
             // query downsample happens here
-            match query_collection.sig_from_record(record) {
+            match coll.sig_from_record(record) {
                 Ok(query_sig) => {
                     if let Some(query_mh) = query_sig.minhash() {
                         let query_size = query_mh.size();
@@ -73,6 +75,7 @@ pub fn mastiff_manysearch(
                             db.matches_from_counter(counter, minimum_containment as usize);
 
                         // filter the matches for containment
+                        debug!("FOUND: {} matches for {:?}", matches.len(), query_sig);
                         for (path, overlap) in matches {
                             let containment = overlap as f64 / query_size as f64;
                             if containment >= minimum_containment {
