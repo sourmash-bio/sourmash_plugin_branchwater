@@ -17,7 +17,8 @@ pub enum Normalization {
 
     // L2 norm divides the counts by the sum of squares of all counts
     // L2 norm is the Euclidean distance of the counts in N-dimensional vector space
-    // When track_abundance=False, L1 and L2 norms are equivalent, since all "counts" are 1
+    // When track_abundance=False, L1 and L2 norms are equivalent, since all "counts" 
+    // are 1, and even if you square it, 1^2 = 1
     L2
 }
 
