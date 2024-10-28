@@ -12,6 +12,7 @@ use crate::search_significance::{
     compute_inverse_document_frequency, get_hash_frequencies, get_prob_overlap,
     get_term_frequency_inverse_document_frequency, merge_all_minhashes, Normalization,
 };
+use crate::utils::multicollection::SmallSignature;
 use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
@@ -38,7 +39,7 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-    let queries = query_collection.load_sketches(selection)?;
+    let queries: Vec<SmallSignature> = query_collection.load_sketches(selection)?;
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(

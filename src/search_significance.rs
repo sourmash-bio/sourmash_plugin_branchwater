@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use sourmash::Error;
 use sourmash::signature::SigsTrait;
 use std::fmt::{self, Display, Formatter};
-use crate::utils::SmallSignature;
+use crate::utils::multicollection::SmallSignature;
 
 pub enum Normalization {
     // L1 norm is the equivalent of frequencies/probabilities, as the counts
