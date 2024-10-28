@@ -54,11 +54,11 @@ pub fn get_hash_frequencies<'a>(
     let frequencies: HashMap<u64, f64> = HashMap::from(
         minhash_abunds
             .par_iter()
-            .map(|(hashval, abund)| 
+            .map(|(hashval, abund)|
             // TODO: add a match statement here to error out properly if the hashval was not found 
             // in the minhash_abunds for some reason (shouldn't happen but ... computers be crazy)
             (
-                *hashval, 
+                *hashval,
                 abund / abund_normalization
             ))
             .collect::<HashMap<u64, f64>>(),
