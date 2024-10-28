@@ -2,12 +2,12 @@
 
 use rayon::prelude::*;
 
-use sourmash::sketch::minhash::KmerMinHash;
-use std::collections::{HashMap, HashSet};
-use sourmash::Error;
-use sourmash::signature::SigsTrait;
-use std::fmt::{self, Display, Formatter};
 use crate::utils::multicollection::SmallSignature;
+use sourmash::signature::SigsTrait;
+use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::Error;
+use std::collections::{HashMap, HashSet};
+use std::fmt::{self, Display, Formatter};
 
 pub enum Normalization {
     // L1 norm is the equivalent of frequencies/probabilities, as the counts
@@ -17,9 +17,9 @@ pub enum Normalization {
 
     // L2 norm divides the counts by the sum of squares of all counts
     // L2 norm is the Euclidean distance of the counts in N-dimensional vector space
-    // When track_abundance=False, L1 and L2 norms are equivalent, since all "counts" 
+    // When track_abundance=False, L1 and L2 norms are equivalent, since all "counts"
     // are 1, and even if you square it, 1^2 = 1
-    L2
+    L2,
 }
 
 impl Display for Normalization {
@@ -31,12 +31,10 @@ impl Display for Normalization {
     }
 }
 
-
 pub fn get_hash_frequencies<'a>(
     minhash: &KmerMinHash,
     normalization: Option<Normalization>,
 ) -> HashMap<u64, f64> {
-
     let minhash_abunds: HashMap<u64, f64> = minhash
         .to_vec_abunds()
         .into_par_iter()
@@ -45,27 +43,25 @@ pub fn get_hash_frequencies<'a>(
 
     let abund_normalization: f64 = match normalization {
         Some(Normalization::L1) => minhash.sum_abunds() as f64,
-        Some(Normalization::L2) => { 
-            minhash_abunds
-                .par_iter()
-                .map(|(_hashval, abund)| abund * abund )
-                .sum::<f64>() as f64
-            }
+        Some(Normalization::L2) => minhash_abunds
+            .par_iter()
+            .map(|(_hashval, abund)| abund * abund)
+            .sum::<f64>() as f64,
         // TODO: this should probably be an error
         _ => 0.0,
     };
 
     let frequencies: HashMap<u64, f64> = HashMap::from(
         minhash_abunds
-        .par_iter()
-        .map(|(hashval, abund)| 
+            .par_iter()
+            .map(|(hashval, abund)| 
             // TODO: add a match statement here to error out properly if the hashval was not found 
             // in the minhash_abunds for some reason (shouldn't happen but ... computers be crazy)
             (
                 *hashval, 
                 abund / abund_normalization
-            )
-        ).collect::<HashMap<u64, f64>>()
+            ))
+            .collect::<HashMap<u64, f64>>(),
     );
 
     return frequencies;
@@ -73,24 +69,22 @@ pub fn get_hash_frequencies<'a>(
 
 // #[cfg(feature = "maths")]
 pub fn get_prob_overlap(
-    hashvals: &Vec<u64>, 
+    hashvals: &Vec<u64>,
     query_frequencies: &HashMap<u64, f64>,
-    against_frequencies: &HashMap<u64, f64>
+    against_frequencies: &HashMap<u64, f64>,
 ) -> f64 {
-
     // It's not guaranteed to me that the MinHashes from the query and database are in the same order, so iterate over one of them
     // and use a hashmap to retrieve the frequency value of the other
-    let prob_overlap =  hashvals
-                .par_iter()
-                .map(|hashval| 
-                    query_frequencies[hashval] * against_frequencies[hashval]
-                ).sum();
+    let prob_overlap = hashvals
+        .par_iter()
+        .map(|hashval| query_frequencies[hashval] * against_frequencies[hashval])
+        .sum();
 
     return prob_overlap;
 }
 
-// TODO: How to accept SourmashSignature objects? Signature.minhash is Option<&KmerMinHash>, 
-// so it's not guaranteed for a SourmashSignature to have a minhash object. Is there a way to 
+// TODO: How to accept SourmashSignature objects? Signature.minhash is Option<&KmerMinHash>,
+// so it's not guaranteed for a SourmashSignature to have a minhash object. Is there a way to
 // only accept SourmashSignature objects that have `.minhash` present?
 pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Error> {
     if sigs.is_empty() {
@@ -124,13 +118,13 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
 
 pub fn compute_inverse_document_frequency(
     against_merged_mh: &KmerMinHash,
-    againsts: &Vec<SmallSignature>, 
-    smooth_idf: Option<bool>
+    againsts: &Vec<SmallSignature>,
+    smooth_idf: Option<bool>,
 ) -> HashMap<u64, f64> {
-    // Compute inverse document frequency (IDF) of all 
+    // Compute inverse document frequency (IDF) of all
     // Inverse document frequency tells us how unique this hashval is to the query database
     // When the value is near 0, then this hashval appears in all signatures
-    // When the value is very large, equal to the number of signatures, then the hashval is 
+    // When the value is very large, equal to the number of signatures, then the hashval is
     // unique to a single signature
 
     // Total number of documents in the corpus
@@ -138,9 +132,7 @@ pub fn compute_inverse_document_frequency(
 
     let againsts_hashes: Vec<HashSet<&u64>> = againsts
         .par_iter()
-        .map(|sig| 
-            HashSet::from_iter(sig.minhash.iter_mins())
-        )
+        .map(|sig| HashSet::from_iter(sig.minhash.iter_mins()))
         .collect::<Vec<HashSet<&u64>>>();
 
     // Number of documents where hashvals appear
@@ -149,41 +141,46 @@ pub fn compute_inverse_document_frequency(
         against_merged_mh
             .iter_mins()
             .par_bridge()
-            .map(|hashval| 
-                (hashval, againsts_hashes
-                    .par_iter()
-                    .map(|hashset| 
-                        f64::from(u32::from(hashset.contains(&hashval)))
-                    ).sum()
+            .map(|hashval| {
+                (
+                    hashval,
+                    againsts_hashes
+                        .par_iter()
+                        .map(|hashset| f64::from(u32::from(hashset.contains(&hashval))))
+                        .sum(),
                 )
-            ).collect::<HashMap<&u64, f64>>()
-        );
+            })
+            .collect::<HashMap<&u64, f64>>(),
+    );
 
     let inverse_document_frequency: HashMap<u64, f64> = HashMap::from(
         document_frequency
             .par_iter()
-            .map(|(hashval, n_sigs_with_hashval)|
-                (**hashval, match smooth_idf {
-                    // Add 1 to not totally ignore terms that appear in all documents
-                    // scikit-learn documentation (assumed to implement best practices for document classification): 
-                    // > "The effect of adding “1” to the idf in the equation above is that terms with zero idf,
-                    // > i.e., terms that occur in all documents in a training set, will not be entirely ignored."
-                    // Source: https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
-                    Some(true) => ( (1.0 + n_signatures) / (1.0 + n_sigs_with_hashval) ).ln() + 1.0,
-                    Some(false) => (n_signatures / (n_sigs_with_hashval) ).ln() + 1.0,
-                    _ => 1.0
-                }
-            )
-        ).collect::<HashMap<u64, f64>>()
+            .map(|(hashval, n_sigs_with_hashval)| {
+                (
+                    **hashval,
+                    match smooth_idf {
+                        // Add 1 to not totally ignore terms that appear in all documents
+                        // scikit-learn documentation (assumed to implement best practices for document classification):
+                        // > "The effect of adding “1” to the idf in the equation above is that terms with zero idf,
+                        // > i.e., terms that occur in all documents in a training set, will not be entirely ignored."
+                        // Source: https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
+                        Some(true) => {
+                            ((1.0 + n_signatures) / (1.0 + n_sigs_with_hashval)).ln() + 1.0
+                        }
+                        Some(false) => (n_signatures / (n_sigs_with_hashval)).ln() + 1.0,
+                        _ => 1.0,
+                    },
+                )
+            })
+            .collect::<HashMap<u64, f64>>(),
     );
 
     return inverse_document_frequency;
 }
 
-
-
 pub fn get_term_frequency_inverse_document_frequency(
-    hashvals: &Vec<u64>, 
+    hashvals: &Vec<u64>,
     query_term_frequencies: &HashMap<u64, f64>,
     inverse_document_frequency: &HashMap<u64, f64>,
 ) -> f64 {
@@ -193,19 +190,18 @@ pub fn get_term_frequency_inverse_document_frequency(
     // Because this is the default setting in scikit-learn's battle-tested tf-idf methods:
     // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
     // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
-    
-        
+
     // Multiply each hashval's term frequency and inverse document frequency, and sum the products
     let tf_idf: HashMap<&u64, f64> = HashMap::from(
         hashvals
-        .par_iter()
-        .map(
-        |hashval| 
-            (
-                hashval, 
-                query_term_frequencies[hashval] * inverse_document_frequency[hashval]
-            )
-        ).collect::<HashMap<&u64, f64>>()
+            .par_iter()
+            .map(|hashval| {
+                (
+                    hashval,
+                    query_term_frequencies[hashval] * inverse_document_frequency[hashval],
+                )
+            })
+            .collect::<HashMap<&u64, f64>>(),
     );
 
     let tf_idf_score: f64 = tf_idf.values().sum();
