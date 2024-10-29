@@ -456,15 +456,12 @@ class Branchwater_Multisearch(CommandLinePlugin):
         p.add_argument(
             "-a", "--ani", action="store_true", help="estimate ANI from containment"
         )
-<<<<<<< HEAD
         p.add_argument(
             "-p",
             "--prob",
             action="store_true",
             help="estimate probability of overlap for significance ranking of search results",
         )
-=======
->>>>>>> 31d3056 (Python Black Formatting (#492))
 
     def main(self, args):
         print_version()
@@ -477,12 +474,9 @@ class Branchwater_Multisearch(CommandLinePlugin):
         notify(
             f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads"
         )
-<<<<<<< HEAD
         notify(
             f"estimate ani? {args.ani} / estimate probability of overlap? {args.prob}"
         )
-=======
->>>>>>> 31d3056 (Python Black Formatting (#492))
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_multisearch(
@@ -493,10 +487,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
             args.scaled,
             args.moltype,
             args.ani,
-<<<<<<< HEAD
             args.prob,
-=======
->>>>>>> 31d3056 (Python Black Formatting (#492))
             args.output,
         )
         if status == 0:
