@@ -17,6 +17,7 @@ def float_round(string: str, ndigits=None):
     return round(float(string), ndigits)
 
 
+
 def test_installed(runtmp):
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash("scripts", "multisearch")
@@ -73,6 +74,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+
             intersect_hashes = int(row["intersect_hashes"])
 
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
@@ -106,6 +108,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db, indexed_query, indexed_a
 
     if zip_db:
         against_list = zip_siglist(runtmp, against_list, runtmp.output("db.zip"))
+
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
 
@@ -1000,6 +1003,7 @@ def test_simple_prot(runtmp):
             avg_ani = float_round(row["average_containment_ani"], 4)
             max_ani = float_round(row["max_containment_ani"], 4)
 
+
             print(
                 q,
                 m,
@@ -1159,6 +1163,7 @@ def test_prob_overlap_prot_with_abundance(runtmp):
                 assert containment_adjusted == 16.7973
                 assert containment_adjusted_log10 == 1.2252
                 assert tf_idf_score == 1.2663
+
 
 
 def test_simple_dayhoff(runtmp):

@@ -1042,7 +1042,7 @@ def test_manysketch_prefix2(runtmp, capfd):
     for sig in sigs:
         assert sig.name in expected_signames
         if sig.name == "short":
-            # minhash is not defined? How does this test work?
+            # minhash is not defined? How does this test work? - @olgabot
             assert sig, minhash.hashes == sig1.minhash.hashes
         if sig.name == "short_protein":
             assert sig == sig2
