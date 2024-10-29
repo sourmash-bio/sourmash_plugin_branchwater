@@ -961,11 +961,7 @@ def test_manysketch_prefix2(runtmp, capfd):
     dna_prefix = os.path.join(
         fa_path, "short"
     )  # need to avoid matching short-protein.fa
-<<<<<<< HEAD
     prot_prefix = os.path.join(fa_path, "*protein.fa")
-=======
-    prot_prefix = os.path.join(fa_path, "*protein")
->>>>>>> 31d3056 (Python Black Formatting (#492))
     zip_exclude = os.path.join(fa_path, "*zip")
 
     # make prefix input file
@@ -1046,10 +1042,7 @@ def test_manysketch_prefix2(runtmp, capfd):
     for sig in sigs:
         assert sig.name in expected_signames
         if sig.name == "short":
-<<<<<<< HEAD
             # minhash is not defined? How does this test work?
-=======
->>>>>>> 31d3056 (Python Black Formatting (#492))
             assert sig, minhash.hashes == sig1.minhash.hashes
         if sig.name == "short_protein":
             assert sig == sig2
@@ -1126,11 +1119,7 @@ def test_manysketch_prefix_duplicated_force(runtmp, capfd):
     dna_prefix = os.path.join(
         fa_path, "short"
     )  # need to avoid matching short-protein.fa
-<<<<<<< HEAD
     prot_prefix = os.path.join(fa_path, "*protein*fa")
-=======
-    prot_prefix = os.path.join(fa_path, "*protein")
->>>>>>> 31d3056 (Python Black Formatting (#492))
     zip_exclude = os.path.join(fa_path, "*zip")
 
     # make prefix input file
