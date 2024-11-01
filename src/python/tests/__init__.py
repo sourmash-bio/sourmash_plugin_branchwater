@@ -1,2 +1,3 @@
 from sourmash_plugin_branchwater import sourmash_plugin_branchwater
+
 sourmash_plugin_branchwater.set_global_thread_pool(4)
