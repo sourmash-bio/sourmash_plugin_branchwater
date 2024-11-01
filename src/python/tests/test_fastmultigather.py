@@ -100,8 +100,17 @@ def test_simple_list_of_zips(runtmp):
     make_file_list(query_list, [query])
     make_file_list(against_list, [sig2, sig47, sig63])
 
-    runtmp.sourmash('scripts', 'fastmultigather', query_list, against_list,
-                    '-s', '100000', '-t', '0', in_dir=runtmp.output(''))
+    runtmp.sourmash(
+        "scripts",
+        "fastmultigather",
+        query_list,
+        against_list,
+        "-s",
+        "100000",
+        "-t",
+        "0",
+        in_dir=runtmp.output(""),
+    )
 
     print(os.listdir(runtmp.output("")))
 
