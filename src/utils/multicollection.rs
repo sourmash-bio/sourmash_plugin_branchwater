@@ -275,6 +275,10 @@ impl MultiCollection {
         val == 0
     }
 
+    pub fn max_scaled(&self) -> Option<&u64> {
+        self.item_iter().map(|(_, _, record)| record.scaled()).max()
+    }
+
     // iterate over tuples
     pub fn item_iter(&self) -> impl Iterator<Item = (&Collection, Idx, &Record)> {
         let s: Vec<_> = self

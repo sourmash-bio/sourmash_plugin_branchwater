@@ -14,14 +14,14 @@ pub fn fastgather(
     against_filepath: String,
     threshold_bp: usize,
     scaled: usize,
-    selection: &Selection,
+    selection: Selection,
     gather_output: Option<String>,
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
@@ -40,7 +40,7 @@ pub fn fastgather(
     let query_md5 = query_sig.md5sum();
 
     // clone here is necessary b/c we use full query_sig in consume_query_by_gather
-    let query_sig_ds = query_sig.select(selection)?; // downsample
+    let query_sig_ds = query_sig.select(&selection)?; // downsample
     let query_mh = match query_sig_ds.try_into() {
         Ok(query_mh) => query_mh,
         Err(_) => {
@@ -50,7 +50,7 @@ pub fn fastgather(
     // load collection to match against.
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;

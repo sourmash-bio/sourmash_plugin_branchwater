@@ -16,7 +16,7 @@ use sourmash::signature::SigsTrait;
 pub fn pairwise(
     siglist: String,
     threshold: f64,
-    selection: &Selection,
+    selection: Selection,
     allow_failed_sigpaths: bool,
     estimate_ani: bool,
     write_all: bool,
@@ -25,7 +25,7 @@ pub fn pairwise(
     // Load all sigs into memory at once.
     let collection = load_collection(
         &siglist,
-        selection,
+        &selection,
         ReportType::General,
         allow_failed_sigpaths,
     )?;
@@ -37,7 +37,7 @@ pub fn pairwise(
         )
     }
 
-    let sketches = collection.load_sketches(selection)?;
+    let sketches = collection.load_sketches(&selection)?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
