@@ -580,6 +580,7 @@ pub fn load_collection(
     match collection {
         Some((coll, n_failed)) => {
             let n_total = coll.len();
+
             let selected = coll.select(selection)?;
             let n_skipped = n_total - selected.len();
             report_on_collection_loading(
@@ -955,7 +956,7 @@ pub fn consume_query_by_gather(
     Ok(())
 }
 
-pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
+pub fn build_selection(ksize: u8, scaled: Option<usize>, moltype: &str) -> Selection {
     let hash_function = match moltype {
         "DNA" => HashFunctions::Murmur64Dna,
         "protein" => HashFunctions::Murmur64Protein,
@@ -967,11 +968,18 @@ pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
     //     .map_err(|_| panic!("Unknown molecule type: {}", moltype))
     //     .unwrap();
 
-    Selection::builder()
-        .ksize(ksize.into())
-        .scaled(scaled as u32)
-        .moltype(hash_function)
-        .build()
+    if let Some(scaled) = scaled {
+        Selection::builder()
+            .ksize(ksize.into())
+            .scaled(scaled as u32)
+            .moltype(hash_function)
+            .build()
+    } else {
+        Selection::builder()
+            .ksize(ksize.into())
+            .moltype(hash_function)
+            .build()
+    }
 }
 
 pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {

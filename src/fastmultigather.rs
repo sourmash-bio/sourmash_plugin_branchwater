@@ -29,8 +29,8 @@ pub fn fastmultigather(
     query_filepath: String,
     against_filepath: String,
     threshold_bp: usize,
-    scaled: usize,
-    selection: &Selection,
+    scaled: Option<usize>,
+    selection: Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
     create_empty_results: bool,
@@ -40,10 +40,25 @@ pub fn fastmultigather(
     // load query collection
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
+
+    let scaled = match scaled {
+        Some(s) => s,
+        None => {
+            let scaled = query_collection.max_scaled().expect("no records!?").clone() as usize;
+            eprintln!(
+                "Setting scaled={} based on max scaled in query collection",
+                scaled
+            );
+            scaled
+        }
+    };
+
+    let mut against_selection = selection;
+    against_selection.set_scaled(scaled as u32);
 
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
@@ -60,12 +75,12 @@ pub fn fastmultigather(
     // load against collection
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = against_collection.load_sketches(selection)?;
+    let against = against_collection.load_sketches(&against_selection)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);

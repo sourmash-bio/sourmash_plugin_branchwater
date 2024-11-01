@@ -39,7 +39,7 @@ fn do_manysearch(
     ignore_abundance: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(ksize, Some(scaled), &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
 
@@ -51,7 +51,7 @@ fn do_manysearch(
         match mastiff_manysearch::mastiff_manysearch(
             querylist_path,
             againstfile_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
@@ -66,7 +66,7 @@ fn do_manysearch(
         match manysearch::manysearch(
             querylist_path,
             siglist_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
@@ -94,7 +94,7 @@ fn do_fastgather(
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(ksize, Some(scaled), &moltype);
     let allow_failed_sigpaths = true;
 
     match fastgather::fastgather(
@@ -102,7 +102,7 @@ fn do_fastgather(
         siglist_path,
         threshold_bp,
         scaled,
-        &selection,
+        selection,
         output_path_prefetch,
         output_path_gather,
         allow_failed_sigpaths,
@@ -123,7 +123,7 @@ fn do_fastmultigather(
     siglist_path: String,
     threshold_bp: usize,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<usize>,
     moltype: String,
     output_path: Option<String>,
     save_matches: bool,
@@ -138,7 +138,7 @@ fn do_fastmultigather(
         match mastiff_manygather::mastiff_manygather(
             query_filenames,
             againstfile_path,
-            &selection,
+            selection.clone(),
             threshold_bp,
             output_path,
             allow_failed_sigpaths,
@@ -158,7 +158,7 @@ fn do_fastmultigather(
             siglist_path,
             threshold_bp,
             scaled,
-            &selection,
+            selection,
             allow_failed_sigpaths,
             save_matches,
             create_empty_results,
@@ -199,11 +199,11 @@ fn do_index(
     colors: bool,
     use_internal_storage: bool,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(ksize, Some(scaled), &moltype);
     let allow_failed_sigpaths = false;
     match index::index(
         siglist,
-        &selection,
+        selection,
         output,
         colors,
         allow_failed_sigpaths,
@@ -237,7 +237,7 @@ fn do_multisearch(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<usize>,
     moltype: String,
     estimate_ani: bool,
     output_path: Option<String>,
@@ -251,7 +251,7 @@ fn do_multisearch(
         querylist_path,
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
         output_path,
@@ -277,12 +277,12 @@ fn do_pairwise(
     write_all: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(ksize, Some(scaled), &moltype);
     let allow_failed_sigpaths = true;
     match pairwise::pairwise(
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
         write_all,

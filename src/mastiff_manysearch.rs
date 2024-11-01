@@ -18,7 +18,7 @@ use crate::utils::{
 pub fn mastiff_manysearch(
     queries_path: String,
     index: PathBuf,
-    selection: &Selection,
+    selection: Selection,
     minimum_containment: f64,
     output: Option<String>,
     allow_failed_sigpaths: bool,
@@ -35,7 +35,7 @@ pub fn mastiff_manysearch(
     // Load query paths
     let query_collection = load_collection(
         &queries_path,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;

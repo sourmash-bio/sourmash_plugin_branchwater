@@ -249,9 +249,9 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
-            help="scaled factor at which to do comparisons (default: 1000)",
+            help="scaled factor at which to do comparisons (default: determined from query collection)",
         )
         p.add_argument(
             "-m",
@@ -435,9 +435,9 @@ class Branchwater_Multisearch(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
-            help="scaled factor at which to do comparisons",
+            help="scaled factor at which to do comparisons (default: determined from query collection)",
         )
         p.add_argument(
             "-m",

@@ -1176,3 +1176,48 @@ def test_simple_below_threshold(runtmp):
             assert float(row["match_containment_ani"]) == 1.0
             assert float(row["average_containment_ani"]) == 1.0
             assert float(row["max_containment_ani"]) == 1.0
+
+
+def test_mismatched_scaled_query(runtmp):
+    # test what happens if query scaled is too high
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query_list = runtmp.output("downsample.sig.zip")
+    runtmp.sourmash(
+        "sig", "downsample", "--scaled=10_000", sig2, sig47, sig63, "-o", query_list
+    )
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    runtmp.sourmash("scripts", "multisearch", query_list, against_list, "-o", output)
+    assert os.path.exists(output)
+
+
+def test_mismatched_scaled_against(runtmp):
+    # test what happens if against scaled is too high
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    against_list = runtmp.output("downsample.sig.zip")
+    runtmp.sourmash(
+        "sig", "downsample", "--scaled=10_000", sig2, sig47, sig63, "-o", against_list
+    )
+
+    output = runtmp.output("out.csv")
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts", "multisearch", query_list, against_list, "-o", output
+        )

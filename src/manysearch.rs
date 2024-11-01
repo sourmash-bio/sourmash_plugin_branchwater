@@ -19,7 +19,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 pub fn manysearch(
     query_filepath: String,
     against_filepath: String,
-    selection: &Selection,
+    selection: Selection,
     threshold: f64,
     output: Option<String>,
     allow_failed_sigpaths: bool,
@@ -28,18 +28,18 @@ pub fn manysearch(
     // Load query collection
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
 
     // load all query sketches into memory, downsampling on the way
-    let query_sketchlist = query_collection.load_sketches(selection)?;
+    let query_sketchlist = query_collection.load_sketches(&selection)?;
 
     // Against: Load collection, potentially off disk & not into memory.
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;

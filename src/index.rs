@@ -8,7 +8,7 @@ use sourmash::collection::{Collection, CollectionSet};
 
 pub fn index<P: AsRef<Path>>(
     siglist: String,
-    selection: &Selection,
+    selection: Selection,
     output: P,
     colors: bool,
     allow_failed_sigpaths: bool,
@@ -18,7 +18,7 @@ pub fn index<P: AsRef<Path>>(
 
     let multi = match load_collection(
         &siglist,
-        selection,
+        &selection,
         ReportType::General,
         allow_failed_sigpaths,
     ) {
@@ -31,7 +31,7 @@ pub fn index<P: AsRef<Path>>(
     let collection = match Collection::try_from(multi.clone()) {
         // conversion worked!
         Ok(c) => {
-            let cs: CollectionSet = c.select(selection)?.try_into()?;
+            let cs: CollectionSet = c.select(&selection)?.try_into()?;
             Ok(cs)
         }
         // conversion failed; can we/should we load it into memory?
@@ -39,7 +39,7 @@ pub fn index<P: AsRef<Path>>(
             if use_internal_storage {
                 eprintln!("WARNING: loading all sketches into memory in order to index.");
                 eprintln!("See 'index' documentation for details.");
-                let c: Collection = multi.load_all_sigs(selection)?;
+                let c: Collection = multi.load_all_sigs(&selection)?;
                 let cs: CollectionSet = c.try_into()?;
                 Ok(cs)
             } else {
