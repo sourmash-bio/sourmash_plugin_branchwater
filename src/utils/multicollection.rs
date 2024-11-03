@@ -276,15 +276,24 @@ impl MultiCollection {
     }
 
     pub fn max_scaled(&self) -> Option<&u64> {
-        self.item_iter().map(|(_, _, record)| record.scaled()).max()
+        self.iter().map(|(_, _, record)| record.scaled()).max()
     }
 
     // iterate over tuples
-    pub fn item_iter(&self) -> impl Iterator<Item = (&Collection, Idx, &Record)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&Collection, Idx, &Record)> {
         let s: Vec<_> = self
             .collections
             .iter()
             .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
+            .collect();
+        s.into_iter()
+    }
+
+    pub fn into_iter(self) -> impl IntoIterator<Item = (&Collection, Idx, Record)> {
+        let s: Vec<_> = self
+            .collections
+            .into_iter()
+            .flat_map(|c| c.iter().map(move |(_idx, record)| (&c, _idx, record)))
             .collect();
         s.into_iter()
     }
@@ -300,9 +309,16 @@ impl MultiCollection {
         s.into_par_iter()
     }
 
+    pub fn into_par_iter(self) -> impl IndexedParallelIterator<Item = (&'static Collection, Idx, Record)> {
+        self
+            .collections
+            .into_par_iter()
+            .flat_map(|c| c.into_iter().into_iter().map(move |(_idx, record)| (c, _idx, record)))
+    }
+
     pub fn get_first_sig(&self) -> Option<SigStore> {
         if !self.is_empty() {
-            let query_item = self.item_iter().next()?;
+            let query_item = self.iter().next()?;
             let (coll, _, _) = query_item;
             Some(coll.sig_for_dataset(0).ok()?)
         } else {
@@ -312,12 +328,13 @@ impl MultiCollection {
 
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
+    // @CTB this one!
     pub fn load_sketches(self, selection: &Selection) -> Result<Vec<SmallSignature>> {
         if self.contains_revindex {
             eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
         }
         let sketchinfo: Vec<_> = self
-            .par_iter()
+            .into_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
                 Ok(sig) => {
                     trace!(
