@@ -737,7 +737,7 @@ pub fn branchwater_calculate_gather_stats(
     // If abundance, calculate abund-related metrics (vs current query)
     if calc_abund_stats {
         // take abunds from subtracted query
-        let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(&query) {
+        let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(query) {
             Ok((abunds, unique_weighted_found)) => (abunds, unique_weighted_found),
             Err(e) => return Err(e.into()),
         };

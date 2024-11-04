@@ -25,6 +25,7 @@ use crate::utils::{
     consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn fastmultigather(
     query_filepath: String,
     against_filepath: String,
@@ -48,7 +49,7 @@ pub fn fastmultigather(
     let scaled = match scaled {
         Some(s) => s,
         None => {
-            let scaled = query_collection.max_scaled().expect("no records!?").clone() as usize;
+            let scaled = *query_collection.max_scaled().expect("no records!?") as usize;
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
                 scaled

@@ -15,11 +15,11 @@ mod check;
 mod cluster;
 mod fastgather;
 mod fastmultigather;
+mod fastmultigather_rocksdb;
 mod index;
 mod manysearch;
-mod manysketch;
-mod fastmultigather_rocksdb;
 mod manysearch_rocksdb;
+mod manysketch;
 mod multisearch;
 mod pairwise;
 mod singlesketch;
@@ -28,6 +28,7 @@ use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
 #[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false))]
+#[allow(clippy::too_many_arguments)]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,

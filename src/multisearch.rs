@@ -34,7 +34,7 @@ pub fn multisearch(
     let scaled = match selection.scaled() {
         Some(s) => s,
         None => {
-            let scaled = query_collection.max_scaled().expect("no records!?").clone() as u32;
+            let scaled = *query_collection.max_scaled().expect("no records!?") as u32;
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
                 scaled
