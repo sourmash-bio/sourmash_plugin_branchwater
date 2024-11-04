@@ -676,11 +676,13 @@ pub fn branchwater_calculate_gather_stats(
     calc_ani_ci: bool,
     confidence: Option<f64>,
 ) -> Result<InterimGatherResult> {
+    eprintln!("calc: {} ({}) {} ({})", query.scaled(), query.size(), match_mh.scaled(), match_mh.size());
     //bp remaining in subtracted query
     let remaining_bp = (query.size() - match_size) * query.scaled() as usize;
 
     // stats for this match vs original query
     let (intersect_orig, _) = match_mh.intersection_size(orig_query).unwrap();
+    eprintln!("intersect: {}", intersect_orig);
     let intersect_bp = (match_mh.scaled() * intersect_orig) as usize;
     let f_orig_query = intersect_orig as f64 / orig_query.size() as f64;
     let f_match_orig = intersect_orig as f64 / match_mh.size() as f64;
@@ -796,6 +798,7 @@ pub fn consume_query_by_gather(
     threshold_hashes: u64,
     gather_output: Option<String>,
 ) -> Result<()> {
+    eprintln!("XXX scaled {} ({}, {})", scaled, orig_query_mh.size(), orig_query_mh.scaled());
     // Define the writer to stdout by default
     let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
 
@@ -839,7 +842,9 @@ pub fn consume_query_by_gather(
     // let mut query_mh = KmerMinHashBTree::from(orig_query_mh.clone());
     let mut query_mh = orig_query_mh.clone();
 
+    eprintln!("foo pre: {} ({}->{})", orig_query_mh.size(), orig_query_mh.scaled(), scaled);
     let mut orig_query_ds = orig_query_mh.downsample_scaled(scaled)?;
+    eprintln!("foo: {} ({})", orig_query_ds.scaled(), orig_query_ds.size());
 
     // track for full gather results
     let mut sum_weighted_found = 0;
