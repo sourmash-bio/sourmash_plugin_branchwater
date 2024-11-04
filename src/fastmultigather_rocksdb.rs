@@ -1,4 +1,4 @@
-/// mastiff_manygather: mastiff-indexed version of fastmultigather.
+/// fastmultigather_rocksdb: rocksdb-indexed version of fastmultigather.
 use anyhow::Result;
 use camino::Utf8PathBuf as PathBuf;
 use rayon::prelude::*;
@@ -12,7 +12,7 @@ use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType,
 };
 
-pub fn mastiff_manygather(
+pub fn fastmultigather_rocksdb(
     queries_file: String,
     index: PathBuf,
     selection: Selection,

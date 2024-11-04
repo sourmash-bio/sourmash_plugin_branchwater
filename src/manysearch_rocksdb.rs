@@ -1,4 +1,4 @@
-/// mastiff_manysearch: mastiff-indexed version of manysearch.
+/// manysearch_rocksdb: rocksdb-indexed version of manysearch.
 use anyhow::Result;
 use camino::Utf8PathBuf as PathBuf;
 use log::debug;
@@ -15,7 +15,7 @@ use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
 };
 
-pub fn mastiff_manysearch(
+pub fn manysearch_rocksdb(
     queries_path: String,
     index: PathBuf,
     selection: Selection,

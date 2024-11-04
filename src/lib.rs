@@ -15,11 +15,11 @@ mod check;
 mod cluster;
 mod fastgather;
 mod fastmultigather;
+mod fastmultigather_rocksdb;
 mod index;
 mod manysearch;
+mod manysearch_rocksdb;
 mod manysketch;
-mod mastiff_manygather;
-mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
 mod singlesketch;
@@ -28,6 +28,7 @@ use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
 #[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false))]
+#[allow(clippy::too_many_arguments)]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,
@@ -45,10 +46,10 @@ fn do_manysearch(
 
     let ignore_abundance = ignore_abundance.unwrap_or(false);
 
-    // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
+    // if siglist_path is revindex, run rocksdb manysearch; otherwise run manysearch
     if is_revindex_database(&againstfile_path) {
-        // note: mastiff_manysearch ignores abundance automatically.
-        match mastiff_manysearch::mastiff_manysearch(
+        // note: manysearch_rocksdb ignores abundance automatically.
+        match manysearch_rocksdb::manysearch_rocksdb(
             querylist_path,
             againstfile_path,
             selection,
@@ -133,9 +134,9 @@ fn do_fastmultigather(
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
-    // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
+    // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
     if is_revindex_database(&againstfile_path) {
-        match mastiff_manygather::mastiff_manygather(
+        match fastmultigather_rocksdb::fastmultigather_rocksdb(
             query_filenames,
             againstfile_path,
             selection.clone(),
