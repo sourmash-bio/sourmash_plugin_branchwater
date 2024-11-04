@@ -676,11 +676,10 @@ pub fn branchwater_calculate_gather_stats(
     calc_ani_ci: bool,
     confidence: Option<f64>,
 ) -> Result<InterimGatherResult> {
-    //bp remaining in subtracted query
+    // bp remaining in subtracted query
     let remaining_bp = (query.size() - match_size) * query.scaled() as usize;
 
     // stats for this match vs original query
-    let (intersect_orig, _) = match_mh.intersection_size(orig_query).unwrap();
     let intersect_bp = (match_mh.scaled() * intersect_orig) as usize;
     let f_orig_query = intersect_orig as f64 / orig_query.size() as f64;
     let f_match_orig = intersect_orig as f64 / match_mh.size() as f64;

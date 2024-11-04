@@ -172,9 +172,9 @@ class Branchwater_Fastgather(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
-            help="scaled factor at which to do comparisons (default: 1000)",
+            help="scaled factor at which to do comparisons (default: determined from query)",
         )
         p.add_argument(
             "-m",

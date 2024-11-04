@@ -1325,3 +1325,32 @@ def test_fullres_vs_sourmash_gather(runtmp):
     fg_total_weighted_hashes = set(gather_df["total_weighted_hashes"])
     g_total_weighted_hashes = set(sourmash_gather_df["total_weighted_hashes"])
     assert fg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
+
+
+def test_equal_matches(runtmp):
+    # check that equal matches get returned from fastgather
+    base = sourmash.MinHash(scaled=1, ksize=31, n=0)
+
+    a = base.copy_and_clear()
+    b = base.copy_and_clear()
+    c = base.copy_and_clear()
+
+    a.add_many(range(0, 1000))
+    b.add_many(range(1000, 2000))
+    c.add_many(range(0, 2000))
+
+    ss = sourmash.SourmashSignature(a, name='g_a')
+    sourmash.save_signatures([ss], open(runtmp.output('a.sig'), 'wb'))
+    ss = sourmash.SourmashSignature(b, name='g_b')
+    sourmash.save_signatures([ss], open(runtmp.output('b.sig'), 'wb'))
+    ss = sourmash.SourmashSignature(c, name='g_mg')
+    sourmash.save_signatures([ss], open(runtmp.output('mg.sig'), 'wb'))
+
+    runtmp.sourmash('sig', 'cat', 'a.sig', 'b.sig', '-o', 'combined.sig.zip')
+
+    runtmp.sourmash('scripts', 'fastgather', 'mg.sig', 'combined.sig.zip',
+                    '-o', 'out.csv', '--threshold-bp', '0')
+
+    df = pandas.read_csv(runtmp.output('out.csv'))
+    assert len(df) == 2
+    assert set(df['intersect_bp']) == { 1000 }
