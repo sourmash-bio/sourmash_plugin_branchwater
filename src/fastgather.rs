@@ -1,5 +1,4 @@
 /// fastgather: Run gather with a query against a list of files.
-use sourmash::signature::SigsTrait;
 use anyhow::Result;
 use sourmash::prelude::Select;
 use sourmash::selection::Selection;
@@ -15,13 +14,11 @@ pub fn fastgather(
     query_filepath: String,
     against_filepath: String,
     threshold_bp: usize,
-    scaled: usize,
     selection: Selection,
     gather_output: Option<String>,
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    eprintln!("scaled: {}", scaled);
     let query_collection = load_collection(
         &query_filepath,
         &selection,
@@ -43,27 +40,29 @@ pub fn fastgather(
     let query_md5 = query_sig.md5sum();
 
     // clone here is necessary b/c we use full query_sig in consume_query_by_gather
-    eprintln!("ABC {}", selection.scaled().expect("foo"));
-    let query_sig_ds = query_sig.select(&selection)?; // downsample
+    let query_sig_ds = query_sig.select(&selection)?; // downsample as needed.
     let query_mh: KmerMinHash = match query_sig_ds.try_into() {
         Ok(query_mh) => query_mh,
         Err(_) => {
             bail!("No query sketch matching selection parameters.");
         }
     };
-    eprintln!("ABC 2 {} {}", query_mh.size(), query_mh.scaled());
+
+    let mut against_selection = selection;
+    let scaled = query_mh.scaled();
+    against_selection.set_scaled(scaled as u32);
 
     // load collection to match against.
     let against_collection = load_collection(
         &against_filepath,
-        &selection,
+        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes: u64 = {
-        let x = threshold_bp / scaled;
+        let x = threshold_bp / scaled as usize;
         if x > 0 {
             x
         } else {
@@ -112,7 +111,6 @@ pub fn fastgather(
     }
 
     // run the gather!
-    eprintln!("pre XXX: {} ({})", query_mh.size(), query_mh.scaled());
     consume_query_by_gather(
         query_name,
         query_filename,

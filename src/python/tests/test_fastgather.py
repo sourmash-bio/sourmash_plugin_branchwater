@@ -1349,7 +1349,7 @@ def test_equal_matches(runtmp):
     runtmp.sourmash('sig', 'cat', 'a.sig', 'b.sig', '-o', 'combined.sig.zip')
 
     runtmp.sourmash('scripts', 'fastgather', 'mg.sig', 'combined.sig.zip',
-                    '-o', 'out.csv')
+                    '-o', 'out.csv', '--threshold-bp', '0')
 
     df = pandas.read_csv(runtmp.output('out.csv'))
     assert len(df) == 2

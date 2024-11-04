@@ -90,19 +90,18 @@ fn do_fastgather(
     siglist_path: String,
     threshold_bp: usize,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<usize>,
     moltype: String,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, Some(scaled), &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
     match fastgather::fastgather(
         query_filename,
         siglist_path,
         threshold_bp,
-        scaled,
         selection,
         output_path_prefetch,
         output_path_gather,
