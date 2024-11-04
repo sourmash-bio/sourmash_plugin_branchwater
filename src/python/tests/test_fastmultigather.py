@@ -2116,7 +2116,7 @@ def test_equal_matches(runtmp, indexed):
         out_args = ()
 
     runtmp.sourmash('scripts', 'fastmultigather', 'mg.sig', against_list,
-                    '--threshold-bp=0', '-s', '1', *out_args) # @CTB -s 1
+                    '--threshold-bp=0', *out_args)
 
     df = pandas.read_csv(runtmp.output(outfile))
     assert len(df) == 2
