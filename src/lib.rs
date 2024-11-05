@@ -88,7 +88,7 @@ fn do_manysearch(
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
     scaled: Option<u32>,
     moltype: String,
@@ -121,7 +121,7 @@ fn do_fastgather(
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
     scaled: Option<u32>,
     moltype: String,
