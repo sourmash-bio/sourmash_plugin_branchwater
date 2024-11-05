@@ -29,7 +29,7 @@ use crate::utils::{
 pub fn fastmultigather(
     query_filepath: String,
     against_filepath: String,
-    threshold_bp: usize,
+    threshold_bp: u32,
     scaled: Option<u32>,
     selection: Selection,
     allow_failed_sigpaths: bool,
@@ -46,10 +46,10 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
-    let scaled: u32 = match scaled {
+    let scaled = match scaled {
         Some(s) => s,
         None => {
-            let scaled = *query_collection.max_scaled().expect("no records!?") as u32;
+            let scaled = *query_collection.max_scaled().expect("no records!?");
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
                 scaled
@@ -64,12 +64,11 @@ pub fn fastmultigather(
     let threshold_hashes: u64 = {
         let x = threshold_bp as u64 / scaled as u64;
         if x > 0 {
-            x
+            x as u64
         } else {
             1
         }
-    }
-    .try_into()?;
+    };
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
@@ -164,7 +163,7 @@ pub fn fastmultigather(
                         query_name,
                         query_filename,
                         query_mh,
-                        scaled as u64,
+                        scaled,
                         matchlist,
                         threshold_hashes,
                         Some(gather_output),

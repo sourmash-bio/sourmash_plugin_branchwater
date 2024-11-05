@@ -115,7 +115,7 @@ pub fn fastgather(
         query_name,
         query_filename,
         query_mh,
-        scaled as u64,
+        scaled as u32,
         matchlist,
         threshold_hashes,
         gather_output,

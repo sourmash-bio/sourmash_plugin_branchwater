@@ -21,6 +21,7 @@ use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
+use sourmash::ScaledType;
 
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]
@@ -275,7 +276,7 @@ impl MultiCollection {
         val == 0
     }
 
-    pub fn max_scaled(&self) -> Option<&u64> {
+    pub fn max_scaled(&self) -> Option<&ScaledType> {
         self.item_iter().map(|(_, _, record)| record.scaled()).max()
     }
 
