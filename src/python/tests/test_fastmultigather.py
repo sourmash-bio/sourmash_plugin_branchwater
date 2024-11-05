@@ -2049,6 +2049,38 @@ def test_simple_query_scaled(runtmp):
     assert os.path.exists(g_output)
 
 
+def test_exit_no_against(runtmp, indexed):
+    # test that it exits properly when nothing to search
+    query = get_test_data("SRR606249.sig.gz")
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(
+            runtmp,
+            against_list,
+            runtmp.output("db"),
+        )
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts",
+            "fastmultigather",
+            query_list,
+            against_list,
+            "-s",
+            "1000",
+            in_directory=runtmp.output(""),
+        )
+
+
 def test_simple_query_scaled_indexed(runtmp):
     # test basic execution w/automatic scaled selection based on query
     # (on a rocksdb)
