@@ -70,7 +70,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
             help="scaled factor at which to do comparisons",
         )
@@ -512,7 +512,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
             help="scaled factor at which to do comparisons",
         )

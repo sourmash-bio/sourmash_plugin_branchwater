@@ -538,7 +538,7 @@ def test_missing_against(runtmp, capfd, indexed):
 
 
 def test_nomatch_against(runtmp, capfd):
-    # nonmatching against file (num sig)
+    # nonmatching against file (SRR606249 has scaled=100_000)
     query_list = runtmp.output("query.txt")
     against_list = runtmp.output("against.txt")
 
@@ -553,7 +553,7 @@ def test_nomatch_against(runtmp, capfd):
     output = runtmp.output("out.csv")
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "manysearch", query_list, against_list, "-o", output)
+        runtmp.sourmash("scripts", "manysearch", query_list, against_list, "-o", output, '-s', '1000')
 
     captured = capfd.readouterr()
     assert "No search signatures loaded, exiting." in captured.err

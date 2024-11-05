@@ -658,7 +658,7 @@ pub fn report_on_collection_loading(
     Ok(())
 }
 
-//branchwater version that allows using PrefetchResult
+// branchwater version that allows using PrefetchResult
 #[allow(clippy::too_many_arguments)]
 pub fn branchwater_calculate_gather_stats(
     orig_query: &KmerMinHash,
@@ -680,6 +680,7 @@ pub fn branchwater_calculate_gather_stats(
     let remaining_bp = (query.size() - match_size) * query.scaled() as usize;
 
     // stats for this match vs original query
+    let (intersect_orig, _) = match_mh.intersection_size(orig_query).unwrap();
     let intersect_bp = (match_mh.scaled() * intersect_orig) as usize;
     let f_orig_query = intersect_orig as f64 / orig_query.size() as f64;
     let f_match_orig = intersect_orig as f64 / match_mh.size() as f64;
@@ -955,7 +956,7 @@ pub fn consume_query_by_gather(
     Ok(())
 }
 
-pub fn build_selection(ksize: u8, scaled: Option<usize>, moltype: &str) -> Selection {
+pub fn build_selection(ksize: u8, scaled: Option<u32>, moltype: &str) -> Selection {
     let hash_function = match moltype {
         "DNA" => HashFunctions::Murmur64Dna,
         "protein" => HashFunctions::Murmur64Protein,
@@ -970,7 +971,7 @@ pub fn build_selection(ksize: u8, scaled: Option<usize>, moltype: &str) -> Selec
     if let Some(scaled) = scaled {
         Selection::builder()
             .ksize(ksize.into())
-            .scaled(scaled as u32)
+            .scaled(scaled)
             .moltype(hash_function)
             .build()
     } else {
