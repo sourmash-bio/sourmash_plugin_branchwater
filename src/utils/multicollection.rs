@@ -13,6 +13,7 @@ use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use sourmash::ScaledType;
 use sourmash::collection::Collection;
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
@@ -275,7 +276,7 @@ impl MultiCollection {
         val == 0
     }
 
-    pub fn max_scaled(&self) -> Option<&u64> {
+    pub fn max_scaled(&self) -> Option<&ScaledType> {
         self.item_iter().map(|(_, _, record)| record.scaled()).max()
     }
 

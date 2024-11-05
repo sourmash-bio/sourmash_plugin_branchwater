@@ -16,7 +16,7 @@ pub fn fastmultigather_rocksdb(
     queries_file: String,
     index: PathBuf,
     selection: Selection,
-    threshold_bp: usize,
+    threshold_bp: u32,
     output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -55,7 +55,7 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / selection.scaled()? as usize;
+            let threshold = threshold_bp as u32/ selection.scaled()? as u32;
             let ksize = selection.ksize()?;
 
             // query downsampling happens here
@@ -76,7 +76,7 @@ pub fn fastmultigather_rocksdb(
                             counter,
                             query_colors,
                             hash_to_color,
-                            threshold,
+                            threshold as usize,
                             &query_mh,
                             Some(selection.clone()),
                         );
@@ -104,8 +104,8 @@ pub fn fastmultigather_rocksdb(
                                     query_bp: query_mh.n_unique_kmers() as usize,
                                     ksize: ksize as usize,
                                     moltype: query_mh.hash_function().to_string(),
-                                    scaled: query_mh.scaled() as usize,
-                                    query_n_hashes: query_mh.size(),
+                                    scaled: query_mh.scaled(),
+                                    query_n_hashes: query_mh.size() as u64,
                                     query_abundance: query_mh.track_abundance(),
                                     query_containment_ani: match_.query_containment_ani(),
                                     match_containment_ani: match_.match_containment_ani(),

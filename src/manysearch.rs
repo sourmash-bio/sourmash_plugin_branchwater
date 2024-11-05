@@ -205,8 +205,8 @@ fn downsample_and_inflate_abundances(
     against: &KmerMinHash,
 ) -> Result<
     (
-        Option<usize>,
-        Option<usize>,
+        Option<u64>,
+        Option<u64>,
         Option<f64>,
         Option<f64>,
         Option<f64>,
@@ -218,7 +218,7 @@ fn downsample_and_inflate_abundances(
 
     let abunds: Vec<u64>;
     let sum_weighted: u64;
-    let sum_all_abunds: usize;
+    let sum_all_abunds: u64;
 
     // avoid downsampling if we can
     if against_scaled != query_scaled {
@@ -227,10 +227,10 @@ fn downsample_and_inflate_abundances(
             .downsample_scaled(query.scaled())
             .expect("cannot downsample sketch");
         (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;
-        sum_all_abunds = against_ds.sum_abunds() as usize;
+        sum_all_abunds = against_ds.sum_abunds();
     } else {
         (abunds, sum_weighted) = query.inflated_abundances(against)?;
-        sum_all_abunds = against.sum_abunds() as usize;
+        sum_all_abunds = against.sum_abunds();
     }
 
     let average_abund = sum_weighted as f64 / abunds.len() as f64;
@@ -239,7 +239,7 @@ fn downsample_and_inflate_abundances(
 
     Ok((
         Some(sum_all_abunds),
-        Some(sum_weighted as usize),
+        Some(sum_weighted),
         Some(average_abund),
         Some(median_abund),
         Some(std_abund),

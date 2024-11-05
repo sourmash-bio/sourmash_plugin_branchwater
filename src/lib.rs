@@ -140,7 +140,7 @@ fn do_fastmultigather(
             query_filenames,
             againstfile_path,
             selection.clone(),
-            threshold_bp,
+            threshold_bp as u32,
             output_path,
             allow_failed_sigpaths,
         ) {
@@ -157,7 +157,7 @@ fn do_fastmultigather(
         match fastmultigather::fastmultigather(
             query_filenames,
             siglist_path,
-            threshold_bp,
+            threshold_bp as u32,
             scaled,
             selection,
             allow_failed_sigpaths,

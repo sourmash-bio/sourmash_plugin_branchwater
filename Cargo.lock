@@ -601,9 +601,9 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "histogram"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62b8d85713ddc62e5e78db13bf9f9305610d0419276faa845076a68b7165872"
+checksum = "58cf6b99a250776d813cdf2f0b478a053a822d078e7a2baf5cb36afc88c41a7c"
 dependencies = [
  "thiserror",
 ]
@@ -930,6 +930,17 @@ dependencies = [
  "flate2",
  "memchr",
  "xz2",
+]
+
+[[package]]
+name = "needletail"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f29a3c5015d6985f33318d154fa0c41315eb2e7df29432c844c74a83434bfe21"
+dependencies = [
+ "buffer-redux",
+ "bytecount",
+ "memchr",
 ]
 
 [[package]]
@@ -1479,18 +1490,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.213"
+version = "1.0.214"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ea7893ff5e2466df8d720bb615088341b295f849602c6956047f8f80f0e9bc1"
+checksum = "f55c3193aca71c12ad7890f1785d2b73e1b9f63a0bbc353c08ef26fe03fc56b5"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.213"
+version = "1.0.214"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e85ad2009c50b58e87caa8cd6dac16bdf511bbfb7af6c33df902396aa480fa5"
+checksum = "de523f781f095e28fa605cdce0f8307e451cc0fd14e2eb4cd2e98a355b147766"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1548,9 +1559,9 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 
 [[package]]
 name = "sourmash"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "596f20eac8896a06ca65889399ea6f408deeba375aa44c4a2efb3b46e31a02c0"
+checksum = "8ce05fed73303390f6f208d6640f390cd999db0af0b6c007d60db2794ad5fcc0"
 dependencies = [
  "az",
  "byteorder",
@@ -1570,7 +1581,7 @@ dependencies = [
  "md5",
  "memmap2",
  "murmurhash3",
- "needletail",
+ "needletail 0.6.0",
  "niffler",
  "nohash-hasher",
  "num-iter",
@@ -1606,7 +1617,7 @@ dependencies = [
  "env_logger",
  "glob",
  "log",
- "needletail",
+ "needletail 0.5.1",
  "niffler",
  "predicates",
  "pyo3",
