@@ -13,7 +13,7 @@ use crate::utils::{
 pub fn fastgather(
     query_filepath: String,
     against_filepath: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     selection: Selection,
     gather_output: Option<String>,
     prefetch_output: Option<String>,
@@ -61,15 +61,14 @@ pub fn fastgather(
     )?;
 
     // calculate the minimum number of hashes based on desired threshold
-    let threshold_hashes: u64 = {
-        let x = threshold_bp / scaled as usize;
+    let threshold_hashes = {
+        let x = threshold_bp / scaled as u64;
         if x > 0 {
             x
         } else {
             1
         }
-    }
-    .try_into()?;
+    };
 
     eprintln!(
         "using threshold overlap: {} {}",

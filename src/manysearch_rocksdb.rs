@@ -89,7 +89,7 @@ pub fn manysearch_rocksdb(
                                     query_md5: query_sig.md5sum(),
                                     match_name: path.clone(),
                                     containment,
-                                    intersect_hashes: overlap,
+                                    intersect_hashes: overlap as u64,
                                     match_md5: None,
                                     jaccard: None,
                                     max_containment: None,
