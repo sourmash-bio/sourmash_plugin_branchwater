@@ -879,7 +879,7 @@ pub fn consume_query_by_gather(
             best_element.location.clone(),
             rank,
             sum_weighted_found,
-            total_weighted_hashes.try_into().unwrap(),
+            total_weighted_hashes,
             calc_abund_stats,
             calc_ani_ci,
             ani_confidence_interval_fraction,

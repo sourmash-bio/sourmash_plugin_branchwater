@@ -55,7 +55,7 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp as u32/ selection.scaled()? as u32;
+            let threshold = threshold_bp / selection.scaled()?;
             let ksize = selection.ksize()?;
 
             // query downsampling happens here

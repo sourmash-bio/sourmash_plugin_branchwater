@@ -64,12 +64,12 @@ pub fn fastmultigather(
     let threshold_hashes: u64 = {
         let x = threshold_bp / scaled;
         if x > 0 {
-            x
+            x as u64
         } else {
             1
         }
-    }
-    .try_into()?;
+    };
+
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
