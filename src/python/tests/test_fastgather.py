@@ -1339,18 +1339,26 @@ def test_equal_matches(runtmp):
     b.add_many(range(1000, 2000))
     c.add_many(range(0, 2000))
 
-    ss = sourmash.SourmashSignature(a, name='g_a')
-    sourmash.save_signatures([ss], open(runtmp.output('a.sig'), 'wb'))
-    ss = sourmash.SourmashSignature(b, name='g_b')
-    sourmash.save_signatures([ss], open(runtmp.output('b.sig'), 'wb'))
-    ss = sourmash.SourmashSignature(c, name='g_mg')
-    sourmash.save_signatures([ss], open(runtmp.output('mg.sig'), 'wb'))
+    ss = sourmash.SourmashSignature(a, name="g_a")
+    sourmash.save_signatures([ss], open(runtmp.output("a.sig"), "wb"))
+    ss = sourmash.SourmashSignature(b, name="g_b")
+    sourmash.save_signatures([ss], open(runtmp.output("b.sig"), "wb"))
+    ss = sourmash.SourmashSignature(c, name="g_mg")
+    sourmash.save_signatures([ss], open(runtmp.output("mg.sig"), "wb"))
 
-    runtmp.sourmash('sig', 'cat', 'a.sig', 'b.sig', '-o', 'combined.sig.zip')
+    runtmp.sourmash("sig", "cat", "a.sig", "b.sig", "-o", "combined.sig.zip")
 
-    runtmp.sourmash('scripts', 'fastgather', 'mg.sig', 'combined.sig.zip',
-                    '-o', 'out.csv', '--threshold-bp', '0')
+    runtmp.sourmash(
+        "scripts",
+        "fastgather",
+        "mg.sig",
+        "combined.sig.zip",
+        "-o",
+        "out.csv",
+        "--threshold-bp",
+        "0",
+    )
 
-    df = pandas.read_csv(runtmp.output('out.csv'))
+    df = pandas.read_csv(runtmp.output("out.csv"))
     assert len(df) == 2
-    assert set(df['intersect_bp']) == { 1000 }
+    assert set(df["intersect_bp"]) == {1000}

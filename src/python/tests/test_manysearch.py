@@ -553,7 +553,16 @@ def test_nomatch_against(runtmp, capfd):
     output = runtmp.output("out.csv")
 
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "manysearch", query_list, against_list, "-o", output, '-s', '1000')
+        runtmp.sourmash(
+            "scripts",
+            "manysearch",
+            query_list,
+            against_list,
+            "-o",
+            output,
+            "-s",
+            "1000",
+        )
 
     captured = capfd.readouterr()
     assert "No search signatures loaded, exiting." in captured.err
