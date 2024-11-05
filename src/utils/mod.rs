@@ -1,9 +1,9 @@
 //! Utility functions for `sourmash_plugin_branchwater`.
 use rayon::prelude::*;
 
-use sourmash::ScaledType;
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
+use sourmash::ScaledType;
 
 use anyhow::{anyhow, Result};
 use camino::Utf8Path as Path;

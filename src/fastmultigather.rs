@@ -70,7 +70,6 @@ pub fn fastmultigather(
         }
     };
 
-
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // load against collection
