@@ -101,7 +101,7 @@ fn do_fastgather(
     match fastgather::fastgather(
         query_filename,
         siglist_path,
-        threshold_bp as u64,
+        threshold_bp,
         selection,
         output_path_prefetch,
         output_path_gather,
