@@ -50,7 +50,7 @@ pub fn fastgather(
 
     let mut against_selection = selection;
     let scaled = query_mh.scaled();
-    against_selection.set_scaled(scaled as u32);
+    against_selection.set_scaled(scaled);
 
     // load collection to match against.
     let against_collection = load_collection(
