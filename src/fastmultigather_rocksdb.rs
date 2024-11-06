@@ -35,10 +35,10 @@ pub fn fastmultigather_rocksdb(
     )?;
 
     // set scaled from query collection.
-    let scaled: u32 = match selection.scaled() {
+    let scaled = match selection.scaled() {
         Some(s) => s,
         None => {
-            let scaled = *query_collection.max_scaled().expect("no records!?") as u32;
+            let scaled = *query_collection.max_scaled().expect("no records!?");
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
                 scaled
@@ -48,7 +48,7 @@ pub fn fastmultigather_rocksdb(
     };
 
     let mut against_selection = selection;
-    against_selection.set_scaled(scaled as u32);
+    against_selection.set_scaled(scaled);
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
