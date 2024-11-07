@@ -30,7 +30,7 @@ pub fn fastmultigather(
     query_filepath: String,
     against_filepath: String,
     threshold_bp: u32,
-    scaled: Option<usize>,
+    scaled: Option<u32>,
     selection: Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
@@ -47,7 +47,7 @@ pub fn fastmultigather(
     )?;
 
     let scaled = match scaled {
-        Some(s) => s as u32,
+        Some(s) => s,
         None => {
             let scaled = *query_collection.max_scaled().expect("no records!?");
             eprintln!(
@@ -59,10 +59,10 @@ pub fn fastmultigather(
     };
 
     let mut against_selection = selection;
-    against_selection.set_scaled(scaled as u32);
+    against_selection.set_scaled(scaled);
 
     let threshold_hashes: u64 = {
-        let x = threshold_bp / scaled;
+        let x = threshold_bp as u64 / scaled as u64;
         if x > 0 {
             x as u64
         } else {

@@ -34,6 +34,22 @@ pub fn fastmultigather_rocksdb(
         allow_failed_sigpaths,
     )?;
 
+    // set scaled from query collection.
+    let scaled = match selection.scaled() {
+        Some(s) => s,
+        None => {
+            let scaled = *query_collection.max_scaled().expect("no records!?");
+            eprintln!(
+                "Setting scaled={} based on max scaled in query collection",
+                scaled
+            );
+            scaled
+        }
+    };
+
+    let mut against_selection = selection;
+    against_selection.set_scaled(scaled);
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
@@ -55,8 +71,8 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / selection.scaled()?;
-            let ksize = selection.ksize()?;
+            let threshold = threshold_bp / against_selection.scaled().expect("scaled is not set!?");
+            let ksize = against_selection.ksize().expect("ksize not set!?");
 
             // query downsampling happens here
             match coll.sig_from_record(record) {
@@ -78,7 +94,7 @@ pub fn fastmultigather_rocksdb(
                             hash_to_color,
                             threshold as usize,
                             &query_mh,
-                            Some(selection.clone()),
+                            Some(against_selection.clone()),
                         );
                         if let Ok(matches) = matches {
                             for match_ in &matches {
@@ -101,8 +117,8 @@ pub fn fastmultigather_rocksdb(
                                     query_filename: query_filename.clone(),
                                     query_name: query_name.clone(),
                                     query_md5: query_md5.clone(),
-                                    query_bp: query_mh.n_unique_kmers() as usize,
-                                    ksize: ksize as usize,
+                                    query_bp: query_mh.n_unique_kmers(),
+                                    ksize: ksize as u16,
                                     moltype: query_mh.hash_function().to_string(),
                                     scaled: query_mh.scaled(),
                                     query_n_hashes: query_mh.size() as u64,
@@ -169,6 +185,11 @@ pub fn fastmultigather_rocksdb(
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
     eprintln!("DONE. Processed {} search sigs", i);
+
+    if i == 0 {
+        eprintln!("ERROR: no search sigs found!?");
+        do_fail = true;
+    }
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);

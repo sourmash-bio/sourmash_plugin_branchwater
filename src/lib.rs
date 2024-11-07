@@ -34,13 +34,13 @@ fn do_manysearch(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path: Option<String>,
     ignore_abundance: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
-    let selection = build_selection(ksize, Some(scaled), &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
 
@@ -88,21 +88,20 @@ fn do_manysearch(
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, Some(scaled), &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
     match fastgather::fastgather(
         query_filename,
         siglist_path,
         threshold_bp,
-        scaled,
         selection,
         output_path_prefetch,
         output_path_gather,
@@ -122,9 +121,9 @@ fn do_fastgather(
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
-    scaled: Option<usize>,
+    scaled: Option<u32>,
     moltype: String,
     output_path: Option<String>,
     save_matches: bool,
@@ -191,16 +190,17 @@ fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
 }
 
 #[pyfunction]
+#[pyo3(signature = (siglist, ksize, scaled, moltype, output, colors, use_internal_storage))]
 fn do_index(
     siglist: String,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output: String,
     colors: bool,
     use_internal_storage: bool,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, Some(scaled), &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = false;
     match index::index(
         siglist,
@@ -238,7 +238,7 @@ fn do_multisearch(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: Option<usize>,
+    scaled: Option<u32>,
     moltype: String,
     estimate_ani: bool,
     output_path: Option<String>,
@@ -272,13 +272,13 @@ fn do_pairwise(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     estimate_ani: bool,
     write_all: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, Some(scaled), &moltype);
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
     match pairwise::pairwise(
         siglist_path,

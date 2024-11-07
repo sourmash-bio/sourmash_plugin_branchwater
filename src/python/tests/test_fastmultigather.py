@@ -2049,6 +2049,38 @@ def test_simple_query_scaled(runtmp):
     assert os.path.exists(g_output)
 
 
+def test_exit_no_against(runtmp, indexed):
+    # test that it exits properly when nothing to search
+    query = get_test_data("SRR606249.sig.gz")
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(
+            runtmp,
+            against_list,
+            runtmp.output("db"),
+        )
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts",
+            "fastmultigather",
+            query_list,
+            against_list,
+            "-s",
+            "1000",
+            in_directory=runtmp.output(""),
+        )
+
+
 def test_simple_query_scaled_indexed(runtmp):
     # test basic execution w/automatic scaled selection based on query
     # (on a rocksdb)
@@ -2080,3 +2112,50 @@ def test_simple_query_scaled_indexed(runtmp):
 
     g_output = runtmp.output("foo.csv")
     assert os.path.exists(g_output)
+
+
+def test_equal_matches(runtmp, indexed):
+    # check that equal matches get returned from fastmultigather
+    base = sourmash.MinHash(scaled=1, ksize=31, n=0)
+
+    a = base.copy_and_clear()
+    b = base.copy_and_clear()
+    c = base.copy_and_clear()
+
+    a.add_many(range(0, 1000))
+    b.add_many(range(1000, 2000))
+    c.add_many(range(0, 2000))
+
+    ss = sourmash.SourmashSignature(a, name="g_a")
+    sourmash.save_signatures([ss], open(runtmp.output("a.sig"), "wb"))
+    ss = sourmash.SourmashSignature(b, name="g_b")
+    sourmash.save_signatures([ss], open(runtmp.output("b.sig"), "wb"))
+    ss = sourmash.SourmashSignature(c, name="g_mg")
+    sourmash.save_signatures([ss], open(runtmp.output("mg.sig"), "wb"))
+
+    against_list = runtmp.output("combined.sig.zip")
+    runtmp.sourmash("sig", "cat", "a.sig", "b.sig", "-o", against_list)
+
+    outfile = runtmp.output("g_mg.gather.csv")
+    if indexed:
+        against_list = index_siglist(
+            runtmp,
+            against_list,
+            runtmp.output("db"),
+        )
+        out_args = ("-o", outfile)
+    else:
+        out_args = ()
+
+    runtmp.sourmash(
+        "scripts",
+        "fastmultigather",
+        "mg.sig",
+        against_list,
+        "--threshold-bp=0",
+        *out_args,
+    )
+
+    df = pandas.read_csv(runtmp.output(outfile))
+    assert len(df) == 2
+    assert set(df["intersect_bp"]) == {1000}

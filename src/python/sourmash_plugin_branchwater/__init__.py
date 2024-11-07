@@ -70,7 +70,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
             help="scaled factor at which to do comparisons",
         )
@@ -172,9 +172,9 @@ class Branchwater_Fastgather(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
-            help="scaled factor at which to do comparisons (default: 1000)",
+            help="scaled factor at which to do comparisons (default: determined from query)",
         )
         p.add_argument(
             "-m",
@@ -333,9 +333,9 @@ class Branchwater_Index(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
-            help="scaled factor at which to do comparisons",
+            help="scaled factor at which to select sketches (default: chosen as max from collection)",
         )
         p.add_argument(
             "-m",
@@ -512,7 +512,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
         p.add_argument(
             "-s",
             "--scaled",
-            default=1000,
+            default=None,
             type=int,
             help="scaled factor at which to do comparisons",
         )

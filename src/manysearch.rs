@@ -129,7 +129,7 @@ pub fn manysearch(
                                     query_md5: query.md5sum.clone(),
                                     match_name: against_name.clone(),
                                     containment: containment_query_in_target,
-                                    intersect_hashes: overlap as usize,
+                                    intersect_hashes: overlap as u64,
                                     match_md5: Some(against_md5.clone()),
                                     jaccard: Some(jaccard),
                                     max_containment: Some(max_containment),
