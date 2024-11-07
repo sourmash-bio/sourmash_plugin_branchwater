@@ -64,10 +64,12 @@ pub fn multisearch(
         // Combine all the queries and against into a single signature each, to get their
         // underlying distribution of hashes across the whole input
         eprintln!("Merging queries ...");
-        let queries_merged_mh: KmerMinHash = merge_all_minhashes(&queries).unwrap();
+        let queries_merged_mh: KmerMinHash =
+            merge_all_minhashes(&queries).expect("Merging query minhashes");
         eprintln!("\tDone.\n");
         eprintln!("Merging against ...");
-        let against_merged_mh: KmerMinHash = merge_all_minhashes(&againsts).unwrap();
+        let against_merged_mh: KmerMinHash =
+            merge_all_minhashes(&againsts).expect("Merging against minhashes");
         eprintln!("\tDone.\n");
 
         // Precompute
