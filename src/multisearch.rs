@@ -16,6 +16,121 @@ use crate::utils::multicollection::SmallSignature;
 use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
+#[derive(Default)]
+struct ProbOverlapStats {
+    prob_overlap: f64,
+    prob_overlap_adjusted: f64,
+    containment_adjusted: f64,
+    containment_adjusted_log10: f64,
+    tf_idf_score: f64,
+}
+
+/// Computes probability overlap statistics for a single pair of signatures
+fn compute_single_prob_overlap(
+    query: &SmallSignature,
+    against: &SmallSignature,
+    n_comparisons: f64,
+    query_merged_frequencies: &HashMap<u64, f64>,
+    against_merged_frequencies: &HashMap<u64, f64>,
+    query_term_frequencies: &HashMap<String, HashMap<u64, f64>>,
+    inverse_document_frequency: &HashMap<u64, f64>,
+    containment_query_in_target: f64,
+) -> ProbOverlapStats {
+    let overlapping_hashvals: Vec<u64> = query
+        .minhash
+        .intersection(&against.minhash)
+        .expect("Intersection of query and against minhashes")
+        .0;
+
+    let prob_overlap = get_prob_overlap(
+        &overlapping_hashvals,
+        query_merged_frequencies,
+        against_merged_frequencies,
+    );
+
+    let prob_overlap_adjusted = prob_overlap * n_comparisons;
+    let containment_adjusted = containment_query_in_target / prob_overlap_adjusted;
+
+    ProbOverlapStats {
+        prob_overlap,
+        prob_overlap_adjusted,
+        containment_adjusted,
+        containment_adjusted_log10: containment_adjusted.log10(),
+        tf_idf_score: get_term_frequency_inverse_document_frequency(
+            &overlapping_hashvals,
+            &query_term_frequencies[&query.md5sum],
+            inverse_document_frequency,
+        ),
+    }
+}
+
+/// Computes probability overlap statistics for queries and against signatures
+/// Estimate probability of overlap between query sig and against sig, using
+/// underlying distribution of hashvals for all queries and all againsts
+fn compute_prob_overlap_stats(
+    queries: &Vec<SmallSignature>,
+    againsts: &Vec<SmallSignature>,
+) -> (
+    f64,
+    HashMap<u64, f64>,
+    HashMap<u64, f64>,
+    HashMap<String, HashMap<u64, f64>>,
+    HashMap<u64, f64>,
+) {
+    let n_comparisons = againsts.len() as f64 * queries.len() as f64;
+
+    // Combine all the queries and against into a single signature each
+    eprintln!("Merging queries ...");
+    let queries_merged_mh: KmerMinHash =
+        merge_all_minhashes(queries).expect("Merging query minhashes");
+    eprintln!("\tDone.\n");
+
+    eprintln!("Merging against ...");
+    let against_merged_mh: KmerMinHash =
+        merge_all_minhashes(againsts).expect("Merging against minhashes");
+    eprintln!("\tDone.\n");
+
+    // Compute IDF
+    eprintln!("Computing Inverse Document Frequency (IDF) of hashes in all againsts ...");
+    let inverse_document_frequency =
+        compute_inverse_document_frequency(&against_merged_mh, againsts, Some(true));
+    eprintln!("\tDone.\n");
+
+    // Compute frequencies
+    eprintln!("Computing frequency of hashvals across all againsts (L1 Norm) ...");
+    let against_merged_frequencies =
+        get_hash_frequencies(&against_merged_mh, Some(Normalization::L1));
+    eprintln!("\tDone.\n");
+
+    eprintln!("Computing frequency of hashvals across all queries (L1 Norm) ...");
+    let query_merged_frequencies =
+        get_hash_frequencies(&queries_merged_mh, Some(Normalization::L1));
+    eprintln!("\tDone.\n");
+
+    // Compute term frequencies
+    eprintln!("Computing hashval term frequencies within each query (L2 Norm) ...");
+    let query_term_frequencies = HashMap::from(
+        queries
+            .par_iter()
+            .map(|query| {
+                (
+                    query.md5sum.clone(),
+                    get_hash_frequencies(&query.minhash, Some(Normalization::L2)),
+                )
+            })
+            .collect::<HashMap<String, HashMap<u64, f64>>>(),
+    );
+    eprintln!("\tDone.\n");
+
+    (
+        n_comparisons,
+        query_merged_frequencies,
+        against_merged_frequencies,
+        query_term_frequencies,
+        inverse_document_frequency,
+    )
+}
+
 /// Search many queries against a list of signatures.
 ///
 /// Note: this function loads all _queries_ into memory, and iterates over
@@ -51,61 +166,23 @@ pub fn multisearch(
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches(selection)?;
 
-    let mut n_comparisons = 0.0;
-    let mut query_merged_frequencies: HashMap<u64, f64> = Default::default();
-    let mut against_merged_frequencies: HashMap<u64, f64> = Default::default();
-
-    // query_term_frequencies is md5 to hashval: freq mapping
-    let mut query_term_frequencies: HashMap<String, HashMap<u64, f64>> = Default::default();
-    let mut inverse_document_frequency: HashMap<u64, f64> = Default::default();
-
-    if estimate_prob_overlap {
-        n_comparisons = againsts.len() as f64 * queries.len() as f64;
-        // Combine all the queries and against into a single signature each, to get their
-        // underlying distribution of hashes across the whole input
-        eprintln!("Merging queries ...");
-        let queries_merged_mh: KmerMinHash =
-            merge_all_minhashes(&queries).expect("Merging query minhashes");
-        eprintln!("\tDone.\n");
-        eprintln!("Merging against ...");
-        let against_merged_mh: KmerMinHash =
-            merge_all_minhashes(&againsts).expect("Merging against minhashes");
-        eprintln!("\tDone.\n");
-
-        // Precompute
-        eprintln!("Computing Inverse Document Frequency (IDF) of hashes in all againsts ...");
-        inverse_document_frequency =
-            compute_inverse_document_frequency(&against_merged_mh, &againsts, Some(true));
-        eprintln!("\tDone.\n");
-
-        eprintln!("Computing frequency of hashvals across all againsts (L1 Norm) ...");
-        against_merged_frequencies =
-            get_hash_frequencies(&against_merged_mh, Some(Normalization::L1));
-        eprintln!("\tDone.\n");
-
-        eprintln!("Computing frequency of hashvals across all queries (L1 Norm) ...");
-        query_merged_frequencies =
-            get_hash_frequencies(&queries_merged_mh, Some(Normalization::L1));
-        eprintln!("\tDone.\n");
-
-        eprintln!("Computing hashval term frequencies within each query (L2 Norm) ...");
-        // Use L2 norm for each query's hashval abundances to match scikit-learn's TfidfTransformer module
-        // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
-        // L2 norm is consistent with cosine similarity:
-        // -> Cosine similarity is the angle between two L2 normed hashval abundance vectors
-        query_term_frequencies = HashMap::from(
-            queries
-                .par_iter()
-                .map(|query| {
-                    (
-                        query.md5sum.clone(),
-                        get_hash_frequencies(&query.minhash, Some(Normalization::L2)),
-                    )
-                })
-                .collect::<HashMap<String, HashMap<u64, f64>>>(),
-        );
-        eprintln!("\tDone.\n");
-    }
+    let (
+        n_comparisons,
+        query_merged_frequencies,
+        against_merged_frequencies,
+        query_term_frequencies,
+        inverse_document_frequency,
+    ) = if estimate_prob_overlap {
+        compute_prob_overlap_stats(&queries, &againsts)
+    } else {
+        (
+            0.0,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
+    };
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -156,32 +233,22 @@ pub fn multisearch(
                     let mut containment_adjusted_log10: Option<f64> = None;
                     let mut tf_idf_score: Option<f64> = None;
 
-                    // Estimate probability of overlap between query sig and against sig, using
-                    // underlying distribution of hashvals for all queries and all againsts
-                    if estimate_prob_overlap {
-                        let overlapping_hashvals: Vec<u64> =
-                            query.minhash.intersection(&against.minhash).unwrap().0;
-
-                        // Related to getting the probability of overlap between query and target
-                        prob_overlap = Some(get_prob_overlap(
-                            &overlapping_hashvals,
+                    // Compute probability overlap stats if requested
+                    let prob_stats = if estimate_prob_overlap {
+                        let stats = compute_single_prob_overlap(
+                            query,
+                            against,
+                            n_comparisons,
                             &query_merged_frequencies,
                             &against_merged_frequencies,
-                        ));
-                        // Do simple, conservative Bonferroni correction
-                        prob_overlap_adjusted = Some(prob_overlap.unwrap() * n_comparisons);
-
-                        // Rescale the containment based on the probability of overlap,
-                        // such that smaller probability -> higher containment
-                        containment_adjusted =
-                            Some(containment_query_in_target / prob_overlap_adjusted.unwrap());
-                        containment_adjusted_log10 = Some(containment_adjusted.unwrap().log10());
-                        tf_idf_score = Some(get_term_frequency_inverse_document_frequency(
-                            &overlapping_hashvals,
-                            &query_term_frequencies[&query.md5sum],
+                            &query_term_frequencies,
                             &inverse_document_frequency,
-                        ));
-                    }
+                            containment_query_in_target,
+                        );
+                        Some(stats)
+                    } else {
+                        None
+                    };
 
                     // estimate ANI values
                     if estimate_ani {
@@ -206,11 +273,12 @@ pub fn multisearch(
                         match_containment_ani,
                         average_containment_ani,
                         max_containment_ani,
-                        prob_overlap,
-                        prob_overlap_adjusted,
-                        containment_adjusted,
-                        containment_adjusted_log10,
-                        tf_idf_score,
+                        prob_overlap: prob_stats.map(|stats| stats.prob_overlap),
+                        prob_overlap_adjusted: prob_stats.map(|stats| stats.prob_overlap_adjusted),
+                        containment_adjusted: prob_stats.map(|stats| stats.containment_adjusted),
+                        containment_adjusted_log10: prob_stats
+                            .map(|stats| stats.containment_adjusted_log10),
+                        tf_idf_score: prob_stats.map(|stats| stats.tf_idf_score),
                     })
                 }
             }
