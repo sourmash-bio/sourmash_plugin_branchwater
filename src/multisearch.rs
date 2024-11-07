@@ -52,8 +52,6 @@ pub fn multisearch(
     let againsts: Vec<SmallSignature> = against_collection.load_sketches(selection)?;
 
     let mut n_comparisons = 0.0;
-    // let mut queries_merged_mh: KmerMinHash = Default::default();
-    // let mut against_merged_mh: KmerMinHash = Default::default();
     let mut query_merged_frequencies: HashMap<u64, f64> = Default::default();
     let mut against_merged_frequencies: HashMap<u64, f64> = Default::default();
 
