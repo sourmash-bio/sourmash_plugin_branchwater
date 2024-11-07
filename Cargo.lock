@@ -1607,7 +1607,7 @@ dependencies = [
 
 [[package]]
 name = "sourmash_plugin_branchwater"
-version = "0.9.9-dev"
+version = "0.9.9"
 dependencies = [
  "anyhow",
  "assert_cmd",
