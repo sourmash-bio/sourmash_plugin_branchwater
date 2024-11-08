@@ -38,3 +38,11 @@ tempfile = "3.14.0"
 #target-cpu=native
 #lto = "thin"
 opt-level = 3
+
+[profile.dev]
+opt-level = 1
+debug = 2
+
+# Enable high optimizations for dependencies, but not our code
+[profile.dev.package."*"]
+opt-level = 3
