@@ -379,6 +379,36 @@ def test_simple_threshold(runtmp, indexed, zip_query):
     assert len(df) == 3
 
 
+def test_simple_scaled(runtmp, indexed, zip_query):
+    # test with a different scaled
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    output = runtmp.output("out.csv")
+
+    runtmp.sourmash(
+        "scripts", "manysearch", query_list, against_list, "-o", output, "-s", "10_000"
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 3
+    assert set(list(df['scaled'])) == {10000}
+
+
 def test_simple_manifest(runtmp, indexed):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output("query.txt")

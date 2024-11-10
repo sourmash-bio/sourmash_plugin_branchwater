@@ -728,3 +728,25 @@ def test_simple_below_threshold_write_all_no_ani(runtmp):
             assert float(row["jaccard"]) == 1.0
             assert row["query_name"] == row["match_name"]
             assert row["query_md5"] == row["match_md5"]
+
+
+def test_simple_scaled(runtmp):
+    # test basic execution w/scaled!
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    runtmp.sourmash(
+        "scripts", "pairwise", query_list, "-o", output, "-s", "10_000"
+    )
+    assert os.path.exists(output)
+    df = pandas.read_csv(output)
+    assert len(df) == 1
+    assert set(list(df['scaled'])) == {10_000}
