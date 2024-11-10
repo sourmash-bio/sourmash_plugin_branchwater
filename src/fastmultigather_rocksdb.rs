@@ -54,12 +54,12 @@ pub fn fastmultigather_rocksdb(
 
     let mut against_selection = selection;
     against_selection.set_scaled(scaled);
-/* @CTB
+
     let mut query_collection = query_collection;
     if scaled != query_set_scaled {
         query_collection = query_collection.select(&against_selection).expect("fiz");
     }
-*/
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
