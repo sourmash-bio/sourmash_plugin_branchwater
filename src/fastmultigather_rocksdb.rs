@@ -30,8 +30,6 @@ pub fn fastmultigather_rocksdb(
     let db = RevIndex::open(index, true, None)?;
     println!("Loaded DB");
 
-    let query_set_scaled = selection.scaled().expect("fiz");
-
     let query_collection = load_collection(
         &queries_file,
         &selection,
@@ -51,13 +49,17 @@ pub fn fastmultigather_rocksdb(
             scaled
         }
     };
+    let query_set_scaled = scaled; // redundant, but is nicer name
 
     let mut against_selection = selection;
     against_selection.set_scaled(scaled);
 
+    // update query collection scaled value, too?
     let mut query_collection = query_collection;
     if scaled != query_set_scaled {
-        query_collection = query_collection.select(&against_selection).expect("fiz");
+        query_collection = query_collection
+            .select(&against_selection)
+            .expect("cannot properly downsample query collection");
     }
 
     // set up a multi-producer, single-consumer channel.
@@ -81,7 +83,6 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            // eprintln!("XXX record scaled: {}", record.scaled()); @CTB
             let threshold = threshold_bp / against_selection.scaled().expect("scaled is not set!?");
             let ksize = against_selection.ksize().expect("ksize not set!?");
 
@@ -94,12 +95,9 @@ pub fn fastmultigather_rocksdb(
 
                     let mut results = vec![];
                     if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
-                        // eprintln!("selection: {}; query_mh scaled: {}", // @CTB
-                        //          query_set_scaled, query_mh.scaled());
-                        let query_mh = query_mh.downsample_scaled(query_set_scaled).expect("bar");
-                        //eprintln!("XYZ selection: {}; query_mh scaled: {}",
-                        //           query_set_scaled, query_mh.scaled()); @CTB
-
+                        let query_mh = query_mh
+                            .downsample_scaled(query_set_scaled)
+                            .expect("cannot downsample!?");
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
