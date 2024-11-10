@@ -2204,5 +2204,5 @@ def test_explicit_scaled(runtmp, indexed):
     df = pandas.read_csv(outfile)
     print(df)
     assert len(df) == 3
-    assert set(list(df['scaled'])) == {150_000}
-    assert round(df['f_unique_to_query'].sum(), 6) == round(0.01836514223, 6)
+    assert set(list(df["scaled"])) == {150_000}
+    assert round(df["f_unique_to_query"].sum(), 6) == round(0.01836514223, 6)
