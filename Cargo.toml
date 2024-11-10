@@ -39,9 +39,9 @@ tempfile = "3.14.0"
 #lto = "thin"
 opt-level = 3
 
-[profile.dev]
-opt-level = 1
-debug = 2
+[profile.dev-profiler]
+inherits = "bench"
+debug = true
 
 # Enable high optimizations for dependencies, but not our code
 [profile.dev.package."*"]
