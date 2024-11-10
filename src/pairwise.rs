@@ -59,6 +59,10 @@ pub fn pairwise(
             let query1_size = query.minhash.size() as f64;
             let query2_size = against.minhash.size() as f64;
 
+            if query.minhash.scaled() != against.minhash.scaled() {
+                panic!("different scaled");
+            }
+
             let containment_q1_in_q2 = overlap / query1_size;
             let containment_q2_in_q1 = overlap / query2_size;
 

@@ -15,6 +15,7 @@ use sourmash::errors::SourmashError;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::storage::SigStore;
 
 pub fn manysearch(
     query_filepath: String,
@@ -76,9 +77,14 @@ pub fn manysearch(
                     let against_name = against_sig.name();
                     let against_md5 = against_sig.md5sum();
 
-                    if let Ok(against_mh) = against_sig.try_into() {
+                    if let Ok(against_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(against_sig) {
                         for query in query_sketchlist.iter() {
                             // avoid calculating details unless there is overlap
+
+                            if query.minhash.scaled() != against_mh.scaled() {
+                                panic!("different scaled");
+                            }
+
                             let overlap = query
                                 .minhash
                                 .count_common(&against_mh, true)

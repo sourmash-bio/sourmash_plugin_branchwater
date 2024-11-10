@@ -86,6 +86,10 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
+                if query.minhash.scaled() != against.minhash.scaled() {
+                    panic!("different scaled");
+                }
+
                 let overlap = query
                     .minhash
                     .count_common(&against.minhash, false)
