@@ -77,7 +77,9 @@ pub fn manysearch(
                     let against_name = against_sig.name();
                     let against_md5 = against_sig.md5sum();
 
-                    if let Ok(against_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(against_sig) {
+                    if let Ok(against_mh) =
+                        <SigStore as TryInto<KmerMinHash>>::try_into(against_sig)
+                    {
                         for query in query_sketchlist.iter() {
                             // avoid calculating details unless there is overlap
 

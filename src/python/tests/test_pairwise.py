@@ -743,10 +743,8 @@ def test_simple_scaled(runtmp):
 
     output = runtmp.output("out.csv")
 
-    runtmp.sourmash(
-        "scripts", "pairwise", query_list, "-o", output, "-s", "10_000"
-    )
+    runtmp.sourmash("scripts", "pairwise", query_list, "-o", output, "-s", "10_000")
     assert os.path.exists(output)
     df = pandas.read_csv(output)
     assert len(df) == 1
-    assert set(list(df['scaled'])) == {10_000}
+    assert set(list(df["scaled"])) == {10_000}

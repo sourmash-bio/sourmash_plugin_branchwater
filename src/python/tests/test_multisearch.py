@@ -1195,11 +1195,14 @@ def test_mismatched_scaled_query(runtmp):
 
     output = runtmp.output("out.csv")
 
-    runtmp.sourmash("scripts", "multisearch", query_list, against_list, "-o", output, '-s', '10_000')
+    runtmp.sourmash(
+        "scripts", "multisearch", query_list, against_list, "-o", output, "-s", "10_000"
+    )
     assert os.path.exists(output)
     df = pandas.read_csv(output)
     assert len(df) == 5
-    assert set(list(df['scaled'])) == {10_000}
+    assert set(list(df["scaled"])) == {10_000}
+
 
 def test_mismatched_scaled_against(runtmp):
     # test what happens if against scaled is too high
