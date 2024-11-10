@@ -1001,6 +1001,9 @@ pub struct SearchResult {
     pub match_name: String,
     pub containment: f64,
     pub intersect_hashes: u64,
+    pub ksize: u16,
+    pub scaled: u32,
+    pub moltype: String,
     pub match_md5: Option<String>,
     pub jaccard: Option<f64>,
     pub max_containment: Option<f64>,
@@ -1107,6 +1110,9 @@ pub struct MultiSearchResult {
     pub max_containment: f64,
     pub jaccard: f64,
     pub intersect_hashes: f64,
+    pub ksize: u16,
+    pub scaled: u32,
+    pub moltype: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani: Option<f64>,
