@@ -54,12 +54,12 @@ pub fn fastmultigather_rocksdb(
 
     let mut against_selection = selection;
     against_selection.set_scaled(scaled);
-
+/* @CTB
     let mut query_collection = query_collection;
     if scaled != query_set_scaled {
         query_collection = query_collection.select(&against_selection).expect("fiz");
     }
-
+*/
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
@@ -81,7 +81,7 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            eprintln!("XXX record scaled: {}", record.scaled());
+            // eprintln!("XXX record scaled: {}", record.scaled()); @CTB
             let threshold = threshold_bp / against_selection.scaled().expect("scaled is not set!?");
             let ksize = against_selection.ksize().expect("ksize not set!?");
 
@@ -94,11 +94,11 @@ pub fn fastmultigather_rocksdb(
 
                     let mut results = vec![];
                     if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
-                        eprintln!("selection: {}; query_mh scaled: {}",
-                                  query_set_scaled, query_mh.scaled());
+                        // eprintln!("selection: {}; query_mh scaled: {}", // @CTB
+                        //          query_set_scaled, query_mh.scaled());
                         let query_mh = query_mh.downsample_scaled(query_set_scaled).expect("bar");
-                        eprintln!("XYZ selection: {}; query_mh scaled: {}",
-                                  query_set_scaled, query_mh.scaled());
+                        //eprintln!("XYZ selection: {}; query_mh scaled: {}",
+                        //           query_set_scaled, query_mh.scaled()); @CTB
 
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!

@@ -113,7 +113,7 @@ pub fn fastmultigather(
 
                 let query_mh = query_mh.downsample_scaled(common_scaled).expect("fiz");
 
-                eprintln!("ABC query scaled: {}", query_mh.scaled());
+                // eprintln!("ABC query scaled: {}", query_mh.scaled()); // @CTB
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();
@@ -126,7 +126,7 @@ pub fn fastmultigather(
                 let matchlist: BinaryHeap<PrefetchResult> = against
                     .iter()
                     .filter_map(|against| {
-                        eprintln!("against scaled: {} / query scaled: {}", against.minhash.scaled(), query_mh.scaled());
+                        // eprintln!("against scaled: {} / query scaled: {}", against.minhash.scaled(), query_mh.scaled()); @CTB
                         let mut mm: Option<PrefetchResult> = None;
                         if let Ok(overlap) = against.minhash.count_common(&query_mh, false) {
                             if overlap >= threshold_hashes {
