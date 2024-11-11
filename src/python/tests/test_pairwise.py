@@ -789,8 +789,7 @@ def test_simple_scaled_heterogenous(runtmp):
 
     output = runtmp.output("out.csv")
 
-    runtmp.sourmash("scripts", "pairwise", query_list, "-o", output,
-                    '--scaled=15_000')
+    runtmp.sourmash("scripts", "pairwise", query_list, "-o", output, "--scaled=15_000")
     assert os.path.exists(output)
     df = pandas.read_csv(output)
     assert len(df) == 1

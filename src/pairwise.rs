@@ -43,10 +43,7 @@ pub fn pairwise(
         Some(s) => s,
         None => {
             let s = *collection.max_scaled().expect("no records!?") as u32;
-            eprintln!(
-                "Setting scaled={} based on max scaled in collection",
-                s
-            );
+            eprintln!("Setting scaled={} based on max scaled in collection", s);
             s
         }
     };
