@@ -458,9 +458,9 @@ class Branchwater_Multisearch(CommandLinePlugin):
         )
         p.add_argument(
             "-p",
-            "--prob",
+            "--prob-significant-overlap",
             action="store_true",
-            help="estimate probability of overlap for significance ranking of search results",
+            help="estimate probability of overlap for significance ranking of search results, of the specific query and match, given all queries and possible matches",
         )
 
     def main(self, args):
