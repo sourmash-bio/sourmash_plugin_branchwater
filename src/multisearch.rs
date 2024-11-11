@@ -140,7 +140,7 @@ pub fn multisearch(
     query_filepath: String,
     against_filepath: String,
     threshold: f64,
-    selection: &Selection,
+    selection: Selection,
     allow_failed_sigpaths: bool,
     estimate_ani: bool,
     estimate_prob_overlap: bool,
@@ -149,17 +149,35 @@ pub fn multisearch(
     // Load all queries into memory at once.
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
+
+
+    let expected_scaled = match selection.scaled() {
+        Some(s) => s,
+        None => {
+            let s = *query_collection.max_scaled().expect("no records!?") as u32;
+            eprintln!(
+                "Setting scaled={} based on max scaled in query collection",
+                s
+            );
+            s
+        }
+    };
+
+    let ksize = selection.ksize().unwrap() as f64;
+
+    let mut new_selection = selection;
+    new_selection.set_scaled(expected_scaled);
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches(selection)?;
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &new_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
@@ -184,6 +202,7 @@ pub fn multisearch(
         )
     };
 
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
@@ -198,7 +217,6 @@ pub fn multisearch(
     //
 
     let processed_cmp = AtomicUsize::new(0);
-    let ksize = selection.ksize().unwrap() as f64;
 
     let send = againsts
         .par_iter()
@@ -211,7 +229,20 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
-                let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
+                // be paranoid and check scaled.
+                if query.minhash.scaled() != expected_scaled {
+                    panic!("different scaled for query");
+                }
+
+                if against.minhash.scaled() != expected_scaled {
+                    panic!("different scaled for against");
+                }
+
+                let overlap = query
+                    .minhash
+                    .count_common(&against.minhash, false)
+                    .expect("cannot compare query and against!?")
+                    as f64;
                 // use downsampled sizes
                 let query_size = query.minhash.size() as f64;
                 let target_size = against.minhash.size() as f64;
@@ -267,6 +298,9 @@ pub fn multisearch(
                         query_md5: query.md5sum.clone(),
                         match_name: against.name.clone(),
                         match_md5: against.md5sum.clone(),
+                        ksize: query.minhash.ksize() as u16,
+                        scaled: query.minhash.scaled(),
+                        moltype: query.minhash.hash_function().to_string(),
                         containment: containment_query_in_target,
                         max_containment,
                         jaccard,

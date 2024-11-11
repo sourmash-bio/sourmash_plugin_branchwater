@@ -34,7 +34,7 @@ pub fn singlesketch(
     };
 
     // Build signature templates based on parsed parameters and detected moltype
-    let mut sigs = crate::manysketch::build_siginfo(&params_vec, &moltype);
+    let mut sigs = crate::manysketch::build_siginfo(&params_vec, moltype);
 
     if sigs.is_empty() {
         bail!("No signatures to build for the given parameters.");

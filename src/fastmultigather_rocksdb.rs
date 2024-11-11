@@ -1,4 +1,4 @@
-/// mastiff_manygather: mastiff-indexed version of fastmultigather.
+/// fastmultigather_rocksdb: rocksdb-indexed version of fastmultigather.
 use anyhow::Result;
 use camino::Utf8PathBuf as PathBuf;
 use rayon::prelude::*;
@@ -8,15 +8,18 @@ use sourmash::signature::SigsTrait;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::storage::SigStore;
+
 use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType,
 };
 
-pub fn mastiff_manygather(
+pub fn fastmultigather_rocksdb(
     queries_file: String,
     index: PathBuf,
-    selection: &Selection,
-    threshold_bp: usize,
+    selection: Selection,
+    threshold_bp: u32,
     output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -27,9 +30,34 @@ pub fn mastiff_manygather(
     let db = RevIndex::open(index, true, None)?;
     println!("Loaded DB");
 
+    // grab scaled from the database.
+    let max_db_scaled = db
+        .collection()
+        .manifest()
+        .iter()
+        .map(|r| r.scaled())
+        .max()
+        .expect("no records in db?!");
+
+    let selection_scaled: u32 = match selection.scaled() {
+        Some(scaled) => {
+            if *max_db_scaled > scaled {
+                return Err("Error: database scaled is higher than requested scaled".into());
+            }
+            scaled
+        }
+        None => {
+            eprintln!("Setting scaled={} from the database", *max_db_scaled);
+            *max_db_scaled
+        }
+    };
+
+    let mut set_selection = selection;
+    set_selection.set_scaled(selection_scaled);
+
     let query_collection = load_collection(
         &queries_file,
-        selection,
+        &set_selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
@@ -55,8 +83,8 @@ pub fn mastiff_manygather(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / selection.scaled()? as usize;
-            let ksize = selection.ksize()?;
+            let threshold = threshold_bp / set_selection.scaled().expect("scaled is not set!?");
+            let ksize = set_selection.ksize().expect("ksize not set!?");
 
             // query downsampling happens here
             match coll.sig_from_record(record) {
@@ -66,7 +94,10 @@ pub fn mastiff_manygather(
                     let query_md5 = query_sig.md5sum();
 
                     let mut results = vec![];
-                    if let Ok(query_mh) = query_sig.try_into() {
+                    if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
+                        let query_mh = query_mh
+                            .downsample_scaled(selection_scaled)
+                            .expect("cannot downsample!?");
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
@@ -76,9 +107,9 @@ pub fn mastiff_manygather(
                             counter,
                             query_colors,
                             hash_to_color,
-                            threshold,
+                            threshold as usize,
                             &query_mh,
-                            Some(selection.clone()),
+                            Some(set_selection.clone()),
                         );
                         if let Ok(matches) = matches {
                             for match_ in &matches {
@@ -101,11 +132,11 @@ pub fn mastiff_manygather(
                                     query_filename: query_filename.clone(),
                                     query_name: query_name.clone(),
                                     query_md5: query_md5.clone(),
-                                    query_bp: query_mh.n_unique_kmers() as usize,
-                                    ksize: ksize as usize,
+                                    query_bp: query_mh.n_unique_kmers(),
+                                    ksize: ksize as u16,
                                     moltype: query_mh.hash_function().to_string(),
-                                    scaled: query_mh.scaled() as usize,
-                                    query_n_hashes: query_mh.size(),
+                                    scaled: query_mh.scaled(),
+                                    query_n_hashes: query_mh.size() as u64,
                                     query_abundance: query_mh.track_abundance(),
                                     query_containment_ani: match_.query_containment_ani(),
                                     match_containment_ani: match_.match_containment_ani(),
@@ -169,6 +200,11 @@ pub fn mastiff_manygather(
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
     eprintln!("DONE. Processed {} search sigs", i);
+
+    if i == 0 {
+        eprintln!("ERROR: no search sigs found!?");
+        do_fail = true;
+    }
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);

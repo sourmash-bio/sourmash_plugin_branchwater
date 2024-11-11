@@ -3,6 +3,7 @@ use rayon::prelude::*;
 
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
+use sourmash::ScaledType;
 
 use anyhow::{anyhow, Result};
 use camino::Utf8Path as Path;
@@ -581,6 +582,7 @@ pub fn load_collection(
     match collection {
         Some((coll, n_failed)) => {
             let n_total = coll.len();
+
             let selected = coll.select(selection)?;
             let n_skipped = n_total - selected.len();
             report_on_collection_loading(
@@ -658,7 +660,7 @@ pub fn report_on_collection_loading(
     Ok(())
 }
 
-//branchwater version that allows using PrefetchResult
+// branchwater version that allows using PrefetchResult
 #[allow(clippy::too_many_arguments)]
 pub fn branchwater_calculate_gather_stats(
     orig_query: &KmerMinHash,
@@ -667,27 +669,27 @@ pub fn branchwater_calculate_gather_stats(
     match_mh: &KmerMinHash,
     match_name: String,
     match_md5: String,
-    match_size: usize,
+    match_size: u64,
     match_filename: String,
-    gather_result_rank: usize,
-    sum_weighted_found: usize,
-    total_weighted_hashes: usize,
+    gather_result_rank: u64,
+    sum_weighted_found: u64,
+    total_weighted_hashes: u64,
     calc_abund_stats: bool,
     calc_ani_ci: bool,
     confidence: Option<f64>,
 ) -> Result<InterimGatherResult> {
-    //bp remaining in subtracted query
-    let remaining_bp = (query.size() - match_size) * query.scaled() as usize;
+    // bp remaining in subtracted query
+    let remaining_bp = (query.size() as u64 - match_size) * query.scaled() as u64;
 
     // stats for this match vs original query
     let (intersect_orig, _) = match_mh.intersection_size(orig_query).unwrap();
-    let intersect_bp = (match_mh.scaled() * intersect_orig) as usize;
+    let intersect_bp = match_mh.scaled() as u64 * intersect_orig;
     let f_orig_query = intersect_orig as f64 / orig_query.size() as f64;
     let f_match_orig = intersect_orig as f64 / match_mh.size() as f64;
 
     // stats for this match vs current (subtracted) query
     let f_match = match_size as f64 / match_mh.size() as f64;
-    let unique_intersect_bp = match_mh.scaled() as usize * match_size;
+    let unique_intersect_bp = match_mh.scaled() as u64 * match_size;
     let f_unique_to_query = match_size as f64 / orig_query.size() as f64;
 
     // // get ANI values
@@ -737,12 +739,12 @@ pub fn branchwater_calculate_gather_stats(
     // If abundance, calculate abund-related metrics (vs current query)
     if calc_abund_stats {
         // take abunds from subtracted query
-        let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(&query) {
+        let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(query) {
             Ok((abunds, unique_weighted_found)) => (abunds, unique_weighted_found),
             Err(e) => return Err(e.into()),
         };
 
-        n_unique_weighted_found = unique_weighted_found as usize;
+        n_unique_weighted_found = unique_weighted_found;
         sum_total_weighted_found = sum_weighted_found + n_unique_weighted_found;
         f_unique_weighted = n_unique_weighted_found as f64 / total_weighted_hashes as f64;
 
@@ -791,7 +793,7 @@ pub fn consume_query_by_gather(
     query_name: String,
     query_filename: String,
     orig_query_mh: KmerMinHash,
-    scaled: u64,
+    scaled: u32,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
     gather_output: Option<String>,
@@ -819,17 +821,17 @@ pub fn consume_query_by_gather(
 
     let mut last_matches = matching_sketches.len();
 
-    let query_bp = orig_query_mh.n_unique_kmers() as usize;
-    let query_n_hashes = orig_query_mh.size();
+    let query_bp = orig_query_mh.n_unique_kmers();
+    let query_n_hashes = orig_query_mh.size() as u64;
     let mut query_moltype = orig_query_mh.hash_function().to_string();
     if query_moltype.to_lowercase() == "dna" {
         query_moltype = query_moltype.to_uppercase();
     }
     let query_md5sum: String = orig_query_mh.md5sum().clone();
-    let query_scaled = orig_query_mh.scaled() as usize;
+    let query_scaled = orig_query_mh.scaled();
 
     let total_weighted_hashes = orig_query_mh.sum_abunds();
-    let ksize = orig_query_mh.ksize();
+    let ksize = orig_query_mh.ksize() as u16;
     let calc_abund_stats = orig_query_mh.track_abundance();
     let orig_query_size = orig_query_mh.size();
     let mut last_hashes = orig_query_size;
@@ -874,11 +876,11 @@ pub fn consume_query_by_gather(
             &best_element.minhash,
             best_element.name.clone(),
             best_element.md5sum.clone(),
-            best_element.overlap as usize,
+            best_element.overlap,
             best_element.location.clone(),
             rank,
             sum_weighted_found,
-            total_weighted_hashes.try_into().unwrap(),
+            total_weighted_hashes,
             calc_abund_stats,
             calc_ani_ci,
             ani_confidence_interval_fraction,
@@ -899,7 +901,7 @@ pub fn consume_query_by_gather(
             match_md5: match_.match_md5.clone(),
             f_match_orig: match_.f_match_orig,
             unique_intersect_bp: match_.unique_intersect_bp,
-            gather_result_rank: match_.gather_result_rank,
+            gather_result_rank: match_.gather_result_rank as u32,
             remaining_bp: match_.remaining_bp,
             query_filename: query_filename.clone(),
             query_name: query_name.clone(),
@@ -956,7 +958,7 @@ pub fn consume_query_by_gather(
     Ok(())
 }
 
-pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
+pub fn build_selection(ksize: u8, scaled: Option<u32>, moltype: &str) -> Selection {
     let hash_function = match moltype {
         "DNA" => HashFunctions::Murmur64Dna,
         "protein" => HashFunctions::Murmur64Protein,
@@ -968,11 +970,18 @@ pub fn build_selection(ksize: u8, scaled: usize, moltype: &str) -> Selection {
     //     .map_err(|_| panic!("Unknown molecule type: {}", moltype))
     //     .unwrap();
 
-    Selection::builder()
-        .ksize(ksize.into())
-        .scaled(scaled as u32)
-        .moltype(hash_function)
-        .build()
+    if let Some(scaled) = scaled {
+        Selection::builder()
+            .ksize(ksize.into())
+            .scaled(scaled)
+            .moltype(hash_function)
+            .build()
+    } else {
+        Selection::builder()
+            .ksize(ksize.into())
+            .moltype(hash_function)
+            .build()
+    }
 }
 
 pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
@@ -992,7 +1001,10 @@ pub struct SearchResult {
     pub query_md5: String,
     pub match_name: String,
     pub containment: f64,
-    pub intersect_hashes: usize,
+    pub intersect_hashes: u64,
+    pub ksize: u16,
+    pub scaled: u32,
+    pub moltype: String,
     pub match_md5: Option<String>,
     pub jaccard: Option<f64>,
     pub max_containment: Option<f64>,
@@ -1011,13 +1023,13 @@ pub struct SearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub n_weighted_found: Option<usize>,
+    pub n_weighted_found: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_weighted_hashes: Option<usize>,
+    pub total_weighted_hashes: Option<u64>,
 }
 
 pub struct InterimGatherResult {
-    intersect_bp: usize,
+    intersect_bp: u64,
     f_orig_query: f64,
     f_match: f64,
     f_unique_to_query: f64,
@@ -1029,12 +1041,12 @@ pub struct InterimGatherResult {
     match_name: String,
     match_md5: String,
     f_match_orig: f64,
-    unique_intersect_bp: usize,
-    gather_result_rank: usize,
-    remaining_bp: usize,
-    n_unique_weighted_found: usize,
-    total_weighted_hashes: usize,
-    sum_weighted_found: usize,
+    unique_intersect_bp: u64,
+    gather_result_rank: u64,
+    remaining_bp: u64,
+    n_unique_weighted_found: u64,
+    total_weighted_hashes: u64,
+    sum_weighted_found: u64,
     query_containment_ani: f64,
     query_containment_ani_ci_low: Option<f64>,
     query_containment_ani_ci_high: Option<f64>,
@@ -1047,7 +1059,7 @@ pub struct InterimGatherResult {
 
 #[derive(Serialize)]
 pub struct BranchwaterGatherResult {
-    pub intersect_bp: usize,
+    pub intersect_bp: u64,
     pub f_orig_query: f64,
     pub f_match: f64,
     pub f_unique_to_query: f64,
@@ -1059,25 +1071,25 @@ pub struct BranchwaterGatherResult {
     pub match_name: String,
     pub match_md5: String,
     pub f_match_orig: f64,
-    pub unique_intersect_bp: usize,
-    pub gather_result_rank: usize,
-    pub remaining_bp: usize,
+    pub unique_intersect_bp: u64,
+    pub gather_result_rank: u32,
+    pub remaining_bp: u64,
     pub query_filename: String,
     pub query_name: String,
     pub query_md5: String,
-    pub query_bp: usize,
-    pub ksize: usize,
+    pub query_bp: u64,
+    pub ksize: u16,
     pub moltype: String,
-    pub scaled: usize,
-    pub query_n_hashes: usize,
+    pub scaled: u32,
+    pub query_n_hashes: u64,
     pub query_abundance: bool,
     pub query_containment_ani: f64,
     pub match_containment_ani: f64,
     pub average_containment_ani: f64,
     pub max_containment_ani: f64,
-    pub n_unique_weighted_found: usize,
-    pub sum_weighted_found: usize,
-    pub total_weighted_hashes: usize,
+    pub n_unique_weighted_found: u64,
+    pub sum_weighted_found: u64,
+    pub total_weighted_hashes: u64,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani_ci_low: Option<f64>,
@@ -1099,6 +1111,9 @@ pub struct MultiSearchResult {
     pub max_containment: f64,
     pub jaccard: f64,
     pub intersect_hashes: f64,
+    pub ksize: u16,
+    pub scaled: u32,
+    pub moltype: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani: Option<f64>,
@@ -1147,7 +1162,7 @@ pub struct Params {
     pub ksize: u32,
     pub track_abundance: bool,
     pub num: u32,
-    pub scaled: u64,
+    pub scaled: ScaledType,
     pub seed: u32,
     pub is_protein: bool,
     pub is_dayhoff: bool,

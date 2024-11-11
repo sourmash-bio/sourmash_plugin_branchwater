@@ -1,4 +1,4 @@
-/// mastiff_manysearch: mastiff-indexed version of manysearch.
+/// manysearch_rocksdb: rocksdb-indexed version of manysearch.
 use anyhow::Result;
 use camino::Utf8PathBuf as PathBuf;
 use log::debug;
@@ -10,15 +10,16 @@ use sourmash::ani_utils::ani_from_containment;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
+use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
 };
 
-pub fn mastiff_manysearch(
+pub fn manysearch_rocksdb(
     queries_path: String,
     index: PathBuf,
-    selection: &Selection,
+    selection: Selection,
     minimum_containment: f64,
     output: Option<String>,
     allow_failed_sigpaths: bool,
@@ -32,10 +33,35 @@ pub fn mastiff_manysearch(
 
     println!("Loaded DB");
 
+    // grab scaled from the database.
+    let max_db_scaled = db
+        .collection()
+        .manifest()
+        .iter()
+        .map(|r| r.scaled())
+        .max()
+        .expect("no records in db?!");
+
+    let selection_scaled: u32 = match selection.scaled() {
+        Some(scaled) => {
+            if *max_db_scaled > scaled {
+                return Err("Error: database scaled is higher than requested scaled".into());
+            }
+            scaled
+        }
+        None => {
+            eprintln!("Setting scaled={} from the database", *max_db_scaled);
+            *max_db_scaled
+        }
+    };
+
+    let mut set_selection = selection;
+    set_selection.set_scaled(selection_scaled);
+
     // Load query paths
     let query_collection = load_collection(
         &queries_path,
-        selection,
+        &set_selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
@@ -65,17 +91,26 @@ pub fn mastiff_manysearch(
             }
 
             let mut results = vec![];
-            // query downsample happens here
             match coll.sig_from_record(record) {
                 Ok(query_sig) => {
-                    if let Some(query_mh) = query_sig.minhash() {
+                    let query_name = query_sig.name().clone();
+                    let query_md5 = query_sig.md5sum().clone();
+                    let query_file = query_sig.filename().clone();
+
+                    if let Ok(query_mh) = query_sig.try_into() {
+                        let mut query_mh: KmerMinHash = query_mh;
+                        if let Some(set_scaled) = set_selection.scaled() {
+                            query_mh = query_mh
+                                .clone()
+                                .downsample_scaled(set_scaled)
+                                .expect("cannot downsample query");
+                        }
                         let query_size = query_mh.size();
-                        let counter = db.counter_for_query(query_mh);
+                        let counter = db.counter_for_query(&query_mh);
                         let matches =
                             db.matches_from_counter(counter, minimum_containment as usize);
 
                         // filter the matches for containment
-                        debug!("FOUND: {} matches for {:?}", matches.len(), query_sig);
                         for (path, overlap) in matches {
                             let containment = overlap as f64 / query_size as f64;
                             if containment >= minimum_containment {
@@ -85,11 +120,14 @@ pub fn mastiff_manysearch(
                                 ));
 
                                 results.push(SearchResult {
-                                    query_name: query_sig.name(),
-                                    query_md5: query_sig.md5sum(),
+                                    query_name: query_name.clone(),
+                                    query_md5: query_md5.clone(),
                                     match_name: path.clone(),
                                     containment,
-                                    intersect_hashes: overlap,
+                                    intersect_hashes: overlap as u64,
+                                    ksize: query_mh.ksize() as u16,
+                                    scaled: query_mh.scaled(),
+                                    moltype: query_mh.hash_function().to_string(),
                                     match_md5: None,
                                     jaccard: None,
                                     max_containment: None,
@@ -107,10 +145,7 @@ pub fn mastiff_manysearch(
                             }
                         }
                     } else {
-                        eprintln!(
-                            "WARNING: no compatible sketches in path '{}'",
-                            query_sig.filename()
-                        );
+                        eprintln!("WARNING: no compatible sketches in path '{}'", query_file);
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     if results.is_empty() {

@@ -15,11 +15,11 @@ mod check;
 mod cluster;
 mod fastgather;
 mod fastmultigather;
+mod fastmultigather_rocksdb;
 mod index;
 mod manysearch;
+mod manysearch_rocksdb;
 mod manysketch;
-mod mastiff_manygather;
-mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
 mod search_significance;
@@ -29,12 +29,13 @@ use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
 #[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false))]
+#[allow(clippy::too_many_arguments)]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path: Option<String>,
     ignore_abundance: Option<bool>,
@@ -46,13 +47,13 @@ fn do_manysearch(
 
     let ignore_abundance = ignore_abundance.unwrap_or(false);
 
-    // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
+    // if siglist_path is revindex, run rocksdb manysearch; otherwise run manysearch
     if is_revindex_database(&againstfile_path) {
-        // note: mastiff_manysearch ignores abundance automatically.
-        match mastiff_manysearch::mastiff_manysearch(
+        // note: manysearch_rocksdb ignores abundance automatically.
+        match manysearch_rocksdb::manysearch_rocksdb(
             querylist_path,
             againstfile_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
@@ -67,7 +68,7 @@ fn do_manysearch(
         match manysearch::manysearch(
             querylist_path,
             siglist_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
@@ -88,9 +89,9 @@ fn do_manysearch(
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
@@ -102,8 +103,7 @@ fn do_fastgather(
         query_filename,
         siglist_path,
         threshold_bp,
-        scaled,
-        &selection,
+        selection,
         output_path_prefetch,
         output_path_gather,
         allow_failed_sigpaths,
@@ -122,9 +122,9 @@ fn do_fastgather(
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path: Option<String>,
     save_matches: bool,
@@ -134,13 +134,13 @@ fn do_fastmultigather(
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
-    // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
+    // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
     if is_revindex_database(&againstfile_path) {
-        match mastiff_manygather::mastiff_manygather(
+        match fastmultigather_rocksdb::fastmultigather_rocksdb(
             query_filenames,
             againstfile_path,
-            &selection,
-            threshold_bp,
+            selection.clone(),
+            threshold_bp as u32,
             output_path,
             allow_failed_sigpaths,
         ) {
@@ -157,9 +157,9 @@ fn do_fastmultigather(
         match fastmultigather::fastmultigather(
             query_filenames,
             siglist_path,
-            threshold_bp,
+            threshold_bp as u32,
             scaled,
-            &selection,
+            selection,
             allow_failed_sigpaths,
             save_matches,
             create_empty_results,
@@ -191,10 +191,11 @@ fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
 }
 
 #[pyfunction]
+#[pyo3(signature = (siglist, ksize, scaled, moltype, output, colors, use_internal_storage))]
 fn do_index(
     siglist: String,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output: String,
     colors: bool,
@@ -204,7 +205,7 @@ fn do_index(
     let allow_failed_sigpaths = false;
     match index::index(
         siglist,
-        &selection,
+        selection,
         output,
         colors,
         allow_failed_sigpaths,
@@ -238,7 +239,7 @@ fn do_multisearch(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     estimate_ani: bool,
     estimate_prob_overlap: bool,
@@ -253,7 +254,7 @@ fn do_multisearch(
         querylist_path,
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
         estimate_prob_overlap,
@@ -274,7 +275,7 @@ fn do_pairwise(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     estimate_ani: bool,
     write_all: bool,
@@ -285,7 +286,7 @@ fn do_pairwise(
     match pairwise::pairwise(
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
         write_all,

@@ -25,12 +25,13 @@ use crate::utils::{
     consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn fastmultigather(
     query_filepath: String,
     against_filepath: String,
-    threshold_bp: usize,
-    scaled: usize,
-    selection: &Selection,
+    threshold_bp: u32,
+    scaled: Option<u32>,
+    selection: Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
     create_empty_results: bool,
@@ -40,32 +41,46 @@ pub fn fastmultigather(
     // load query collection
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
 
+    let common_scaled = match scaled {
+        Some(s) => s,
+        None => {
+            let s = *query_collection.max_scaled().expect("no records!?");
+            eprintln!(
+                "Setting scaled={} based on max scaled in query collection",
+                s
+            );
+            s
+        }
+    };
+
+    let mut against_selection = selection;
+    against_selection.set_scaled(common_scaled);
+
     let threshold_hashes: u64 = {
-        let x = threshold_bp / scaled;
+        let x = threshold_bp as u64 / common_scaled as u64;
         if x > 0 {
-            x
+            x as u64
         } else {
             1
         }
-    }
-    .try_into()?;
+    };
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // load against collection
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
-    let against = against_collection.load_sketches(selection)?;
+    let against = against_collection.load_sketches(&against_selection)?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
@@ -93,6 +108,10 @@ pub fn fastmultigather(
                 let query_md5 = query_sig.md5sum();
 
                 let query_mh: KmerMinHash = query_sig.try_into().expect("cannot get sketch");
+
+                let query_mh = query_mh
+                    .downsample_scaled(common_scaled)
+                    .expect("cannot downsample query");
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();
@@ -148,7 +167,7 @@ pub fn fastmultigather(
                         query_name,
                         query_filename,
                         query_mh,
-                        scaled as u64,
+                        common_scaled,
                         matchlist,
                         threshold_hashes,
                         Some(gather_output),

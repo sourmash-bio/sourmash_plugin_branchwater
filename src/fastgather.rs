@@ -2,6 +2,7 @@
 use anyhow::Result;
 use sourmash::prelude::Select;
 use sourmash::selection::Selection;
+use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
     consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
@@ -12,16 +13,15 @@ use crate::utils::{
 pub fn fastgather(
     query_filepath: String,
     against_filepath: String,
-    threshold_bp: usize,
-    scaled: usize,
-    selection: &Selection,
+    threshold_bp: u64,
+    selection: Selection,
     gather_output: Option<String>,
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
@@ -40,31 +40,35 @@ pub fn fastgather(
     let query_md5 = query_sig.md5sum();
 
     // clone here is necessary b/c we use full query_sig in consume_query_by_gather
-    let query_sig_ds = query_sig.select(selection)?; // downsample
-    let query_mh = match query_sig_ds.try_into() {
+    let query_sig_ds = query_sig.select(&selection)?; // downsample as needed.
+    let query_mh: KmerMinHash = match query_sig_ds.try_into() {
         Ok(query_mh) => query_mh,
         Err(_) => {
             bail!("No query sketch matching selection parameters.");
         }
     };
+
+    let mut against_selection = selection;
+    let scaled = query_mh.scaled();
+    against_selection.set_scaled(scaled);
+
     // load collection to match against.
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
 
     // calculate the minimum number of hashes based on desired threshold
-    let threshold_hashes: u64 = {
-        let x = threshold_bp / scaled;
+    let threshold_hashes = {
+        let x = threshold_bp / scaled as u64;
         if x > 0 {
             x
         } else {
             1
         }
-    }
-    .try_into()?;
+    };
 
     eprintln!(
         "using threshold overlap: {} {}",
@@ -110,7 +114,7 @@ pub fn fastgather(
         query_name,
         query_filename,
         query_mh,
-        scaled as u64,
+        scaled as u32,
         matchlist,
         threshold_hashes,
         gather_output,

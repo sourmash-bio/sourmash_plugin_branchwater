@@ -1381,3 +1381,125 @@ def test_simple_below_threshold(runtmp):
             assert float(row["match_containment_ani"]) == 1.0
             assert float(row["average_containment_ani"]) == 1.0
             assert float(row["max_containment_ani"]) == 1.0
+
+
+def test_mismatched_scaled_query(runtmp):
+    # test what happens if query scaled is too high
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query_list = runtmp.output("downsample.sig.zip")
+    runtmp.sourmash(
+        "sig", "downsample", "--scaled=10_000", sig2, sig47, sig63, "-o", query_list
+    )
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    runtmp.sourmash(
+        "scripts", "multisearch", query_list, against_list, "-o", output, "-s", "10_000"
+    )
+    assert os.path.exists(output)
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+    assert set(list(df["scaled"])) == {10_000}
+
+
+def test_mismatched_scaled_against(runtmp):
+    # test what happens if against scaled is too high
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    against_list = runtmp.output("downsample.sig.zip")
+    runtmp.sourmash(
+        "sig", "downsample", "--scaled=10_000", sig2, sig47, sig63, "-o", against_list
+    )
+
+    output = runtmp.output("out.csv")
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts", "multisearch", query_list, against_list, "-o", output
+        )
+
+
+def test_simple_scaled_heterogeneous_q(runtmp, zip_query, zip_db):
+    # test with variable scaled in query
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    sig47_ds = runtmp.output("47-10k.sig.zip")
+    runtmp.sourmash("sig", "downsample", sig47, "-o", sig47_ds, "--scaled", "10_000")
+
+    make_file_list(query_list, [sig2, sig47_ds, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_db:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output("db.zip"))
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    runtmp.sourmash(
+        "scripts",
+        "multisearch",
+        query_list,
+        against_list,
+        "-o",
+        output,
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+
+def test_simple_scaled_heterogeneous_a(runtmp, zip_query, zip_db):
+    # test with variable scaled in against
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    sig47_ds = runtmp.output("47-10k.sig.zip")
+    runtmp.sourmash("sig", "downsample", sig47, "-o", sig47_ds, "--scaled", "10_000")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47_ds, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_db:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output("db.zip"))
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    runtmp.sourmash(
+        "scripts",
+        "multisearch",
+        query_list,
+        against_list,
+        "-o",
+        output,
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert (
+        len(df) == 3
+    )  # CTB: this feels slightly odd - it's dropping the 10k sketch in against
