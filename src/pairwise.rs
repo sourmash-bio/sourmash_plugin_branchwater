@@ -22,8 +22,6 @@ pub fn pairwise(
     write_all: bool,
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // @CTB test for heterogenous scaled.
-
     // Load all sigs into memory at once.
     let collection = load_collection(
         &siglist,
@@ -38,6 +36,23 @@ pub fn pairwise(
             &siglist
         )
     }
+
+    // pull scaled from command line; if not specified, calculate max and
+    // use that.
+    let common_scaled = match selection.scaled() {
+        Some(s) => s,
+        None => {
+            let s = *collection.max_scaled().expect("no records!?") as u32;
+            eprintln!(
+                "Setting scaled={} based on max scaled in collection",
+                s
+            );
+            s
+        }
+    };
+
+    let mut selection = selection;
+    selection.set_scaled(common_scaled);
 
     let sketches = collection.load_sketches(&selection)?;
 
