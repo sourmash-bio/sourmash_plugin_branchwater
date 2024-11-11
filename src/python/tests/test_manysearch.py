@@ -1316,9 +1316,6 @@ def test_pretty_print(runtmp):
     runtmp.sourmash("scripts", "manysearch", query, against, "-o", outcsv)
     print(runtmp.last_result.out)
 
-    # if this fails in the future, it might be because the order of the
-    # output gets shuffled by multithreading. consider refactoring to
-    # do line by line?
     expected = """\
 query             p_genome avg_abund   p_metag   metagenome name
 --------          -------- ---------   -------   ---------------
@@ -1326,7 +1323,8 @@ B. fragilis I1345   96.7%     7.3      27.5%     CD136
 B. fragilis I1345   96.7%     7.5      22.6%     CD237
 F. prausnitzii      58.4%    25.3      30.7%     CD136
 """
-    assert expected in runtmp.last_result.out
+    for line in expected.splitlines():
+        assert expected in runtmp.last_result.out, expected
 
 
 def test_no_pretty_print(runtmp):
