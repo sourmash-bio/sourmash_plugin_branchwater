@@ -154,7 +154,6 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-
     let expected_scaled = match selection.scaled() {
         Some(s) => s,
         None => {
@@ -201,7 +200,6 @@ pub fn multisearch(
             Default::default(),
         )
     };
-
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
