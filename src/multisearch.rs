@@ -88,11 +88,11 @@ pub fn multisearch(
                 }
 
                 // be paranoid and check scaled.
-                if query.minhash.scaled() != set_scaled {
+                if query.minhash.scaled() != expected_scaled {
                     panic!("different scaled for query");
                 }
 
-                if against.minhash.scaled() != set_scaled {
+                if against.minhash.scaled() != expected_scaled {
                     panic!("different scaled for against");
                 }
 
