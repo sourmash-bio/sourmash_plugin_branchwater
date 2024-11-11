@@ -380,7 +380,7 @@ def test_simple_threshold(runtmp, indexed, zip_query):
 
 
 def test_simple_scaled(runtmp, indexed, zip_query):
-    # test with a different scaled
+    # test with a different (explicitly specified) scaled
     query_list = runtmp.output("query.txt")
     against_list = runtmp.output("against.txt")
 
@@ -407,6 +407,36 @@ def test_simple_scaled(runtmp, indexed, zip_query):
     df = pandas.read_csv(output)
     assert len(df) == 5
     assert set(list(df["scaled"])) == {10000}
+
+
+def test_simple_scaled_fail(runtmp, capfd, indexed, zip_query):
+    # test with a different scaled, that fails
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    against = get_test_data("SRR606249.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [against])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    output = runtmp.output("out.csv")
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts", "manysearch", query_list, against_list, "-o", output, "-s", "10_000"
+        )
+
+    captured = capfd.readouterr()
+    print(captured.err)
 
 
 def test_simple_manifest(runtmp, indexed):
