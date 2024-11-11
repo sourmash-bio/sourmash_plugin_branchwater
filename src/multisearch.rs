@@ -16,7 +16,7 @@ use crate::utils::multicollection::SmallSignature;
 use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 struct ProbOverlapStats {
     prob_overlap: f64,
     prob_overlap_adjusted: f64,
@@ -234,8 +234,8 @@ pub fn multisearch(
                     let mut tf_idf_score: Option<f64> = None;
 
                     // Compute probability overlap stats if requested
-                    let prob_stats = if estimate_prob_overlap {
-                        let stats = compute_single_prob_overlap(
+                    if estimate_prob_overlap {
+                        let prob_stats = compute_single_prob_overlap(
                             query,
                             against,
                             n_comparisons,
@@ -245,10 +245,12 @@ pub fn multisearch(
                             &inverse_document_frequency,
                             containment_query_in_target,
                         );
-                        Some(stats)
-                    } else {
-                        None
-                    };
+                        prob_overlap = Some(prob_stats.prob_overlap);
+                        prob_overlap_adjusted = Some(prob_stats.prob_overlap_adjusted);
+                        containment_adjusted = Some(prob_stats.containment_adjusted);
+                        containment_adjusted_log10 = Some(prob_stats.containment_adjusted_log10);
+                        tf_idf_score = Some(prob_stats.tf_idf_score);
+                    }
 
                     // estimate ANI values
                     if estimate_ani {
@@ -273,12 +275,11 @@ pub fn multisearch(
                         match_containment_ani,
                         average_containment_ani,
                         max_containment_ani,
-                        prob_overlap: prob_stats.map(|stats| stats.prob_overlap),
-                        prob_overlap_adjusted: prob_stats.map(|stats| stats.prob_overlap_adjusted),
-                        containment_adjusted: prob_stats.map(|stats| stats.containment_adjusted),
-                        containment_adjusted_log10: prob_stats
-                            .map(|stats| stats.containment_adjusted_log10),
-                        tf_idf_score: prob_stats.map(|stats| stats.tf_idf_score),
+                        prob_overlap: prob_overlap,
+                        prob_overlap_adjusted: prob_overlap_adjusted,
+                        containment_adjusted: containment_adjusted,
+                        containment_adjusted_log10: containment_adjusted_log10,
+                        tf_idf_score: tf_idf_score,
                     })
                 }
             }
