@@ -30,7 +30,7 @@ pub fn fastmultigather(
     query_filepath: String,
     against_filepath: String,
     threshold_bp: u32,
-    fooscaled: Option<u32>,
+    scaled: Option<u32>,
     selection: Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
@@ -46,7 +46,7 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
-    let common_scaled = match fooscaled {
+    let common_scaled = match scaled {
         Some(s) => s,
         None => {
             let s = *query_collection.max_scaled().expect("no records!?");

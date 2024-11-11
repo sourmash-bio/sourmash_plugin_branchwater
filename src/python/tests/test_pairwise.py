@@ -748,3 +748,26 @@ def test_simple_scaled(runtmp):
     df = pandas.read_csv(output)
     assert len(df) == 1
     assert set(list(df["scaled"])) == {10_000}
+
+
+def test_simple_scaled_heterogenous(runtmp):
+    # test basic execution w/heterogeneous scaled
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    sig47_ds = runtmp.output("47-10k.sig.zip")
+
+    runtmp.sourmash("sig", "downsample", sig47, "-o", sig47_ds, "--scaled", "10_000")
+
+    make_file_list(query_list, [sig2, sig47_ds, sig63])
+
+    output = runtmp.output("out.csv")
+
+    runtmp.sourmash("scripts", "pairwise", query_list, "-o", output)
+    assert os.path.exists(output)
+    df = pandas.read_csv(output)
+    assert len(df) == 1
+    assert set(list(df["scaled"])) == {10_000}

@@ -1226,3 +1226,75 @@ def test_mismatched_scaled_against(runtmp):
         runtmp.sourmash(
             "scripts", "multisearch", query_list, against_list, "-o", output
         )
+
+
+def test_simple_scaled_heterogeneous_q(runtmp, zip_query, zip_db):
+    # test with variable scaled in query
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    sig47_ds = runtmp.output("47-10k.sig.zip")
+    runtmp.sourmash("sig", "downsample", sig47, "-o", sig47_ds, "--scaled", "10_000")
+
+    make_file_list(query_list, [sig2, sig47_ds, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_db:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output("db.zip"))
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    runtmp.sourmash(
+        "scripts",
+        "multisearch",
+        query_list,
+        against_list,
+        "-o",
+        output,
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+
+def test_simple_scaled_heterogeneous_a(runtmp, zip_query, zip_db):
+    # test with variable scaled in against
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    sig47_ds = runtmp.output("47-10k.sig.zip")
+    runtmp.sourmash("sig", "downsample", sig47, "-o", sig47_ds, "--scaled", "10_000")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47_ds, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_db:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output("db.zip"))
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    runtmp.sourmash(
+        "scripts",
+        "multisearch",
+        query_list,
+        against_list,
+        "-o",
+        output,
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert (
+        len(df) == 3
+    )  # CTB: this feels slightly odd - it's dropping the 10k sketch in against
