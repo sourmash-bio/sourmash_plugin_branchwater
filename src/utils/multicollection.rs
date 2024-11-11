@@ -331,7 +331,11 @@ impl MultiCollection {
                     let sig_name = sig.name();
                     let sig_md5 = sig.md5sum();
                     let selected_sig = sig.select(selection).ok()?;
-                    let minhash = selected_sig.try_into().expect("cannot extract sketch");
+                    let mut minhash: KmerMinHash = selected_sig.try_into().expect("cannot extract sketch");
+
+                    if let Some(select_scaled) = selection.scaled() {
+                        minhash = minhash.downsample_scaled(select_scaled).expect("cannot downsample to desired scaled");
+                    }
 
                     Some(SmallSignature {
                         location: record.internal_location().to_string(),

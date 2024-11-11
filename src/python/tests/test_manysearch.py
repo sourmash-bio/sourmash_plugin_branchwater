@@ -405,7 +405,7 @@ def test_simple_scaled(runtmp, indexed, zip_query):
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
-    assert len(df) == 3
+    assert len(df) == 5
     assert set(list(df["scaled"])) == {10000}
 
 

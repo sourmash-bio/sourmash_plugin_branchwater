@@ -34,6 +34,21 @@ pub fn manysearch(
         allow_failed_sigpaths,
     )?;
 
+    // Figure out what scaled to use - either from selection, or from query.
+    let scaled: u32;
+    if let Some(set_scaled) = selection.scaled() {
+        scaled = set_scaled;
+    } else {
+        scaled = *query_collection.max_scaled().expect("no records!?");
+        eprintln!(
+            "Setting scaled={} based on max scaled in query collection",
+            scaled
+        );
+    };
+
+    let mut selection = selection;
+    selection.set_scaled(scaled);
+
     // load all query sketches into memory, downsampling on the way
     let query_sketchlist = query_collection.load_sketches(&selection)?;
 
@@ -71,8 +86,7 @@ pub fn manysearch(
 
             let mut results = vec![];
 
-            // against downsampling happens here
-            match coll.sig_from_record(record) {
+             match coll.sig_from_record(record) {
                 Ok(against_sig) => {
                     let against_name = against_sig.name();
                     let against_md5 = against_sig.md5sum();
@@ -80,16 +94,20 @@ pub fn manysearch(
                     if let Ok(against_mh) =
                         <SigStore as TryInto<KmerMinHash>>::try_into(against_sig)
                     {
+                        let against_mh = against_mh.downsample_scaled(scaled).expect("cannot downsample search minhash to requested scaled");
                         for query in query_sketchlist.iter() {
                             // avoid calculating details unless there is overlap
 
-                            if query.minhash.scaled() != against_mh.scaled() {
-                                panic!("different scaled");
+                            if query.minhash.scaled() != scaled {
+                                panic!("different query scaled");
+                            }
+                            if against_mh.scaled() != scaled {
+                                panic!("different against scaled");
                             }
 
                             let overlap = query
                                 .minhash
-                                .count_common(&against_mh, true)
+                                .count_common(&against_mh, false)
                                 .expect("incompatible sketches")
                                 as f64;
 

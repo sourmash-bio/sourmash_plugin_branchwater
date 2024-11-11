@@ -10,6 +10,7 @@ use sourmash::ani_utils::ani_from_containment;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
+use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
@@ -65,17 +66,24 @@ pub fn manysearch_rocksdb(
             }
 
             let mut results = vec![];
-            // query downsample happens here
             match coll.sig_from_record(record) {
                 Ok(query_sig) => {
-                    if let Some(query_mh) = query_sig.minhash() {
+                    let query_name = query_sig.name().clone();
+                    let query_md5 = query_sig.md5sum().clone();
+                    let query_file = query_sig.filename().clone();
+
+                    if let Ok(query_mh) = query_sig.try_into() {
+                        let mut query_mh: KmerMinHash = query_mh;
+                        if let Some(set_scaled) = selection.scaled() {
+                            query_mh = query_mh.clone().downsample_scaled(set_scaled).expect("cannot downsample query");
+                        }
                         let query_size = query_mh.size();
-                        let counter = db.counter_for_query(query_mh);
+                        let counter = db.counter_for_query(&query_mh);
                         let matches =
                             db.matches_from_counter(counter, minimum_containment as usize);
 
                         // filter the matches for containment
-                        debug!("FOUND: {} matches for {:?}", matches.len(), query_sig);
+                        // debug!("FOUND: {} matches for {:?}", matches.len(), query_sig);
                         for (path, overlap) in matches {
                             let containment = overlap as f64 / query_size as f64;
                             if containment >= minimum_containment {
@@ -85,14 +93,14 @@ pub fn manysearch_rocksdb(
                                 ));
 
                                 results.push(SearchResult {
-                                    query_name: query_sig.name(),
-                                    query_md5: query_sig.md5sum(),
+                                    query_name: query_name.clone(),
+                                    query_md5: query_md5.clone(),
                                     match_name: path.clone(),
                                     containment,
                                     intersect_hashes: overlap as u64,
-                                    ksize: query_sig.minhash()?.ksize() as u16,
-                                    scaled: query_sig.minhash()?.scaled(),
-                                    moltype: query_sig.minhash()?.hash_function().to_string(),
+                                    ksize: query_mh.ksize() as u16,
+                                    scaled: query_mh.scaled(),
+                                    moltype: query_mh.hash_function().to_string(),
                                     match_md5: None,
                                     jaccard: None,
                                     max_containment: None,
@@ -112,7 +120,7 @@ pub fn manysearch_rocksdb(
                     } else {
                         eprintln!(
                             "WARNING: no compatible sketches in path '{}'",
-                            query_sig.filename()
+                            query_file
                         );
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
