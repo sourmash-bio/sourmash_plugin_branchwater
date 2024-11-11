@@ -168,7 +168,7 @@ pub fn multisearch(
 
     let ksize = selection.ksize().unwrap() as f64;
 
-    let mut new_selection = selection;
+    let mut new_selection = selection.clone();
     new_selection.set_scaled(expected_scaled);
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches(&selection)?;
