@@ -44,6 +44,7 @@ pub fn multisearch(
     };
 
     let ksize = selection.ksize().unwrap() as f64;
+    let expected_scaled = scaled; // nicer name.
 
     let mut new_selection = selection;
     new_selection.set_scaled(scaled as u32);
@@ -86,8 +87,13 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
-                if query.minhash.scaled() != against.minhash.scaled() {
-                    panic!("different scaled");
+                // be paranoid and check scaled.
+                if query.minhash.scaled() != set_scaled {
+                    panic!("different scaled for query");
+                }
+
+                if against.minhash.scaled() != set_scaled {
+                    panic!("different scaled for against");
                 }
 
                 let overlap = query

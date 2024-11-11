@@ -98,8 +98,7 @@ pub fn manysearch(
                             .downsample_scaled(scaled)
                             .expect("cannot downsample search minhash to requested scaled");
                         for query in query_sketchlist.iter() {
-                            // avoid calculating details unless there is overlap
-
+                            // be paranoid and confirm scaled match.
                             if query.minhash.scaled() != scaled {
                                 panic!("different query scaled");
                             }

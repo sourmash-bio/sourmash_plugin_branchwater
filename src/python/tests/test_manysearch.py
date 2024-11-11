@@ -423,7 +423,8 @@ def test_simple_scaled_fail(runtmp, capfd, indexed, zip_query):
     make_file_list(against_list, [against])
 
     if indexed:
-        against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
+        against_list = index_siglist(runtmp, against_list, runtmp.output("db"),
+                                     scaled=100_000)
 
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))

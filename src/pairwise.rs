@@ -22,6 +22,8 @@ pub fn pairwise(
     write_all: bool,
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // @CTB test for heterogenous scaled.
+
     // Load all sigs into memory at once.
     let collection = load_collection(
         &siglist,
