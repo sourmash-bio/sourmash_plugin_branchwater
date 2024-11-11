@@ -57,9 +57,12 @@ fn do_manysearch(
             output_path,
             allow_failed_sigpaths,
         ) {
-            Ok(_) => Ok(0),
+            Ok(_) => {
+                eprintln!("XXX HERE");
+                Ok(0)
+            }
             Err(e) => {
-                eprintln!("Error: {e}");
+                eprintln!("Error FOO: {e}");
                 Ok(1)
             }
         }
@@ -73,9 +76,12 @@ fn do_manysearch(
             allow_failed_sigpaths,
             ignore_abundance,
         ) {
-            Ok(_) => Ok(0),
+            Ok(_) => {
+                eprintln!("YYY HERE");
+                Ok(0)
+            }
             Err(e) => {
-                eprintln!("Error: {e}");
+                eprintln!("Error FIZ: {e}");
                 Ok(1)
             }
         }

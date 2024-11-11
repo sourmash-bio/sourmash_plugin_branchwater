@@ -33,10 +33,35 @@ pub fn manysearch_rocksdb(
 
     println!("Loaded DB");
 
+    // grab scaled from the database.
+    let max_db_scaled = db
+        .collection()
+        .manifest()
+        .iter()
+        .map(|r| r.scaled())
+        .max()
+        .expect("no records in db?!");
+
+    let selection_scaled: u32 = match selection.scaled() {
+        Some(scaled) => {
+            if *max_db_scaled > scaled {
+                return Err("Error: database scaled is higher than requested scaled".into());
+            }
+            scaled
+        }
+        None => {
+            eprintln!("Setting scaled={} from the database", *max_db_scaled);
+            *max_db_scaled
+        }
+    };
+
+    let mut set_selection = selection;
+    set_selection.set_scaled(selection_scaled);
+
     // Load query paths
     let query_collection = load_collection(
         &queries_path,
-        &selection,
+        &set_selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
@@ -74,8 +99,11 @@ pub fn manysearch_rocksdb(
 
                     if let Ok(query_mh) = query_sig.try_into() {
                         let mut query_mh: KmerMinHash = query_mh;
-                        if let Some(set_scaled) = selection.scaled() {
-                            query_mh = query_mh.clone().downsample_scaled(set_scaled).expect("cannot downsample query");
+                        if let Some(set_scaled) = set_selection.scaled() {
+                            query_mh = query_mh
+                                .clone()
+                                .downsample_scaled(set_scaled)
+                                .expect("cannot downsample query");
                         }
                         let query_size = query_mh.size();
                         let counter = db.counter_for_query(&query_mh);
@@ -118,10 +146,7 @@ pub fn manysearch_rocksdb(
                             }
                         }
                     } else {
-                        eprintln!(
-                            "WARNING: no compatible sketches in path '{}'",
-                            query_file
-                        );
+                        eprintln!("WARNING: no compatible sketches in path '{}'", query_file);
                         let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                     if results.is_empty() {

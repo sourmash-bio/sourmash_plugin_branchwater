@@ -432,7 +432,14 @@ def test_simple_scaled_fail(runtmp, capfd, indexed, zip_query):
 
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash(
-            "scripts", "manysearch", query_list, against_list, "-o", output, "-s", "10_000"
+            "scripts",
+            "manysearch",
+            query_list,
+            against_list,
+            "-o",
+            output,
+            "-s",
+            "10_000",
         )
 
     captured = capfd.readouterr()
