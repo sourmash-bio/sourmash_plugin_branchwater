@@ -171,7 +171,7 @@ pub fn multisearch(
     let mut new_selection = selection;
     new_selection.set_scaled(expected_scaled);
 
-    let queries: Vec<SmallSignature> = query_collection.load_sketches(selection)?;
+    let queries: Vec<SmallSignature> = query_collection.load_sketches(&selection)?;
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
@@ -181,7 +181,7 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-    let againsts: Vec<SmallSignature> = against_collection.load_sketches(selection)?;
+    let againsts: Vec<SmallSignature> = against_collection.load_sketches(&selection)?;
 
     let (
         n_comparisons,
