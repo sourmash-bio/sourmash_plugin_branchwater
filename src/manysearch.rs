@@ -15,6 +15,7 @@ use sourmash::errors::SourmashError;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::storage::SigStore;
 
 pub fn manysearch(
     query_filepath: String,
@@ -32,6 +33,21 @@ pub fn manysearch(
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
+
+    // Figure out what scaled to use - either from selection, or from query.
+    let common_scaled: u32 = if let Some(set_scaled) = selection.scaled() {
+        set_scaled
+    } else {
+        let s = *query_collection.max_scaled().expect("no records!?");
+        eprintln!(
+            "Setting scaled={} based on max scaled in query collection",
+            s
+        );
+        s
+    };
+
+    let mut selection = selection;
+    selection.set_scaled(common_scaled);
 
     // load all query sketches into memory, downsampling on the way
     let query_sketchlist = query_collection.load_sketches(&selection)?;
@@ -70,18 +86,29 @@ pub fn manysearch(
 
             let mut results = vec![];
 
-            // against downsampling happens here
             match coll.sig_from_record(record) {
                 Ok(against_sig) => {
                     let against_name = against_sig.name();
                     let against_md5 = against_sig.md5sum();
 
-                    if let Ok(against_mh) = against_sig.try_into() {
+                    if let Ok(against_mh) =
+                        <SigStore as TryInto<KmerMinHash>>::try_into(against_sig)
+                    {
+                        let against_mh = against_mh
+                            .downsample_scaled(common_scaled)
+                            .expect("cannot downsample search minhash to requested scaled");
                         for query in query_sketchlist.iter() {
-                            // avoid calculating details unless there is overlap
+                            // be paranoid and confirm scaled match.
+                            if query.minhash.scaled() != common_scaled {
+                                panic!("different query scaled");
+                            }
+                            if against_mh.scaled() != common_scaled {
+                                panic!("different against scaled");
+                            }
+
                             let overlap = query
                                 .minhash
-                                .count_common(&against_mh, true)
+                                .count_common(&against_mh, false)
                                 .expect("incompatible sketches")
                                 as f64;
 
@@ -130,6 +157,9 @@ pub fn manysearch(
                                     match_name: against_name.clone(),
                                     containment: containment_query_in_target,
                                     intersect_hashes: overlap as u64,
+                                    ksize: query.minhash.ksize() as u16,
+                                    scaled: query.minhash.scaled(),
+                                    moltype: query.minhash.hash_function().to_string(),
                                     match_md5: Some(against_md5.clone()),
                                     jaccard: Some(jaccard),
                                     max_containment: Some(max_containment),

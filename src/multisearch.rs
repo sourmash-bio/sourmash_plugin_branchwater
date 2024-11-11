@@ -31,22 +31,22 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-    let scaled = match selection.scaled() {
+    let expected_scaled = match selection.scaled() {
         Some(s) => s,
         None => {
-            let scaled = *query_collection.max_scaled().expect("no records!?") as u32;
+            let s = *query_collection.max_scaled().expect("no records!?") as u32;
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
-                scaled
+                s
             );
-            scaled
+            s
         }
     };
 
     let ksize = selection.ksize().unwrap() as f64;
 
     let mut new_selection = selection;
-    new_selection.set_scaled(scaled as u32);
+    new_selection.set_scaled(expected_scaled);
 
     let queries = query_collection.load_sketches(&new_selection)?;
 
@@ -86,6 +86,15 @@ pub fn multisearch(
                     eprintln!("Processed {} comparisons", i);
                 }
 
+                // be paranoid and check scaled.
+                if query.minhash.scaled() != expected_scaled {
+                    panic!("different scaled for query");
+                }
+
+                if against.minhash.scaled() != expected_scaled {
+                    panic!("different scaled for against");
+                }
+
                 let overlap = query
                     .minhash
                     .count_common(&against.minhash, false)
@@ -122,6 +131,9 @@ pub fn multisearch(
                         query_md5: query.md5sum.clone(),
                         match_name: against.name.clone(),
                         match_md5: against.md5sum.clone(),
+                        ksize: query.minhash.ksize() as u16,
+                        scaled: query.minhash.scaled(),
+                        moltype: query.minhash.hash_function().to_string(),
                         containment: containment_query_in_target,
                         max_containment,
                         jaccard,

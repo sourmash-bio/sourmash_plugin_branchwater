@@ -46,23 +46,23 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
-    let scaled = match scaled {
+    let common_scaled = match scaled {
         Some(s) => s,
         None => {
-            let scaled = *query_collection.max_scaled().expect("no records!?");
+            let s = *query_collection.max_scaled().expect("no records!?");
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
-                scaled
+                s
             );
-            scaled
+            s
         }
     };
 
     let mut against_selection = selection;
-    against_selection.set_scaled(scaled);
+    against_selection.set_scaled(common_scaled);
 
     let threshold_hashes: u64 = {
-        let x = threshold_bp as u64 / scaled as u64;
+        let x = threshold_bp as u64 / common_scaled as u64;
         if x > 0 {
             x as u64
         } else {
@@ -108,6 +108,10 @@ pub fn fastmultigather(
                 let query_md5 = query_sig.md5sum();
 
                 let query_mh: KmerMinHash = query_sig.try_into().expect("cannot get sketch");
+
+                let query_mh = query_mh
+                    .downsample_scaled(common_scaled)
+                    .expect("cannot downsample query");
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();
@@ -163,7 +167,7 @@ pub fn fastmultigather(
                         query_name,
                         query_filename,
                         query_mh,
-                        scaled,
+                        common_scaled,
                         matchlist,
                         threshold_hashes,
                         Some(gather_output),

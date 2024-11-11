@@ -8,6 +8,9 @@ use sourmash::signature::SigsTrait;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::storage::SigStore;
+
 use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType,
 };
@@ -27,28 +30,37 @@ pub fn fastmultigather_rocksdb(
     let db = RevIndex::open(index, true, None)?;
     println!("Loaded DB");
 
-    let query_collection = load_collection(
-        &queries_file,
-        &selection,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    // grab scaled from the database.
+    let max_db_scaled = db
+        .collection()
+        .manifest()
+        .iter()
+        .map(|r| r.scaled())
+        .max()
+        .expect("no records in db?!");
 
-    // set scaled from query collection.
-    let scaled = match selection.scaled() {
-        Some(s) => s,
-        None => {
-            let scaled = *query_collection.max_scaled().expect("no records!?");
-            eprintln!(
-                "Setting scaled={} based on max scaled in query collection",
-                scaled
-            );
+    let selection_scaled: u32 = match selection.scaled() {
+        Some(scaled) => {
+            if *max_db_scaled > scaled {
+                return Err("Error: database scaled is higher than requested scaled".into());
+            }
             scaled
+        }
+        None => {
+            eprintln!("Setting scaled={} from the database", *max_db_scaled);
+            *max_db_scaled
         }
     };
 
-    let mut against_selection = selection;
-    against_selection.set_scaled(scaled);
+    let mut set_selection = selection;
+    set_selection.set_scaled(selection_scaled);
+
+    let query_collection = load_collection(
+        &queries_file,
+        &set_selection,
+        ReportType::Query,
+        allow_failed_sigpaths,
+    )?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -71,8 +83,8 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / against_selection.scaled().expect("scaled is not set!?");
-            let ksize = against_selection.ksize().expect("ksize not set!?");
+            let threshold = threshold_bp / set_selection.scaled().expect("scaled is not set!?");
+            let ksize = set_selection.ksize().expect("ksize not set!?");
 
             // query downsampling happens here
             match coll.sig_from_record(record) {
@@ -82,7 +94,10 @@ pub fn fastmultigather_rocksdb(
                     let query_md5 = query_sig.md5sum();
 
                     let mut results = vec![];
-                    if let Ok(query_mh) = query_sig.try_into() {
+                    if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
+                        let query_mh = query_mh
+                            .downsample_scaled(selection_scaled)
+                            .expect("cannot downsample!?");
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
@@ -94,7 +109,7 @@ pub fn fastmultigather_rocksdb(
                             hash_to_color,
                             threshold as usize,
                             &query_mh,
-                            Some(against_selection.clone()),
+                            Some(set_selection.clone()),
                         );
                         if let Ok(matches) = matches {
                             for match_ in &matches {

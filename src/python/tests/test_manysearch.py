@@ -379,6 +379,75 @@ def test_simple_threshold(runtmp, indexed, zip_query):
     assert len(df) == 3
 
 
+def test_simple_scaled(runtmp, indexed, zip_query):
+    # test with a different (explicitly specified) scaled
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    if indexed:
+        against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    output = runtmp.output("out.csv")
+
+    runtmp.sourmash(
+        "scripts", "manysearch", query_list, against_list, "-o", output, "-s", "10_000"
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+    assert set(list(df["scaled"])) == {10000}
+
+
+def test_simple_scaled_fail(runtmp, capfd, indexed, zip_query):
+    # test with a different scaled, that fails
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    against = get_test_data("SRR606249.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [against])
+
+    if indexed:
+        against_list = index_siglist(
+            runtmp, against_list, runtmp.output("db"), scaled=100_000
+        )
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    output = runtmp.output("out.csv")
+
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts",
+            "manysearch",
+            query_list,
+            against_list,
+            "-o",
+            output,
+            "-s",
+            "10_000",
+        )
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+
 def test_simple_manifest(runtmp, indexed):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output("query.txt")
@@ -1247,9 +1316,6 @@ def test_pretty_print(runtmp):
     runtmp.sourmash("scripts", "manysearch", query, against, "-o", outcsv)
     print(runtmp.last_result.out)
 
-    # if this fails in the future, it might be because the order of the
-    # output gets shuffled by multithreading. consider refactoring to
-    # do line by line?
     expected = """\
 query             p_genome avg_abund   p_metag   metagenome name
 --------          -------- ---------   -------   ---------------
@@ -1257,7 +1323,8 @@ B. fragilis I1345   96.7%     7.3      27.5%     CD136
 B. fragilis I1345   96.7%     7.5      22.6%     CD237
 F. prausnitzii      58.4%    25.3      30.7%     CD136
 """
-    assert expected in runtmp.last_result.out
+    for line in expected.splitlines():
+        assert expected in runtmp.last_result.out, expected
 
 
 def test_no_pretty_print(runtmp):

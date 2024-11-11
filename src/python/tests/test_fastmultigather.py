@@ -2094,24 +2094,22 @@ def test_simple_query_scaled_indexed(runtmp):
 
     make_file_list(query_list, [query])
     make_file_list(against_list, [sig2, sig47, sig63])
-    against_list = index_siglist(runtmp, against_list, runtmp.output("against.rocksdb"))
-
-    runtmp.sourmash(
-        "scripts",
-        "fastmultigather",
-        query_list,
-        against_list,
-        "-o",
-        "foo.csv",
-        "-t",
-        "0",
-        in_directory=runtmp.output(""),
+    against_list = index_siglist(
+        runtmp, against_list, runtmp.output("against.rocksdb"), scaled=1000
     )
 
-    print(os.listdir(runtmp.output("")))
-
-    g_output = runtmp.output("foo.csv")
-    assert os.path.exists(g_output)
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts",
+            "fastmultigather",
+            query_list,
+            against_list,
+            "-o",
+            "foo.csv",
+            "-t",
+            "0",
+            in_directory=runtmp.output(""),
+        )
 
 
 def test_equal_matches(runtmp, indexed):
@@ -2159,3 +2157,50 @@ def test_equal_matches(runtmp, indexed):
     df = pandas.read_csv(runtmp.output(outfile))
     assert len(df) == 2
     assert set(df["intersect_bp"]) == {1000}
+
+
+def test_explicit_scaled(runtmp, indexed):
+    # check that an explicit downsampling with -s is respected.
+    query = get_test_data("SRR606249.sig.gz")
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    make_file_list(query_list, [query])
+    make_file_list(against_list, [sig2, sig47, sig63])
+    against_list = zip_siglist(runtmp, against_list, runtmp.output("against.zip"))
+
+    outfile = runtmp.output("SRR606249.gather.csv")
+    out_args = ()
+    if indexed:
+        against_list = index_siglist(
+            runtmp,
+            against_list,
+            runtmp.output("db"),
+        )
+        out_args = ("-o", outfile)
+
+    runtmp.sourmash(
+        "scripts",
+        "fastmultigather",
+        query_list,
+        against_list,
+        "-s",
+        "150000",
+        "-t",
+        "0",
+        *out_args,
+        in_directory=runtmp.output(""),
+    )
+
+    print(os.listdir(runtmp.output("")))
+
+    assert os.path.exists(outfile)
+    df = pandas.read_csv(outfile)
+    print(df)
+    assert len(df) == 3
+    assert set(list(df["scaled"])) == {150_000}
+    assert round(df["f_unique_to_query"].sum(), 6) == round(0.01836514223, 6)

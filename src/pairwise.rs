@@ -37,6 +37,20 @@ pub fn pairwise(
         )
     }
 
+    // pull scaled from command line; if not specified, calculate max and
+    // use that.
+    let common_scaled = match selection.scaled() {
+        Some(s) => s,
+        None => {
+            let s = *collection.max_scaled().expect("no records!?") as u32;
+            eprintln!("Setting scaled={} based on max scaled in collection", s);
+            s
+        }
+    };
+
+    let mut selection = selection;
+    selection.set_scaled(common_scaled);
+
     let sketches = collection.load_sketches(&selection)?;
 
     // set up a multi-producer, single-consumer channel.
@@ -58,6 +72,10 @@ pub fn pairwise(
             let overlap = query.minhash.count_common(&against.minhash, false).unwrap() as f64;
             let query1_size = query.minhash.size() as f64;
             let query2_size = against.minhash.size() as f64;
+
+            if query.minhash.scaled() != against.minhash.scaled() {
+                panic!("different scaled");
+            }
 
             let containment_q1_in_q2 = overlap / query1_size;
             let containment_q2_in_q1 = overlap / query2_size;
@@ -84,6 +102,9 @@ pub fn pairwise(
                     query_md5: query.md5sum.clone(),
                     match_name: against.name.clone(),
                     match_md5: against.md5sum.clone(),
+                    ksize: query.minhash.ksize() as u16,
+                    scaled: query.minhash.scaled(),
+                    moltype: query.minhash.hash_function().to_string(),
                     containment: containment_q1_in_q2,
                     max_containment,
                     jaccard,
@@ -119,6 +140,9 @@ pub fn pairwise(
                 query_md5: query.md5sum.clone(),
                 match_name: query.name.clone(),
                 match_md5: query.md5sum.clone(),
+                ksize: query.minhash.ksize() as u16,
+                scaled: query.minhash.scaled(),
+                moltype: query.minhash.hash_function().to_string(),
                 containment: 1.0,
                 max_containment: 1.0,
                 jaccard: 1.0,
