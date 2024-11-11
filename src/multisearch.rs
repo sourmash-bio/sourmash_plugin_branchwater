@@ -31,23 +31,22 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-    let scaled = match selection.scaled() {
+    let expected_scaled = match selection.scaled() {
         Some(s) => s,
         None => {
-            let scaled = *query_collection.max_scaled().expect("no records!?") as u32;
+            let s = *query_collection.max_scaled().expect("no records!?") as u32;
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
-                scaled
+                s
             );
-            scaled
+            s
         }
     };
 
     let ksize = selection.ksize().unwrap() as f64;
-    let expected_scaled = scaled; // nicer name.
 
     let mut new_selection = selection;
-    new_selection.set_scaled(scaled as u32);
+    new_selection.set_scaled(expected_scaled);
 
     let queries = query_collection.load_sketches(&new_selection)?;
 

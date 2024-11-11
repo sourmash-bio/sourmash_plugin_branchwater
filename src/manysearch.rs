@@ -35,19 +35,19 @@ pub fn manysearch(
     )?;
 
     // Figure out what scaled to use - either from selection, or from query.
-    let scaled: u32;
-    if let Some(set_scaled) = selection.scaled() {
-        scaled = set_scaled;
+    let common_scaled: u32 = if let Some(set_scaled) = selection.scaled() {
+        set_scaled
     } else {
-        scaled = *query_collection.max_scaled().expect("no records!?");
+        let s = *query_collection.max_scaled().expect("no records!?");
         eprintln!(
             "Setting scaled={} based on max scaled in query collection",
-            scaled
+            s
         );
+        s
     };
 
     let mut selection = selection;
-    selection.set_scaled(scaled);
+    selection.set_scaled(common_scaled);
 
     // load all query sketches into memory, downsampling on the way
     let query_sketchlist = query_collection.load_sketches(&selection)?;
@@ -95,14 +95,14 @@ pub fn manysearch(
                         <SigStore as TryInto<KmerMinHash>>::try_into(against_sig)
                     {
                         let against_mh = against_mh
-                            .downsample_scaled(scaled)
+                            .downsample_scaled(common_scaled)
                             .expect("cannot downsample search minhash to requested scaled");
                         for query in query_sketchlist.iter() {
                             // be paranoid and confirm scaled match.
-                            if query.minhash.scaled() != scaled {
+                            if query.minhash.scaled() != common_scaled {
                                 panic!("different query scaled");
                             }
-                            if against_mh.scaled() != scaled {
+                            if against_mh.scaled() != common_scaled {
                                 panic!("different against scaled");
                             }
 

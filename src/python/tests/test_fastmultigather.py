@@ -2094,24 +2094,22 @@ def test_simple_query_scaled_indexed(runtmp):
 
     make_file_list(query_list, [query])
     make_file_list(against_list, [sig2, sig47, sig63])
-    against_list = index_siglist(runtmp, against_list, runtmp.output("against.rocksdb"))
-
-    runtmp.sourmash(
-        "scripts",
-        "fastmultigather",
-        query_list,
-        against_list,
-        "-o",
-        "foo.csv",
-        "-t",
-        "0",
-        in_directory=runtmp.output(""),
+    against_list = index_siglist(
+        runtmp, against_list, runtmp.output("against.rocksdb"), scaled=1000
     )
 
-    print(os.listdir(runtmp.output("")))
-
-    g_output = runtmp.output("foo.csv")
-    assert os.path.exists(g_output)
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts",
+            "fastmultigather",
+            query_list,
+            against_list,
+            "-o",
+            "foo.csv",
+            "-t",
+            "0",
+            in_directory=runtmp.output(""),
+        )
 
 
 def test_equal_matches(runtmp, indexed):
