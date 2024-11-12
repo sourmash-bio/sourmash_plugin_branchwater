@@ -494,11 +494,7 @@ def test_against_multisigfile(runtmp, zip_against):
         "100000",
     )
     df = pandas.read_csv(g_output)
-    if zip_against:
-        assert len(df) == 3
-    else:
-        # This should work for against.txt files but currently doesn't (?)
-        assert len(df) == 1
+    assert len(df) == 3
     print(df)
 
 
