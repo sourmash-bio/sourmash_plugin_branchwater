@@ -103,12 +103,18 @@ pub fn fastmultigather_rocksdb(
                         let (counter, query_colors, hash_to_color) =
                             db.prepare_gather_counters(&query_mh);
 
+                        let query_bp = query_mh.n_unique_kmers();
+                        let moltype = query_mh.hash_function().to_string();
+                        let scaled = query_mh.scaled();
+                        let query_n_hashes = query_mh.size() as u64;
+                        let query_abundance = query_mh.track_abundance();
+
                         let matches = db.gather(
                             counter,
                             query_colors,
                             hash_to_color,
                             threshold as usize,
-                            &query_mh,
+                            query_mh,
                             Some(set_selection.clone()),
                         );
                         if let Ok(matches) = matches {
@@ -132,12 +138,12 @@ pub fn fastmultigather_rocksdb(
                                     query_filename: query_filename.clone(),
                                     query_name: query_name.clone(),
                                     query_md5: query_md5.clone(),
-                                    query_bp: query_mh.n_unique_kmers(),
+                                    query_bp,
                                     ksize: ksize as u16,
-                                    moltype: query_mh.hash_function().to_string(),
-                                    scaled: query_mh.scaled(),
-                                    query_n_hashes: query_mh.size() as u64,
-                                    query_abundance: query_mh.track_abundance(),
+                                    moltype: moltype.clone(),
+                                    scaled,
+                                    query_n_hashes,
+                                    query_abundance,
                                     query_containment_ani: match_.query_containment_ani(),
                                     match_containment_ani: match_.match_containment_ani(),
                                     average_containment_ani: match_.average_containment_ani(),

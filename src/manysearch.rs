@@ -256,10 +256,12 @@ fn downsample_and_inflate_abundances(
             .clone()
             .downsample_scaled(query.scaled())
             .expect("cannot downsample sketch");
-        (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;
+        (abunds, sum_weighted) =
+            query.inflated_abundances(against_ds.iter_mins(), against_ds.iter_abunds())?;
         sum_all_abunds = against_ds.sum_abunds();
     } else {
-        (abunds, sum_weighted) = query.inflated_abundances(against)?;
+        (abunds, sum_weighted) =
+            query.inflated_abundances(against.iter_mins(), against.iter_abunds())?;
         sum_all_abunds = against.sum_abunds();
     }
 
