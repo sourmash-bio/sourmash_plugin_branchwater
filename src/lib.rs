@@ -22,6 +22,7 @@ mod manysearch_rocksdb;
 mod manysketch;
 mod multisearch;
 mod pairwise;
+mod search_significance;
 mod singlesketch;
 
 use camino::Utf8PathBuf as PathBuf;
@@ -231,7 +232,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, estimate_prob_overlap, output_path=None))]
 #[allow(clippy::too_many_arguments)]
 fn do_multisearch(
     querylist_path: String,
@@ -241,6 +242,7 @@ fn do_multisearch(
     scaled: Option<u32>,
     moltype: String,
     estimate_ani: bool,
+    estimate_prob_overlap: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let _ = env_logger::try_init();
@@ -255,6 +257,7 @@ fn do_multisearch(
         selection,
         allow_failed_sigpaths,
         estimate_ani,
+        estimate_prob_overlap,
         output_path,
     ) {
         Ok(_) => Ok(0),

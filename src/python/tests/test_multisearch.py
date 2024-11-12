@@ -13,6 +13,10 @@ from .sourmash_tst_utils import (
 )
 
 
+def float_round(string: str, ndigits=None):
+    return round(float(string), ndigits)
+
+
 def test_installed(runtmp):
     with pytest.raises(utils.SourmashCommandFailed):
         runtmp.sourmash("scripts", "multisearch")
@@ -49,6 +53,8 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
     print(dd)
 
     for idx, row in dd.items():
+        assert not ("prob_overlap" in row)
+
         # identical?
         if row["match_name"] == row["query_name"]:
             assert row["query_md5"] == row["match_md5"], row
@@ -64,14 +70,12 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
+
             intersect_hashes = int(row["intersect_hashes"])
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
             print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
 
             if q == "NC_011665.1" and m == "NC_009661.1":
@@ -87,7 +91,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert intersect_hashes == 2529
 
 
-def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
+def test_simple_prob_overlap(runtmp, zip_query, zip_db, indexed_query, indexed_against):
     # test basic execution!
     query_list = runtmp.output("query.txt")
     against_list = runtmp.output("against.txt")
@@ -114,7 +118,7 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
         against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
 
     runtmp.sourmash(
-        "scripts", "multisearch", query_list, against_list, "-o", output, "--ani"
+        "scripts", "multisearch", query_list, against_list, "-o", output, "--prob"
     )
     assert os.path.exists(output)
 
@@ -131,6 +135,104 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert "query_containment_ani" not in row
+            assert "match_containment_ani" not in row
+            assert "average_containment_ani" not in row
+            assert "max_containment_ani" not in row
+
+            if row["match_name"] == "NC_011665.1":
+                assert float_round(row["prob_overlap"], 7) == 4.67e-05
+                assert float_round(row["prob_overlap_adjusted"], 7) == 0.0004206
+                assert float_round(row["containment_adjusted"], 4) == 2377.5947
+                assert float_round(row["containment_adjusted_log10"], 4) == 2377.5947
+                assert float_round(row["tf_idf_score"], 4) == 1.4974
+
+        else:
+            # confirm hand-checked numbers
+            q = row["query_name"].split()[0]
+            m = row["match_name"].split()[0]
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
+            prob_overlap = float_round(row["prob_overlap"], 7)
+            prob_overlap_adjusted = float_round(row["prob_overlap_adjusted"], 7)
+            containment_adjusted = float_round(row["containment_adjusted"], 4)
+            containment_adjusted_log10 = float_round(
+                row["containment_adjusted_log10"], 4
+            )
+            tf_idf_score = float_round(row["tf_idf_score"], 4)
+            intersect_hashes = int(row["intersect_hashes"])
+
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
+
+            if q == "NC_011665.1" and m == "NC_009661.1":
+                assert jaccard == 0.3207
+                assert cont == 0.4828
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+                assert prob_overlap == 2.26e-05
+                assert prob_overlap_adjusted == 0.0002031
+                assert containment_adjusted == 2377.5947
+                assert containment_adjusted_log10 == 3.3761
+                assert tf_idf_score == 0.6217
+
+            if q == "NC_009661.1" and m == "NC_011665.1":
+                assert jaccard == 0.3207
+                assert cont == 0.4885
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+                assert prob_overlap == 2.26e-05
+                assert prob_overlap_adjusted == 0.0002031
+                assert containment_adjusted == 2405.6096
+                assert containment_adjusted_log10 == 3.3812
+                assert tf_idf_score == 0.6290
+
+
+def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
+    # test basic execution!
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_db:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output("db.zip"))
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    if indexed_query:
+        query_list = index_siglist(runtmp, query_list, runtmp.output("q_db"))
+
+    if indexed_against:
+        against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
+
+    runtmp.sourmash(
+        "scripts", "multisearch", query_list, against_list, "-o", output, "--ani"
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+    dd = df.to_dict(orient="index")
+    print(dd)
+
+    for idx, row in dd.items():
+        assert not ("prob_overlap" in row)
+
+        # identical?
+        if row["match_name"] == row["query_name"]:
+            assert row["query_md5"] == row["match_md5"], row
+            assert float(row["containment"] == 1.0)
+            assert float(row["jaccard"] == 1.0)
+            assert float(row["max_containment"] == 1.0)
             assert float(row["query_containment_ani"] == 1.0)
             assert float(row["match_containment_ani"] == 1.0)
             assert float(row["average_containment_ani"] == 1.0)
@@ -140,22 +242,15 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani"], 4)
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
@@ -660,6 +755,7 @@ def test_empty_query(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
     assert "No query signatures loaded, exiting." in captured.err
+    # @CTB
 
 
 def test_nomatch_query_warn(runtmp, capfd, zip_query):
@@ -879,6 +975,9 @@ def test_simple_prot(runtmp):
     print(dd)
 
     for idx, row in dd.items():
+        # Make sure prob_overlap is only run when requested
+        assert not ("prob_overlap" in row)
+
         # identical?
         if row["match_name"] == row["query_name"]:
             assert row["query_md5"] == row["match_md5"], row
@@ -894,22 +993,15 @@ def test_simple_prot(runtmp):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani"], 4)
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
@@ -942,6 +1034,133 @@ def test_simple_prot(runtmp):
                 assert q2_ani == 0.886
                 assert avg_ani == 0.8781
                 assert max_ani == 0.886
+
+
+def test_prob_overlap_prot_with_abundance(runtmp):
+    # test basic execution with protein sigs
+    sigs = get_test_data("snap25.protein.k5.sig")
+
+    output = runtmp.output("out.csv")
+
+    runtmp.sourmash(
+        "scripts",
+        "multisearch",
+        sigs,
+        sigs,
+        "-o",
+        output,
+        "--moltype",
+        "protein",
+        "-k",
+        "5",
+        "--scaled",
+        "1",
+        "--prob",
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 16
+
+    dd = df.to_dict(orient="index")
+    print(dd)
+
+    for idx, row in dd.items():
+        # identical?
+        if row["match_name"] == row["query_name"]:
+            assert row["query_md5"] == row["match_md5"], row
+            assert float(row["containment"] == 1.0)
+            assert float(row["jaccard"] == 1.0)
+            assert float(row["max_containment"] == 1.0)
+
+        else:
+            # confirm hand-checked numbers
+            q = row["query_name"].split()[0]
+            m = row["match_name"].split()[0]
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
+            intersect_hashes = int(row["intersect_hashes"])
+            prob_overlap = float_round(row["prob_overlap"], 8)
+            prob_overlap_adjusted = float_round(row["prob_overlap_adjusted"], 8)
+            containment_adjusted = float_round(row["containment_adjusted"], 4)
+            containment_adjusted_log10 = float_round(
+                row["containment_adjusted_log10"], 4
+            )
+            tf_idf_score = float_round(row["tf_idf_score"], 4)
+
+            print(
+                q,
+                m,
+                f"{jaccard:.04}",
+                f"{cont:.04}",
+                f"{maxcont:.04}",
+                intersect_hashes,
+                f"{prob_overlap:.04}",
+                f"{prob_overlap_adjusted:.04}",
+                f"{containment_adjusted:.04}",
+                f"{containment_adjusted_log10:.04}",
+                f"{tf_idf_score:.04}",
+            )
+
+            if q == "snap25a_mxe_exon_human" and m == "snap25b_mxe_exon_human":
+                assert jaccard == 0.098
+                assert cont == 0.1786
+                assert maxcont == 0.1786
+                assert intersect_hashes == 5
+                assert prob_overlap == 9.21e-05
+                assert prob_overlap_adjusted == 0.0014736
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 0.1786
+
+            if q == "snap25b_mxe_exon_human" and m == "snap25a_mxe_exon_human":
+                # Check that inverse for snap25b vs snap25a exon is true
+                assert jaccard == 0.098
+                assert cont == 0.1786
+                assert maxcont == 0.1786
+                assert intersect_hashes == 5
+                assert prob_overlap == 9.21e-05
+                assert prob_overlap_adjusted == 0.0014736
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 0.1786
+
+            if q == "snap25a_mxe_exon_human" and m == "sp|P60880-2|SNP25_HUMAN":
+                # P60880-2 is isoform SNAP25A, including the snap25a exon
+                assert jaccard == 0.1386
+                assert cont == 1.0
+                assert maxcont == 1.0
+                assert intersect_hashes == 28
+                assert prob_overlap == 0.00051576
+                assert prob_overlap_adjusted == 0.00825213
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 1.4196
+
+            if q == "snap25b_mxe_exon_human" and m == "sp|P60880|SNP25_HUMAN":
+                # P60880 is isoform SNAP25B, including the snap25b exon
+                assert jaccard == 0.1386
+                assert cont == 1.0
+                assert maxcont == 1.0
+                assert intersect_hashes == 28
+                assert prob_overlap == 0.00051576
+                assert prob_overlap_adjusted == 0.00825213
+                assert containment_adjusted == 121.1808
+                assert containment_adjusted_log10 == 2.0834
+                assert tf_idf_score == 1.4196
+
+            if q == "sp|P60880-2|SNP25_HUMAN" and m == "sp|P60880|SNP25_HUMAN":
+                # P60880 is isoform SNAP25B, including the snap25b exon
+                assert jaccard == 0.7339
+                assert cont == 0.8465
+                assert maxcont == 0.8465
+                assert intersect_hashes == 171
+                assert prob_overlap == 0.00314981
+                assert prob_overlap_adjusted == 0.05039695
+                assert containment_adjusted == 16.7973
+                assert containment_adjusted_log10 == 1.2252
+                assert tf_idf_score == 1.2663
 
 
 def test_simple_dayhoff(runtmp):
@@ -989,22 +1208,15 @@ def test_simple_dayhoff(runtmp):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani"], 4)
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
@@ -1084,22 +1296,15 @@ def test_simple_hp(runtmp):
             # confirm hand-checked numbers
             q = row["query_name"].split()[0]
             m = row["match_name"].split()[0]
-            cont = float(row["containment"])
-            jaccard = float(row["jaccard"])
-            maxcont = float(row["max_containment"])
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
-            q1_ani = float(row["query_containment_ani"])
-            q2_ani = float(row["match_containment_ani"])
-            avg_ani = float(row["average_containment_ani"])
-            max_ani = float(row["max_containment_ani"])
+            q1_ani = float_round(row["query_containment_ani"], 4)
+            q2_ani = float_round(row["match_containment_ani"], 4)
+            avg_ani = float_round(row["average_containment_ani"], 4)
+            max_ani = float_round(row["max_containment_ani"], 4)
 
-            jaccard = round(jaccard, 4)
-            cont = round(cont, 4)
-            maxcont = round(maxcont, 4)
-            q1_ani = round(q1_ani, 4)
-            q2_ani = round(q2_ani, 4)
-            avg_ani = round(avg_ani, 4)
-            max_ani = round(max_ani, 4)
             print(
                 q,
                 m,
