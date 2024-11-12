@@ -475,7 +475,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
             f"searching all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads"
         )
         notify(
-            f"estimate ani? {args.ani} / estimate probability of overlap? {args.prob}"
+            f"estimate ani? {args.ani} / estimate probability of overlap? {args.prob_significant_overlap}"
         )
 
         super().main(args)
@@ -487,7 +487,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
             args.scaled,
             args.moltype,
             args.ani,
-            args.prob,
+            args.prob_significant_overlap,
             args.output,
         )
         if status == 0:
