@@ -649,7 +649,11 @@ class Branchwater_SingleSketch(CommandLinePlugin):
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_singlesketch(
-            args.input_filename, args.input_moltype, args.param_string, args.output, signature_name
+            args.input_filename,
+            args.input_moltype,
+            args.param_string,
+            args.output,
+            signature_name,
         )  # Pass the name to Rust
         if status == 0:
             notify(f"...singlesketch is done! results in '{args.output}'")

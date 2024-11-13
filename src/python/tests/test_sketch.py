@@ -1249,7 +1249,15 @@ def test_singlesketch_protein_moltype(runtmp):
 
     # Run the singlesketch command with multiple molecule types
     runtmp.sourmash(
-        "scripts", "singlesketch", fa1, "-o", output, "-p", "protein,k=10,scaled=100", "--input-moltype", "protein",
+        "scripts",
+        "singlesketch",
+        fa1,
+        "-o",
+        output,
+        "-p",
+        "protein,k=10,scaled=100",
+        "--input-moltype",
+        "protein",
     )
 
     # Check if the output exists and contains the expected data
