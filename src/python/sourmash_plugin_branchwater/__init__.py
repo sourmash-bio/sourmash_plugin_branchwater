@@ -619,7 +619,6 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             help="number of cores to use (default is all available)",
         )
 
-
     def main(self, args):
         print_version()
         if not args.param_string:
