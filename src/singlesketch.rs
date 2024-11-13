@@ -7,6 +7,7 @@ use std::io::{self, BufWriter, Write};
 
 pub fn singlesketch(
     input_filename: String,
+    input_moltype: String,
     param_str: String,
     output: String,
     name: String,
@@ -21,6 +22,8 @@ pub fn singlesketch(
         }
     };
 
+    // CTB need to check for/error on multiple moltypes, or use
+    // param string parsing.
     let moltype = if param_str.contains("dna") {
         "dna"
     } else if param_str.contains("protein") {
@@ -33,8 +36,10 @@ pub fn singlesketch(
         bail!("Unrecognized molecule type in params string");
     };
 
+    let input_moltype = input_moltype.to_ascii_uppercase();
+
     // Build signature templates based on parsed parameters and detected moltype
-    let mut sigs = crate::manysketch::build_siginfo(&params_vec, moltype);
+    let mut sigs = crate::manysketch::build_siginfo(&params_vec, input_moltype.as_str());
 
     if sigs.is_empty() {
         bail!("No signatures to build for the given parameters.");

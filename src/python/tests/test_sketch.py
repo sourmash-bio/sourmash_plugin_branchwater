@@ -1241,14 +1241,15 @@ def test_singlesketch_mult_k(runtmp):
     assert any(sig.minhash.ksize == 31 for sig in sigs)
 
 
-def test_singlesketch_mult_moltype(runtmp):
+def test_singlesketch_protein_moltype(runtmp):
     """Test single sketching with different molecule types."""
+    # @CTB also test that DNA -> protein might fail?
     fa1 = get_test_data("short-protein.fa")
     output = runtmp.output("short_mult_moltype.sig")
 
     # Run the singlesketch command with multiple molecule types
     runtmp.sourmash(
-        "scripts", "singlesketch", fa1, "-o", output, "-p", "protein,k=10,scaled=100"
+        "scripts", "singlesketch", fa1, "-o", output, "-p", "protein,k=10,scaled=100", "--input-moltype", "protein",
     )
 
     # Check if the output exists and contains the expected data
