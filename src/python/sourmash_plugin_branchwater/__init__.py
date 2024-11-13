@@ -611,6 +611,14 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             default="DNA",
             help="molecule type of input sequence (DNA or protein)",
         )
+        p.add_argument(
+            "-c",
+            "--cores",
+            default=0,
+            type=int,
+            help="number of cores to use (default is all available)",
+        )
+
 
     def main(self, args):
         print_version()
@@ -643,8 +651,10 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             )
         )
 
+        num_threads = set_thread_pool(args.cores)
+
         notify(
-            f"sketching file '{args.input_filename}' ({args.input_moltype}) with params '{args.param_string}' and name '{signature_name}'"
+            f"sketching file '{args.input_filename}' ({args.input_moltype}) with params '{args.param_string}' and name '{signature_name}' using {num_threads} threads"
         )
 
         super().main(args)
