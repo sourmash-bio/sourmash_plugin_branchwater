@@ -56,7 +56,7 @@ def index_siglist(
         "--moltype",
         moltype,
         toggle_internal_storage,
-        *extra_args
+        *extra_args,
     )
     return db
 
