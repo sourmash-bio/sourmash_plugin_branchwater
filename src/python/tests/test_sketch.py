@@ -1274,9 +1274,9 @@ def test_singlesketch_mult_k_2(runtmp):
 
 
 def test_singlesketch_explicit_dna(runtmp):
-    """Test single sketching with explicit DNA in name, and zip output"""
+    """Test single sketching with explicit DNA in name"""
     fa1 = get_test_data("short.fa")
-    output = runtmp.output("short_dna.sig.zip")
+    output = runtmp.output("short_dna.sig")
 
     # Run the singlesketch command with multiple k sizes
     runtmp.sourmash(
