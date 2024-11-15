@@ -359,12 +359,11 @@ impl MultiCollection {
     }
 
     // Load all sketches into memory, producing an in-memory Collection.
-    pub fn load_all_sigs(self, selection: &Selection) -> Result<Collection> {
+    pub fn load_all_sigs(self) -> Result<Collection> {
         let all_sigs: Vec<Signature> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
                 Ok(sig) => {
-                    let sig = sig.select(selection).ok()?;
                     Some(Signature::from(sig))
                 }
                 Err(_) => {
