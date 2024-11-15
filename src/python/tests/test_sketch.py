@@ -1356,8 +1356,17 @@ def test_singlesketch_translate(runtmp):
     output = runtmp.output("short.sig")
 
     # Run the singlesketch command
-    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output,
-                    "--input-moltype", "dna", "-p", "protein,k=7")
+    runtmp.sourmash(
+        "scripts",
+        "singlesketch",
+        fa1,
+        "-o",
+        output,
+        "--input-moltype",
+        "dna",
+        "-p",
+        "protein,k=7",
+    )
 
     # Check if the output exists and contains the expected data
     assert os.path.exists(output)
@@ -1377,5 +1386,14 @@ def test_singlesketch_multimoltype_fail(runtmp):
 
     # Run the singlesketch command
     with pytest.raises(SourmashCommandFailed):
-        runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output,
-                        "--input-moltype", "dna", "-p", "protein,dna,k=7")
+        runtmp.sourmash(
+            "scripts",
+            "singlesketch",
+            fa1,
+            "-o",
+            output,
+            "--input-moltype",
+            "dna",
+            "-p",
+            "protein,dna,k=7",
+        )
