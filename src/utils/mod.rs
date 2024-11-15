@@ -76,8 +76,7 @@ pub fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            // downsample within count_common
-            let overlap = searchsig.count_common(query_mh, true);
+            let overlap = searchsig.count_common(query_mh, false);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {
                     let result = PrefetchResult { overlap, ..result };
@@ -450,7 +449,7 @@ pub fn load_sketches_above_threshold(
             if let Ok(against_sig) = coll.sig_from_record(against_record) {
                 let against_filename = against_sig.filename();
                 let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
-                let against_md5 = against_mh.md5sum(); // keep original md5sum
+                let against_md5 = against_record.md5().clone(); // keep original md5sum
 
                 let against_mh_ds = against_mh
                     .downsample_scaled(query.scaled())

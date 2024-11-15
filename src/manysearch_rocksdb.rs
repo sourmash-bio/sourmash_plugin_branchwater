@@ -11,6 +11,7 @@ use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
+use sourmash::storage::SigStore;
 
 use crate::utils::{
     csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
@@ -97,14 +98,7 @@ pub fn manysearch_rocksdb(
                     let query_md5 = query_sig.md5sum().clone();
                     let query_file = query_sig.filename().clone();
 
-                    if let Ok(query_mh) = query_sig.try_into() {
-                        let mut query_mh: KmerMinHash = query_mh;
-                        if let Some(set_scaled) = set_selection.scaled() {
-                            query_mh = query_mh
-                                .clone()
-                                .downsample_scaled(set_scaled)
-                                .expect("cannot downsample query");
-                        }
+                    if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
                         let query_size = query_mh.size();
                         let counter = db.counter_for_query(&query_mh);
                         let matches =
