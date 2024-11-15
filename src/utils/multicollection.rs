@@ -329,7 +329,7 @@ impl MultiCollection {
                     );
 
                     let sig_name = sig.name();
-                    let sig_md5 = sig.md5sum();
+                    let sig_md5 = record.md5().clone();
                     let selected_sig = sig.select(selection).ok()?;
                     let mut minhash: KmerMinHash =
                         selected_sig.try_into().expect("cannot extract sketch");

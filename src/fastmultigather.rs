@@ -105,7 +105,7 @@ pub fn fastmultigather(
 
                 let query_filename = query_sig.filename();
                 let query_name = query_sig.name();
-                let query_md5 = query_sig.md5sum();
+                let query_md5 = record.md5().clone();
 
                 let query_mh: KmerMinHash = query_sig.try_into().expect("cannot get sketch");
 

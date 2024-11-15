@@ -450,7 +450,7 @@ pub fn load_sketches_above_threshold(
             if let Ok(against_sig) = coll.sig_from_record(against_record) {
                 let against_filename = against_sig.filename();
                 let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
-                let against_md5 = against_mh.md5sum(); // keep original md5sum
+                let against_md5 = against_record.md5().clone(); // keep original md5sum
 
                 let against_mh_ds = against_mh
                     .downsample_scaled(query.scaled())
