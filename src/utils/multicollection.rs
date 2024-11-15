@@ -330,8 +330,7 @@ impl MultiCollection {
 
                     let sig_name = sig.name();
                     let sig_md5 = record.md5().clone();
-                    let minhash: KmerMinHash =
-                        sig.try_into().expect("cannot extract sketch");
+                    let minhash: KmerMinHash = sig.try_into().expect("cannot extract sketch");
 
                     Some(SmallSignature {
                         location: record.internal_location().to_string(),

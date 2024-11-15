@@ -142,8 +142,7 @@ pub fn manysearch(
                                     median_abund,
                                     std_abund,
                                 ) = if calc_abund_stats {
-                                    inflate_abundances(&query.minhash, &against_mh)
-                                        .ok()?
+                                    inflate_abundances(&query.minhash, &against_mh).ok()?
                                 } else {
                                     (None, None, None, None, None)
                                 };
