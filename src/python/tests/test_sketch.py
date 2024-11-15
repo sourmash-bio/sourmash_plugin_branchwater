@@ -1347,3 +1347,35 @@ def test_singlesketch_invalid_params(runtmp, capfd):
     # Check that the error message is correct
     captured = capfd.readouterr()
     assert "Failed to parse params string" in captured.err
+
+
+@pytest.mark.xfail(reason="needs to be implemented")
+def test_singlesketch_translate(runtmp):
+    """Test basic single sketching with input = DNA, output = protein"""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short.sig")
+
+    # Run the singlesketch command
+    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output,
+                    "--input-moltype", "dna", "-p", "protein,k=7")
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sig = sourmash.load_one_signature(output)
+
+    assert sig.name == "short.fa"
+    assert sig.minhash.ksize == 31
+    assert sig.minhash.is_dna
+    assert sig.minhash.scaled == 1000
+
+
+@pytest.mark.xfail(reason="needs to be implemented")
+def test_singlesketch_multimoltype_fail(runtmp):
+    """Test failure with multiple moltype"""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short.sig")
+
+    # Run the singlesketch command
+    with pytest.raises(SourmashCommandFailed):
+        runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output,
+                        "--input-moltype", "dna", "-p", "protein,dna,k=7")

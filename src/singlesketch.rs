@@ -23,7 +23,7 @@ pub fn singlesketch(
     };
 
     // CTB need to check for/error on multiple moltypes, or use
-    // param string parsing.
+    // param string parsing; switch to using params_vec, please!
     let moltype = if param_str.contains("dna") {
         "dna"
     } else if param_str.contains("protein") {
