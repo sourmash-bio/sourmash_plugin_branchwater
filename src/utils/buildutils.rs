@@ -1,0 +1,1374 @@
+//! sketching utilities
+
+use anyhow::{anyhow, Context, Result};
+use camino::Utf8PathBuf;
+use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
+use zip::CompressionMethod;
+use getset::{Getters, Setters};
+use needletail::parser::SequenceRecord;
+use needletail::{parse_fastx_file, parse_fastx_reader};
+use serde::Serialize;
+use sourmash::cmd::ComputeParameters;
+use sourmash::encodings::{HashFunctions, Idx};
+use sourmash::errors::SourmashError;
+use sourmash::manifest::Record;
+use sourmash::selection::Selection;
+use sourmash::signature::Signature;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fmt::Display;
+use std::fs::File;
+use std::hash::{Hash, Hasher};
+use std::io::{Cursor, Seek, Write};
+use std::num::ParseIntError;
+use std::ops::Index;
+use std::str::FromStr;
+
+#[derive(Default, Debug, Clone)]
+pub struct MultiSelection {
+    pub selections: Vec<Selection>,
+}
+
+impl MultiSelection {
+    /// Create a `MultiSelection` from a single `Selection`
+    pub fn new(selection: Selection) -> Self {
+        MultiSelection {
+            selections: vec![selection],
+        }
+    }
+
+    pub fn from_moltypes(moltypes: Vec<&str>) -> Result<Self, SourmashError> {
+        let selections: Result<Vec<Selection>, SourmashError> = moltypes
+            .into_iter()
+            .map(|moltype_str| {
+                let moltype = HashFunctions::try_from(moltype_str)?;
+                let mut new_selection = Selection::default(); // Create a default Selection
+                new_selection.set_moltype(moltype); // Set the moltype
+                Ok(new_selection)
+            })
+            .collect();
+
+        Ok(MultiSelection {
+            selections: selections?,
+        })
+    }
+}
+
+pub trait MultiSelect {
+    fn select(self, multi_selection: &MultiSelection) -> Result<Self, SourmashError>
+    where
+        Self: Sized;
+}
+
+#[derive(Debug, Clone, Getters, Setters, Serialize)]
+pub struct BuildRecord {
+    // fields are ordered the same as Record to allow serialization to manifest
+    // required fields are currently immutable once set
+    #[getset(get = "pub", set = "pub")]
+    internal_location: Option<Utf8PathBuf>,
+
+    #[getset(get = "pub", set = "pub")]
+    md5: Option<String>,
+
+    #[getset(get = "pub", set = "pub")]
+    md5short: Option<String>,
+
+    #[getset(get_copy = "pub", set = "pub")]
+    ksize: u32,
+
+    moltype: String,
+
+    #[getset(get = "pub")]
+    num: u32,
+
+    #[getset(get = "pub")]
+    scaled: u64,
+
+    #[getset(get = "pub", set = "pub")]
+    n_hashes: Option<usize>,
+
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(serialize_with = "intbool")]
+    with_abundance: bool,
+
+    #[getset(get = "pub", set = "pub")]
+    name: Option<String>,
+
+    #[getset(get = "pub", set = "pub")]
+    filename: Option<String>,
+
+    #[getset(get_copy = "pub")]
+    #[serde(skip)]
+    pub seed: u32,
+
+    #[serde(skip)]
+    pub hashed_params: u64,
+
+    #[serde(skip)]
+    pub sequence_added: bool,
+}
+
+// from sourmash (intbool is currently private there)
+fn intbool<S>(x: &bool, s: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if *x {
+        s.serialize_i32(1)
+    } else {
+        s.serialize_i32(0)
+    }
+}
+
+impl Default for BuildRecord {
+    fn default() -> Self {
+        // Default BuildRecord is DNA default
+        BuildRecord {
+            internal_location: None,
+            md5: None,
+            md5short: None,
+            ksize: 31,
+            moltype: "DNA".to_string(),
+            num: 0,
+            scaled: 1000,
+            n_hashes: None,
+            with_abundance: false,
+            name: None,
+            filename: None,
+            seed: 42,
+            hashed_params: 0,
+            sequence_added: false,
+        }
+    }
+}
+
+impl BuildRecord {
+    pub fn default_dna() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+
+    pub fn default_protein() -> Self {
+        Self {
+            moltype: "protein".to_string(),
+            ksize: 10,
+            scaled: 200,
+            ..Default::default()
+        }
+    }
+
+    pub fn default_dayhoff() -> Self {
+        Self {
+            moltype: "dayhoff".to_string(),
+            ksize: 10,
+            scaled: 200,
+            ..Default::default()
+        }
+    }
+
+    pub fn default_hp() -> Self {
+        Self {
+            moltype: "hp".to_string(),
+            ksize: 10,
+            scaled: 200,
+            ..Default::default()
+        }
+    }
+
+    pub fn moltype(&self) -> HashFunctions {
+        self.moltype.as_str().try_into().unwrap()
+    }
+
+    pub fn from_record(record: &Record) -> Self {
+        Self {
+            ksize: record.ksize(),
+            moltype: record.moltype().to_string(),
+            num: *record.num(),
+            scaled: *record.scaled() as u64,
+            with_abundance: record.with_abundance(),
+            ..Default::default() // ignore remaining fields
+        }
+    }
+
+    pub fn matches_selection(&self, selection: &Selection) -> bool {
+        let mut valid = true;
+
+        if let Some(ksize) = selection.ksize() {
+            valid = valid && self.ksize == ksize;
+        }
+
+        if let Some(moltype) = selection.moltype() {
+            valid = valid && self.moltype() == moltype;
+        }
+
+        if let Some(abund) = selection.abund() {
+            valid = valid && self.with_abundance == abund;
+        }
+
+        if let Some(scaled) = selection.scaled() {
+            // num sigs have self.scaled = 0, don't include them
+            valid = valid && self.scaled != 0 && self.scaled <= scaled as u64;
+        }
+
+        if let Some(num) = selection.num() {
+            valid = valid && self.num == num;
+        }
+
+        valid
+    }
+}
+
+impl PartialEq for BuildRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.ksize == other.ksize
+            && self.moltype == other.moltype
+            && self.with_abundance == other.with_abundance
+            && self.num == other.num
+            && self.scaled == other.scaled
+    }
+}
+
+impl Eq for BuildRecord {}
+
+impl Hash for BuildRecord {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ksize.hash(state);
+        self.moltype.hash(state);
+        self.scaled.hash(state);
+        self.num.hash(state);
+        self.with_abundance.hash(state);
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct BuildManifest {
+    records: Vec<BuildRecord>,
+}
+
+impl BuildManifest {
+    pub fn new() -> Self {
+        BuildManifest {
+            records: Vec::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
+    pub fn size(&self) -> usize {
+        self.records.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &BuildRecord> {
+        self.records.iter()
+    }
+
+    // clear all records
+    pub fn clear(&mut self) {
+        self.records.clear();
+    }
+
+    pub fn filter_manifest(&self, other: &BuildManifest) -> Self {
+        // Create a HashSet of references to the `BuildRecord`s in `other`
+        let pairs: HashSet<_> = other.records.iter().collect();
+
+        // Filter `self.records` to retain only those `BuildRecord`s that are NOT in `pairs`
+        let records = self
+            .records
+            .iter()
+            .filter(|&build_record| !pairs.contains(build_record))
+            .cloned()
+            .collect();
+
+        Self { records }
+    }
+
+    pub fn add_record(&mut self, record: BuildRecord) {
+        self.records.push(record);
+    }
+
+    pub fn extend_records(&mut self, other: impl IntoIterator<Item = BuildRecord>) {
+        self.records.extend(other);
+    }
+
+    pub fn extend_from_manifest(&mut self, other: &BuildManifest) {
+        self.records.extend(other.records.clone()); // Clone the records from the other manifest
+    }
+
+    pub fn to_writer<W: Write>(&self, mut wtr: W) -> Result<()> {
+        // Write the manifest version as a comment
+        wtr.write_all(b"# SOURMASH-MANIFEST-VERSION: 1.0\n")?;
+
+        // Use CSV writer to serialize records
+        let mut csv_writer = csv::Writer::from_writer(wtr);
+
+        for record in &self.records {
+            csv_writer.serialize(record)?; // Serialize each BuildRecord
+        }
+
+        csv_writer.flush()?; // Ensure all data is written
+
+        Ok(())
+    }
+
+    pub fn write_manifest_to_zip<W: Write + Seek>(
+        &self,
+        zip: &mut ZipWriter<W>,
+        options: &FileOptions<()>,
+    ) -> Result<()> {
+        zip.start_file("SOURMASH-MANIFEST.csv", *options)?;
+        self.to_writer(zip)?;
+        Ok(())
+    }
+}
+
+impl MultiSelect for BuildManifest {
+    fn select(self, multi_selection: &MultiSelection) -> Result<Self, SourmashError> {
+        let rows = self.records.iter().filter(|row| {
+            // for each row, check if it matches any of the Selection structs in MultiSelection
+            multi_selection
+                .selections
+                .iter()
+                .any(|selection| row.matches_selection(selection))
+        });
+
+        Ok(BuildManifest {
+            records: rows.cloned().collect(),
+        })
+    }
+}
+
+impl From<Vec<BuildRecord>> for BuildManifest {
+    fn from(records: Vec<BuildRecord>) -> Self {
+        BuildManifest { records }
+    }
+}
+
+impl Index<usize> for BuildManifest {
+    type Output = BuildRecord;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.records[index]
+    }
+}
+
+impl<'a> IntoIterator for &'a BuildManifest {
+    type Item = &'a BuildRecord;
+    type IntoIter = std::slice::Iter<'a, BuildRecord>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.records.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut BuildManifest {
+    type Item = &'a mut BuildRecord;
+    type IntoIter = std::slice::IterMut<'a, BuildRecord>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.records.iter_mut()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct BuildCollection {
+    pub manifest: BuildManifest,
+    pub sigs: Vec<Signature>,
+}
+
+impl BuildCollection {
+    pub fn new() -> Self {
+        BuildCollection {
+            manifest: BuildManifest::new(),
+            sigs: Vec::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.manifest.is_empty()
+    }
+
+    pub fn size(&self) -> usize {
+        self.manifest.size()
+    }
+
+    pub fn dna_size(&self) -> Result<usize, SourmashError> {
+        let multiselection = MultiSelection::from_moltypes(vec!["dna"])?;
+        let selected_manifest = self.manifest.clone().select(&multiselection)?;
+
+        Ok(selected_manifest.records.len())
+    }
+
+    pub fn protein_size(&self) -> Result<usize, SourmashError> {
+        let multiselection = MultiSelection::from_moltypes(vec!["protein"])?;
+        let selected_manifest = self.manifest.clone().select(&multiselection)?;
+
+        Ok(selected_manifest.records.len())
+    }
+
+    pub fn anyprotein_size(&self) -> Result<usize, SourmashError> {
+        let multiselection = MultiSelection::from_moltypes(vec!["protein", "dayhoff", "hp"])?;
+        let selected_manifest = self.manifest.clone().select(&multiselection)?;
+
+        Ok(selected_manifest.records.len())
+    }
+
+    pub fn parse_ksize(value: &str) -> Result<u32, String> {
+        value
+            .parse::<u32>()
+            .map_err(|_| format!("cannot parse k='{}' as a valid integer", value))
+    }
+
+    pub fn parse_int_once<T>(
+        value: &str,
+        field: &str,
+        current: &mut Option<T>,
+    ) -> Result<(), String>
+    where
+        T: FromStr<Err = ParseIntError> + Display + Copy,
+    {
+        let parsed_value = value
+            .parse::<T>()
+            .map_err(|_| format!("cannot parse {}='{}' as a valid integer", field, value))?;
+
+        // Check for conflicts; we don't allow multiple values for the same field.
+        if let Some(old_value) = *current {
+            return Err(format!(
+                "Conflicting values for '{}': {} and {}",
+                field, old_value, parsed_value
+            ));
+        }
+
+        *current = Some(parsed_value);
+        Ok(())
+    }
+
+    pub fn parse_moltype(item: &str, current: &mut Option<String>) -> Result<String, String> {
+        let new_moltype = match item {
+            "protein" | "dna" | "dayhoff" | "hp" => item.to_string(),
+            _ => return Err(format!("unknown moltype '{}'", item)),
+        };
+
+        // Check for conflicts and update the moltype.
+        if let Some(existing) = current {
+            if *existing != new_moltype {
+                return Err(format!(
+                    "Conflicting moltype settings in param string: '{}' and '{}'",
+                    existing, new_moltype
+                ));
+            }
+        }
+
+        *current = Some(new_moltype.clone());
+        Ok(new_moltype)
+    }
+
+    pub fn parse_abundance(item: &str, current: &mut Option<bool>) -> Result<(), String> {
+        let new_abundance = item == "abund";
+
+        if let Some(existing) = *current {
+            if existing != new_abundance {
+                return Err(format!(
+                    "Conflicting abundance settings in param string: '{}'",
+                    item
+                ));
+            }
+        }
+
+        *current = Some(new_abundance);
+        Ok(())
+    }
+
+    pub fn parse_params(p_str: &str) -> Result<(BuildRecord, Vec<u32>), String> {
+        let mut ksizes = Vec::new();
+        let mut moltype: Option<String> = None;
+        let mut track_abundance: Option<bool> = None;
+        let mut num: Option<u32> = None;
+        let mut scaled: Option<u64> = None;
+        let mut seed: Option<u32> = None;
+
+        for item in p_str.split(',') {
+            match item {
+                _ if item.starts_with("k=") => {
+                    ksizes.push(Self::parse_ksize(&item[2..])?);
+                }
+                "abund" | "noabund" => {
+                    Self::parse_abundance(item, &mut track_abundance)?;
+                }
+                "protein" | "dna" | "DNA" | "dayhoff" | "hp" => {
+                    Self::parse_moltype(item, &mut moltype)?;
+                }
+                _ if item.starts_with("num=") => {
+                    Self::parse_int_once(&item[4..], "num", &mut num)?;
+                }
+                _ if item.starts_with("scaled=") => {
+                    Self::parse_int_once(&item[7..], "scaled", &mut scaled)?;
+                }
+                _ if item.starts_with("seed=") => {
+                    Self::parse_int_once(&item[5..], "seed", &mut seed)?;
+                }
+                _ => return Err(format!("unknown component '{}' in params string", item)),
+            }
+        }
+
+        // Create a moltype-specific default BuildRecord.
+        let mut base_record = match moltype.as_deref() {
+            Some("dna") => BuildRecord::default_dna(),
+            Some("DNA") => BuildRecord::default_dna(),
+            Some("protein") => BuildRecord::default_protein(),
+            Some("dayhoff") => BuildRecord::default_dayhoff(),
+            Some("hp") => BuildRecord::default_hp(),
+            _ => BuildRecord::default_dna(), // no moltype --> assume DNA
+        };
+
+        // Apply parsed values
+        if let Some(track_abund) = track_abundance {
+            base_record.with_abundance = track_abund;
+        }
+        if let Some(n) = num {
+            base_record.num = n;
+        }
+        if let Some(s) = scaled {
+            base_record.scaled = s;
+        }
+        if let Some(s) = seed {
+            base_record.seed = s;
+        }
+
+        // Use the default ksize if none were specified.
+        if ksizes.is_empty() {
+            ksizes.push(base_record.ksize);
+        }
+
+        // Ensure that num and scaled are mutually exclusive unless num is 0.
+        if let (Some(n), Some(_)) = (num, scaled) {
+            if n != 0 {
+                return Err("Cannot specify both 'num' (non-zero) and 'scaled' in the same parameter string".to_string());
+            }
+        }
+
+        Ok((base_record, ksizes))
+    }
+
+    pub fn from_param_str(params_str: &str) -> Result<Self, String> {
+        if params_str.trim().is_empty() {
+            return Err("Parameter string cannot be empty.".to_string());
+        }
+
+        let mut coll = BuildCollection::new();
+        let mut seen_records = HashSet::new();
+
+        for p_str in params_str.split('_') {
+            // Use `parse_params` to get the base record and ksizes.
+            let (base_record, ksizes) = Self::parse_params(p_str)?;
+
+            // Iterate over each ksize and add a signature to the collection.
+            for k in ksizes {
+                let mut record = base_record.clone();
+                record.ksize = k;
+
+                // Check if the record is already in the set.
+                if seen_records.insert(record.clone()) {
+                    // Add the record and its associated signature to the collection.
+                    // coll.add_template_sig_from_record(&record, &record.moltype);
+                    coll.add_template_sig_from_record(&record);
+                }
+            }
+        }
+        Ok(coll)
+    }
+
+    pub fn from_manifest(manifest: &BuildManifest) -> Self {
+        let mut collection = BuildCollection::new();
+
+        // Iterate over each `BuildRecord` in the provided `BuildManifest`.
+        for record in &manifest.records {
+            // Add a signature to the collection using the `BuildRecord` and `input_moltype`.
+            collection.add_template_sig_from_record(record);
+        }
+
+        collection
+    }
+
+    pub fn add_template_sig_from_record(&mut self, record: &BuildRecord) {
+        // Adjust ksize for protein, dayhoff, or hp, which require tripling the k-mer size.
+        let adjusted_ksize = match record.moltype.as_str() {
+            "protein" | "dayhoff" | "hp" => record.ksize * 3,
+            _ => record.ksize,
+        };
+
+        // Construct ComputeParameters.
+        let cp = ComputeParameters::builder()
+            .ksizes(vec![adjusted_ksize])
+            .scaled(record.scaled as u32)
+            .protein(record.moltype == "protein")
+            .dna(record.moltype == "DNA")
+            .dayhoff(record.moltype == "dayhoff")
+            .hp(record.moltype == "hp")
+            .num_hashes(record.num)
+            .track_abundance(record.with_abundance)
+            .build();
+
+        // Create a Signature from the ComputeParameters.
+        let sig = Signature::from_params(&cp);
+
+        // Clone the `BuildRecord` and use it directly.
+        let template_record = record.clone();
+
+        // Add the record and signature to the collection.
+        self.manifest.records.push(template_record);
+        self.sigs.push(sig);
+    }
+
+    pub fn filter_manifest(&mut self, other: &BuildManifest) {
+        self.manifest = self.manifest.filter_manifest(other)
+    }
+
+    pub fn filter_by_manifest(&mut self, other: &BuildManifest) {
+        // Create a HashSet for efficient filtering based on the `BuildRecord`s in `other`.
+        let other_records: HashSet<_> = other.records.iter().collect();
+
+        // Retain only the records that are not in `other_records`, filtering in place.
+        let mut sig_index = 0;
+        self.manifest.records.retain(|record| {
+            let keep = !other_records.contains(record);
+            if !keep {
+                // Remove the corresponding signature at the same index.
+                self.sigs.remove(sig_index);
+            } else {
+                sig_index += 1; // Only increment if we keep the record and signature.
+            }
+            keep
+        });
+    }
+
+    // filter template signatures that had no sequence added
+    // suggested use right before writing signatures
+    pub fn filter_empty(&mut self) {
+        let mut sig_index = 0;
+
+        self.manifest.records.retain(|record| {
+            // Keep only records where `sequence_added` is `true`.
+            let keep = record.sequence_added;
+
+            if !keep {
+                // Remove the corresponding signature at the same index if the record is not kept.
+                self.sigs.remove(sig_index);
+            } else {
+                sig_index += 1; // Only increment if we keep the record and signature.
+            }
+
+            keep
+        });
+    }
+
+    pub fn filter(&mut self, params_set: &HashSet<u64>) {
+        let mut index = 0;
+        while index < self.manifest.records.len() {
+            let record = &self.manifest.records[index];
+
+            // filter records with matching Params
+            if params_set.contains(&record.hashed_params) {
+                self.manifest.records.remove(index);
+                self.sigs.remove(index);
+            } else {
+                index += 1;
+            }
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (Idx, &BuildRecord)> {
+        self.manifest.iter().enumerate().map(|(i, r)| (i as Idx, r))
+    }
+
+    pub fn record_for_dataset(&self, dataset_id: Idx) -> Result<&BuildRecord> {
+        Ok(&self.manifest[dataset_id as usize])
+    }
+
+    pub fn sigs_iter_mut(&mut self) -> impl Iterator<Item = &mut Signature> {
+        self.sigs.iter_mut()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&mut BuildRecord, &mut Signature)> {
+        // zip together mutable iterators over records and sigs
+        self.manifest.records.iter_mut().zip(self.sigs.iter_mut())
+    }
+
+    pub fn build_sigs_from_data(
+        &mut self,
+        data: Vec<u8>,
+        input_moltype: &str,
+        name: String,
+        filename: String,
+    ) -> Result<()> {
+        let cursor = Cursor::new(data);
+        let mut fastx_reader =
+            parse_fastx_reader(cursor).context("Failed to parse FASTA/FASTQ data")?;
+
+        // Iterate over FASTA records and add sequences/proteins to sigs
+        while let Some(record) = fastx_reader.next() {
+            let record = record.context("Failed to read record")?;
+            self.iter_mut().for_each(|(rec, sig)| {
+                if input_moltype == "protein"
+                    && (rec.moltype == "protein" || rec.moltype == "dayhoff" || rec.moltype == "hp")
+                {
+                    sig.add_protein(&record.seq())
+                        .expect("Failed to add protein");
+                    if !rec.sequence_added {
+                        rec.sequence_added = true
+                    }
+                } else if input_moltype == "DNA" && rec.moltype == "DNA" {
+                    sig.add_sequence(&record.seq(), true)
+                        .expect("Failed to add sequence");
+                    // if not force, panics with 'N' in dna sequence
+                    if !rec.sequence_added {
+                        rec.sequence_added = true
+                    }
+                }
+            });
+        }
+
+        // After processing sequences, update sig, record information
+        self.update_info(name, filename);
+
+        Ok(())
+    }
+
+    pub fn build_sigs_from_file(
+        &mut self,
+        input_moltype: &str, // (protein/dna); todo - use hashfns?
+        name: String,
+        filename: String,
+    ) -> Result<()> {
+        let mut fastx_reader = parse_fastx_file(&filename)?;
+        // Iterate over FASTA records and add sequences/proteins to sigs
+        while let Some(record) = fastx_reader.next() {
+            let record = record.context("Failed to read record")?;
+            self.iter_mut().for_each(|(rec, sig)| {
+                if input_moltype == "protein"
+                    && (rec.moltype() == HashFunctions::Murmur64Protein
+                        || rec.moltype() == HashFunctions::Murmur64Dayhoff
+                        || rec.moltype() == HashFunctions::Murmur64Hp)
+                {
+                    sig.add_protein(&record.seq())
+                        .expect("Failed to add protein");
+                    if !rec.sequence_added {
+                        rec.sequence_added = true
+                    }
+                } else {
+                    sig.add_sequence(&record.seq(), true)
+                        .expect("Failed to add sequence");
+                    // if not force, panics with 'N' in dna sequence
+                    if !rec.sequence_added {
+                        rec.sequence_added = true
+                    }
+                }
+            });
+        }
+
+        // After processing sequences, update sig, record information
+        self.update_info(name, filename);
+
+        Ok(())
+    }
+
+    pub fn build_singleton_sigs(
+        &mut self,
+        record: SequenceRecord,
+        input_moltype: &str, // (protein/dna); todo - use hashfns?
+        filename: String,
+    ) -> Result<()> {
+        self.iter_mut().for_each(|(rec, sig)| {
+            if input_moltype == "protein"
+                && (rec.moltype() == HashFunctions::Murmur64Protein
+                    || rec.moltype() == HashFunctions::Murmur64Dayhoff
+                    || rec.moltype() == HashFunctions::Murmur64Hp)
+            {
+                sig.add_protein(&record.seq())
+                    .expect("Failed to add protein");
+                if !rec.sequence_added {
+                    rec.sequence_added = true
+                }
+            } else {
+                sig.add_sequence(&record.seq(), true)
+                    .expect("Failed to add sequence");
+                // if not force, panics with 'N' in dna sequence
+                if !rec.sequence_added {
+                    rec.sequence_added = true
+                }
+            }
+        });
+        let record_name = std::str::from_utf8(record.id())
+            .expect("could not get record id")
+            .to_string();
+        // After processing sequences, update sig, record information
+        self.update_info(record_name, filename);
+
+        Ok(())
+    }
+
+    pub fn update_info(&mut self, name: String, filename: String) {
+        // update the records to reflect information the signature;
+        for (record, sig) in self.iter_mut() {
+            if record.sequence_added {
+                // update signature name, filename
+                sig.set_name(name.as_str());
+                sig.set_filename(filename.as_str());
+
+                // update record: set name, filename, md5sum, n_hashes
+                record.set_name(Some(name.clone()));
+                record.set_filename(Some(filename.clone()));
+                record.set_md5(Some(sig.md5sum()));
+                record.set_md5short(Some(sig.md5sum()[0..8].into()));
+                record.set_n_hashes(Some(sig.size()));
+
+                // note, this needs to be set when writing sigs (not here)
+                // record.set_internal_location("")
+            }
+        }
+    }
+
+    pub fn write_sigs_to_zip<W: Write + Seek>(
+        &mut self, // need mutable to update records
+        zip: &mut ZipWriter<W>,
+        options: &FileOptions<()>,
+        md5sum_occurrences: &mut HashMap<String, usize>,
+    ) -> Result<()> {
+        // iterate over both records and signatures
+        for (record, sig) in self.iter_mut() {
+            let md5sum_str = sig.md5sum();
+            let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
+            *count += 1;
+
+            // Generate the signature filename
+            let sig_filename = if *count > 1 {
+                format!("signatures/{}_{}.sig.gz", md5sum_str, count)
+            } else {
+                format!("signatures/{}.sig.gz", md5sum_str)
+            };
+
+            // Update record's internal_location with the signature filename
+            record.internal_location = Some(sig_filename.clone().into());
+
+            // Serialize signature to JSON
+            let wrapped_sig = vec![sig.clone()];
+            let json_bytes = serde_json::to_vec(&wrapped_sig)
+                .map_err(|e| anyhow!("Error serializing signature: {}", e))?;
+
+            // Gzip compress the JSON bytes
+            let gzipped_buffer = {
+                let mut buffer = Cursor::new(Vec::new());
+                {
+                    let mut gz_writer = niffler::get_writer(
+                        Box::new(&mut buffer),
+                        niffler::compression::Format::Gzip,
+                        niffler::compression::Level::Nine,
+                    )?;
+                    gz_writer.write_all(&json_bytes)?;
+                }
+                buffer.into_inner()
+            };
+
+            zip.start_file(sig_filename, *options)?;
+            zip.write_all(&gzipped_buffer)
+                .map_err(|e| anyhow!("Error writing zip entry for signature: {}", e))?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> IntoIterator for &'a mut BuildCollection {
+    type Item = (&'a mut BuildRecord, &'a mut Signature);
+    type IntoIter =
+        std::iter::Zip<std::slice::IterMut<'a, BuildRecord>, std::slice::IterMut<'a, Signature>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.manifest.records.iter_mut().zip(self.sigs.iter_mut())
+    }
+}
+
+impl MultiSelect for BuildCollection {
+    // to do --> think through the best/most efficient way to do this
+    // in sourmash core, we don't need to select sigs themselves. Is this due to the way that Idx/Storage work?
+    fn select(mut self, multi_selection: &MultiSelection) -> Result<Self, SourmashError> {
+        // Collect indices while retaining matching records
+        let mut selected_indices = Vec::new();
+        let mut current_index = 0;
+
+        self.manifest.records.retain(|record| {
+            let keep = multi_selection
+                .selections
+                .iter()
+                .any(|selection| record.matches_selection(selection));
+
+            if keep {
+                selected_indices.push(current_index); // Collect the index of the retained record
+            }
+
+            current_index += 1; // Move to the next index
+            keep // Retain the record if it matches the selection
+        });
+
+        // Retain corresponding signatures using the collected indices
+        let mut sig_index = 0;
+        self.sigs.retain(|_sig| {
+            let keep = selected_indices.contains(&sig_index);
+            sig_index += 1;
+            keep
+        });
+
+        Ok(self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MultiBuildCollection {
+    pub collections: Vec<BuildCollection>,
+}
+
+impl MultiBuildCollection {
+    pub fn new() -> Self {
+        MultiBuildCollection {
+            collections: Vec::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.collections.is_empty()
+    }
+
+    pub fn add_collection(&mut self, collection: &mut BuildCollection) {
+        self.collections.push(collection.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_params_str() {
+        let params_str = "k=31,abund,dna";
+        let result = BuildCollection::parse_params(params_str);
+
+        assert!(
+            result.is_ok(),
+            "Expected 'k=31,abund,dna' to be valid, but got an error: {:?}",
+            result
+        );
+
+        let (record, ksizes) = result.unwrap();
+
+        // Verify that the Record, ksizes have the correct settings.
+        assert_eq!(record.moltype, "DNA");
+        assert_eq!(record.with_abundance, true);
+        assert_eq!(ksizes, vec![31]);
+        assert_eq!(record.scaled, 1000, "Expected default scaled value of 1000");
+        assert_eq!(record.num, 0, "Expected default num value of 0");
+    }
+
+    #[test]
+    fn test_from_param_str() {
+        let params_str = "k=31,abund,dna_k=21,k=31,k=51,abund_k=10,protein";
+        let coll_result = BuildCollection::from_param_str(params_str);
+
+        assert!(
+            coll_result.is_ok(),
+            "Param str '{}' is valid, but got an error: {:?}",
+            params_str,
+            coll_result
+        );
+
+        let coll = coll_result.unwrap();
+
+        // Ensure the BuildCollection contains the expected number of records.
+        // Note that "k=31,abund,dna" appears in two different parameter strings, so it should only appear once.
+        assert_eq!(
+            coll.manifest.records.len(),
+            4,
+            "Expected 4 unique BuildRecords in the collection, but found {}",
+            coll.manifest.records.len()
+        );
+
+        // Define the expected BuildRecords for comparison.
+        let expected_records = vec![
+            BuildRecord {
+                ksize: 31,
+                moltype: "DNA".to_string(),
+                with_abundance: true,
+                ..Default::default()
+            },
+            BuildRecord {
+                ksize: 21,
+                moltype: "DNA".to_string(),
+                with_abundance: true,
+                ..Default::default()
+            },
+            BuildRecord {
+                ksize: 51,
+                moltype: "DNA".to_string(),
+                with_abundance: true,
+                ..Default::default()
+            },
+            BuildRecord::default_protein(),
+        ];
+
+        // Verify that each expected BuildRecord is present in the collection.
+        for expected_record in expected_records {
+            assert!(
+                coll.manifest.records.contains(&expected_record),
+                "Expected BuildRecord with ksize: {}, moltype: {}, with_abundance: {} not found in the collection",
+                expected_record.ksize,
+                expected_record.moltype,
+                expected_record.with_abundance
+            );
+        }
+
+        // Optionally, check that the corresponding signatures are present.
+        assert_eq!(
+            coll.sigs.len(),
+            4,
+            "Expected 4 Signatures in the collection, but found {}",
+            coll.sigs.len()
+        );
+    }
+
+    #[test]
+    fn test_invalid_params_str_conflicting_moltypes() {
+        let params_str = "k=31,abund,dna,protein";
+        let result = BuildCollection::from_param_str(params_str);
+
+        assert!(
+            result.is_err(),
+            "Expected 'k=31,abund,dna,protein' to be invalid due to conflicting moltypes, but got a successful result"
+        );
+
+        // Check if the error message contains the expected conflict text.
+        if let Err(e) = result {
+            assert!(
+                e.contains("Conflicting moltype settings"),
+                "Expected error to contain 'Conflicting moltype settings', but got: {}",
+                e
+            );
+        }
+    }
+
+    #[test]
+    fn test_unknown_component_error() {
+        // Test for an unknown component that should trigger an error.
+        let result = BuildCollection::from_param_str("k=31,notaparam");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "unknown component 'notaparam' in params string"
+        );
+    }
+
+    #[test]
+    fn test_unknown_component_error2() {
+        // Test a common param string error (k=31,51 compared with valid k=31,k=51)
+        let result = BuildCollection::from_param_str("k=31,51,abund");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "unknown component '51' in params string"
+        );
+    }
+
+    #[test]
+    fn test_conflicting_num_and_scaled() {
+        // Test for specifying both num and scaled, which should result in an error.
+        let result = BuildCollection::from_param_str("k=31,num=10,scaled=1000");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Cannot specify both 'num' (non-zero) and 'scaled' in the same parameter string"
+        );
+    }
+
+    #[test]
+    fn test_conflicting_abundance() {
+        // Test for providing conflicting abundance settings, which should result in an error.
+        let result = BuildCollection::from_param_str("k=31,abund,noabund");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Conflicting abundance settings in param string: 'noabund'"
+        );
+    }
+
+    #[test]
+    fn test_invalid_ksize_format() {
+        // Test for an invalid ksize format that should trigger an error.
+        let result = BuildCollection::from_param_str("k=abc");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "cannot parse k='abc' as a valid integer"
+        );
+    }
+
+    #[test]
+    fn test_invalid_num_format() {
+        // Test for an invalid number format that should trigger an error.
+        let result = BuildCollection::from_param_str("k=31,num=abc");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "cannot parse num='abc' as a valid integer"
+        );
+    }
+
+    #[test]
+    fn test_invalid_scaled_format() {
+        // Test for an invalid scaled format that should trigger an error.
+        let result = BuildCollection::from_param_str("k=31,scaled=abc");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "cannot parse scaled='abc' as a valid integer"
+        );
+    }
+
+    #[test]
+    fn test_invalid_seed_format() {
+        // Test for an invalid seed format that should trigger an error.
+        let result = BuildCollection::from_param_str("k=31,seed=abc");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "cannot parse seed='abc' as a valid integer"
+        );
+    }
+
+    #[test]
+    fn test_repeated_values() {
+        // repeated scaled
+        let result = BuildCollection::from_param_str("k=31,scaled=1,scaled=1000");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Conflicting values for 'scaled': 1 and 1000"
+        );
+
+        // repeated num
+        let result = BuildCollection::from_param_str("k=31,num=1,num=1000");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Conflicting values for 'num': 1 and 1000"
+        );
+
+        // repeated seed
+        let result = BuildCollection::from_param_str("k=31,seed=1,seed=42");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Conflicting values for 'seed': 1 and 42"
+        );
+    }
+
+    #[test]
+    fn test_missing_ksize() {
+        // Test for a missing ksize, using default should not result in an error.
+        let result = BuildCollection::from_param_str("abund");
+        assert!(result.is_ok(), "Expected Ok but got an error.");
+    }
+
+    #[test]
+    fn test_repeated_ksize() {
+        // Repeated ksize settings should not trigger an error since it is valid to have multiple ksizes.
+        let result = BuildCollection::from_param_str("k=31,k=21");
+        assert!(result.is_ok(), "Expected Ok but got an error.");
+    }
+
+    #[test]
+    fn test_empty_string() {
+        // Test for an empty parameter string, which should now result in an error.
+        let result = BuildCollection::from_param_str("");
+        assert!(result.is_err(), "Expected an error but got Ok.");
+        assert_eq!(result.unwrap_err(), "Parameter string cannot be empty.");
+    }
+
+    #[test]
+    fn test_filter_by_manifest_with_matching_records() {
+        // Create a BuildCollection with some records and signatures.
+
+        let rec1 = BuildRecord::default_dna();
+        let rec2 = BuildRecord {
+            ksize: 21,
+            moltype: "DNA".to_string(),
+            scaled: 1000,
+            ..Default::default()
+        };
+        let rec3 = BuildRecord {
+            ksize: 31,
+            moltype: "DNA".to_string(),
+            scaled: 1000,
+            with_abundance: true,
+            ..Default::default()
+        };
+
+        let bmanifest = BuildManifest {
+            records: vec![rec1.clone(), rec2.clone(), rec3.clone()],
+        };
+        // let mut dna_build_collection = BuildCollection::from_manifest(&bmanifest, "DNA");
+        let mut dna_build_collection = BuildCollection::from_manifest(&bmanifest);
+
+        // Create a BuildManifest with records to filter out.
+        let filter_manifest = BuildManifest {
+            records: vec![rec1],
+        };
+
+        // Apply the filter.
+        dna_build_collection.filter_by_manifest(&filter_manifest);
+
+        // check that the default DNA sig remains
+        assert_eq!(dna_build_collection.manifest.size(), 2);
+
+        let remaining_records = &dna_build_collection.manifest.records;
+
+        assert!(remaining_records.contains(&rec2));
+        assert!(remaining_records.contains(&rec3));
+    }
+
+    #[test]
+    fn test_add_template_sig_from_record() {
+        // Create a BuildCollection.
+        let mut build_collection = BuildCollection::new();
+
+        // Create a DNA BuildRecord.
+        let dna_record = BuildRecord {
+            ksize: 31,
+            moltype: "DNA".to_string(),
+            scaled: 1000,
+            with_abundance: true,
+            ..Default::default()
+        };
+
+        // Add the DNA record to the collection with a matching moltype.
+        // build_collection.add_template_sig_from_record(&dna_record, "DNA");
+        build_collection.add_template_sig_from_record(&dna_record);
+
+        // Verify that the record was added.
+        assert_eq!(build_collection.manifest.records.len(), 1);
+        assert_eq!(build_collection.sigs.len(), 1);
+
+        let added_record = &build_collection.manifest.records[0];
+        assert_eq!(added_record.moltype, "DNA");
+        assert_eq!(added_record.ksize, 31);
+        assert_eq!(added_record.with_abundance, true);
+
+        // Create a protein BuildRecord.
+        let protein_record = BuildRecord {
+            ksize: 10,
+            moltype: "protein".to_string(),
+            scaled: 200,
+            with_abundance: false,
+            ..Default::default()
+        };
+
+        // Add the protein record to the collection with a matching moltype.
+        // build_collection.add_template_sig_from_record(&protein_record, "protein");
+        build_collection.add_template_sig_from_record(&protein_record);
+
+        // Verify that the protein record was added and ksize adjusted.
+        assert_eq!(build_collection.manifest.records.len(), 2);
+        assert_eq!(build_collection.sigs.len(), 2);
+
+        let added_protein_record = &build_collection.manifest.records[1];
+        assert_eq!(added_protein_record.moltype, "protein");
+        assert_eq!(added_protein_record.ksize, 10);
+        assert_eq!(added_protein_record.with_abundance, false);
+
+        // Create a BuildRecord with a non-matching moltype.
+        let non_matching_record = BuildRecord {
+            ksize: 10,
+            moltype: "dayhoff".to_string(),
+            scaled: 200,
+            with_abundance: true,
+            ..Default::default()
+        };
+
+        // Attempt to add the non-matching record with "DNA" as input moltype.
+        // this is because we currently don't allow translation
+        // build_collection.add_template_sig_from_record(&non_matching_record, "DNA");
+
+        // Verify that the non-matching record was not added.
+        // assert_eq!(build_collection.manifest.records.len(), 2);
+        // assert_eq!(build_collection.sigs.len(), 2);
+
+        // Add the same non-matching record with a matching input moltype.
+        build_collection.add_template_sig_from_record(&non_matching_record);
+
+        // Verify that the record was added.
+        assert_eq!(build_collection.manifest.records.len(), 3);
+        assert_eq!(build_collection.sigs.len(), 3);
+
+        let added_dayhoff_record = &build_collection.manifest.records[2];
+        assert_eq!(added_dayhoff_record.moltype, "dayhoff");
+        assert_eq!(added_dayhoff_record.ksize, 10);
+        assert_eq!(added_dayhoff_record.with_abundance, true);
+    }
+
+    #[test]
+    fn test_filter_empty() {
+        // Create a parameter string that generates BuildRecords with different `sequence_added` values.
+        let params_str = "k=31,abund,dna_k=21,protein_k=10,abund";
+
+        // Use `from_param_str` to build a `BuildCollection`.
+        let mut build_collection = BuildCollection::from_param_str(params_str)
+            .expect("Failed to build BuildCollection from params_str");
+
+        // Manually set `sequence_added` for each record to simulate different conditions.
+        build_collection.manifest.records[0].sequence_added = true; // Keep this record.
+        build_collection.manifest.records[1].sequence_added = false; // This record should be removed.
+        build_collection.manifest.records[2].sequence_added = true; // Keep this record.
+
+        // Check initial sizes before filtering.
+        assert_eq!(
+            build_collection.manifest.records.len(),
+            3,
+            "Expected 3 records before filtering, but found {}",
+            build_collection.manifest.records.len()
+        );
+        assert_eq!(
+            build_collection.sigs.len(),
+            3,
+            "Expected 3 signatures before filtering, but found {}",
+            build_collection.sigs.len()
+        );
+
+        // Apply the `filter_empty` method.
+        build_collection.filter_empty();
+
+        // After filtering, only the records with `sequence_added == true` should remain.
+        assert_eq!(
+            build_collection.manifest.records.len(),
+            2,
+            "Expected 2 records after filtering, but found {}",
+            build_collection.manifest.records.len()
+        );
+
+        // Check that the signatures also match the remaining records.
+        assert_eq!(
+            build_collection.sigs.len(),
+            2,
+            "Expected 2 signatures after filtering, but found {}",
+            build_collection.sigs.len()
+        );
+
+        // Verify that the remaining records have `sequence_added == true`.
+        assert!(
+            build_collection
+                .manifest
+                .records
+                .iter()
+                .all(|rec| rec.sequence_added),
+            "All remaining records should have `sequence_added == true`"
+        );
+    }
+}

@@ -29,6 +29,7 @@ rustworkx-core = "0.15.1"
 streaming-stats = "0.2.3"
 rust_decimal = { version = "1.36.0", features = ["maths"] }
 rust_decimal_macros = "1.36.0"
+getset = "0.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"

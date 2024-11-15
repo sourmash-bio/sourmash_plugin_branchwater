@@ -34,6 +34,9 @@ use std::hash::{Hash, Hasher};
 pub mod multicollection;
 use multicollection::MultiCollection;
 
+pub mod buildutils;
+use buildutils::BuildCollection;
+
 /// Structure to hold overlap information from comparisons.
 pub struct PrefetchResult {
     pub name: String,
