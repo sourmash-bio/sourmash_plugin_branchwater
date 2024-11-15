@@ -2114,6 +2114,9 @@ def test_simple_query_scaled_indexed(runtmp):
 
 def test_equal_matches(runtmp, indexed):
     # check that equal matches get returned from fastmultigather
+    # NOTE: the use of a bunch of bottom hashes in the artifical sketches
+    # below makes some of the numbers weird if you downsample etc. So
+    # be careful!
     base = sourmash.MinHash(scaled=1, ksize=31, n=0)
 
     a = base.copy_and_clear()

@@ -36,11 +36,15 @@ def index_siglist(
     db,
     *,
     ksize=31,
-    scaled=1000,
+    scaled=None,
     moltype="DNA",
     toggle_internal_storage="--internal-storage",
 ):
     # build index
+    extra_args = []
+    if scaled is not None:
+        extra_args = ["--scaled", str(scaled)]
+
     runtmp.sourmash(
         "scripts",
         "index",
@@ -49,11 +53,10 @@ def index_siglist(
         db,
         "-k",
         str(ksize),
-        "--scaled",
-        str(scaled),
         "--moltype",
         moltype,
         toggle_internal_storage,
+        *extra_args,
     )
     return db
 

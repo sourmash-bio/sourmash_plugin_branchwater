@@ -51,7 +51,7 @@ pub fn pairwise(
     let mut selection = selection;
     selection.set_scaled(common_scaled);
 
-    let sketches = collection.load_sketches(&selection)?;
+    let sketches = collection.load_sketches()?;
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

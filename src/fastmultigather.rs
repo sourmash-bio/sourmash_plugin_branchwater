@@ -79,8 +79,8 @@ pub fn fastmultigather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    // load against sketches into memory, downsampling on the way
-    let against = against_collection.load_sketches(&against_selection)?;
+    // load against sketches into memory
+    let against = against_collection.load_sketches()?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
@@ -105,13 +105,9 @@ pub fn fastmultigather(
 
                 let query_filename = query_sig.filename();
                 let query_name = query_sig.name();
-                let query_md5 = query_sig.md5sum();
+                let query_md5 = record.md5().clone();
 
                 let query_mh: KmerMinHash = query_sig.try_into().expect("cannot get sketch");
-
-                let query_mh = query_mh
-                    .downsample_scaled(common_scaled)
-                    .expect("cannot downsample query");
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();
