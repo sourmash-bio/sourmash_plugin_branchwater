@@ -81,7 +81,7 @@ pub fn fastmultigather(
     )?;
     // load against sketches into memory, downsampling on the way
     // @CTB can probably eliminated against_selection here now.
-    let against = against_collection.load_sketches(&against_selection)?;
+    let against = against_collection.load_sketches()?;
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);

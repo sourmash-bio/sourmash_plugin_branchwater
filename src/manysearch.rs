@@ -50,7 +50,7 @@ pub fn manysearch(
     selection.set_scaled(common_scaled);
 
     // load all query sketches into memory, downsampling on the way
-    let query_sketchlist = query_collection.load_sketches(&selection)?;
+    let query_sketchlist = query_collection.load_sketches()?;
 
     // Against: Load collection, potentially off disk & not into memory.
     let against_collection = load_collection(

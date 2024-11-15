@@ -313,7 +313,7 @@ impl MultiCollection {
 
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
-    pub fn load_sketches(self, selection: &Selection) -> Result<Vec<SmallSignature>> {
+    pub fn load_sketches(self) -> Result<Vec<SmallSignature>> {
         if self.contains_revindex {
             eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
         }
@@ -330,9 +330,8 @@ impl MultiCollection {
 
                     let sig_name = sig.name();
                     let sig_md5 = record.md5().clone();
-                    let selected_sig = sig.select(selection).ok()?;
                     let minhash: KmerMinHash =
-                        selected_sig.try_into().expect("cannot extract sketch");
+                        sig.try_into().expect("cannot extract sketch");
 
                     Some(SmallSignature {
                         location: record.internal_location().to_string(),

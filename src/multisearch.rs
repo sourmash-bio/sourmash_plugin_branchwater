@@ -1,6 +1,7 @@
 /// multisearch: massively parallel in-memory sketch search.
 use anyhow::Result;
 use rayon::prelude::*;
+use sourmash::prelude::Select;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
@@ -171,7 +172,10 @@ pub fn multisearch(
     let mut new_selection = selection;
     new_selection.set_scaled(expected_scaled);
 
-    let queries: Vec<SmallSignature> = query_collection.load_sketches(&new_selection)?;
+    // update selection with new scaled.
+    let query_collection = query_collection.select(&new_selection)?;
+
+    let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
     // Load all against sketches into memory at once.
     let against_collection = load_collection(
@@ -181,7 +185,7 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-    let againsts: Vec<SmallSignature> = against_collection.load_sketches(&new_selection)?;
+    let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
 
     let (
         n_comparisons,
