@@ -142,7 +142,7 @@ pub fn manysearch(
                                     median_abund,
                                     std_abund,
                                 ) = if calc_abund_stats {
-                                    downsample_and_inflate_abundances(&query.minhash, &against_mh)
+                                    inflate_abundances(&query.minhash, &against_mh)
                                         .ok()?
                                 } else {
                                     (None, None, None, None, None)
@@ -227,7 +227,7 @@ pub fn manysearch(
     Ok(())
 }
 
-fn downsample_and_inflate_abundances(
+fn inflate_abundances(
     query: &KmerMinHash,
     against: &KmerMinHash,
 ) -> Result<
@@ -240,29 +240,12 @@ fn downsample_and_inflate_abundances(
     ),
     SourmashError,
 > {
-    let query_scaled = query.scaled();
-    let against_scaled = against.scaled();
-
     let abunds: Vec<u64>;
     let sum_weighted: u64;
     let sum_all_abunds: u64;
 
-    // avoid downsampling if we can
-    // @CTB maybe this can be removed now?
-    if against_scaled != query_scaled {
-        panic!("wat");
-        /*
-        let against_ds = against
-            .clone()
-            .downsample_scaled(query.scaled())
-            .expect("cannot downsample sketch");
-        (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;
-            sum_all_abunds = against_ds.sum_abunds();
-            */
-    } else {
-        (abunds, sum_weighted) = query.inflated_abundances(against)?;
-        sum_all_abunds = against.sum_abunds();
-    }
+    (abunds, sum_weighted) = query.inflated_abundances(against)?;
+    sum_all_abunds = against.sum_abunds();
 
     let average_abund = sum_weighted as f64 / abunds.len() as f64;
     let median_abund = median(abunds.iter().cloned()).expect("error");

@@ -79,8 +79,7 @@ pub fn fastmultigather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    // load against sketches into memory, downsampling on the way
-    // @CTB can probably eliminated against_selection here now.
+    // load against sketches into memory
     let against = against_collection.load_sketches()?;
 
     // Iterate over all queries => do prefetch and gather!
