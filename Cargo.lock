@@ -206,7 +206,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "proc-macro2",
@@ -1772,8 +1772,9 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 
 [[package]]
 name = "sourmash"
-version = "0.17.1"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=latest#5cb3df9aa71317059ab6e88000fc89fb6c61ff19"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54e30f752d984b1d8456024973f8d89772b4ba248f592b77b57d59ad27a232a0"
 dependencies = [
  "az",
  "byteorder",

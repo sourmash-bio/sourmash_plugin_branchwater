@@ -12,8 +12,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.22.6", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
 serde = { version = "1.0.213", features = ["derive"] }
-#sourmash = { version = "0.17.2", features = ["branchwater"] }
-sourmash = { git = "https://github.com/sourmash-bio/sourmash.git", branch = "latest", features = ["branchwater"] }
+sourmash = { version = "0.17.2", features = ["branchwater"] }
 serde_json = "1.0.132"
 niffler = "2.4.0"
 log = "0.4.22"
