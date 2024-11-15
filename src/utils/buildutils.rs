@@ -2,8 +2,6 @@
 
 use anyhow::{anyhow, Context, Result};
 use camino::Utf8PathBuf;
-use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
-use zip::CompressionMethod;
 use getset::{Getters, Setters};
 use needletail::parser::SequenceRecord;
 use needletail::{parse_fastx_file, parse_fastx_reader};
@@ -23,6 +21,8 @@ use std::io::{Cursor, Seek, Write};
 use std::num::ParseIntError;
 use std::ops::Index;
 use std::str::FromStr;
+use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
+use zip::CompressionMethod;
 
 #[derive(Default, Debug, Clone)]
 pub struct MultiSelection {
@@ -836,6 +836,8 @@ impl BuildCollection {
         options: &FileOptions<()>,
         md5sum_occurrences: &mut HashMap<String, usize>,
     ) -> Result<()> {
+        // first, filter empty sig templates
+        self.filter_empty();
         // iterate over both records and signatures
         for (record, sig) in self.iter_mut() {
             let md5sum_str = sig.md5sum();

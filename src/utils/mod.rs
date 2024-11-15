@@ -5,7 +5,7 @@ use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
 use sourmash::ScaledType;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
@@ -19,6 +19,8 @@ use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
+use std::sync::mpsc::Receiver;
+use std::thread::JoinHandle;
 use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
@@ -35,7 +37,7 @@ pub mod multicollection;
 use multicollection::MultiCollection;
 
 pub mod buildutils;
-use buildutils::BuildCollection;
+use buildutils::{BuildCollection, BuildManifest, MultiBuildCollection};
 
 /// Structure to hold overlap information from comparisons.
 pub struct PrefetchResult {
@@ -1187,14 +1189,13 @@ impl Hash for Params {
     }
 }
 
-pub fn sigwriter(
-    recv: std::sync::mpsc::Receiver<Option<Vec<Signature>>>,
+pub fn zipwriter(
+    recv: Receiver<Option<BuildCollection>>,
     output: String,
-) -> std::thread::JoinHandle<Result<()>> {
+) -> JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
-        // cast output as PathBuf
+        // Convert output to PathBuf
         let outpath: PathBuf = output.into();
-
         let file_writer = open_output_file(&outpath);
 
         let options = FileOptions::default()
@@ -1203,34 +1204,33 @@ pub fn sigwriter(
             .large_file(true);
 
         let mut zip = ZipWriter::new(file_writer);
-        let mut manifest_rows: Vec<Record> = Vec::new();
-        // keep track of MD5 sum occurrences to prevent overwriting duplicates
         let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
+        let mut zip_manifest = BuildManifest::new();
 
-        // Process all incoming signatures
+        // Process each incoming Option<BuildCollection>
         while let Ok(message) = recv.recv() {
             match message {
-                Some(sigs) => {
-                    for sig in sigs.iter() {
-                        let md5sum_str = sig.md5sum();
-                        let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
-                        *count += 1;
-                        let sig_filename = if *count > 1 {
-                            format!("signatures/{}_{}.sig.gz", md5sum_str, count)
-                        } else {
-                            format!("signatures/{}.sig.gz", md5sum_str)
-                        };
-                        write_signature(sig, &mut zip, options.clone(), &sig_filename);
-                        let records: Vec<Record> = Record::from_sig(sig, sig_filename.as_str());
-                        manifest_rows.extend(records);
+                Some(mut build_collection) => {
+                    // Use BuildCollection's method to write signatures to the zip file
+                    match build_collection.write_sigs_to_zip(
+                        &mut zip,
+                        &options,
+                        &mut md5sum_occurrences,
+                    ) {
+                        Ok(_) => {
+                            zip_manifest.extend_from_manifest(&build_collection.manifest);
+                        }
+                        Err(e) => {
+                            let error = e.context("Error processing signature in BuildCollection");
+                            eprintln!("Error: {}", error);
+                            return Err(error);
+                        }
                     }
                 }
                 None => {
-                    // Write the manifest and finish the ZIP file
+                    // Finalize and write the manifest when None is received
                     println!("Writing manifest");
-                    zip.start_file("SOURMASH-MANIFEST.csv", options)?;
-                    let manifest: Manifest = manifest_rows.clone().into();
-                    manifest.to_writer(&mut zip)?;
+                    zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
                     zip.finish()?;
                     break;
                 }
