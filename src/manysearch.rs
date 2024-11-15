@@ -50,7 +50,7 @@ pub fn manysearch(
     selection.set_scaled(common_scaled);
 
     // load all query sketches into memory, downsampling on the way
-    let query_sketchlist = query_collection.load_sketches(&selection)?;
+    let query_sketchlist = query_collection.load_sketches()?;
 
     // Against: Load collection, potentially off disk & not into memory.
     let against_collection = load_collection(
@@ -94,9 +94,6 @@ pub fn manysearch(
                     if let Ok(against_mh) =
                         <SigStore as TryInto<KmerMinHash>>::try_into(against_sig)
                     {
-                        let against_mh = against_mh
-                            .downsample_scaled(common_scaled)
-                            .expect("cannot downsample search minhash to requested scaled");
                         for query in query_sketchlist.iter() {
                             // be paranoid and confirm scaled match.
                             if query.minhash.scaled() != common_scaled {
@@ -145,8 +142,7 @@ pub fn manysearch(
                                     median_abund,
                                     std_abund,
                                 ) = if calc_abund_stats {
-                                    downsample_and_inflate_abundances(&query.minhash, &against_mh)
-                                        .ok()?
+                                    inflate_abundances(&query.minhash, &against_mh).ok()?
                                 } else {
                                     (None, None, None, None, None)
                                 };
@@ -230,7 +226,7 @@ pub fn manysearch(
     Ok(())
 }
 
-fn downsample_and_inflate_abundances(
+fn inflate_abundances(
     query: &KmerMinHash,
     against: &KmerMinHash,
 ) -> Result<
@@ -243,25 +239,12 @@ fn downsample_and_inflate_abundances(
     ),
     SourmashError,
 > {
-    let query_scaled = query.scaled();
-    let against_scaled = against.scaled();
-
     let abunds: Vec<u64>;
     let sum_weighted: u64;
     let sum_all_abunds: u64;
 
-    // avoid downsampling if we can
-    if against_scaled != query_scaled {
-        let against_ds = against
-            .clone()
-            .downsample_scaled(query.scaled())
-            .expect("cannot downsample sketch");
-        (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;
-        sum_all_abunds = against_ds.sum_abunds();
-    } else {
-        (abunds, sum_weighted) = query.inflated_abundances(against)?;
-        sum_all_abunds = against.sum_abunds();
-    }
+    (abunds, sum_weighted) = query.inflated_abundances(against)?;
+    sum_all_abunds = against.sum_abunds();
 
     let average_abund = sum_weighted as f64 / abunds.len() as f64;
     let median_abund = median(abunds.iter().cloned()).expect("error");

@@ -313,7 +313,7 @@ impl MultiCollection {
 
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
-    pub fn load_sketches(self, selection: &Selection) -> Result<Vec<SmallSignature>> {
+    pub fn load_sketches(self) -> Result<Vec<SmallSignature>> {
         if self.contains_revindex {
             eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
         }
@@ -329,16 +329,8 @@ impl MultiCollection {
                     );
 
                     let sig_name = sig.name();
-                    let sig_md5 = sig.md5sum();
-                    let selected_sig = sig.select(selection).ok()?;
-                    let mut minhash: KmerMinHash =
-                        selected_sig.try_into().expect("cannot extract sketch");
-
-                    if let Some(select_scaled) = selection.scaled() {
-                        minhash = minhash
-                            .downsample_scaled(select_scaled)
-                            .expect("cannot downsample to desired scaled");
-                    }
+                    let sig_md5 = record.md5().clone();
+                    let minhash: KmerMinHash = sig.try_into().expect("cannot extract sketch");
 
                     Some(SmallSignature {
                         location: record.internal_location().to_string(),
@@ -367,14 +359,11 @@ impl MultiCollection {
     }
 
     // Load all sketches into memory, producing an in-memory Collection.
-    pub fn load_all_sigs(self, selection: &Selection) -> Result<Collection> {
+    pub fn load_all_sigs(self) -> Result<Collection> {
         let all_sigs: Vec<Signature> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
-                Ok(sig) => {
-                    let sig = sig.select(selection).ok()?;
-                    Some(Signature::from(sig))
-                }
+                Ok(sig) => Some(Signature::from(sig)),
                 Err(_) => {
                     eprintln!(
                         "FAILED to load sketch from '{}'",

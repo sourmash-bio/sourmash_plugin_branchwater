@@ -407,6 +407,7 @@ def test_index_zipfile_repeated_md5sums(runtmp, capfd, toggle_internal_storage):
 
 def test_index_zipfile_multiparam(runtmp, capfd, toggle_internal_storage):
     # test index from sourmash zipfile with multiple ksizes / scaled /moltype
+    # SHOULD FAIL.
     siglist = runtmp.output("db-sigs.txt")
 
     sig2 = get_test_data("2.fa.sig.gz")
@@ -424,13 +425,8 @@ def test_index_zipfile_multiparam(runtmp, capfd, toggle_internal_storage):
 
     output = runtmp.output("db.rocksdb")
 
-    runtmp.sourmash("scripts", "index", zipf, "-o", output, toggle_internal_storage)
-    assert os.path.exists(output)
-    print(runtmp.last_result.err)
-
-    assert "index is done" in runtmp.last_result.err
-    captured = capfd.readouterr()
-    print(captured.err)
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash("scripts", "index", zipf, "-o", output, toggle_internal_storage)
 
 
 def test_index_zipfile_bad(runtmp, capfd):
