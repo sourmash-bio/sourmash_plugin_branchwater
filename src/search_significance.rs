@@ -31,7 +31,7 @@ impl Display for Normalization {
     }
 }
 
-pub fn get_hash_frequencies<'a>(
+pub fn get_hash_frequencies(
     minhash: &KmerMinHash,
     normalization: Option<Normalization>,
 ) -> HashMap<u64, f64> {
@@ -46,13 +46,12 @@ pub fn get_hash_frequencies<'a>(
         Some(Normalization::L2) => minhash_abunds
             .par_iter()
             .map(|(_hashval, abund)| abund * abund)
-            .sum::<f64>() as f64,
+            .sum::<f64>(),
         // TODO: this should probably be an error
         _ => 0.0,
     };
 
-    let frequencies: HashMap<u64, f64> = HashMap::from(
-        minhash_abunds
+    let frequencies: HashMap<u64, f64> = minhash_abunds
             .par_iter()
             .map(|(hashval, abund)|
             // TODO: add a match statement here to error out properly if the hashval was not found 
@@ -61,10 +60,9 @@ pub fn get_hash_frequencies<'a>(
                 *hashval,
                 abund / abund_normalization
             ))
-            .collect::<HashMap<u64, f64>>(),
-    );
+            .collect::<HashMap<u64, f64>>();
 
-    return frequencies;
+    frequencies
 }
 
 // #[cfg(feature = "maths")]
@@ -80,7 +78,7 @@ pub fn get_prob_overlap(
         .map(|hashval| query_frequencies[hashval] * against_frequencies[hashval])
         .sum();
 
-    return prob_overlap;
+    prob_overlap
 }
 
 // TODO: How to accept SourmashSignature objects? Signature.minhash is Option<&KmerMinHash>,
@@ -96,8 +94,8 @@ pub fn merge_all_minhashes(sigs: &Vec<SmallSignature>) -> Result<KmerMinHash, Er
 
     // Use the first signature to instantiate the merging of all minhashes
     let mut combined_mh = KmerMinHash::new(
-        first_sig.minhash.scaled().try_into().unwrap(),
-        first_sig.minhash.ksize().try_into().unwrap(),
+        first_sig.minhash.scaled(),
+        first_sig.minhash.ksize() as u32,
         first_sig.minhash.hash_function(),
         // accessing first_sig.minhash.seed is private -> hardcode instead
         first_sig.minhash.seed(),
@@ -137,8 +135,7 @@ pub fn compute_inverse_document_frequency(
 
     // Number of documents where hashvals appear
     // hashmap of: { hashval: n_sigs_with_hashval }
-    let document_frequency: HashMap<&u64, f64> = HashMap::from(
-        against_merged_mh
+    let document_frequency: HashMap<&u64, f64> = against_merged_mh
             .iter_mins()
             .par_bridge()
             .map(|hashval| {
@@ -150,11 +147,9 @@ pub fn compute_inverse_document_frequency(
                         .sum(),
                 )
             })
-            .collect::<HashMap<&u64, f64>>(),
-    );
+            .collect::<HashMap<&u64, f64>>();
 
-    let inverse_document_frequency: HashMap<u64, f64> = HashMap::from(
-        document_frequency
+    let inverse_document_frequency: HashMap<u64, f64> = document_frequency
             .par_iter()
             .map(|(hashval, n_sigs_with_hashval)| {
                 (
@@ -173,10 +168,9 @@ pub fn compute_inverse_document_frequency(
                     },
                 )
             })
-            .collect::<HashMap<u64, f64>>(),
-    );
+            .collect::<HashMap<u64, f64>>();
 
-    return inverse_document_frequency;
+    inverse_document_frequency
 }
 
 pub fn get_term_frequency_inverse_document_frequency(
@@ -192,8 +186,7 @@ pub fn get_term_frequency_inverse_document_frequency(
     // https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
 
     // Multiply each hashval's term frequency and inverse document frequency, and sum the products
-    let tf_idf: HashMap<&u64, f64> = HashMap::from(
-        hashvals
+    let tf_idf: HashMap<&u64, f64> = hashvals
             .par_iter()
             .map(|hashval| {
                 (
@@ -201,10 +194,9 @@ pub fn get_term_frequency_inverse_document_frequency(
                     query_term_frequencies[hashval] * inverse_document_frequency[hashval],
                 )
             })
-            .collect::<HashMap<&u64, f64>>(),
-    );
+            .collect::<HashMap<&u64, f64>>();
 
     let tf_idf_score: f64 = tf_idf.values().sum();
 
-    return tf_idf_score;
+    tf_idf_score
 }

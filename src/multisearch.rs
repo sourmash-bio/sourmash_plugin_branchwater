@@ -109,8 +109,7 @@ fn compute_prob_overlap_stats(
 
     // Compute term frequencies
     eprintln!("Computing hashval term frequencies within each query (L2 Norm) ...");
-    let query_term_frequencies = HashMap::from(
-        queries
+    let query_term_frequencies = queries
             .par_iter()
             .map(|query| {
                 (
@@ -118,8 +117,7 @@ fn compute_prob_overlap_stats(
                     get_hash_frequencies(&query.minhash, Some(Normalization::L2)),
                 )
             })
-            .collect::<HashMap<String, HashMap<u64, f64>>>(),
-    );
+            .collect::<HashMap<String, HashMap<u64, f64>>>();
     eprintln!("\tDone.\n");
 
     (
@@ -307,11 +305,11 @@ pub fn multisearch(
                         match_containment_ani,
                         average_containment_ani,
                         max_containment_ani,
-                        prob_overlap: prob_overlap,
-                        prob_overlap_adjusted: prob_overlap_adjusted,
-                        containment_adjusted: containment_adjusted,
-                        containment_adjusted_log10: containment_adjusted_log10,
-                        tf_idf_score: tf_idf_score,
+                        prob_overlap,
+                        prob_overlap_adjusted,
+                        containment_adjusted,
+                        containment_adjusted_log10,
+                        tf_idf_score,
                     })
                 }
             }
