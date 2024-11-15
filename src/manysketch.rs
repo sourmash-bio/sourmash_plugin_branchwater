@@ -10,7 +10,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::buildutils::BuildCollection;
-use crate::utils::{load_fasta_fromfile, parse_params_str, zipwriter, Params};
+use crate::utils::{load_fasta_fromfile, parse_params_str, zipwriter_handle, Params};
 
 pub fn build_siginfo(params: &[Params], input_moltype: &str) -> Vec<Signature> {
     let mut sigs = Vec::new();
@@ -78,11 +78,11 @@ pub fn manysketch(
         std::sync::mpsc::sync_channel::<Option<BuildCollection>>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = zipwriter(recv, output);
+    let thrd = zipwriter_handle(recv, output);
 
     // params --> buildcollection
     let sig_template_result = BuildCollection::from_param_str(param_str.as_str());
-    let mut sig_templates = match sig_template_result {
+    let sig_templates = match sig_template_result {
         Ok(sig_templates) => sig_templates,
         Err(e) => {
             bail!("Failed to parse params string: {}", e);

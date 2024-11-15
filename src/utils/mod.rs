@@ -1189,7 +1189,7 @@ impl Hash for Params {
     }
 }
 
-pub fn zipwriter(
+pub fn zipwriter_handle(
     recv: Receiver<Option<BuildCollection>>,
     output: String,
 ) -> JoinHandle<Result<()>> {
