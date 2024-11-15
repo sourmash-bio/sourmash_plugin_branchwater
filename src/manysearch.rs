@@ -248,14 +248,17 @@ fn downsample_and_inflate_abundances(
     let sum_all_abunds: u64;
 
     // avoid downsampling if we can
-    // @CTB maybe this can be removed now, and fn renamed??
+    // @CTB maybe this can be removed now?
     if against_scaled != query_scaled {
+        panic!("wat");
+        /*
         let against_ds = against
             .clone()
             .downsample_scaled(query.scaled())
             .expect("cannot downsample sketch");
         (abunds, sum_weighted) = query.inflated_abundances(&against_ds)?;
-        sum_all_abunds = against_ds.sum_abunds();
+            sum_all_abunds = against_ds.sum_abunds();
+            */
     } else {
         (abunds, sum_weighted) = query.inflated_abundances(against)?;
         sum_all_abunds = against.sum_abunds();

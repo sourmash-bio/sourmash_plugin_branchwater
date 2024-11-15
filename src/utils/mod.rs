@@ -76,7 +76,7 @@ pub fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            // downsample within count_common
+            // downsample within count_common @CTB needed?
             let overlap = searchsig.count_common(query_mh, true);
             if let Ok(overlap) = overlap {
                 if overlap >= threshold_hashes {
