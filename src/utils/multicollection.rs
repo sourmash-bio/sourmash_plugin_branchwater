@@ -363,9 +363,7 @@ impl MultiCollection {
         let all_sigs: Vec<Signature> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
-                Ok(sig) => {
-                    Some(Signature::from(sig))
-                }
+                Ok(sig) => Some(Signature::from(sig)),
                 Err(_) => {
                     eprintln!(
                         "FAILED to load sketch from '{}'",
