@@ -99,12 +99,14 @@ pub fn manysearch_rocksdb(
 
                     if let Ok(query_mh) = query_sig.try_into() {
                         let mut query_mh: KmerMinHash = query_mh;
+                        /*  @CTB eliminate?
                         if let Some(set_scaled) = set_selection.scaled() {
                             query_mh = query_mh
                                 .clone()
                                 .downsample_scaled(set_scaled)
                                 .expect("cannot downsample query");
-                        }
+                    }
+                        */
                         let query_size = query_mh.size();
                         let counter = db.counter_for_query(&query_mh);
                         let matches =

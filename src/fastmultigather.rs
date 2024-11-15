@@ -80,6 +80,7 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
     // load against sketches into memory, downsampling on the way
+    // @CTB can probably eliminated against_selection here now.
     let against = against_collection.load_sketches(&against_selection)?;
 
     // Iterate over all queries => do prefetch and gather!
@@ -108,10 +109,6 @@ pub fn fastmultigather(
                 let query_md5 = record.md5().clone();
 
                 let query_mh: KmerMinHash = query_sig.try_into().expect("cannot get sketch");
-
-                let query_mh = query_mh
-                    .downsample_scaled(common_scaled)
-                    .expect("cannot downsample query");
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();

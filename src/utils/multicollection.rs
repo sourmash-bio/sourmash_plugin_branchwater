@@ -334,11 +334,14 @@ impl MultiCollection {
                     let mut minhash: KmerMinHash =
                         selected_sig.try_into().expect("cannot extract sketch");
 
+                    // @CTB maybe eliminate?
+                    /*
                     if let Some(select_scaled) = selection.scaled() {
                         minhash = minhash
                             .downsample_scaled(select_scaled)
                             .expect("cannot downsample to desired scaled");
-                    }
+                }
+                    */
 
                     Some(SmallSignature {
                         location: record.internal_location().to_string(),

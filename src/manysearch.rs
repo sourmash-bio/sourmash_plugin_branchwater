@@ -94,9 +94,6 @@ pub fn manysearch(
                     if let Ok(against_mh) =
                         <SigStore as TryInto<KmerMinHash>>::try_into(against_sig)
                     {
-                        let against_mh = against_mh
-                            .downsample_scaled(common_scaled)
-                            .expect("cannot downsample search minhash to requested scaled");
                         for query in query_sketchlist.iter() {
                             // be paranoid and confirm scaled match.
                             if query.minhash.scaled() != common_scaled {
@@ -251,6 +248,7 @@ fn downsample_and_inflate_abundances(
     let sum_all_abunds: u64;
 
     // avoid downsampling if we can
+    // @CTB maybe this can be removed now, and fn renamed??
     if against_scaled != query_scaled {
         let against_ds = against
             .clone()

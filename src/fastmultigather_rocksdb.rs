@@ -95,9 +95,11 @@ pub fn fastmultigather_rocksdb(
 
                     let mut results = vec![];
                     if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
+                        /* @CTB
                         let query_mh = query_mh
                             .downsample_scaled(selection_scaled)
-                            .expect("cannot downsample!?");
+                        .expect("cannot downsample!?");
+                        */
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
                         let (counter, query_colors, hash_to_color) =
