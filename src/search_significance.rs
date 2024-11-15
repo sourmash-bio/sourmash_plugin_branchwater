@@ -52,15 +52,15 @@ pub fn get_hash_frequencies(
     };
 
     let frequencies: HashMap<u64, f64> = minhash_abunds
-            .par_iter()
-            .map(|(hashval, abund)|
+        .par_iter()
+        .map(|(hashval, abund)|
             // TODO: add a match statement here to error out properly if the hashval was not found 
             // in the minhash_abunds for some reason (shouldn't happen but ... computers be crazy)
             (
                 *hashval,
                 abund / abund_normalization
             ))
-            .collect::<HashMap<u64, f64>>();
+        .collect::<HashMap<u64, f64>>();
 
     frequencies
 }
@@ -136,39 +136,37 @@ pub fn compute_inverse_document_frequency(
     // Number of documents where hashvals appear
     // hashmap of: { hashval: n_sigs_with_hashval }
     let document_frequency: HashMap<&u64, f64> = against_merged_mh
-            .iter_mins()
-            .par_bridge()
-            .map(|hashval| {
-                (
-                    hashval,
-                    againsts_hashes
-                        .par_iter()
-                        .map(|hashset| f64::from(u32::from(hashset.contains(&hashval))))
-                        .sum(),
-                )
-            })
-            .collect::<HashMap<&u64, f64>>();
+        .iter_mins()
+        .par_bridge()
+        .map(|hashval| {
+            (
+                hashval,
+                againsts_hashes
+                    .par_iter()
+                    .map(|hashset| f64::from(u32::from(hashset.contains(&hashval))))
+                    .sum(),
+            )
+        })
+        .collect::<HashMap<&u64, f64>>();
 
     let inverse_document_frequency: HashMap<u64, f64> = document_frequency
-            .par_iter()
-            .map(|(hashval, n_sigs_with_hashval)| {
-                (
-                    **hashval,
-                    match smooth_idf {
-                        // Add 1 to not totally ignore terms that appear in all documents
-                        // scikit-learn documentation (assumed to implement best practices for document classification):
-                        // > "The effect of adding “1” to the idf in the equation above is that terms with zero idf,
-                        // > i.e., terms that occur in all documents in a training set, will not be entirely ignored."
-                        // Source: https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
-                        Some(true) => {
-                            ((1.0 + n_signatures) / (1.0 + n_sigs_with_hashval)).ln() + 1.0
-                        }
-                        Some(false) => (n_signatures / (n_sigs_with_hashval)).ln() + 1.0,
-                        _ => 1.0,
-                    },
-                )
-            })
-            .collect::<HashMap<u64, f64>>();
+        .par_iter()
+        .map(|(hashval, n_sigs_with_hashval)| {
+            (
+                **hashval,
+                match smooth_idf {
+                    // Add 1 to not totally ignore terms that appear in all documents
+                    // scikit-learn documentation (assumed to implement best practices for document classification):
+                    // > "The effect of adding “1” to the idf in the equation above is that terms with zero idf,
+                    // > i.e., terms that occur in all documents in a training set, will not be entirely ignored."
+                    // Source: https://scikit-learn.org/1.5/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
+                    Some(true) => ((1.0 + n_signatures) / (1.0 + n_sigs_with_hashval)).ln() + 1.0,
+                    Some(false) => (n_signatures / (n_sigs_with_hashval)).ln() + 1.0,
+                    _ => 1.0,
+                },
+            )
+        })
+        .collect::<HashMap<u64, f64>>();
 
     inverse_document_frequency
 }
@@ -187,14 +185,14 @@ pub fn get_term_frequency_inverse_document_frequency(
 
     // Multiply each hashval's term frequency and inverse document frequency, and sum the products
     let tf_idf: HashMap<&u64, f64> = hashvals
-            .par_iter()
-            .map(|hashval| {
-                (
-                    hashval,
-                    query_term_frequencies[hashval] * inverse_document_frequency[hashval],
-                )
-            })
-            .collect::<HashMap<&u64, f64>>();
+        .par_iter()
+        .map(|hashval| {
+            (
+                hashval,
+                query_term_frequencies[hashval] * inverse_document_frequency[hashval],
+            )
+        })
+        .collect::<HashMap<&u64, f64>>();
 
     let tf_idf_score: f64 = tf_idf.values().sum();
 
