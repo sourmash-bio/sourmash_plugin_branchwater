@@ -21,7 +21,7 @@ use std::io::{Cursor, Seek, Write};
 use std::num::ParseIntError;
 use std::ops::Index;
 use std::str::FromStr;
-use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
+use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 #[derive(Default, Debug, Clone)]
@@ -759,6 +759,36 @@ impl BuildCollection {
         self.manifest.records.iter_mut().zip(self.sigs.iter_mut())
     }
 
+    fn build_sigs_from_record(
+        &mut self,
+        input_moltype: &str,
+        record: &SequenceRecord,
+    ) -> Result<()> {
+        // Optionally use `par_iter_mut` for parallel execution
+        self.iter_mut().try_for_each(|(rec, sig)| {
+            if input_moltype == "protein"
+                && (rec.moltype() == HashFunctions::Murmur64Protein
+                    || rec.moltype() == HashFunctions::Murmur64Dayhoff
+                    || rec.moltype() == HashFunctions::Murmur64Hp)
+            {
+                sig.add_protein(&record.seq())
+                    .context("Failed to add protein")?;
+                if !rec.sequence_added {
+                    rec.sequence_added = true;
+                }
+            } else if (input_moltype == "DNA" || input_moltype == "dna")
+                && rec.moltype() == HashFunctions::Murmur64Dna
+            {
+                sig.add_sequence(&record.seq(), true)
+                    .context("Failed to add sequence")?;
+                if !rec.sequence_added {
+                    rec.sequence_added = true;
+                }
+            }
+            Ok(())
+        })
+    }
+
     pub fn build_sigs_from_data(
         &mut self,
         data: Vec<u8>,
@@ -773,24 +803,7 @@ impl BuildCollection {
         // Iterate over FASTA records and add sequences/proteins to sigs
         while let Some(record) = fastx_reader.next() {
             let record = record.context("Failed to read record")?;
-            self.iter_mut().for_each(|(rec, sig)| {
-                if input_moltype == "protein"
-                    && (rec.moltype == "protein" || rec.moltype == "dayhoff" || rec.moltype == "hp")
-                {
-                    sig.add_protein(&record.seq())
-                        .expect("Failed to add protein");
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                } else if input_moltype == "DNA" && rec.moltype == "DNA" {
-                    sig.add_sequence(&record.seq(), true)
-                        .expect("Failed to add sequence");
-                    // if not force, panics with 'N' in dna sequence
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                }
-            });
+            self.build_sigs_from_record(input_moltype, &record)?;
         }
 
         // After processing sequences, update sig, record information
@@ -799,42 +812,37 @@ impl BuildCollection {
         Ok(())
     }
 
-    pub fn build_sigs_from_file(
+    pub fn build_sigs_from_file_or_stdin(
         &mut self,
-        input_moltype: &str, // (protein/dna); todo - use hashfns?
+        input_moltype: &str, // "protein" or "DNA"
         name: String,
         filename: String,
-    ) -> Result<()> {
-        let mut fastx_reader = parse_fastx_file(&filename)?;
-        // Iterate over FASTA records and add sequences/proteins to sigs
-        while let Some(record) = fastx_reader.next() {
-            let record = record.context("Failed to read record")?;
-            self.iter_mut().for_each(|(rec, sig)| {
-                if input_moltype == "protein"
-                    && (rec.moltype() == HashFunctions::Murmur64Protein
-                        || rec.moltype() == HashFunctions::Murmur64Dayhoff
-                        || rec.moltype() == HashFunctions::Murmur64Hp)
-                {
-                    sig.add_protein(&record.seq())
-                        .expect("Failed to add protein");
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                } else {
-                    sig.add_sequence(&record.seq(), true)
-                        .expect("Failed to add sequence");
-                    // if not force, panics with 'N' in dna sequence
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                }
-            });
+    ) -> Result<u64> {
+        // Create a FASTX reader from the file or stdin
+        let mut fastx_reader = if filename == "-" {
+            let stdin = std::io::stdin();
+            parse_fastx_reader(stdin).context("Failed to parse FASTA/FASTQ data from stdin")?
+        } else {
+            parse_fastx_file(&filename).context("Failed to open file for FASTA/FASTQ data")?
+        };
+
+        // Counter for the number of records processed
+        let mut record_count: u64 = 0;
+
+        // Parse records and add sequences to signatures
+        while let Some(record_result) = fastx_reader.next() {
+            let record = record_result.context("Failed to read a record from input")?;
+
+            self.build_sigs_from_record(input_moltype, &record)?;
+
+            record_count += 1;
         }
 
-        // After processing sequences, update sig, record information
+        // Update signature and record metadata
         self.update_info(name, filename);
 
-        Ok(())
+        // Return the count of records parsed
+        Ok(record_count)
     }
 
     pub fn build_singleton_sigs(
@@ -843,30 +851,11 @@ impl BuildCollection {
         input_moltype: &str, // (protein/dna); todo - use hashfns?
         filename: String,
     ) -> Result<()> {
-        self.iter_mut().for_each(|(rec, sig)| {
-            if input_moltype == "protein"
-                && (rec.moltype() == HashFunctions::Murmur64Protein
-                    || rec.moltype() == HashFunctions::Murmur64Dayhoff
-                    || rec.moltype() == HashFunctions::Murmur64Hp)
-            {
-                sig.add_protein(&record.seq())
-                    .expect("Failed to add protein");
-                if !rec.sequence_added {
-                    rec.sequence_added = true
-                }
-            } else {
-                sig.add_sequence(&record.seq(), true)
-                    .expect("Failed to add sequence");
-                // if not force, panics with 'N' in dna sequence
-                if !rec.sequence_added {
-                    rec.sequence_added = true
-                }
-            }
-        });
+        self.build_sigs_from_record(input_moltype, &record)?;
+        // After processing sequences, update sig, record information
         let record_name = std::str::from_utf8(record.id())
             .expect("could not get record id")
             .to_string();
-        // After processing sequences, update sig, record information
         self.update_info(record_name, filename);
 
         Ok(())
@@ -893,11 +882,49 @@ impl BuildCollection {
         }
     }
 
+    pub fn write_sigs(&mut self, output: &str) -> Result<()> {
+        let gzip = output.ends_with(".gz");
+        if output == "-" {
+            // Write to stdout
+            let stdout = std::io::stdout();
+            let mut handle = stdout.lock();
+            self.write_sigs_as_json(&mut handle, gzip)
+                .context("Failed to write signatures to stdout")?;
+            handle.flush().context("Failed to flush stdout")?;
+        } else if output.ends_with(".zip") {
+            let options = FileOptions::default()
+                .compression_method(CompressionMethod::Stored)
+                .unix_permissions(0o644)
+                .large_file(true);
+            // Write to a zip file
+            let file =
+                File::create(output).context(format!("Failed to create file: {}", output))?;
+            let mut zip = ZipWriter::new(file);
+            let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
+            self.write_sigs_to_zip(&mut zip, &mut md5sum_occurrences, &options)
+                .context(format!(
+                    "Failed to write signatures to zip file: {}",
+                    output
+                ))?;
+            println!("Writing manifest");
+            self.manifest.write_manifest_to_zip(&mut zip, &options)?;
+            zip.finish()?;
+        } else {
+            // Write JSON to output file
+            let file =
+                File::create(output).context(format!("Failed to create file: {}", output))?;
+            let mut writer = std::io::BufWriter::new(file);
+            self.write_sigs_as_json(&mut writer, gzip)
+                .context(format!("Failed to write signatures to file: {}", output))?;
+        }
+        Ok(())
+    }
+
     pub fn write_sigs_to_zip<W: Write + Seek>(
         &mut self, // need mutable to update records
         zip: &mut ZipWriter<W>,
-        options: &FileOptions<()>,
         md5sum_occurrences: &mut HashMap<String, usize>,
+        options: &FileOptions<()>,
     ) -> Result<()> {
         // iterate over both records and signatures
         for (record, sig) in self.iter_mut() {
@@ -939,9 +966,49 @@ impl BuildCollection {
                 buffer.into_inner()
             };
 
-            zip.start_file(sig_filename, *options)?;
+            zip.start_file(sig_filename, options.clone())?;
             zip.write_all(&gzipped_buffer)
                 .map_err(|e| anyhow!("Error writing zip entry for signature: {}", e))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn write_sigs_as_json<W: Write>(
+        &mut self, // mutable to update records if needed
+        writer: &mut W,
+        gzip: bool,
+    ) -> Result<()> {
+        // Create a vector to store all signatures
+        let mut all_signatures = Vec::new();
+
+        // Iterate over both records and signatures
+        for (record, sig) in self.iter_mut() {
+            // Skip any empty sig templates (no sequence added)
+            if !record.sequence_added {
+                continue;
+            }
+
+            // Add the signature to the collection for JSON serialization
+            all_signatures.push(sig.clone());
+        }
+
+        // Serialize all signatures to JSON
+        let json_bytes = serde_json::to_vec(&all_signatures)
+            .map_err(|e| anyhow!("Error serializing signatures to JSON: {}", e))?;
+
+        if gzip {
+            // Gzip compress the JSON bytes
+            let mut gz_writer = niffler::get_writer(
+                Box::new(writer),
+                niffler::compression::Format::Gzip,
+                niffler::compression::Level::Nine,
+            )?;
+            gz_writer.write_all(&json_bytes)?;
+            // gz_writer.finish()?;
+        } else {
+            // Write uncompressed JSON to the writer
+            writer.write_all(&json_bytes)?;
         }
 
         Ok(())
