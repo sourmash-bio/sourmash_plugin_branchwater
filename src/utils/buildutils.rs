@@ -552,18 +552,35 @@ impl BuildCollection {
                 _ if item.starts_with("seed=") => {
                     Self::parse_int_once(&item[5..], "seed", &mut seed)?;
                 }
-                _ => return Err(format!("unknown component '{}' in params string", item)),
+                _ => {
+                    return Err(format!(
+                        "Error parsing params string '{}': Unknown component '{}'",
+                        p_str, item
+                    ));
+                }
             }
         }
 
-        // Create a moltype-specific default BuildRecord.
-        let mut base_record = match moltype.as_deref() {
-            Some("dna") => BuildRecord::default_dna(),
-            Some("DNA") => BuildRecord::default_dna(),
-            Some("protein") => BuildRecord::default_protein(),
-            Some("dayhoff") => BuildRecord::default_dayhoff(),
-            Some("hp") => BuildRecord::default_hp(),
-            _ => BuildRecord::default_dna(), // no moltype --> assume DNA
+        // Ensure that moltype was set
+        let moltype = moltype.ok_or_else(|| {
+            format!(
+                "Error parsing params string '{}': No moltype provided",
+                p_str
+            )
+        })?;
+
+        // Create a moltype-specific default BuildRecord or return an error if unsupported.
+        let mut base_record = match moltype.as_str() {
+            "dna" | "DNA" => BuildRecord::default_dna(),
+            "protein" => BuildRecord::default_protein(),
+            "dayhoff" => BuildRecord::default_dayhoff(),
+            "hp" => BuildRecord::default_hp(),
+            _ => {
+                return Err(format!(
+                    "Error parsing params string '{}': Unsupported moltype '{}'",
+                    p_str, moltype
+                ));
+            }
         };
 
         // Apply parsed values
@@ -588,7 +605,10 @@ impl BuildCollection {
         // Ensure that num and scaled are mutually exclusive unless num is 0.
         if let (Some(n), Some(_)) = (num, scaled) {
             if n != 0 {
-                return Err("Cannot specify both 'num' (non-zero) and 'scaled' in the same parameter string".to_string());
+                return Err(format!(
+                    "Error parsing params string '{}': Cannot specify both 'num' (non-zero) and 'scaled' in the same parameter string",
+                    p_str
+                ));
             }
         }
 
