@@ -1408,6 +1408,16 @@ def test_singlesketch_gzipped_output(runtmp):
 
     # Check if the output exists and contains the expected data
     assert os.path.exists(output)
+
+    # Verify the file is gzipped
+    import gzip
+    try:
+        with gzip.open(output, 'rt') as f:
+            f.read(1)  # Try to read a single character to ensure it's valid gzip
+    except gzip.BadGzipFile:
+        assert False, f"Output file {output} is not a valid gzipped file."
+
+    # check the signatures
     sig = sourmash.load_one_signature(output)
 
     assert sig.name == "short.fa"
