@@ -1197,11 +1197,6 @@ pub fn zipwriter_handle(
         let outpath: PathBuf = output.into();
         let file_writer = open_output_file(&outpath);
 
-        let options = FileOptions::default()
-            .compression_method(CompressionMethod::Stored)
-            .unix_permissions(0o644)
-            .large_file(true);
-
         let mut zip = ZipWriter::new(file_writer);
         let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
         let mut zip_manifest = BuildManifest::new();
@@ -1211,11 +1206,7 @@ pub fn zipwriter_handle(
             match message {
                 Some(mut build_collection) => {
                     // Use BuildCollection's method to write signatures to the zip file
-                    match build_collection.write_sigs_to_zip(
-                        &mut zip,
-                        &options,
-                        &mut md5sum_occurrences,
-                    ) {
+                    match build_collection.write_sigs_to_zip(&mut zip, &mut md5sum_occurrences) {
                         Ok(_) => {
                             zip_manifest.extend_from_manifest(&build_collection.manifest);
                         }
@@ -1229,7 +1220,7 @@ pub fn zipwriter_handle(
                 None => {
                     // Finalize and write the manifest when None is received
                     println!("Writing manifest");
-                    zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
+                    zip_manifest.write_manifest_to_zip(&mut zip)?;
                     zip.finish()?;
                     break;
                 }

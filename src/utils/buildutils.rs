@@ -24,6 +24,8 @@ use std::str::FromStr;
 use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
+use crate::utils::open_output_file;
+
 #[derive(Default, Debug, Clone)]
 pub struct MultiSelection {
     pub selections: Vec<Selection>,
@@ -341,12 +343,12 @@ impl BuildManifest {
         Ok(())
     }
 
-    pub fn write_manifest_to_zip<W: Write + Seek>(
-        &self,
-        zip: &mut ZipWriter<W>,
-        options: &FileOptions<()>,
-    ) -> Result<()> {
-        zip.start_file("SOURMASH-MANIFEST.csv", *options)?;
+    pub fn write_manifest_to_zip<W: Write + Seek>(&self, zip: &mut ZipWriter<W>) -> Result<()> {
+        let options: FileOptions<'_, ExtendedFileOptions> = FileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            .unix_permissions(0o644)
+            .large_file(true);
+        zip.start_file("SOURMASH-MANIFEST.csv", options)?;
         self.to_writer(zip)?;
         Ok(())
     }
@@ -882,13 +884,47 @@ impl BuildCollection {
         }
     }
 
+    pub fn write_sigs(&mut self, output: &str) -> Result<()> {
+        let gzip = output.ends_with(".gz");
+        if output == "-" {
+            // Write to stdout
+            let stdout = std::io::stdout();
+            let mut handle = stdout.lock();
+            self.write_sigs_as_json(&mut handle, gzip)
+                .context("Failed to write signatures to stdout")?;
+            handle.flush().context("Failed to flush stdout")?;
+        } else if output.ends_with(".zip") {
+            // Write to a zip file
+            let outpath: Utf8PathBuf = output.into();
+            let file_writer = open_output_file(&outpath);
+            let mut zip = ZipWriter::new(file_writer);
+            let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
+            self.write_sigs_to_zip(&mut zip, &mut md5sum_occurrences)
+                .context(format!(
+                    "Failed to write signatures to zip file: {}",
+                    output
+                ))?;
+        } else {
+            // Write JSON to output file
+            let file =
+                File::create(output).context(format!("Failed to create file: {}", output))?;
+            let mut writer = std::io::BufWriter::new(file);
+            self.write_sigs_as_json(&mut writer, gzip)
+                .context(format!("Failed to write signatures to file: {}", output))?;
+        }
+        Ok(())
+    }
+
     pub fn write_sigs_to_zip<W: Write + Seek>(
         &mut self, // need mutable to update records
         zip: &mut ZipWriter<W>,
-        options: &FileOptions<()>,
         md5sum_occurrences: &mut HashMap<String, usize>,
     ) -> Result<()> {
         // iterate over both records and signatures
+        let options: FileOptions<'_, ExtendedFileOptions> = FileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            .unix_permissions(0o644)
+            .large_file(true);
         for (record, sig) in self.iter_mut() {
             // skip any empty sig templates (no sequence added)
             // TODO --> test that this is working
@@ -928,7 +964,7 @@ impl BuildCollection {
                 buffer.into_inner()
             };
 
-            zip.start_file(sig_filename, *options)?;
+            zip.start_file(sig_filename, options.clone())?;
             zip.write_all(&gzipped_buffer)
                 .map_err(|e| anyhow!("Error writing zip entry for signature: {}", e))?;
         }
@@ -939,6 +975,7 @@ impl BuildCollection {
     pub fn write_sigs_as_json<W: Write>(
         &mut self, // mutable to update records if needed
         writer: &mut W,
+        gzip: bool,
     ) -> Result<()> {
         // Create a vector to store all signatures
         let mut all_signatures = Vec::new();
@@ -954,9 +991,23 @@ impl BuildCollection {
             all_signatures.push(sig.clone());
         }
 
-        // Serialize all signatures to JSON and write to the provided writer
-        serde_json::to_writer(writer, &all_signatures)
+        // Serialize all signatures to JSON
+        let json_bytes = serde_json::to_vec(&all_signatures)
             .map_err(|e| anyhow!("Error serializing signatures to JSON: {}", e))?;
+
+        if gzip {
+            // Gzip compress the JSON bytes
+            let mut gz_writer = niffler::get_writer(
+                Box::new(writer),
+                niffler::compression::Format::Gzip,
+                niffler::compression::Level::Nine,
+            )?;
+            gz_writer.write_all(&json_bytes)?;
+            // gz_writer.finish()?;
+        } else {
+            // Write uncompressed JSON to the writer
+            writer.write_all(&json_bytes)?;
+        }
 
         Ok(())
     }
