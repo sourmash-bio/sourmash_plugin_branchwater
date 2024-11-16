@@ -603,6 +603,14 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             "--name",
             help="optional name for the signature, default is the basename of input path",
         )
+        p.add_argument(
+            "-I",
+            "--input-moltype",
+            "--input-molecule-type",
+            choices=["DNA", "dna", "protein"],
+            default="DNA",
+            help="molecule type of input sequence (DNA or protein)",
+        )
 
     def main(self, args):
         print_version()
@@ -636,12 +644,16 @@ class Branchwater_SingleSketch(CommandLinePlugin):
         )
 
         notify(
-            f"sketching file '{args.input_filename}' with params '{args.param_string}' and name '{signature_name}'"
+            f"sketching file '{args.input_filename}' ({args.input_moltype}) with params '{args.param_string}' and name '{signature_name}' using a single thread"
         )
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_singlesketch(
-            args.input_filename, args.param_string, args.output, signature_name
+            args.input_filename,
+            args.input_moltype,
+            args.param_string,
+            args.output,
+            signature_name,
         )  # Pass the name to Rust
         if status == 0:
             notify(f"...singlesketch is done! results in '{args.output}'")

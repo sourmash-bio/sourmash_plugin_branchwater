@@ -7,6 +7,7 @@ use std::io::{self, BufWriter, Write};
 
 pub fn singlesketch(
     input_filename: String,
+    input_moltype: String,
     param_str: String,
     output: String,
     name: String,
@@ -21,20 +22,10 @@ pub fn singlesketch(
         }
     };
 
-    let moltype = if param_str.contains("dna") {
-        "dna"
-    } else if param_str.contains("protein") {
-        "protein"
-    } else if param_str.contains("dayhoff") {
-        "dayhoff"
-    } else if param_str.contains("hp") {
-        "hp"
-    } else {
-        bail!("Unrecognized molecule type in params string");
-    };
+    let input_moltype = input_moltype.to_ascii_lowercase();
 
     // Build signature templates based on parsed parameters and detected moltype
-    let mut sigs = crate::manysketch::build_siginfo(&params_vec, moltype);
+    let mut sigs = crate::manysketch::build_siginfo(&params_vec, input_moltype.as_str());
 
     if sigs.is_empty() {
         bail!("No signatures to build for the given parameters.");
@@ -56,7 +47,7 @@ pub fn singlesketch(
         match record_result {
             Ok(record) => {
                 sigs.iter_mut().for_each(|sig| {
-                    if moltype == "protein" {
+                    if input_moltype == "protein" {
                         sig.add_protein(&record.seq())
                             .expect("Failed to add protein");
                     } else {

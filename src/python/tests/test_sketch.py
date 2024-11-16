@@ -1194,6 +1194,12 @@ def test_singlesketch_simple(runtmp):
     assert sig.minhash.is_dna
     assert sig.minhash.scaled == 1000
 
+    # validate against sourmash sketch
+    output2 = runtmp.output("short2.sig")
+    runtmp.sourmash("sketch", "dna", fa1, "-o", output2)
+    sig2 = sourmash.load_one_signature(output2)
+    assert sig.minhash.hashes == sig2.minhash.hashes
+
 
 def test_singlesketch_with_name(runtmp):
     """Test single sketching with a custom name."""
@@ -1241,14 +1247,74 @@ def test_singlesketch_mult_k(runtmp):
     assert any(sig.minhash.ksize == 31 for sig in sigs)
 
 
-def test_singlesketch_mult_moltype(runtmp):
+def test_singlesketch_mult_k_2(runtmp):
+    """Test single sketching with multiple k-mer sizes in one param string"""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short_mult_k.sig")
+
+    # Run the singlesketch command with multiple k sizes
+    runtmp.sourmash(
+        "scripts",
+        "singlesketch",
+        fa1,
+        "-o",
+        output,
+        "-p",
+        "k=21,k=31,scaled=100",
+    )
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sigs = list(sourmash.load_signatures(output))
+
+    # Verify that two signatures with different k-mer sizes exist
+    assert len(sigs) == 2
+    assert any(sig.minhash.ksize == 21 for sig in sigs)
+    assert any(sig.minhash.ksize == 31 for sig in sigs)
+
+
+def test_singlesketch_explicit_dna(runtmp):
+    """Test single sketching with explicit DNA in name"""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short_dna.sig")
+
+    # Run the singlesketch command with multiple k sizes
+    runtmp.sourmash(
+        "scripts",
+        "singlesketch",
+        fa1,
+        "-o",
+        output,
+        "-p",
+        "k=21,k=31,scaled=100,dna",
+    )
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sigs = list(sourmash.load_signatures(output))
+
+    # Verify that two signatures with different k-mer sizes exist
+    assert len(sigs) == 2
+    assert any(sig.minhash.ksize == 21 for sig in sigs)
+    assert any(sig.minhash.ksize == 31 for sig in sigs)
+
+
+def test_singlesketch_protein_moltype(runtmp):
     """Test single sketching with different molecule types."""
     fa1 = get_test_data("short-protein.fa")
     output = runtmp.output("short_mult_moltype.sig")
 
-    # Run the singlesketch command with multiple molecule types
+    # Run the singlesketch command with prot molecule types
     runtmp.sourmash(
-        "scripts", "singlesketch", fa1, "-o", output, "-p", "protein,k=10,scaled=100"
+        "scripts",
+        "singlesketch",
+        fa1,
+        "-o",
+        output,
+        "-p",
+        "protein,k=10,scaled=100",
+        "--input-moltype",
+        "protein",
     )
 
     # Check if the output exists and contains the expected data
@@ -1259,6 +1325,12 @@ def test_singlesketch_mult_moltype(runtmp):
     assert sig.minhash.ksize == 10
     assert sig.minhash.is_protein
     assert sig.minhash.scaled == 100
+
+    # validate against sourmash sketch
+    output2 = runtmp.output("short2.sig")
+    runtmp.sourmash("sketch", "protein", fa1, "-p", "k=10,scaled=100", "-o", output2)
+    sig2 = sourmash.load_one_signature(output2)
+    assert sig.minhash.hashes == sig2.minhash.hashes
 
 
 def test_singlesketch_invalid_params(runtmp, capfd):
@@ -1275,3 +1347,53 @@ def test_singlesketch_invalid_params(runtmp, capfd):
     # Check that the error message is correct
     captured = capfd.readouterr()
     assert "Failed to parse params string" in captured.err
+
+
+@pytest.mark.xfail(reason="needs to be implemented")
+def test_singlesketch_translate(runtmp):
+    """Test basic single sketching with input = DNA, output = protein"""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short.sig")
+
+    # Run the singlesketch command
+    runtmp.sourmash(
+        "scripts",
+        "singlesketch",
+        fa1,
+        "-o",
+        output,
+        "--input-moltype",
+        "dna",
+        "-p",
+        "protein,k=7",
+    )
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sig = sourmash.load_one_signature(output)
+
+    assert sig.name == "short.fa"
+    assert sig.minhash.ksize == 31
+    assert sig.minhash.is_dna
+    assert sig.minhash.scaled == 1000
+
+
+@pytest.mark.xfail(reason="needs to be implemented")
+def test_singlesketch_multimoltype_fail(runtmp):
+    """Test failure with multiple moltype"""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short.sig")
+
+    # Run the singlesketch command
+    with pytest.raises(SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts",
+            "singlesketch",
+            fa1,
+            "-o",
+            output,
+            "--input-moltype",
+            "dna",
+            "-p",
+            "protein,dna,k=7",
+        )
