@@ -380,7 +380,7 @@ def test_manysketch_bad_fa_csv_2(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
     assert "Could not load fasta files: no signatures created." in captured.err
-    assert "Error opening file bad2.fa: ParseError" in captured.err
+    assert "Error building signatures from file: bad2.fa" in captured.err
 
 
 def test_manysketch_bad_fa_csv_3(runtmp, capfd):

@@ -52,6 +52,28 @@ impl MultiSelection {
             selections: selections?,
         })
     }
+
+    pub fn from_input_moltype(input_moltype: &str) -> Result<Self, SourmashError> {
+        // currently we don't allow translation. Will need to change this when we do.
+        // is there a better way to do this?
+        let mut moltypes = vec!["DNA"];
+        if input_moltype == "protein" {
+            moltypes = vec!["protein", "dayhoff", "hp"];
+        }
+        let selections: Result<Vec<Selection>, SourmashError> = moltypes
+            .into_iter()
+            .map(|moltype_str| {
+                let moltype = HashFunctions::try_from(moltype_str)?;
+                let mut new_selection = Selection::default(); // Create a default Selection
+                new_selection.set_moltype(moltype); // Set the moltype
+                Ok(new_selection)
+            })
+            .collect();
+
+        Ok(MultiSelection {
+            selections: selections?,
+        })
+    }
 }
 
 pub trait MultiSelect {
@@ -217,6 +239,16 @@ impl BuildRecord {
 
         valid
     }
+
+    pub fn params(&self) -> (u32, String, bool, u32, u64) {
+        (
+            self.ksize,
+            self.moltype.clone(),
+            self.with_abundance,
+            self.num,
+            self.scaled,
+        )
+    }
 }
 
 impl PartialEq for BuildRecord {
@@ -268,6 +300,10 @@ impl BuildManifest {
     // clear all records
     pub fn clear(&mut self) {
         self.records.clear();
+    }
+
+    pub fn summarize_params(&self) -> HashSet<(u32, String, bool, u32, u64)> {
+        self.iter().map(|record| record.params()).collect()
     }
 
     pub fn filter_manifest(&self, other: &BuildManifest) -> Self {
@@ -479,6 +515,21 @@ impl BuildCollection {
 
         *current = Some(new_abundance);
         Ok(())
+    }
+
+    pub fn summarize_params(&self) -> HashSet<(u32, String, bool, u32, u64)> {
+        let params: HashSet<_> = self.manifest.iter().map(|record| record.params()).collect();
+
+        // Print a description of the summary
+        eprintln!("Building {} sketch types:", params.len());
+
+        for (ksize, moltype, with_abundance, num, scaled) in &params {
+            eprintln!(
+                "    moltype: {}, ksize: {}, scaled: {}, num: {}, abundance tracking: {}",
+                moltype, ksize, scaled, num, with_abundance
+            );
+        }
+        params
     }
 
     pub fn parse_params(p_str: &str) -> Result<(BuildRecord, Vec<u32>), String> {
@@ -836,10 +887,13 @@ impl BuildCollection {
         options: &FileOptions<()>,
         md5sum_occurrences: &mut HashMap<String, usize>,
     ) -> Result<()> {
-        // first, filter empty sig templates
-        self.filter_empty();
         // iterate over both records and signatures
         for (record, sig) in self.iter_mut() {
+            // skip any empty sig templates (no sequence added)
+            // TODO --> test that this is working
+            if !record.sequence_added {
+                continue;
+            }
             let md5sum_str = sig.md5sum();
             let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
             *count += 1;

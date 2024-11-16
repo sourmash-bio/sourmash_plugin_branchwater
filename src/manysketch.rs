@@ -9,8 +9,8 @@ use sourmash::signature::Signature;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::buildutils::BuildCollection;
-use crate::utils::{load_fasta_fromfile, parse_params_str, zipwriter_handle, Params};
+use crate::utils::buildutils::{BuildCollection, MultiSelect, MultiSelection};
+use crate::utils::{load_fasta_fromfile, zipwriter_handle, Params};
 
 pub fn build_siginfo(params: &[Params], input_moltype: &str) -> Vec<Signature> {
     let mut sigs = Vec::new();
@@ -89,6 +89,9 @@ pub fn manysketch(
         }
     };
 
+    // print sig templates to build
+    let _params = sig_templates.summarize_params();
+
     // iterate over filelist_paths
     let processed_fastas = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
@@ -102,11 +105,16 @@ pub fn manysketch(
         .filter_map(|fastadata| {
             let name = &fastadata.name;
             let filenames = &fastadata.paths;
-            let moltype = &fastadata.input_type;
+            let input_moltype = &fastadata.input_type;
             let mut sigs = sig_templates.clone();
-            // TODO: filter sig templates for this fasta by input moltype?
-            // let multiselection = MultiSelection::from_moltypes(moltype)?;
-            // sigs = sig_templates.select(&multiselection)?;
+            // filter sig templates for this fasta by moltype
+            // atm, we only do DNA->DNA, prot->prot Future -- figure out if we need to modify to allow translate/skip
+            let multiselection = MultiSelection::from_input_moltype(input_moltype.as_str())
+                .expect("could not build selection from input moltype");
+            // todo: select should work in place??
+            sigs = sigs
+                .select(&multiselection)
+                .expect("could not select on sig_templates");
 
             // if no sigs to build, skip this iteration
             if sigs.is_empty() {
@@ -142,11 +150,17 @@ pub fn manysketch(
                     while let Some(record_result) = reader.next() {
                         match record_result {
                             Ok(record) => {
-                                let _ = sigs.build_singleton_sigs(
+                                if let Err(err) = sigs.build_singleton_sigs(
                                     record,
-                                    moltype,
+                                    &input_moltype,
                                     filename.to_string(),
-                                );
+                                ) {
+                                    eprintln!(
+                                        "Error building signatures from file: {}, {:?}",
+                                        filename, err
+                                    );
+                                    // do we want to keep track of singleton sigs that fail? if so, how?
+                                }
                                 // send singleton sigs for writing
                                 if let Err(e) = send.send(Some(sigs)) {
                                     eprintln!("Unable to send internal data: {:?}", e);
@@ -158,7 +172,15 @@ pub fn manysketch(
                         }
                     }
                 } else {
-                    let _ = sigs.build_sigs_from_file(moltype, name.clone(), filename.to_string());
+                    if let Err(err) =
+                        sigs.build_sigs_from_file(input_moltype, name.clone(), filename.to_string())
+                    {
+                        eprintln!(
+                            "Error building signatures from file: {}, {:?}",
+                            filename, err
+                        );
+                        failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    }
                 }
             }
             // if singleton sketches, they have already been written; only send aggregated sketches to be written
