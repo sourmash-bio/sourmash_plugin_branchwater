@@ -1047,19 +1047,19 @@ mod tests {
                 ksize: 31,
                 moltype: "DNA".to_string(),
                 with_abundance: true,
-                ..Default::default()
+                ..BuildRecord::default_dna()
             },
             BuildRecord {
                 ksize: 21,
                 moltype: "DNA".to_string(),
                 with_abundance: true,
-                ..Default::default()
+                ..BuildRecord::default_dna()
             },
             BuildRecord {
                 ksize: 51,
                 moltype: "DNA".to_string(),
                 with_abundance: true,
-                ..Default::default()
+                ..BuildRecord::default_dna()
             },
             BuildRecord::default_protein(),
         ];
@@ -1250,14 +1250,14 @@ mod tests {
             ksize: 21,
             moltype: "DNA".to_string(),
             scaled: 1000,
-            ..Default::default()
+            ..BuildRecord::default_dna()
         };
         let rec3 = BuildRecord {
             ksize: 31,
             moltype: "DNA".to_string(),
             scaled: 1000,
             with_abundance: true,
-            ..Default::default()
+            ..BuildRecord::default_dna()
         };
 
         let bmanifest = BuildManifest {
@@ -1294,7 +1294,7 @@ mod tests {
             moltype: "DNA".to_string(),
             scaled: 1000,
             with_abundance: true,
-            ..Default::default()
+            ..BuildRecord::default_dna()
         };
 
         // Add the DNA record to the collection with a matching moltype.
@@ -1316,7 +1316,7 @@ mod tests {
             moltype: "protein".to_string(),
             scaled: 200,
             with_abundance: false,
-            ..Default::default()
+            ..BuildRecord::default_dna()
         };
 
         // Add the protein record to the collection with a matching moltype.
@@ -1338,7 +1338,7 @@ mod tests {
             moltype: "dayhoff".to_string(),
             scaled: 200,
             with_abundance: true,
-            ..Default::default()
+            ..BuildRecord::default_dna()
         };
 
         // Attempt to add the non-matching record with "DNA" as input moltype.
