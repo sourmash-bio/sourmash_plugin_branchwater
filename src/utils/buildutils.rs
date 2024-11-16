@@ -142,10 +142,10 @@ where
     }
 }
 
-impl Default for BuildRecord {
-    fn default() -> Self {
-        // Default BuildRecord is DNA default
-        BuildRecord {
+impl BuildRecord {
+    // no general default, but we have defaults for each moltype
+    pub fn default_dna() -> Self {
+        Self {
             internal_location: None,
             md5: None,
             md5short: None,
@@ -162,21 +162,13 @@ impl Default for BuildRecord {
             sequence_added: false,
         }
     }
-}
-
-impl BuildRecord {
-    pub fn default_dna() -> Self {
-        Self {
-            ..Default::default()
-        }
-    }
 
     pub fn default_protein() -> Self {
         Self {
             moltype: "protein".to_string(),
             ksize: 10,
             scaled: 200,
-            ..Default::default()
+            ..Self::default_dna()
         }
     }
 
@@ -185,7 +177,7 @@ impl BuildRecord {
             moltype: "dayhoff".to_string(),
             ksize: 10,
             scaled: 200,
-            ..Default::default()
+            ..Self::default_dna()
         }
     }
 
@@ -194,7 +186,7 @@ impl BuildRecord {
             moltype: "hp".to_string(),
             ksize: 10,
             scaled: 200,
-            ..Default::default()
+            ..Self::default_dna()
         }
     }
 
@@ -209,7 +201,7 @@ impl BuildRecord {
             num: *record.num(),
             scaled: *record.scaled() as u64,
             with_abundance: record.with_abundance(),
-            ..Default::default() // ignore remaining fields
+            ..Self::default_dna() // ignore remaining fields
         }
     }
 
@@ -525,7 +517,7 @@ impl BuildCollection {
 
         for (ksize, moltype, with_abundance, num, scaled) in &params {
             eprintln!(
-                "    moltype: {}, ksize: {}, scaled: {}, num: {}, abundance tracking: {}",
+                "    {},k={},scaled={},num={},abund={}",
                 moltype, ksize, scaled, num, with_abundance
             );
         }

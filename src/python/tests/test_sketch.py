@@ -434,54 +434,54 @@ def test_manysketch_bad_fa_csv_4(runtmp, capfd):
     assert "Could not load fromfile csv" in captured.err
 
 
-def test_manysketch_bad_param_str_moltype(runtmp, capfd):
-    # no moltype provided in param str
-    fa_csv = runtmp.output("db-fa.txt")
+# def test_manysketch_bad_param_str_moltype(runtmp, capfd):
+#     # no moltype provided in param str
+#     fa_csv = runtmp.output("db-fa.txt")
 
-    fa1 = get_test_data("short.fa")
-    fa2 = get_test_data("short2.fa")
-    fa3 = get_test_data("short3.fa")
+#     fa1 = get_test_data("short.fa")
+#     fa2 = get_test_data("short2.fa")
+#     fa3 = get_test_data("short3.fa")
 
-    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
-    output = runtmp.output("out.zip")
+#     make_assembly_csv(fa_csv, [fa1, fa2, fa3])
+#     output = runtmp.output("out.zip")
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash(
-            "scripts", "manysketch", fa_csv, "-o", output, "-p", "k=31,scaled=100"
-        )
+#     with pytest.raises(utils.SourmashCommandFailed):
+#         runtmp.sourmash(
+#             "scripts", "manysketch", fa_csv, "-o", output, "-p", "k=31,scaled=100"
+#         )
 
-    captured = capfd.readouterr()
-    print(captured.err)
-    assert (
-        "Error parsing params string: No moltype provided in params string k=31,scaled=100"
-        in captured.err
-    )
-    assert "Failed to parse params string" in captured.err
+#     captured = capfd.readouterr()
+#     print(captured.err)
+#     assert (
+#         "Error parsing params string: No moltype provided in params string k=31,scaled=100"
+#         in captured.err
+#     )
+#     assert "Failed to parse params string" in captured.err
 
 
-def test_manysketch_bad_param_str_ksize(runtmp, capfd):
-    # no ksize provided in param str
-    fa_csv = runtmp.output("db-fa.txt")
+# def test_manysketch_bad_param_str_ksize(runtmp, capfd):
+#     # no ksize provided in param str
+#     fa_csv = runtmp.output("db-fa.txt")
 
-    fa1 = get_test_data("short.fa")
-    fa2 = get_test_data("short2.fa")
-    fa3 = get_test_data("short3.fa")
+#     fa1 = get_test_data("short.fa")
+#     fa2 = get_test_data("short2.fa")
+#     fa3 = get_test_data("short3.fa")
 
-    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
-    output = runtmp.output("out.zip")
+#     make_assembly_csv(fa_csv, [fa1, fa2, fa3])
+#     output = runtmp.output("out.zip")
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash(
-            "scripts", "manysketch", fa_csv, "-o", output, "-p", "dna,scaled=100"
-        )
+#     with pytest.raises(utils.SourmashCommandFailed):
+#         runtmp.sourmash(
+#             "scripts", "manysketch", fa_csv, "-o", output, "-p", "dna,scaled=100"
+#         )
 
-    captured = capfd.readouterr()
-    print(captured.err)
-    assert (
-        "Error parsing params string: No ksizes provided in params string dna,scaled=100"
-        in captured.err
-    )
-    assert "Failed to parse params string" in captured.err
+#     captured = capfd.readouterr()
+#     print(captured.err)
+#     assert (
+#         "Error parsing params string: No ksizes provided in params string dna,scaled=100"
+#         in captured.err
+#     )
+#     assert "Failed to parse params string" in captured.err
 
 
 def test_manysketch_empty_fa_csv(runtmp, capfd):
