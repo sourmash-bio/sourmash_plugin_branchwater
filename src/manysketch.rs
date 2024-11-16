@@ -4,49 +4,11 @@ use rayon::prelude::*;
 
 use camino::Utf8Path as Path;
 use needletail::parse_fastx_file;
-use sourmash::cmd::ComputeParameters;
-use sourmash::signature::Signature;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::buildutils::{BuildCollection, MultiSelect, MultiSelection};
-use crate::utils::{load_fasta_fromfile, zipwriter_handle, Params};
-
-pub fn build_siginfo(params: &[Params], input_moltype: &str) -> Vec<Signature> {
-    let mut sigs = Vec::new();
-
-    for param in params.iter().cloned() {
-        match input_moltype {
-            // if dna, only build dna sigs. if protein, only build protein sigs, etc
-            "dna" | "DNA" if !param.is_dna => continue,
-            "protein" if !param.is_protein && !param.is_dayhoff && !param.is_hp => continue,
-            _ => (),
-        }
-
-        // Adjust ksize value based on the is_protein flag
-        let adjusted_ksize = if param.is_protein || param.is_dayhoff || param.is_hp {
-            param.ksize * 3
-        } else {
-            param.ksize
-        };
-
-        let cp = ComputeParameters::builder()
-            .ksizes(vec![adjusted_ksize])
-            .scaled(param.scaled)
-            .protein(param.is_protein)
-            .dna(param.is_dna)
-            .dayhoff(param.is_dayhoff)
-            .hp(param.is_hp)
-            .num_hashes(param.num)
-            .track_abundance(param.track_abundance)
-            .build();
-
-        let sig = Signature::from_params(&cp);
-        sigs.push(sig);
-    }
-
-    sigs
-}
+use crate::utils::{load_fasta_fromfile, zipwriter_handle};
 
 pub fn manysketch(
     filelist: String,

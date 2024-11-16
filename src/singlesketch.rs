@@ -1,9 +1,9 @@
-use crate::utils::parse_params_str;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use camino::Utf8Path as Path;
-use needletail::{parse_fastx_file, parse_fastx_reader};
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
+
+use crate::utils::buildutils::BuildCollection;
 
 pub fn singlesketch(
     input_filename: String,
@@ -12,84 +12,57 @@ pub fn singlesketch(
     output: String,
     name: String,
 ) -> Result<()> {
-    // Parse parameter string into params_vec
-    let param_result = parse_params_str(param_str.clone());
-    let params_vec = match param_result {
-        Ok(params) => params,
+    // parse params --> signature templates
+    let sig_template_result = BuildCollection::from_param_str(param_str.as_str());
+    let mut sigs = match sig_template_result {
+        Ok(sigs) => sigs,
         Err(e) => {
-            eprintln!("Error parsing params string: {}", e);
-            bail!("Failed to parse params string");
+            bail!("Failed to parse params string: {}", e);
         }
     };
 
     let input_moltype = input_moltype.to_ascii_lowercase();
 
     // Build signature templates based on parsed parameters and detected moltype
-    let mut sigs = crate::manysketch::build_siginfo(&params_vec, input_moltype.as_str());
-
     if sigs.is_empty() {
         bail!("No signatures to build for the given parameters.");
     }
 
-    // Open FASTA file reader
-    let mut reader = if input_filename == "-" {
-        let stdin = std::io::stdin();
-        parse_fastx_reader(stdin)?
+    // to do --> actually handle the Result/Err from these
+    // also to do --> add sequence counting so can print?
+    if input_filename == "_" {
+        let _ = sigs.build_sigs_from_stdin(&input_moltype, name);
     } else {
-        parse_fastx_file(&input_filename)?
-    };
-
-    // Counter for the number of sequences processed (u64)
-    let mut sequence_count: u64 = 0;
-
-    // Parse FASTA and add to signature
-    while let Some(record_result) = reader.next() {
-        match record_result {
-            Ok(record) => {
-                sigs.iter_mut().for_each(|sig| {
-                    if input_moltype == "protein" {
-                        sig.add_protein(&record.seq())
-                            .expect("Failed to add protein");
-                    } else {
-                        sig.add_sequence(&record.seq(), true)
-                            .expect("Failed to add sequence");
-                    }
-                });
-                sequence_count += 1;
-            }
-            Err(err) => eprintln!("Error while processing record: {:?}", err),
-        }
+        let _ = sigs.build_sigs_from_file(&input_moltype, name, input_filename);
     }
 
-    // Set name and filename for signatures
-    sigs.iter_mut().for_each(|sig| {
-        sig.set_name(&name); // Use the provided name
-        sig.set_filename(&input_filename);
-    });
+    // Counter for the number of sequences processed (u64)
+    // let mut sequence_count: u64 = 0;
 
     // Check if the output is stdout or a file
     if output == "-" {
         // Write signatures to stdout
         let stdout = io::stdout();
         let mut handle = stdout.lock();
-        serde_json::to_writer(&mut handle, &sigs)?;
-        handle.flush()?;
+        sigs.write_sigs_as_json(&mut handle)
+            .context("Failed to write signatures to stdout")?;
+        handle.flush().context("Failed to flush stdout")?;
     } else {
-        // Write signatures to output file
+        // Write signatures to an output file
         let outpath = Path::new(&output);
-        let file = File::create(outpath)?;
+        let file = File::create(outpath).context(format!("Failed to create file: {}", output))?;
         let mut writer = BufWriter::new(file);
 
-        // Write in JSON format
-        serde_json::to_writer(&mut writer, &sigs)?;
+        sigs.write_sigs_as_json(&mut writer)
+            .context(format!("Failed to write signatures to file: {}", output))?;
     }
 
-    eprintln!(
-        "calculated {} signatures for {} sequences in {}",
-        sigs.len(),
-        sequence_count,
-        input_filename
-    );
+    // eprintln!(
+    //     "calculated {} signatures for {} sequences in {}",
+    //     sigs.len(),
+    //     sequence_count,
+    //     input_filename
+    // );
 
     Ok(())
 }

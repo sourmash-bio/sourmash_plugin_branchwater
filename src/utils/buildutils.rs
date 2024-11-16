@@ -837,6 +837,56 @@ impl BuildCollection {
         Ok(())
     }
 
+    pub fn build_sigs_from_stdin(
+        &mut self,
+        input_moltype: &str, // "protein" or "DNA"
+        name: String,
+    ) -> Result<()> {
+        // Open stdin as a reader
+        let stdin = std::io::stdin();
+        let mut reader =
+            parse_fastx_reader(stdin).context("Failed to parse FASTA/FASTQ data from stdin")?;
+
+        // Counter for the number of sequences processed (u64)
+        let mut sequence_count: u64 = 0;
+
+        // Parse FASTA/FASTQ and add to signatures
+        while let Some(record_result) = reader.next() {
+            match record_result {
+                Ok(record) => {
+                    self.iter_mut().for_each(|(rec, sig)| {
+                        if input_moltype == "protein"
+                            && (rec.moltype() == HashFunctions::Murmur64Protein
+                                || rec.moltype() == HashFunctions::Murmur64Dayhoff
+                                || rec.moltype() == HashFunctions::Murmur64Hp)
+                        {
+                            sig.add_protein(&record.seq())
+                                .expect("Failed to add protein");
+                            if !rec.sequence_added {
+                                rec.sequence_added = true;
+                            }
+                        } else if input_moltype == "DNA"
+                            && rec.moltype() == HashFunctions::Murmur64Dna
+                        {
+                            sig.add_sequence(&record.seq(), true)
+                                .expect("Failed to add sequence");
+                            if !rec.sequence_added {
+                                rec.sequence_added = true;
+                            }
+                        }
+                    });
+                    sequence_count += 1;
+                }
+                Err(err) => eprintln!("Error while processing record: {:?}", err),
+            }
+        }
+
+        // Set name and "-" as filename for signatures
+        self.update_info(name, "-".to_string());
+
+        Ok(())
+    }
+
     pub fn build_singleton_sigs(
         &mut self,
         record: SequenceRecord,
@@ -943,6 +993,31 @@ impl BuildCollection {
             zip.write_all(&gzipped_buffer)
                 .map_err(|e| anyhow!("Error writing zip entry for signature: {}", e))?;
         }
+
+        Ok(())
+    }
+
+    pub fn write_sigs_as_json<W: Write>(
+        &mut self, // mutable to update records if needed
+        writer: &mut W,
+    ) -> Result<()> {
+        // Create a vector to store all signatures
+        let mut all_signatures = Vec::new();
+
+        // Iterate over both records and signatures
+        for (record, sig) in self.iter_mut() {
+            // Skip any empty sig templates (no sequence added)
+            if !record.sequence_added {
+                continue;
+            }
+
+            // Add the signature to the collection for JSON serialization
+            all_signatures.push(sig.clone());
+        }
+
+        // Serialize all signatures to JSON and write to the provided writer
+        serde_json::to_writer(writer, &all_signatures)
+            .map_err(|e| anyhow!("Error serializing signatures to JSON: {}", e))?;
 
         Ok(())
     }
