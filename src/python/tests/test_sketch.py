@@ -1398,6 +1398,7 @@ def test_singlesketch_multimoltype_fail(runtmp):
             "protein,dna,k=7",
         )
 
+
 def test_singlesketch_gzipped_output(runtmp):
     """Test singlesketch with gzipped output."""
     fa1 = get_test_data("short.fa")
@@ -1411,8 +1412,9 @@ def test_singlesketch_gzipped_output(runtmp):
 
     # Verify the file is gzipped
     import gzip
+
     try:
-        with gzip.open(output, 'rt') as f:
+        with gzip.open(output, "rt") as f:
             f.read(1)  # Try to read a single character to ensure it's valid gzip
     except gzip.BadGzipFile:
         assert False, f"Output file {output} is not a valid gzipped file."
