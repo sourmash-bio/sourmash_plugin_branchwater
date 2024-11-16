@@ -21,10 +21,8 @@ use std::io::{Cursor, Seek, Write};
 use std::num::ParseIntError;
 use std::ops::Index;
 use std::str::FromStr;
-use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
+use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
-
-use crate::utils::open_output_file;
 
 #[derive(Default, Debug, Clone)]
 pub struct MultiSelection {
@@ -343,12 +341,12 @@ impl BuildManifest {
         Ok(())
     }
 
-    pub fn write_manifest_to_zip<W: Write + Seek>(&self, zip: &mut ZipWriter<W>) -> Result<()> {
-        let options: FileOptions<'_, ExtendedFileOptions> = FileOptions::default()
-            .compression_method(CompressionMethod::Stored)
-            .unix_permissions(0o644)
-            .large_file(true);
-        zip.start_file("SOURMASH-MANIFEST.csv", options)?;
+    pub fn write_manifest_to_zip<W: Write + Seek>(
+        &self,
+        zip: &mut ZipWriter<W>,
+        options: &FileOptions<()>,
+    ) -> Result<()> {
+        zip.start_file("SOURMASH-MANIFEST.csv", *options)?;
         self.to_writer(zip)?;
         Ok(())
     }
@@ -894,16 +892,23 @@ impl BuildCollection {
                 .context("Failed to write signatures to stdout")?;
             handle.flush().context("Failed to flush stdout")?;
         } else if output.ends_with(".zip") {
+            let options = FileOptions::default()
+                .compression_method(CompressionMethod::Stored)
+                .unix_permissions(0o644)
+                .large_file(true);
             // Write to a zip file
-            let outpath: Utf8PathBuf = output.into();
-            let file_writer = open_output_file(&outpath);
-            let mut zip = ZipWriter::new(file_writer);
+            let file =
+                File::create(output).context(format!("Failed to create file: {}", output))?;
+            let mut zip = ZipWriter::new(file);
             let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
-            self.write_sigs_to_zip(&mut zip, &mut md5sum_occurrences)
+            self.write_sigs_to_zip(&mut zip, &mut md5sum_occurrences, &options)
                 .context(format!(
                     "Failed to write signatures to zip file: {}",
                     output
                 ))?;
+            println!("Writing manifest");
+            self.manifest.write_manifest_to_zip(&mut zip, &options)?;
+            zip.finish()?;
         } else {
             // Write JSON to output file
             let file =
@@ -919,12 +924,9 @@ impl BuildCollection {
         &mut self, // need mutable to update records
         zip: &mut ZipWriter<W>,
         md5sum_occurrences: &mut HashMap<String, usize>,
+        options: &FileOptions<()>,
     ) -> Result<()> {
         // iterate over both records and signatures
-        let options: FileOptions<'_, ExtendedFileOptions> = FileOptions::default()
-            .compression_method(CompressionMethod::Stored)
-            .unix_permissions(0o644)
-            .large_file(true);
         for (record, sig) in self.iter_mut() {
             // skip any empty sig templates (no sequence added)
             // TODO --> test that this is working

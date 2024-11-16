@@ -1,9 +1,5 @@
-use anyhow::{bail, Context, Result};
-use camino::Utf8Path as Path;
-use std::fs::File;
-use std::io::{self, BufWriter, Write};
-
 use crate::utils::buildutils::BuildCollection;
+use anyhow::{bail, Result};
 
 pub fn singlesketch(
     input_filename: String,
