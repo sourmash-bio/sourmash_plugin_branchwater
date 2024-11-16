@@ -5,6 +5,9 @@ use camino::Utf8PathBuf;
 use getset::{Getters, Setters};
 use needletail::parser::SequenceRecord;
 use needletail::{parse_fastx_file, parse_fastx_reader};
+use rayon::iter::IndexedParallelIterator;
+use rayon::iter::IntoParallelRefMutIterator;
+use rayon::prelude::ParallelIterator;
 use serde::Serialize;
 use sourmash::cmd::ComputeParameters;
 use sourmash::encodings::{HashFunctions, Idx};
@@ -759,13 +762,21 @@ impl BuildCollection {
         self.manifest.records.iter_mut().zip(self.sigs.iter_mut())
     }
 
+    pub fn par_iter_mut(
+        &mut self,
+    ) -> impl ParallelIterator<Item = (&mut BuildRecord, &mut Signature)> {
+        self.manifest
+            .records
+            .par_iter_mut() // Parallel mutable iterator over records
+            .zip(self.sigs.par_iter_mut()) // Parallel mutable iterator over sigs
+    }
+
     fn build_sigs_from_record(
         &mut self,
         input_moltype: &str,
         record: &SequenceRecord,
     ) -> Result<()> {
-        // Optionally use `par_iter_mut` for parallel execution
-        self.iter_mut().try_for_each(|(rec, sig)| {
+        self.par_iter_mut().try_for_each(|(rec, sig)| {
             if input_moltype == "protein"
                 && (rec.moltype() == HashFunctions::Murmur64Protein
                     || rec.moltype() == HashFunctions::Murmur64Dayhoff
