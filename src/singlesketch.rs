@@ -30,12 +30,15 @@ pub fn singlesketch(
 
     // to do --> actually handle the Result/Err from these
     // also to do --> add sequence counting so can print?
-    if input_filename == "_" {
-        let _ = sigs.build_sigs_from_stdin(&input_moltype, name);
-    } else {
-        let _ = sigs.build_sigs_from_file(&input_moltype, name, input_filename);
-    }
+    let sequence_count =
+        sigs.build_sigs_from_file_or_stdin(&input_moltype, name, input_filename.clone())?;
 
+    eprintln!(
+        "calculated {} signatures for {} sequences in {}",
+        sigs.size(),
+        sequence_count,
+        input_filename
+    );
     // Counter for the number of sequences processed (u64)
     // let mut sequence_count: u64 = 0;
 
@@ -56,13 +59,6 @@ pub fn singlesketch(
         sigs.write_sigs_as_json(&mut writer)
             .context(format!("Failed to write signatures to file: {}", output))?;
     }
-
-    // eprintln!(
-    //     "calculated {} signatures for {} sequences in {}",
-    //     sigs.len(),
-    //     sequence_count,
-    //     input_filename
-    // );
 
     Ok(())
 }

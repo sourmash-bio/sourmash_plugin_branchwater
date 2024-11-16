@@ -759,6 +759,36 @@ impl BuildCollection {
         self.manifest.records.iter_mut().zip(self.sigs.iter_mut())
     }
 
+    fn build_sigs_from_record(
+        &mut self,
+        input_moltype: &str,
+        record: &SequenceRecord,
+    ) -> Result<()> {
+        // Optionally use `par_iter_mut` for parallel execution
+        self.iter_mut().try_for_each(|(rec, sig)| {
+            if input_moltype == "protein"
+                && (rec.moltype() == HashFunctions::Murmur64Protein
+                    || rec.moltype() == HashFunctions::Murmur64Dayhoff
+                    || rec.moltype() == HashFunctions::Murmur64Hp)
+            {
+                sig.add_protein(&record.seq())
+                    .context("Failed to add protein")?;
+                if !rec.sequence_added {
+                    rec.sequence_added = true;
+                }
+            } else if (input_moltype == "DNA" || input_moltype == "dna")
+                && rec.moltype() == HashFunctions::Murmur64Dna
+            {
+                sig.add_sequence(&record.seq(), true)
+                    .context("Failed to add sequence")?;
+                if !rec.sequence_added {
+                    rec.sequence_added = true;
+                }
+            }
+            Ok(())
+        })
+    }
+
     pub fn build_sigs_from_data(
         &mut self,
         data: Vec<u8>,
@@ -773,24 +803,7 @@ impl BuildCollection {
         // Iterate over FASTA records and add sequences/proteins to sigs
         while let Some(record) = fastx_reader.next() {
             let record = record.context("Failed to read record")?;
-            self.iter_mut().for_each(|(rec, sig)| {
-                if input_moltype == "protein"
-                    && (rec.moltype == "protein" || rec.moltype == "dayhoff" || rec.moltype == "hp")
-                {
-                    sig.add_protein(&record.seq())
-                        .expect("Failed to add protein");
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                } else if input_moltype == "DNA" && rec.moltype == "DNA" {
-                    sig.add_sequence(&record.seq(), true)
-                        .expect("Failed to add sequence");
-                    // if not force, panics with 'N' in dna sequence
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                }
-            });
+            self.build_sigs_from_record(input_moltype, &record)?;
         }
 
         // After processing sequences, update sig, record information
@@ -799,92 +812,37 @@ impl BuildCollection {
         Ok(())
     }
 
-    pub fn build_sigs_from_file(
-        &mut self,
-        input_moltype: &str, // (protein/dna); todo - use hashfns?
-        name: String,
-        filename: String,
-    ) -> Result<()> {
-        let mut fastx_reader = parse_fastx_file(&filename)?;
-        // Iterate over FASTA records and add sequences/proteins to sigs
-        while let Some(record) = fastx_reader.next() {
-            let record = record.context("Failed to read record")?;
-            self.iter_mut().for_each(|(rec, sig)| {
-                if input_moltype == "protein"
-                    && (rec.moltype() == HashFunctions::Murmur64Protein
-                        || rec.moltype() == HashFunctions::Murmur64Dayhoff
-                        || rec.moltype() == HashFunctions::Murmur64Hp)
-                {
-                    sig.add_protein(&record.seq())
-                        .expect("Failed to add protein");
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                } else {
-                    sig.add_sequence(&record.seq(), true)
-                        .expect("Failed to add sequence");
-                    // if not force, panics with 'N' in dna sequence
-                    if !rec.sequence_added {
-                        rec.sequence_added = true
-                    }
-                }
-            });
-        }
-
-        // After processing sequences, update sig, record information
-        self.update_info(name, filename);
-
-        Ok(())
-    }
-
-    pub fn build_sigs_from_stdin(
+    pub fn build_sigs_from_file_or_stdin(
         &mut self,
         input_moltype: &str, // "protein" or "DNA"
         name: String,
-    ) -> Result<()> {
-        // Open stdin as a reader
-        let stdin = std::io::stdin();
-        let mut reader =
-            parse_fastx_reader(stdin).context("Failed to parse FASTA/FASTQ data from stdin")?;
+        filename: String,
+    ) -> Result<u64> {
+        // Create a FASTX reader from the file or stdin
+        let mut fastx_reader = if filename == "-" {
+            let stdin = std::io::stdin();
+            parse_fastx_reader(stdin).context("Failed to parse FASTA/FASTQ data from stdin")?
+        } else {
+            parse_fastx_file(&filename).context("Failed to open file for FASTA/FASTQ data")?
+        };
 
-        // Counter for the number of sequences processed (u64)
-        let mut sequence_count: u64 = 0;
+        // Counter for the number of records processed
+        let mut record_count: u64 = 0;
 
-        // Parse FASTA/FASTQ and add to signatures
-        while let Some(record_result) = reader.next() {
-            match record_result {
-                Ok(record) => {
-                    self.iter_mut().for_each(|(rec, sig)| {
-                        if input_moltype == "protein"
-                            && (rec.moltype() == HashFunctions::Murmur64Protein
-                                || rec.moltype() == HashFunctions::Murmur64Dayhoff
-                                || rec.moltype() == HashFunctions::Murmur64Hp)
-                        {
-                            sig.add_protein(&record.seq())
-                                .expect("Failed to add protein");
-                            if !rec.sequence_added {
-                                rec.sequence_added = true;
-                            }
-                        } else if input_moltype == "DNA"
-                            && rec.moltype() == HashFunctions::Murmur64Dna
-                        {
-                            sig.add_sequence(&record.seq(), true)
-                                .expect("Failed to add sequence");
-                            if !rec.sequence_added {
-                                rec.sequence_added = true;
-                            }
-                        }
-                    });
-                    sequence_count += 1;
-                }
-                Err(err) => eprintln!("Error while processing record: {:?}", err),
-            }
+        // Parse records and add sequences to signatures
+        while let Some(record_result) = fastx_reader.next() {
+            let record = record_result.context("Failed to read a record from input")?;
+
+            self.build_sigs_from_record(input_moltype, &record)?;
+
+            record_count += 1;
         }
 
-        // Set name and "-" as filename for signatures
-        self.update_info(name, "-".to_string());
+        // Update signature and record metadata
+        self.update_info(name, filename);
 
-        Ok(())
+        // Return the count of records parsed
+        Ok(record_count)
     }
 
     pub fn build_singleton_sigs(
@@ -893,30 +851,11 @@ impl BuildCollection {
         input_moltype: &str, // (protein/dna); todo - use hashfns?
         filename: String,
     ) -> Result<()> {
-        self.iter_mut().for_each(|(rec, sig)| {
-            if input_moltype == "protein"
-                && (rec.moltype() == HashFunctions::Murmur64Protein
-                    || rec.moltype() == HashFunctions::Murmur64Dayhoff
-                    || rec.moltype() == HashFunctions::Murmur64Hp)
-            {
-                sig.add_protein(&record.seq())
-                    .expect("Failed to add protein");
-                if !rec.sequence_added {
-                    rec.sequence_added = true
-                }
-            } else {
-                sig.add_sequence(&record.seq(), true)
-                    .expect("Failed to add sequence");
-                // if not force, panics with 'N' in dna sequence
-                if !rec.sequence_added {
-                    rec.sequence_added = true
-                }
-            }
-        });
+        self.build_sigs_from_record(input_moltype, &record)?;
+        // After processing sequences, update sig, record information
         let record_name = std::str::from_utf8(record.id())
             .expect("could not get record id")
             .to_string();
-        // After processing sequences, update sig, record information
         self.update_info(record_name, filename);
 
         Ok(())

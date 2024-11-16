@@ -134,14 +134,25 @@ pub fn manysketch(
                         }
                     }
                 } else {
-                    if let Err(err) =
-                        sigs.build_sigs_from_file(input_moltype, name.clone(), filename.to_string())
-                    {
-                        eprintln!(
-                            "Error building signatures from file: {}, {:?}",
-                            filename, err
-                        );
-                        failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    match sigs.build_sigs_from_file_or_stdin(
+                        input_moltype,
+                        name.clone(),
+                        filename.to_string(),
+                    ) {
+                        Ok(record_count) => {
+                            // maybe only print if verbose??
+                            // println!(
+                            //     "Successfully built signatures from file: {}. Records processed: {}",
+                            //     filename, record_count
+                            // );
+                        }
+                        Err(err) => {
+                            eprintln!(
+                                "Error building signatures from file: {}, {:?}",
+                                filename, err
+                            );
+                            failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        }
                     }
                 }
             }
