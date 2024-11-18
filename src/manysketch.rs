@@ -114,7 +114,7 @@ pub fn manysketch(
                             Ok(record) => {
                                 if let Err(err) = sigs.build_singleton_sigs(
                                     record,
-                                    &input_moltype,
+                                    input_moltype,
                                     filename.to_string(),
                                 ) {
                                     eprintln!(
@@ -139,13 +139,7 @@ pub fn manysketch(
                         name.clone(),
                         filename.to_string(),
                     ) {
-                        Ok(record_count) => {
-                            // maybe only print if verbose??
-                            // println!(
-                            //     "Successfully built signatures from file: {}. Records processed: {}",
-                            //     filename, record_count
-                            // );
-                        }
+                        Ok(_record_count) => {}
                         Err(err) => {
                             eprintln!(
                                 "Error building signatures from file: {}, {:?}",

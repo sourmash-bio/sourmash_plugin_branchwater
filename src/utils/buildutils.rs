@@ -30,13 +30,6 @@ pub struct MultiSelection {
 }
 
 impl MultiSelection {
-    /// Create a `MultiSelection` from a single `Selection`
-    pub fn new(selection: Selection) -> Self {
-        MultiSelection {
-            selections: vec![selection],
-        }
-    }
-
     pub fn from_moltypes(moltypes: Vec<&str>) -> Result<Self, SourmashError> {
         let selections: Result<Vec<Selection>, SourmashError> = moltypes
             .into_iter()
@@ -635,7 +628,6 @@ impl BuildCollection {
                 // Check if the record is already in the set.
                 if seen_records.insert(record.clone()) {
                     // Add the record and its associated signature to the collection.
-                    // coll.add_template_sig_from_record(&record, &record.moltype);
                     coll.add_template_sig_from_record(&record);
                 }
             }
@@ -966,7 +958,7 @@ impl BuildCollection {
                 buffer.into_inner()
             };
 
-            zip.start_file(sig_filename, options.clone())?;
+            zip.start_file(sig_filename, *options)?;
             zip.write_all(&gzipped_buffer)
                 .map_err(|e| anyhow!("Error writing zip entry for signature: {}", e))?;
         }
@@ -1056,27 +1048,6 @@ impl MultiSelect for BuildCollection {
         });
 
         Ok(self)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MultiBuildCollection {
-    pub collections: Vec<BuildCollection>,
-}
-
-impl MultiBuildCollection {
-    pub fn new() -> Self {
-        MultiBuildCollection {
-            collections: Vec::new(),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.collections.is_empty()
-    }
-
-    pub fn add_collection(&mut self, collection: &mut BuildCollection) {
-        self.collections.push(collection.clone())
     }
 }
 
@@ -1384,8 +1355,7 @@ mod tests {
             ..BuildRecord::default_dna()
         };
 
-        // Add the DNA record to the collection with a matching moltype.
-        // build_collection.add_template_sig_from_record(&dna_record, "DNA");
+        // Add the DNA record to the collection
         build_collection.add_template_sig_from_record(&dna_record);
 
         // Verify that the record was added.
@@ -1406,11 +1376,10 @@ mod tests {
             ..BuildRecord::default_dna()
         };
 
-        // Add the protein record to the collection with a matching moltype.
-        // build_collection.add_template_sig_from_record(&protein_record, "protein");
+        // Add the protein record to the collection
         build_collection.add_template_sig_from_record(&protein_record);
 
-        // Verify that the protein record was added and ksize adjusted.
+        // Verify that the protein record was added.
         assert_eq!(build_collection.manifest.records.len(), 2);
         assert_eq!(build_collection.sigs.len(), 2);
 
@@ -1420,7 +1389,7 @@ mod tests {
         assert_eq!(added_protein_record.with_abundance, false);
 
         // Create a BuildRecord with a non-matching moltype.
-        let non_matching_record = BuildRecord {
+        let dayhoff_record = BuildRecord {
             ksize: 10,
             moltype: "dayhoff".to_string(),
             scaled: 200,
@@ -1428,16 +1397,8 @@ mod tests {
             ..BuildRecord::default_dna()
         };
 
-        // Attempt to add the non-matching record with "DNA" as input moltype.
-        // this is because we currently don't allow translation
-        // build_collection.add_template_sig_from_record(&non_matching_record, "DNA");
-
-        // Verify that the non-matching record was not added.
-        // assert_eq!(build_collection.manifest.records.len(), 2);
-        // assert_eq!(build_collection.sigs.len(), 2);
-
-        // Add the same non-matching record with a matching input moltype.
-        build_collection.add_template_sig_from_record(&non_matching_record);
+        // Add dayhoff record.
+        build_collection.add_template_sig_from_record(&dna_record);
 
         // Verify that the record was added.
         assert_eq!(build_collection.manifest.records.len(), 3);

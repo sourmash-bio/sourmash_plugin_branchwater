@@ -5,7 +5,7 @@ use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
 use sourmash::ScaledType;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
@@ -21,13 +21,12 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
-use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
+use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
-use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
-use sourmash::signature::{Signature, SigsTrait};
+use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
@@ -37,7 +36,7 @@ pub mod multicollection;
 use multicollection::MultiCollection;
 
 pub mod buildutils;
-use buildutils::{BuildCollection, BuildManifest, MultiBuildCollection};
+use buildutils::{BuildCollection, BuildManifest};
 
 /// Structure to hold overlap information from comparisons.
 pub struct PrefetchResult {
