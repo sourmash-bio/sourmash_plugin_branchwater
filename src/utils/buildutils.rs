@@ -1078,7 +1078,7 @@ mod tests {
 
     #[test]
     fn test_from_param_str() {
-        let params_str = "k=31,abund,dna_k=21,k=31,k=51,abund_k=10,protein";
+        let params_str = "k=31,abund,dna_dna,k=21,k=31,k=51,abund_k=10,protein";
         let coll_result = BuildCollection::from_param_str(params_str);
 
         assert!(
@@ -1165,40 +1165,40 @@ mod tests {
     #[test]
     fn test_unknown_component_error() {
         // Test for an unknown component that should trigger an error.
-        let result = BuildCollection::from_param_str("k=31,notaparam");
+        let result = BuildCollection::from_param_str("dna,k=31,notaparam");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
-            "unknown component 'notaparam' in params string"
+            "Error parsing params string 'dna,k=31,notaparam': Unknown component 'notaparam'"
         );
     }
 
     #[test]
     fn test_unknown_component_error2() {
         // Test a common param string error (k=31,51 compared with valid k=31,k=51)
-        let result = BuildCollection::from_param_str("k=31,51,abund");
+        let result = BuildCollection::from_param_str("dna,k=31,51,abund");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
-            "unknown component '51' in params string"
+            "Error parsing params string 'dna,k=31,51,abund': Unknown component '51'"
         );
     }
 
     #[test]
     fn test_conflicting_num_and_scaled() {
         // Test for specifying both num and scaled, which should result in an error.
-        let result = BuildCollection::from_param_str("k=31,num=10,scaled=1000");
+        let result = BuildCollection::from_param_str("dna,k=31,num=10,scaled=1000");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
-            "Cannot specify both 'num' (non-zero) and 'scaled' in the same parameter string"
+            "Error parsing params string 'dna,k=31,num=10,scaled=1000': Cannot specify both 'num' (non-zero) and 'scaled' in the same parameter string"
         );
     }
 
     #[test]
     fn test_conflicting_abundance() {
         // Test for providing conflicting abundance settings, which should result in an error.
-        let result = BuildCollection::from_param_str("k=31,abund,noabund");
+        let result = BuildCollection::from_param_str("dna,k=31,abund,noabund");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1209,7 +1209,7 @@ mod tests {
     #[test]
     fn test_invalid_ksize_format() {
         // Test for an invalid ksize format that should trigger an error.
-        let result = BuildCollection::from_param_str("k=abc");
+        let result = BuildCollection::from_param_str("dna,k=abc");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1220,7 +1220,7 @@ mod tests {
     #[test]
     fn test_invalid_num_format() {
         // Test for an invalid number format that should trigger an error.
-        let result = BuildCollection::from_param_str("k=31,num=abc");
+        let result = BuildCollection::from_param_str("dna,k=31,num=abc");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1231,7 +1231,7 @@ mod tests {
     #[test]
     fn test_invalid_scaled_format() {
         // Test for an invalid scaled format that should trigger an error.
-        let result = BuildCollection::from_param_str("k=31,scaled=abc");
+        let result = BuildCollection::from_param_str("dna,k=31,scaled=abc");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1242,7 +1242,7 @@ mod tests {
     #[test]
     fn test_invalid_seed_format() {
         // Test for an invalid seed format that should trigger an error.
-        let result = BuildCollection::from_param_str("k=31,seed=abc");
+        let result = BuildCollection::from_param_str("dna,k=31,seed=abc");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1253,7 +1253,7 @@ mod tests {
     #[test]
     fn test_repeated_values() {
         // repeated scaled
-        let result = BuildCollection::from_param_str("k=31,scaled=1,scaled=1000");
+        let result = BuildCollection::from_param_str("dna,k=31,scaled=1,scaled=1000");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1261,7 +1261,7 @@ mod tests {
         );
 
         // repeated num
-        let result = BuildCollection::from_param_str("k=31,num=1,num=1000");
+        let result = BuildCollection::from_param_str("dna,k=31,num=1,num=1000");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1269,7 +1269,7 @@ mod tests {
         );
 
         // repeated seed
-        let result = BuildCollection::from_param_str("k=31,seed=1,seed=42");
+        let result = BuildCollection::from_param_str("dna,k=31,seed=1,seed=42");
         assert!(result.is_err(), "Expected an error but got Ok.");
         assert_eq!(
             result.unwrap_err(),
@@ -1280,14 +1280,14 @@ mod tests {
     #[test]
     fn test_missing_ksize() {
         // Test for a missing ksize, using default should not result in an error.
-        let result = BuildCollection::from_param_str("abund");
+        let result = BuildCollection::from_param_str("dna,abund");
         assert!(result.is_ok(), "Expected Ok but got an error.");
     }
 
     #[test]
     fn test_repeated_ksize() {
         // Repeated ksize settings should not trigger an error since it is valid to have multiple ksizes.
-        let result = BuildCollection::from_param_str("k=31,k=21");
+        let result = BuildCollection::from_param_str("dna,k=31,k=21");
         assert!(result.is_ok(), "Expected Ok but got an error.");
     }
 
@@ -1398,7 +1398,7 @@ mod tests {
         };
 
         // Add dayhoff record.
-        build_collection.add_template_sig_from_record(&dna_record);
+        build_collection.add_template_sig_from_record(&dayhoff_record);
 
         // Verify that the record was added.
         assert_eq!(build_collection.manifest.records.len(), 3);
@@ -1413,7 +1413,7 @@ mod tests {
     #[test]
     fn test_filter_empty() {
         // Create a parameter string that generates BuildRecords with different `sequence_added` values.
-        let params_str = "k=31,abund,dna_k=21,protein_k=10,abund";
+        let params_str = "k=31,abund,dna_k=21,protein_dayhoff,k=10,abund";
 
         // Use `from_param_str` to build a `BuildCollection`.
         let mut build_collection = BuildCollection::from_param_str(params_str)
