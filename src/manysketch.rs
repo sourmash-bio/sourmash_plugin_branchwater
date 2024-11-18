@@ -73,9 +73,8 @@ pub fn manysketch(
             // atm, we only do DNA->DNA, prot->prot Future -- figure out if we need to modify to allow translate/skip
             let multiselection = MultiSelection::from_input_moltype(input_moltype.as_str())
                 .expect("could not build selection from input moltype");
-            // todo: select should work in place??
-            sigs = sigs
-                .select(&multiselection)
+
+            sigs.select(&multiselection)
                 .expect("could not select on sig_templates");
 
             // if no sigs to build, skip this iteration

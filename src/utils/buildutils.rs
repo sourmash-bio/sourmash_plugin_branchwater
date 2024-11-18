@@ -70,9 +70,7 @@ impl MultiSelection {
 }
 
 pub trait MultiSelect {
-    fn select(self, multi_selection: &MultiSelection) -> Result<Self, SourmashError>
-    where
-        Self: Sized;
+    fn select(&mut self, multi_selection: &MultiSelection) -> Result<(), SourmashError>;
 }
 
 #[derive(Debug, Clone, Getters, Setters, Serialize)]
@@ -326,7 +324,10 @@ impl BuildManifest {
         let mut csv_writer = csv::Writer::from_writer(wtr);
 
         for record in &self.records {
-            csv_writer.serialize(record)?; // Serialize each BuildRecord
+            // don't write empty records (empty template sigs aren't written from BuildCollection)
+            if record.sequence_added {
+                csv_writer.serialize(record)?; // Serialize each BuildRecord
+            }
         }
 
         csv_writer.flush()?; // Ensure all data is written
@@ -346,18 +347,15 @@ impl BuildManifest {
 }
 
 impl MultiSelect for BuildManifest {
-    fn select(self, multi_selection: &MultiSelection) -> Result<Self, SourmashError> {
-        let rows = self.records.iter().filter(|row| {
-            // for each row, check if it matches any of the Selection structs in MultiSelection
+    fn select(&mut self, multi_selection: &MultiSelection) -> Result<(), SourmashError> {
+        // Retain only the records that match any selection
+        self.records.retain(|record| {
             multi_selection
                 .selections
                 .iter()
-                .any(|selection| row.matches_selection(selection))
+                .any(|selection| record.matches_selection(selection))
         });
-
-        Ok(BuildManifest {
-            records: rows.cloned().collect(),
-        })
+        Ok(())
     }
 }
 
@@ -417,23 +415,23 @@ impl BuildCollection {
 
     pub fn dna_size(&self) -> Result<usize, SourmashError> {
         let multiselection = MultiSelection::from_moltypes(vec!["dna"])?;
-        let selected_manifest = self.manifest.clone().select(&multiselection)?;
-
-        Ok(selected_manifest.records.len())
+        let mut mf = self.manifest.clone(); // temporary mutable copy
+        mf.select(&multiselection)?;
+        Ok(mf.records.len())
     }
 
     pub fn protein_size(&self) -> Result<usize, SourmashError> {
         let multiselection = MultiSelection::from_moltypes(vec!["protein"])?;
-        let selected_manifest = self.manifest.clone().select(&multiselection)?;
-
-        Ok(selected_manifest.records.len())
+        let mut mf = self.manifest.clone(); // temporary mutable copy
+        mf.select(&multiselection)?;
+        Ok(mf.records.len())
     }
 
     pub fn anyprotein_size(&self) -> Result<usize, SourmashError> {
         let multiselection = MultiSelection::from_moltypes(vec!["protein", "dayhoff", "hp"])?;
-        let selected_manifest = self.manifest.clone().select(&multiselection)?;
-
-        Ok(selected_manifest.records.len())
+        let mut mf = self.manifest.clone(); // temporary mutable copy
+        mf.select(&multiselection)?;
+        Ok(mf.records.len())
     }
 
     pub fn parse_ksize(value: &str) -> Result<u32, String> {
@@ -695,26 +693,6 @@ impl BuildCollection {
             } else {
                 sig_index += 1; // Only increment if we keep the record and signature.
             }
-            keep
-        });
-    }
-
-    // filter template signatures that had no sequence added
-    // suggested use right before writing signatures
-    pub fn filter_empty(&mut self) {
-        let mut sig_index = 0;
-
-        self.manifest.records.retain(|record| {
-            // Keep only records where `sequence_added` is `true`.
-            let keep = record.sequence_added;
-
-            if !keep {
-                // Remove the corresponding signature at the same index if the record is not kept.
-                self.sigs.remove(sig_index);
-            } else {
-                sig_index += 1; // Only increment if we keep the record and signature.
-            }
-
             keep
         });
     }
@@ -997,7 +975,6 @@ impl BuildCollection {
                 niffler::compression::Level::Nine,
             )?;
             gz_writer.write_all(&json_bytes)?;
-            // gz_writer.finish()?;
         } else {
             // Write uncompressed JSON to the writer
             writer.write_all(&json_bytes)?;
@@ -1018,36 +995,25 @@ impl<'a> IntoIterator for &'a mut BuildCollection {
 }
 
 impl MultiSelect for BuildCollection {
-    // to do --> think through the best/most efficient way to do this
     // in sourmash core, we don't need to select sigs themselves. Is this due to the way that Idx/Storage work?
-    fn select(mut self, multi_selection: &MultiSelection) -> Result<Self, SourmashError> {
-        // Collect indices while retaining matching records
-        let mut selected_indices = Vec::new();
-        let mut current_index = 0;
-
+    fn select(&mut self, multi_selection: &MultiSelection) -> Result<(), SourmashError> {
+        // Retain records and sigs in place
+        let mut i = 0;
         self.manifest.records.retain(|record| {
             let keep = multi_selection
                 .selections
                 .iter()
                 .any(|selection| record.matches_selection(selection));
 
-            if keep {
-                selected_indices.push(current_index); // Collect the index of the retained record
+            if !keep {
+                self.sigs.remove(i); // Remove corresponding signature
+            } else {
+                i += 1;
             }
-
-            current_index += 1; // Move to the next index
-            keep // Retain the record if it matches the selection
-        });
-
-        // Retain corresponding signatures using the collected indices
-        let mut sig_index = 0;
-        self.sigs.retain(|_sig| {
-            let keep = selected_indices.contains(&sig_index);
-            sig_index += 1;
             keep
         });
 
-        Ok(self)
+        Ok(())
     }
 }
 
@@ -1408,63 +1374,5 @@ mod tests {
         assert_eq!(added_dayhoff_record.moltype, "dayhoff");
         assert_eq!(added_dayhoff_record.ksize, 10);
         assert_eq!(added_dayhoff_record.with_abundance, true);
-    }
-
-    #[test]
-    fn test_filter_empty() {
-        // Create a parameter string that generates BuildRecords with different `sequence_added` values.
-        let params_str = "k=31,abund,dna_k=21,protein_dayhoff,k=10,abund";
-
-        // Use `from_param_str` to build a `BuildCollection`.
-        let mut build_collection = BuildCollection::from_param_str(params_str)
-            .expect("Failed to build BuildCollection from params_str");
-
-        // Manually set `sequence_added` for each record to simulate different conditions.
-        build_collection.manifest.records[0].sequence_added = true; // Keep this record.
-        build_collection.manifest.records[1].sequence_added = false; // This record should be removed.
-        build_collection.manifest.records[2].sequence_added = true; // Keep this record.
-
-        // Check initial sizes before filtering.
-        assert_eq!(
-            build_collection.manifest.records.len(),
-            3,
-            "Expected 3 records before filtering, but found {}",
-            build_collection.manifest.records.len()
-        );
-        assert_eq!(
-            build_collection.sigs.len(),
-            3,
-            "Expected 3 signatures before filtering, but found {}",
-            build_collection.sigs.len()
-        );
-
-        // Apply the `filter_empty` method.
-        build_collection.filter_empty();
-
-        // After filtering, only the records with `sequence_added == true` should remain.
-        assert_eq!(
-            build_collection.manifest.records.len(),
-            2,
-            "Expected 2 records after filtering, but found {}",
-            build_collection.manifest.records.len()
-        );
-
-        // Check that the signatures also match the remaining records.
-        assert_eq!(
-            build_collection.sigs.len(),
-            2,
-            "Expected 2 signatures after filtering, but found {}",
-            build_collection.sigs.len()
-        );
-
-        // Verify that the remaining records have `sequence_added == true`.
-        assert!(
-            build_collection
-                .manifest
-                .records
-                .iter()
-                .all(|rec| rec.sequence_added),
-            "All remaining records should have `sequence_added == true`"
-        );
     }
 }
