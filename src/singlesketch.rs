@@ -16,6 +16,8 @@ pub fn singlesketch(
             bail!("Failed to parse params string: {}", e);
         }
     };
+    // print sig templates to build
+    let _params = sigs.summarize_params();
 
     let input_moltype = input_moltype.to_ascii_lowercase();
 
