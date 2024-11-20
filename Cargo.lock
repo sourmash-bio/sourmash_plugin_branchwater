@@ -1828,6 +1828,7 @@ dependencies = [
  "camino",
  "csv",
  "env_logger",
+ "getset",
  "glob",
  "log",
  "needletail 0.5.1",

@@ -19,13 +19,14 @@ use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
+use std::sync::mpsc::Receiver;
+use std::thread::JoinHandle;
+use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
-use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
-use sourmash::signature::{Signature, SigsTrait};
+use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
@@ -33,6 +34,9 @@ use std::hash::{Hash, Hasher};
 
 pub mod multicollection;
 use multicollection::MultiCollection;
+
+pub mod buildutils;
+use buildutils::{BuildCollection, BuildManifest};
 
 /// Structure to hold overlap information from comparisons.
 pub struct PrefetchResult {
@@ -1183,14 +1187,13 @@ impl Hash for Params {
     }
 }
 
-pub fn sigwriter(
-    recv: std::sync::mpsc::Receiver<Option<Vec<Signature>>>,
+pub fn zipwriter_handle(
+    recv: Receiver<Option<BuildCollection>>,
     output: String,
-) -> std::thread::JoinHandle<Result<()>> {
+) -> JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
-        // cast output as PathBuf
+        // Convert output to PathBuf
         let outpath: PathBuf = output.into();
-
         let file_writer = open_output_file(&outpath);
 
         let options = FileOptions::default()
@@ -1199,34 +1202,33 @@ pub fn sigwriter(
             .large_file(true);
 
         let mut zip = ZipWriter::new(file_writer);
-        let mut manifest_rows: Vec<Record> = Vec::new();
-        // keep track of MD5 sum occurrences to prevent overwriting duplicates
         let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
+        let mut zip_manifest = BuildManifest::new();
 
-        // Process all incoming signatures
+        // Process each incoming Option<BuildCollection>
         while let Ok(message) = recv.recv() {
             match message {
-                Some(sigs) => {
-                    for sig in sigs.iter() {
-                        let md5sum_str = sig.md5sum();
-                        let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
-                        *count += 1;
-                        let sig_filename = if *count > 1 {
-                            format!("signatures/{}_{}.sig.gz", md5sum_str, count)
-                        } else {
-                            format!("signatures/{}.sig.gz", md5sum_str)
-                        };
-                        write_signature(sig, &mut zip, options.clone(), &sig_filename);
-                        let records: Vec<Record> = Record::from_sig(sig, sig_filename.as_str());
-                        manifest_rows.extend(records);
+                Some(mut build_collection) => {
+                    // Use BuildCollection's method to write signatures to the zip file
+                    match build_collection.write_sigs_to_zip(
+                        &mut zip,
+                        &mut md5sum_occurrences,
+                        &options,
+                    ) {
+                        Ok(_) => {
+                            zip_manifest.extend_from_manifest(&build_collection.manifest);
+                        }
+                        Err(e) => {
+                            let error = e.context("Error processing signature in BuildCollection");
+                            eprintln!("Error: {}", error);
+                            return Err(error);
+                        }
                     }
                 }
                 None => {
-                    // Write the manifest and finish the ZIP file
+                    // Finalize and write the manifest when None is received
                     println!("Writing manifest");
-                    zip.start_file("SOURMASH-MANIFEST.csv", options)?;
-                    let manifest: Manifest = manifest_rows.clone().into();
-                    manifest.to_writer(&mut zip)?;
+                    zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
                     zip.finish()?;
                     break;
                 }
@@ -1253,115 +1255,4 @@ pub fn csvwriter_thread<T: Serialize + Send + 'static>(
         }
         writer.flush().expect("Failed to flush writer.");
     })
-}
-
-pub fn write_signature(
-    sig: &Signature,
-    zip: &mut zip::ZipWriter<BufWriter<File>>,
-    zip_options: zip::write::FileOptions<ExtendedFileOptions>,
-    sig_filename: &str,
-) {
-    let wrapped_sig = vec![sig];
-    let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
-
-    let gzipped_buffer = {
-        let mut buffer = std::io::Cursor::new(Vec::new());
-        {
-            let mut gz_writer = niffler::get_writer(
-                Box::new(&mut buffer),
-                niffler::compression::Format::Gzip,
-                niffler::compression::Level::Nine,
-            )
-            .unwrap();
-            gz_writer.write_all(&json_bytes).unwrap();
-        }
-        buffer.into_inner()
-    };
-
-    zip.start_file(sig_filename, zip_options).unwrap();
-    zip.write_all(&gzipped_buffer).unwrap();
-}
-
-pub fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
-    let mut unique_params: std::collections::HashSet<Params> = std::collections::HashSet::new();
-
-    // split params_strs by _ and iterate over each param
-    for p_str in params_strs.split('_').collect::<Vec<&str>>().iter() {
-        let items: Vec<&str> = p_str.split(',').collect();
-
-        let mut ksizes = Vec::new();
-        let mut track_abundance = false;
-        let mut num = 0;
-        let mut scaled = 1000;
-        let mut seed = 42;
-        let mut is_dna = false;
-        let mut is_protein = false;
-        let mut is_dayhoff = false;
-        let mut is_hp = false;
-
-        for item in items.iter() {
-            match *item {
-                _ if item.starts_with("k=") => {
-                    let k_value = item[2..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
-                    ksizes.push(k_value);
-                }
-                "abund" => track_abundance = true,
-                "noabund" => track_abundance = false,
-                _ if item.starts_with("num=") => {
-                    num = item[4..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
-                }
-                _ if item.starts_with("scaled=") => {
-                    scaled = item[7..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
-                }
-                _ if item.starts_with("seed=") => {
-                    seed = item[5..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
-                }
-                "protein" => {
-                    is_protein = true;
-                }
-                "dna" => {
-                    is_dna = true;
-                }
-                "dayhoff" => {
-                    is_dayhoff = true;
-                }
-                "hp" => {
-                    is_hp = true;
-                }
-                _ => return Err(format!("unknown component '{}' in params string", item)),
-            }
-        }
-
-        if !is_dna && !is_protein && !is_dayhoff && !is_hp {
-            return Err(format!("No moltype provided in params string {}", p_str));
-        }
-        if ksizes.is_empty() {
-            return Err(format!("No ksizes provided in params string {}", p_str));
-        }
-
-        for &k in &ksizes {
-            let param = Params {
-                ksize: k,
-                track_abundance,
-                num,
-                scaled,
-                seed,
-                is_protein,
-                is_dna,
-                is_dayhoff,
-                is_hp,
-            };
-            unique_params.insert(param);
-        }
-    }
-
-    Ok(unique_params.into_iter().collect())
 }
