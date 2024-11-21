@@ -1362,3 +1362,66 @@ def test_equal_matches(runtmp):
     df = pandas.read_csv(runtmp.output("out.csv"))
     assert len(df) == 2
     assert set(df["intersect_bp"]) == {1000}
+
+
+def test_simple_skipmer(
+    runtmp, capfd, indexed_query, indexed_against, toggle_internal_storage
+):
+    # test basic execution!
+    query = get_test_data("SRR606249.skipmer.zip")
+    against = get_test_data("skipmer.zip")  # contains 2,47,63
+
+    if indexed_query:
+        query = index_siglist(
+            runtmp, query, runtmp.output("query"), scaled=100000, moltype="skipmer"
+        )
+
+    if indexed_against:
+        against = index_siglist(
+            runtmp,
+            against,
+            runtmp.output("db"),
+            moltype="skipmer",
+            toggle_internal_storage=toggle_internal_storage,
+        )
+
+    g_output = runtmp.output("gather.csv")
+    p_output = runtmp.output("prefetch.csv")
+
+    runtmp.sourmash(
+        "scripts",
+        "fastgather",
+        "--moltype",
+        "skipmer",
+        query,
+        against,
+        "-o",
+        g_output,
+        "-s",
+        "100000",
+    )
+    assert os.path.exists(g_output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert {
+        "query_filename",
+        "query_name",
+        "query_md5",
+        "match_name",
+        "match_md5",
+        "gather_result_rank",
+        "intersect_bp",
+    }.issubset(keys)
+
+    # CTB note: we do not need to worry about this warning for query from a
+    # RocksDB, since there is only one.
+    if indexed_against:
+        print("indexed against:", indexed_against)
+        assert (
+            "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
+        )
