@@ -1573,12 +1573,15 @@ def test_singlesketch_skipmer(runtmp):
     output = runtmp.output("short.sig")
 
     # Run the singlesketch command
-    runtmp.sourmash("scripts", "singlesketch", fa1, "-p", "skipmer,k=31,scaled=100", "-o", output)
+    runtmp.sourmash(
+        "scripts", "singlesketch", fa1, "-p", "skipmer,k=31,scaled=100", "-o", output
+    )
 
     # Check if the output exists and contains the expected data
     assert os.path.exists(output)
     # Load the output signature file
     import json
+
     with open(output, "r") as f:
         data = json.load(f)
 
@@ -1596,10 +1599,18 @@ def test_singlesketch_skipmer(runtmp):
     ]
 
     # Check if the signatures match the expected
-    assert len(signatures) == len(expected_signatures), "Number of signatures does not match."
+    assert len(signatures) == len(
+        expected_signatures
+    ), "Number of signatures does not match."
 
     for sig, expected in zip(signatures, expected_signatures):
         assert sig["ksize"] == expected["ksize"], f"Unexpected ksize: {sig['ksize']}"
-        assert sig["molecule"] == expected["moltype"], f"Unexpected moltype: {sig['molecule']}"
-        assert sig["md5sum"] == expected["md5sum"], f"Unexpected md5sum: {sig['md5sum']}"
-        assert data[0]["name"] == expected["name"], f"Unexpected name: {data[0]['name']}"
+        assert (
+            sig["molecule"] == expected["moltype"]
+        ), f"Unexpected moltype: {sig['molecule']}"
+        assert (
+            sig["md5sum"] == expected["md5sum"]
+        ), f"Unexpected md5sum: {sig['md5sum']}"
+        assert (
+            data[0]["name"] == expected["name"]
+        ), f"Unexpected name: {data[0]['name']}"
