@@ -1773,8 +1773,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.17.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54e30f752d984b1d8456024973f8d89772b4ba248f592b77b57d59ad27a232a0"
+source = "git+https://github.com/sourmash-bio/sourmash/?branch=try-skipmers#d4a620094ba90a86dcd18197732f2bb18f7266f5"
 dependencies = [
  "az",
  "byteorder",

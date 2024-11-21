@@ -618,7 +618,7 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             args.param_string = ["k=31,scaled=1000,dna"]
 
         # Check and append 'dna' if no moltype is found in a param string
-        moltypes = ["dna", "protein", "dayhoff", "hp"]
+        moltypes = ["dna", "protein", "dayhoff", "hp", "skipmer"]
         updated_param_strings = []
 
         for param in args.param_string:
