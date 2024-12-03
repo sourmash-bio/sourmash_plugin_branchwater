@@ -967,6 +967,7 @@ pub fn build_selection(ksize: u8, scaled: Option<u32>, moltype: &str) -> Selecti
         "protein" => HashFunctions::Murmur64Protein,
         "dayhoff" => HashFunctions::Murmur64Dayhoff,
         "hp" => HashFunctions::Murmur64Hp,
+        "skipmer" => HashFunctions::Murmur64Skipmer,
         _ => panic!("Unknown molecule type: {}", moltype),
     };
     // let hash_function = HashFunctions::try_from(moltype)
