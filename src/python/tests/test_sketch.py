@@ -1438,7 +1438,7 @@ def test_singlesketch_zip_output(runtmp):
     assert sig.minhash.hashes == sig2.minhash.hashes
 
 
-def test_manysketch_skipmer(runtmp, capfd):
+def test_manysketch_skipm2n3(runtmp, capfd):
     fa_csv = runtmp.output("db-fa.csv")
 
     fa1 = get_test_data("short.fa")
@@ -1459,7 +1459,7 @@ def test_manysketch_skipmer(runtmp, capfd):
         "--param-str",
         "dna,k=21,scaled=1",
         "--param-str",
-        "skipmer,k=31,scaled=30",
+        "skipm2n3,k=31,scaled=30",
     )
 
     assert os.path.exists(output)
@@ -1497,22 +1497,22 @@ def test_manysketch_skipmer(runtmp, capfd):
                 "name": "short",
                 "ksize": 31,
                 "scaled": 30,
-                "moltype": "skipmer",
-                "md5sum": "c7b5b8d98c6fde00e2a25769d5eb470a",
+                "moltype": "skipm2n3",
+                "md5sum": "0486fcae73545363da9cd5bfcf18d322",
             },
             {
                 "name": "short3",
                 "ksize": 31,
                 "scaled": 30,
-                "moltype": "skipmer",
-                "md5sum": "ed5bbe1b2a9a5cd83a6c8583e8122518",
+                "moltype": "skipm2n3",
+                "md5sum": "890557b39ae66d3177035296818de7c6",
             },
             {
                 "name": "short2",
                 "ksize": 31,
                 "scaled": 30,
-                "moltype": "skipmer",
-                "md5sum": "13c456b9a346284d0acdf49b3e529da6",
+                "moltype": "skipm2n3",
+                "md5sum": "ec6305f5d82e51659f3914d47fcc32ee",
             },
         ]
         expected_signatures_dict = {exp["md5sum"]: exp for exp in expected_signatures}
@@ -1524,7 +1524,7 @@ def test_manysketch_skipmer(runtmp, capfd):
             manifest_reader = csv.DictReader(manifest_data)
 
             for row in manifest_reader:
-                if row["moltype"] == "skipmer":
+                if row["moltype"] == "skipm2n3":
                     print("Manifest Row:", row)
 
                     # Validate row fields
@@ -1567,14 +1567,14 @@ def test_manysketch_skipmer(runtmp, capfd):
                             ), f"Moltype mismatch: {siginfo['molecule']}"
 
 
-def test_singlesketch_skipmer(runtmp):
-    """Test singlesketch with skipmers."""
+def test_singlesketch_skipm2n3(runtmp):
+    """Test singlesketch with skipm2n3."""
     fa1 = get_test_data("short.fa")
     output = runtmp.output("short.sig")
 
     # Run the singlesketch command
     runtmp.sourmash(
-        "scripts", "singlesketch", fa1, "-p", "skipmer,k=31,scaled=100", "-o", output
+        "scripts", "singlesketch", fa1, "-p", "skipm2n3,k=31,scaled=100", "-o", output
     )
 
     # Check if the output exists and contains the expected data
@@ -1593,8 +1593,8 @@ def test_singlesketch_skipmer(runtmp):
         {
             "name": "short.fa",
             "ksize": 31,
-            "moltype": "skipmer",
-            "md5sum": "33025b8f1859b7836b99347c217b9dc4",
+            "moltype": "skipm2n3",
+            "md5sum": "387d25c8e4b4878c78872efd13621491",
         }
     ]
 

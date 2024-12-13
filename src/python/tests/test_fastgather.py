@@ -1364,16 +1364,16 @@ def test_equal_matches(runtmp):
     assert set(df["intersect_bp"]) == {1000}
 
 
-def test_simple_skipmer(
+def test_simple_skipm2n3(
     runtmp, capfd, indexed_query, indexed_against, toggle_internal_storage
 ):
     # test basic execution!
-    query = get_test_data("SRR606249.skipmer.zip")
-    against = get_test_data("skipmer.zip")  # contains 2,47,63
+    query = get_test_data("SRR606249.skipm2n3.zip")
+    against = get_test_data("skipm2n3.zip")  # contains 2,47,63
 
     if indexed_query:
         query = index_siglist(
-            runtmp, query, runtmp.output("query"), scaled=100000, moltype="skipmer"
+            runtmp, query, runtmp.output("query"), scaled=100000, moltype="skipm2n3"
         )
 
     if indexed_against:
@@ -1381,7 +1381,7 @@ def test_simple_skipmer(
             runtmp,
             against,
             runtmp.output("db"),
-            moltype="skipmer",
+            moltype="skipm2n3",
             toggle_internal_storage=toggle_internal_storage,
         )
 
@@ -1392,7 +1392,7 @@ def test_simple_skipmer(
         "scripts",
         "fastgather",
         "--moltype",
-        "skipmer",
+        "skipm2n3",
         query,
         against,
         "-o",

@@ -49,7 +49,7 @@ impl MultiSelection {
     pub fn from_input_moltype(input_moltype: &str) -> Result<Self, SourmashError> {
         // currently we don't allow translation. Will need to change this when we do.
         // is there a better way to do this?
-        let mut moltypes = vec!["DNA", "skipmer"]; // change so default is just dna?
+        let mut moltypes = vec!["DNA", "skipm1n3", "skipm2n3"]; // change so default is just dna?
         if input_moltype == "protein" {
             moltypes = vec!["protein", "dayhoff", "hp"];
         }
@@ -181,9 +181,18 @@ impl BuildRecord {
         }
     }
 
-    pub fn default_skipmer() -> Self {
+    pub fn default_skipm1n3() -> Self {
         Self {
-            moltype: "skipmer".to_string(),
+            moltype: "skipm1n3".to_string(),
+            ksize: 21,
+            scaled: 1000,
+            ..Self::default_dna()
+        }
+    }
+
+    pub fn default_skipm2n3() -> Self {
+        Self {
+            moltype: "skipm2n3".to_string(),
             ksize: 21,
             scaled: 1000,
             ..Self::default_dna()
@@ -429,16 +438,23 @@ impl BuildCollection {
         Ok(mf.records.len())
     }
 
-    pub fn skipmer_size(&self) -> Result<usize, SourmashError> {
-        let multiselection = MultiSelection::from_moltypes(vec!["skipmer"])?;
-        let mut mf = self.manifest.clone(); // temporary mutable copy
+    pub fn skipm1n3_size(&self) -> Result<usize, SourmashError> {
+        let multiselection = MultiSelection::from_moltypes(vec!["skipm1n3"])?;
+        let mut mf = self.manifest.clone();
+        mf.select(&multiselection)?;
+        Ok(mf.records.len())
+    }
+
+    pub fn skipm2n3_size(&self) -> Result<usize, SourmashError> {
+        let multiselection = MultiSelection::from_moltypes(vec!["skipm2n3"])?;
+        let mut mf = self.manifest.clone();
         mf.select(&multiselection)?;
         Ok(mf.records.len())
     }
 
     pub fn protein_size(&self) -> Result<usize, SourmashError> {
         let multiselection = MultiSelection::from_moltypes(vec!["protein"])?;
-        let mut mf = self.manifest.clone(); // temporary mutable copy
+        let mut mf = self.manifest.clone();
         mf.select(&multiselection)?;
         Ok(mf.records.len())
     }
@@ -482,7 +498,7 @@ impl BuildCollection {
 
     pub fn parse_moltype(item: &str, current: &mut Option<String>) -> Result<String, String> {
         let new_moltype = match item {
-            "protein" | "dna" | "dayhoff" | "hp" | "skipmer" => item.to_string(),
+            "protein" | "dna" | "dayhoff" | "hp" | "skipm1n3" | "skipm2n3" => item.to_string(),
             _ => return Err(format!("unknown moltype '{}'", item)),
         };
 
@@ -547,7 +563,7 @@ impl BuildCollection {
                 "abund" | "noabund" => {
                     Self::parse_abundance(item, &mut track_abundance)?;
                 }
-                "protein" | "dna" | "DNA" | "dayhoff" | "hp" | "skipmer" => {
+                "protein" | "dna" | "DNA" | "dayhoff" | "hp" | "skipm1n3" | "skipm2n3" => {
                     Self::parse_moltype(item, &mut moltype)?;
                 }
                 _ if item.starts_with("num=") => {
@@ -582,7 +598,8 @@ impl BuildCollection {
             "protein" => BuildRecord::default_protein(),
             "dayhoff" => BuildRecord::default_dayhoff(),
             "hp" => BuildRecord::default_hp(),
-            "skipmer" => BuildRecord::default_skipmer(),
+            "skipm1n3" => BuildRecord::default_skipm1n3(),
+            "skipm2n3" => BuildRecord::default_skipm2n3(),
             _ => {
                 return Err(format!(
                     "Error parsing params string '{}': Unsupported moltype '{}'",
@@ -677,7 +694,8 @@ impl BuildCollection {
             .dna(record.moltype == "DNA")
             .dayhoff(record.moltype == "dayhoff")
             .hp(record.moltype == "hp")
-            .skipmer(record.moltype == "skipmer")
+            .skipm1n3(record.moltype == "skipm1n3")
+            .skipm2n3(record.moltype == "skipm2n3")
             .num_hashes(record.num)
             .track_abundance(record.with_abundance)
             .build();
@@ -766,7 +784,8 @@ impl BuildCollection {
                 }
             } else if (input_moltype == "DNA" || input_moltype == "dna")
                 && rec.moltype() == HashFunctions::Murmur64Dna
-                || rec.moltype() == HashFunctions::Murmur64Skipmer
+                || rec.moltype() == HashFunctions::Murmur64Skipm1n3
+                || rec.moltype() == HashFunctions::Murmur64Skipm2n3
             {
                 sig.add_sequence(&record.seq(), true)
                     .context("Failed to add sequence")?;
