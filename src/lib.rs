@@ -28,7 +28,7 @@ mod singlesketch;
 use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false))]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false, output_all_comparisons=false))]
 #[allow(clippy::too_many_arguments)]
 fn do_manysearch(
     querylist_path: String,
@@ -39,6 +39,7 @@ fn do_manysearch(
     moltype: String,
     output_path: Option<String>,
     ignore_abundance: Option<bool>,
+    output_all_comparisons: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
@@ -46,6 +47,7 @@ fn do_manysearch(
     let allow_failed_sigpaths = true;
 
     let ignore_abundance = ignore_abundance.unwrap_or(false);
+    let output_all_comparisons = output_all_comparisons.unwrap_or(false);
 
     // if siglist_path is revindex, run rocksdb manysearch; otherwise run manysearch
     if is_revindex_database(&againstfile_path) {
@@ -57,6 +59,7 @@ fn do_manysearch(
             threshold,
             output_path,
             allow_failed_sigpaths,
+            output_all_comparisons,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -73,6 +76,7 @@ fn do_manysearch(
             output_path,
             allow_failed_sigpaths,
             ignore_abundance,
+            output_all_comparisons,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {

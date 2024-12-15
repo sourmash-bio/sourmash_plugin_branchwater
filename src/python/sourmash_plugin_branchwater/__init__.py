@@ -107,6 +107,11 @@ class Branchwater_Manysearch(CommandLinePlugin):
             action="store_true",
             help="do not do expensive abundance calculations",
         )
+        p.add_argument(
+            "--output-all-comparisons",
+            action="store_true",
+            help="ignore threshold and output all comparisons; for RocksDB, this will only output comparisons with some overlap",
+        )
 
     def main(self, args):
         print_version()
@@ -129,6 +134,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
             args.moltype,
             args.output,
             args.ignore_abundance,
+            args.output_all_comparisons,
         )
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")

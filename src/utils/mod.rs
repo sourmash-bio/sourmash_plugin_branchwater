@@ -33,7 +33,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 pub mod multicollection;
-use multicollection::MultiCollection;
+pub use multicollection::{MultiCollection, SmallSignature};
 
 pub mod buildutils;
 use buildutils::{BuildCollection, BuildManifest};
@@ -617,7 +617,7 @@ pub fn load_collection(
 ///
 /// # Arguments
 ///
-/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
+/// * `collection` - A MultiCollection.
 /// * `skipped_paths` - # paths that contained no compatible sketches.
 /// * `failed_paths` - # paths that failed to load.
 /// * `report_type` - ReportType Enum (Query or Against). Used to specify
@@ -999,7 +999,7 @@ pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
 }
 
 #[derive(Serialize)]
-pub struct SearchResult {
+pub struct ManySearchResult {
     pub query_name: String,
     pub query_md5: String,
     pub match_name: String,
