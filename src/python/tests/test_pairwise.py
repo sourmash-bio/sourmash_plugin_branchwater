@@ -22,8 +22,9 @@ def test_installed(runtmp):
 
 def test_on_dir(runtmp, capfd):
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "pairwise", runtmp.output(""),
-                        "-o", runtmp.output('xxx.csv'))
+        runtmp.sourmash(
+            "scripts", "pairwise", runtmp.output(""), "-o", runtmp.output("xxx.csv")
+        )
 
     captured = capfd.readouterr()
     print(captured.err)
