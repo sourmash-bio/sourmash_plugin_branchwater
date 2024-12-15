@@ -236,7 +236,7 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, estimate_prob_overlap, output_path=None))]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, estimate_prob_overlap, output_all_comparisons, output_path=None))]
 #[allow(clippy::too_many_arguments)]
 fn do_multisearch(
     querylist_path: String,
@@ -247,6 +247,7 @@ fn do_multisearch(
     moltype: String,
     estimate_ani: bool,
     estimate_prob_overlap: bool,
+    output_all_comparisons: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let _ = env_logger::try_init();
@@ -262,6 +263,7 @@ fn do_multisearch(
         allow_failed_sigpaths,
         estimate_ani,
         estimate_prob_overlap,
+        output_all_comparisons,
         output_path,
     ) {
         Ok(_) => Ok(0),
@@ -274,7 +276,7 @@ fn do_multisearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (siglist_path, threshold, ksize, scaled, moltype, estimate_ani, write_all, output_path=None))]
+#[pyo3(signature = (siglist_path, threshold, ksize, scaled, moltype, estimate_ani, write_all, output_all_comparisons, output_path=None))]
 fn do_pairwise(
     siglist_path: String,
     threshold: f64,
@@ -283,6 +285,7 @@ fn do_pairwise(
     moltype: String,
     estimate_ani: bool,
     write_all: bool,
+    output_all_comparisons: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
@@ -294,6 +297,7 @@ fn do_pairwise(
         allow_failed_sigpaths,
         estimate_ani,
         write_all,
+        output_all_comparisons,
         output_path,
     ) {
         Ok(_) => Ok(0),

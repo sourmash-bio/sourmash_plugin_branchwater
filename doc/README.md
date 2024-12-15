@@ -29,13 +29,11 @@ be processed differently.  The plugin commands are also a bit less
 user friendly, because (for now) we're more focused on speed than
 polish and user experience.
 
-**Note:** As of v0.9.5, the outputs of `fastgather` and `fastmultigather` almost completely match the output of `sourmash gather`; see below for details.
-
 ## Input file formats
 
 sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not (yet) supported natively by sourmash (through v4.8.11).
 
-**As of v0.9.8, we recommend using zip files or standalone manifest CSVs pointing to zip files whenever you need to provide multiple sketches.**
+**We recommend using zip files or standalone manifest CSVs pointing to zip files whenever you need to provide multiple sketches.**
 
 | command | command input | database format |
 | -------- | -------- | -------- |
@@ -58,8 +56,8 @@ When working with large collections of small sketches such as genomes, we sugges
 * in particular, _single_ sketches can be loaded on demand, supporting lower memory requirements for certain kinds of searches.
 
 For all these reasons, zip files are the most efficient and effective
-basic storage type for sketches in sourmash, and as of the branchwater
-plugin v0.9.0, they are fully supported!
+basic storage type for sketches in sourmash, and the branchwater
+plugin fully supports them!
 
 You can create zipfiles with sourmash like so:
 ```
@@ -152,7 +150,7 @@ at the start in order to generate a manifest. To avoid memory issues,
 the signatures are not kept in memory, but instead re-loaded as
 described below for each command (see: Notes on concurrency and
 efficiency). This makes using pathlists less efficient than `zip`
-files (as of v0.9.0) or manifests (as of v0.9.8).
+files.
 
 ## Running the commands
 
@@ -304,7 +302,7 @@ version of `sourmash gather`.
 sourmash scripts fastgather query.sig.gz database.zip -o results.csv --cores 4
 ```
 
-As of v0.9.5, `fastgather` outputs the same columns as `sourmash gather`, with only a few exception
+`fastgather` outputs the same columns as `sourmash gather`, with only a few exception
 * `match_name` is output instead of `name`;
 * `match_md5` is output instead of `md5`;
 * `match_filename` is output instead of `filename`, and the value is different;
@@ -457,14 +455,14 @@ pathlist format, and specify the desired output directory; we suggest
 using the `.rocksdb` extension for RocksDB databases, e.g. `-o
 gtdb-rs214-k31.rocksdb`.
 
-By default, as of v0.9.7, `index` will store a copy of the sketches
+By default, `index` will store a copy of the sketches
 along with the inverted index.  This will substantially increase the
 disk space required for large databases.  You can provide an optional
 `--no-internal-storage` to `index` to store them externally, which
 reduces the disk space needed for the index.  Read below for technical
 details!
 
-As of v0.9.8, `index` can take any of the supported input types, but
+`index` can take any of the supported input types, but
 unless you are using a zip file or a pathlist of JSON files, it may
 need to load all the sketches into memory before indexing
 them. Moreover, you can only use external storage with a zip file. We
@@ -474,9 +472,6 @@ for details. A warning will be printed to stderr in situations where
 the sketches are being loaded into memory.
 
 #### Internal vs external storage of sketches in a RocksDB index
-
-(The below applies to v0.9.7 and later of the plugin; for v0.9.6 and
-before, only external storage was implemented.)
 
 RocksDB indexes support containment queries (a la the
 [branchwater application](https://github.com/sourmash-bio/branchwater)),
@@ -494,7 +489,7 @@ the original source sketches used to construct the database, wherever
 they reside on your disk.
 
 The sketches *are not used* by `manysearch`, but *are used* by
-`fastmultigather`: with v0.9.6 and later, you'll get an error if you
+`fastmultigather`: you'll get an error if you
 run `fastmultigather` against a RocksDB index where the sketches
 cannot be loaded.
 
@@ -525,6 +520,21 @@ Note that RocksDB indexes are implemented in the core
 in downstream software packages (this plugin, and
 [the branchwater application code](https://github.com/sourmash-bio/branchwater)).
 The above documentation applies to sourmash core v0.15.0.
+
+## Notes on versioning and semantic versioning guarantees
+
+Unlike sourmash,
+[which provides guarantees that command-line options and outputs will not change within minor versions](https://sourmash.readthedocs.io/en/latest/support.html#versioning-and-stability-of-features-and-apis),
+we make no guarantees of stability within the branchwater plugin. This
+is because the branchwater plugin is intended to move fast and
+occasionally break things.
+
+Eventually we expect to provide all of the branchwater plugin's functionality within the sourmash package, at which time the sourmash guarantees will apply!
+
+However, we do not expect command line options and output file formats
+to change quickly.
+
+We will also endeavor to avoid changing column names in CSV output, although, we may change the _order_ of column names on occasion. Please use the column headers (column names) to select specific columns.
 
 ## Notes on concurrency and efficiency
 
