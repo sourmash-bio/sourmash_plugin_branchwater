@@ -20,6 +20,16 @@ def test_installed(runtmp):
     assert "usage:  pairwise" in runtmp.last_result.err
 
 
+def test_on_dir(runtmp, capfd):
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash("scripts", "pairwise", runtmp.output(""),
+                        "-o", runtmp.output('xxx.csv'))
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "arbitrary directories are not supported" in captured.err
+
+
 def test_simple_no_ani(runtmp, capfd, zip_query, indexed):
     # test basic execution!
     query_list = runtmp.output("query.txt")

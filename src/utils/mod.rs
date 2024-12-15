@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 // use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
-use std::fs::{create_dir_all, File};
+use std::fs::{create_dir_all, metadata, File};
 use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
@@ -554,6 +554,14 @@ pub fn load_collection(
             None
         }
     });
+
+    // we support RocksDB directory paths, but nothing else, unlike sourmash.
+    if collection.is_none() {
+        let path_metadata = metadata(sigpath.clone()).expect("getting path metadata failed");
+        if path_metadata.is_dir() {
+            bail!("arbitrary directories are not supported as input");
+        }
+    }
 
     let collection =
         collection.or_else(
