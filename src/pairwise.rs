@@ -137,7 +137,7 @@ pub fn pairwise(
                 eprintln!("Processed {} comparisons", i);
             }
         }
-        if write_all {
+        if write_all || output_all_comparisons {
             let mut query_containment_ani = None;
             let mut match_containment_ani = None;
             let mut average_containment_ani = None;

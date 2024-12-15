@@ -91,6 +91,31 @@ def test_simple_no_ani(runtmp, capfd, zip_query, indexed):
         )
 
 
+def test_simple_no_ani_output_all(runtmp, capfd, zip_query, indexed):
+    # test basic execution!
+    query_list = runtmp.output("query.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    if indexed:
+        query_list = index_siglist(runtmp, query_list, runtmp.output("db"))
+
+    runtmp.sourmash("scripts", "pairwise", query_list, "-o", output, "-t", "-1", "-A")
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 6
+
+
 def test_simple_ani(runtmp, zip_query):
     # test basic execution!
     query_list = runtmp.output("query.txt")
@@ -158,6 +183,17 @@ def test_simple_ani(runtmp, zip_query):
             assert q2_ani == 0.9772
             assert avg_ani == 0.977
             assert max_ani == 0.9772
+        elif q == m:
+            assert jaccard == 1
+        else:
+            assert jaccard == 0
+            assert cont == 0
+            assert maxcont == 0
+            assert intersect_hashes == 0
+            assert q1_ani == 0
+            assert q2_ani == 0
+            assert avg_ani == 0
+            assert max_ani == 0
 
 
 def test_simple_threshold(runtmp, zip_query):
