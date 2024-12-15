@@ -100,7 +100,7 @@ pub fn manysearch(
                     {
                         for query in query_sketchlist.iter() {
                             let sr = calculate_manysearch_result(
-                                &query,
+                                query,
                                 &against_mh,
                                 &against_name,
                                 &against_md5,
@@ -186,10 +186,9 @@ fn inflate_abundances(
 > {
     let abunds: Vec<u64>;
     let sum_weighted: u64;
-    let sum_all_abunds: u64;
+    let sum_all_abunds: u64 = against.sum_abunds();
 
     (abunds, sum_weighted) = query.inflated_abundances(against)?;
-    sum_all_abunds = against.sum_abunds();
 
     let average_abund = sum_weighted as f64 / abunds.len() as f64;
     let median_abund = median(abunds.iter().cloned()).expect("error");
@@ -209,8 +208,8 @@ fn inflate_abundances(
 fn calculate_manysearch_result(
     query: &SmallSignature,
     against_mh: &KmerMinHash,
-    against_name: &String,
-    against_md5: &String,
+    against_name: &str,
+    against_md5: &str,
     threshold: f64,
     common_scaled: u32,
     ignore_abundance: bool,
@@ -226,7 +225,7 @@ fn calculate_manysearch_result(
 
     let overlap = query
         .minhash
-        .count_common(&against_mh, false)
+        .count_common(against_mh, false)
         .expect("incompatible sketches") as f64;
 
     let query_size = query.minhash.size() as f64;
@@ -250,7 +249,7 @@ fn calculate_manysearch_result(
         let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
         let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) =
             if calc_abund_stats {
-                inflate_abundances(&query.minhash, &against_mh).ok()?
+                inflate_abundances(&query.minhash, against_mh).ok()?
             } else {
                 (None, None, None, None, None)
             };
@@ -258,13 +257,13 @@ fn calculate_manysearch_result(
         let sr = ManySearchResult {
             query_name: query.name.clone(),
             query_md5: query.md5sum.clone(),
-            match_name: against_name.clone(),
+            match_name: against_name.to_string(),
             containment: containment_query_in_target,
             intersect_hashes: overlap as u64,
             ksize: query.minhash.ksize() as u16,
             scaled: query.minhash.scaled(),
             moltype: query.minhash.hash_function().to_string(),
-            match_md5: Some(against_md5.clone()),
+            match_md5: Some(against_md5.to_string()),
             jaccard: Some(jaccard),
             max_containment: Some(max_containment),
             average_abund,
@@ -279,6 +278,5 @@ fn calculate_manysearch_result(
         };
         return Some(sr);
     }
-
-    return None;
+    None
 }
