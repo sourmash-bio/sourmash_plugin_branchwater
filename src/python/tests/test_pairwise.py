@@ -183,6 +183,15 @@ def test_simple_ani(runtmp, zip_query):
             assert q2_ani == 0.9772
             assert avg_ani == 0.977
             assert max_ani == 0.9772
+        elif m == "NC_011665.1" and q == "NC_009661.1":
+            assert jaccard == 0.3207
+            assert cont == 0.4828
+            assert maxcont == 0.4885
+            assert intersect_hashes == 2529
+            assert q2_ani == 0.9768
+            assert q1_ani == 0.9772
+            assert avg_ani == 0.977
+            assert max_ani == 0.9772
         elif q == m:
             assert jaccard == 1
         else:
