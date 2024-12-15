@@ -87,7 +87,10 @@ pub fn pairwise(
             let containment_adjusted_log10 = None;
             let tf_idf_score = None;
 
-            if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold || output_all_comparisons {
+            if containment_q1_in_q2 > threshold
+                || containment_q2_in_q1 > threshold
+                || output_all_comparisons
+            {
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
                 let jaccard = overlap / (query1_size + query2_size - overlap);
                 let mut query_containment_ani = None;
