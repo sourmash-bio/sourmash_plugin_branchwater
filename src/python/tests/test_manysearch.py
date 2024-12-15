@@ -133,7 +133,15 @@ def test_simple_output_all(runtmp, zip_query, zip_against):
         against_list = zip_siglist(runtmp, against_list, runtmp.output("against.zip"))
 
     runtmp.sourmash(
-        "scripts", "manysearch", query_list, against_list, "-o", output, "-t", "0.01", "-A"
+        "scripts",
+        "manysearch",
+        query_list,
+        against_list,
+        "-o",
+        output,
+        "-t",
+        "0.01",
+        "-A",
     )
     assert os.path.exists(output)
 

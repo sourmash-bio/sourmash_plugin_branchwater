@@ -110,7 +110,9 @@ def test_simple_no_ani_output_all(runtmp, zip_query, zip_db):
     if zip_query:
         query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
 
-    runtmp.sourmash("scripts", "multisearch", query_list, against_list, "-o", output, "-A")
+    runtmp.sourmash(
+        "scripts", "multisearch", query_list, against_list, "-o", output, "-A"
+    )
     assert os.path.exists(output)
 
     df = pandas.read_csv(output)
