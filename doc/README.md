@@ -392,6 +392,11 @@ To report _any_ overlap between two sketches, set the threshold to 0.
 (This will produce many, many results when searching a collection of
 metagenomes!)
 
+Using `-A/--output-all-comparisons` will ignore the threshold parameter
+and output all comparisons done. Against a RocksDB database, only matches
+with some overlap will be reported; with collections of sketches, all
+pairs will be reported.
+
 By default, `manysearch` will display the contents of the CSV file in a
 human-readable format. This can be disabled with `-N/--no-pretty-print`
 when executing large searches.

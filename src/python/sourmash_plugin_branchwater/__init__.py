@@ -108,6 +108,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
             help="do not do expensive abundance calculations",
         )
         p.add_argument(
+            "-A",
             "--output-all-comparisons",
             action="store_true",
             help="ignore threshold and output all comparisons; for RocksDB, this will only output comparisons with some overlap",
