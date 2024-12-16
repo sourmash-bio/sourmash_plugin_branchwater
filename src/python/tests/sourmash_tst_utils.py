@@ -65,8 +65,9 @@ def _runscript(scriptname):
     namespace = {"__name__": "__main__"}
     namespace["sys"] = globals()["sys"]
 
-    entry_points = importlib.metadata.entry_points(group="console_scripts",
-                                                   name="sourmash")
+    entry_points = importlib.metadata.entry_points(
+        group="console_scripts", name="sourmash"
+    )
     assert len(entry_points) == 1
     smash_cli = tuple(entry_points)[0].load()
     smash_cli()
