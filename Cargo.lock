@@ -1584,9 +1584,9 @@ dependencies = [
 
 [[package]]
 name = "roaring"
-version = "0.10.8"
+version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "395b0c39c00f9296f3937624c1fa4e0ee44f8c0e4b2c49408179ef381c6c2e6e"
+checksum = "41589aba99537475bf697f2118357cad1c31590c5a1b9f6d9fc4ad6d07503661"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -1772,7 +1772,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.17.2"
-source = "git+https://github.com/sourmash-bio/sourmash/?branch=try-skipmers#43e069c7cb7217bb8c1c812ad70c4db301015c46"
+source = "git+https://github.com/sourmash-bio/sourmash/?branch=try-skipmers#8a0600d79d41fe34e53a860dc62d89537087eac3"
 dependencies = [
  "az",
  "byteorder",
