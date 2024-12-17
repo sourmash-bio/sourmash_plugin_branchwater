@@ -13,6 +13,7 @@ use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
 mod cluster;
+mod fastagather;
 mod fastgather;
 mod fastmultigather;
 mod fastmultigather_rocksdb;
@@ -359,6 +360,41 @@ fn do_cluster(
     }
 }
 
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (query_filename, against_filepath, input_moltype, threshold_bp, ksize, scaled, moltype, output_path_prefetch=None, output_path_gather=None))]
+fn do_fastagather(
+    query_filename: String,
+    against_filepath: String,
+    input_moltype: String,
+    threshold_bp: u64,
+    ksize: u8,
+    scaled: Option<u32>,
+    moltype: String,
+    output_path_prefetch: Option<String>,
+    output_path_gather: Option<String>,
+) -> anyhow::Result<u8> {
+    let selection = build_selection(ksize, scaled, &moltype);
+    let allow_failed_sigpaths = true;
+
+    match fastagather::fastagather(
+        query_filename,
+        against_filepath,
+        input_moltype,
+        threshold_bp,
+        &selection,
+        output_path_prefetch,
+        output_path_gather,
+        allow_failed_sigpaths,
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
 /// Module interface for the `sourmash_plugin_branchwater` extension module.
 
 #[pymodule]
@@ -374,5 +410,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
+    m.add_function(wrap_pyfunction!(do_fastagather, m)?)?;
     Ok(())
 }
