@@ -7,8 +7,7 @@ import subprocess
 import collections
 import pprint
 
-import pkg_resources
-from pkg_resources import Requirement, resource_filename, ResolutionError
+import importlib.metadata
 import traceback
 from io import open  # pylint: disable=redefined-builtin
 from io import StringIO
@@ -61,46 +60,18 @@ def index_siglist(
     return db
 
 
-def scriptpath(scriptname="sourmash"):
-    """Return the path to the scripts, in both dev and install situations."""
-    # note - it doesn't matter what the scriptname is here, as long as
-    # it's some script present in this version of sourmash.
-
-    path = os.path.join(os.path.dirname(__file__), "../")
-    if os.path.exists(os.path.join(path, scriptname)):
-        return path
-
-    path = os.path.join(os.path.dirname(__file__), "../../EGG-INFO/")
-    if os.path.exists(os.path.join(path, scriptname)):
-        return path
-
-    for path in os.environ["PATH"].split(":"):
-        if os.path.exists(os.path.join(path, scriptname)):
-            return path
-
-
 def _runscript(scriptname):
     """Find & run a script with exec (i.e. not via os.system or subprocess)."""
     namespace = {"__name__": "__main__"}
     namespace["sys"] = globals()["sys"]
 
-    try:
-        pkg_resources.load_entry_point("sourmash", "console_scripts", scriptname)()
-        return 0
-    except pkg_resources.ResolutionError:
-        pass
-
-    path = scriptpath()
-
-    scriptfile = os.path.join(path, scriptname)
-    if os.path.isfile(scriptfile):
-        if os.path.isfile(scriptfile):
-            exec(  # pylint: disable=exec-used
-                compile(open(scriptfile).read(), scriptfile, "exec"), namespace
-            )
-            return 0
-
-    return -1
+    entry_points = importlib.metadata.entry_points(
+        group="console_scripts", name="sourmash"
+    )
+    assert len(entry_points) == 1
+    smash_cli = tuple(entry_points)[0].load()
+    smash_cli()
+    return 0
 
 
 ScriptResults = collections.namedtuple("ScriptResults", ["status", "out", "err"])
