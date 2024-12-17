@@ -452,6 +452,13 @@ impl BuildCollection {
         Ok(mf.records.len())
     }
 
+    pub fn anydna_size(&self) -> Result<usize, SourmashError> {
+        let multiselection = MultiSelection::from_moltypes(vec!["DNA", "skipm1n3", "skipm2n3"])?;
+        let mut mf = self.manifest.clone();
+        mf.select(&multiselection)?;
+        Ok(mf.records.len())
+    }
+
     pub fn protein_size(&self) -> Result<usize, SourmashError> {
         let multiselection = MultiSelection::from_moltypes(vec!["protein"])?;
         let mut mf = self.manifest.clone();
