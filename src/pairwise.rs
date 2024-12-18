@@ -20,6 +20,7 @@ pub fn pairwise(
     allow_failed_sigpaths: bool,
     estimate_ani: bool,
     write_all: bool,
+    output_all_comparisons: bool,
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all sigs into memory at once.
@@ -86,7 +87,10 @@ pub fn pairwise(
             let containment_adjusted_log10 = None;
             let tf_idf_score = None;
 
-            if containment_q1_in_q2 > threshold || containment_q2_in_q1 > threshold {
+            if containment_q1_in_q2 > threshold
+                || containment_q2_in_q1 > threshold
+                || output_all_comparisons
+            {
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
                 let jaccard = overlap / (query1_size + query2_size - overlap);
                 let mut query_containment_ani = None;
@@ -133,7 +137,7 @@ pub fn pairwise(
                 eprintln!("Processed {} comparisons", i);
             }
         }
-        if write_all {
+        if write_all || output_all_comparisons {
             let mut query_containment_ani = None;
             let mut match_containment_ani = None;
             let mut average_containment_ani = None;

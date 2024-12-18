@@ -20,6 +20,17 @@ def test_installed(runtmp):
     assert "usage:  pairwise" in runtmp.last_result.err
 
 
+def test_on_dir(runtmp, capfd):
+    with pytest.raises(utils.SourmashCommandFailed):
+        runtmp.sourmash(
+            "scripts", "pairwise", runtmp.output(""), "-o", runtmp.output("xxx.csv")
+        )
+
+    captured = capfd.readouterr()
+    print(captured.err)
+    assert "arbitrary directories are not supported" in captured.err
+
+
 def test_simple_no_ani(runtmp, capfd, zip_query, indexed):
     # test basic execution!
     query_list = runtmp.output("query.txt")
@@ -78,6 +89,31 @@ def test_simple_no_ani(runtmp, capfd, zip_query, indexed):
         assert (
             "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
         )
+
+
+def test_simple_no_ani_output_all(runtmp, capfd, zip_query, indexed):
+    # test basic execution!
+    query_list = runtmp.output("query.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    if indexed:
+        query_list = index_siglist(runtmp, query_list, runtmp.output("db"))
+
+    runtmp.sourmash("scripts", "pairwise", query_list, "-o", output, "-t", "-1", "-A")
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 6
 
 
 def test_simple_ani(runtmp, zip_query):
@@ -147,6 +183,26 @@ def test_simple_ani(runtmp, zip_query):
             assert q2_ani == 0.9772
             assert avg_ani == 0.977
             assert max_ani == 0.9772
+        elif m == "NC_011665.1" and q == "NC_009661.1":
+            assert jaccard == 0.3207
+            assert cont == 0.4885
+            assert maxcont == 0.4885
+            assert intersect_hashes == 2529
+            assert q2_ani == 0.9768
+            assert q1_ani == 0.9772
+            assert avg_ani == 0.977
+            assert max_ani == 0.9772
+        elif q == m:
+            assert jaccard == 1
+        else:
+            assert jaccard == 0
+            assert cont == 0
+            assert maxcont == 0
+            assert intersect_hashes == 0
+            assert q1_ani == 0
+            assert q2_ani == 0
+            assert avg_ani == 0
+            assert max_ani == 0
 
 
 def test_simple_threshold(runtmp, zip_query):
