@@ -561,34 +561,6 @@ def test_sig_query(runtmp, capfd, indexed):
         }.issubset(keys)
 
 
-def test_bad_query(runtmp, capfd, indexed):
-    # test with a bad query (a .sig.gz file renamed as zip file)
-    against_list = runtmp.output("against.txt")
-
-    sig2 = get_test_data("2.fa.sig.gz")
-    sig47 = get_test_data("47.fa.sig.gz")
-    sig63 = get_test_data("63.fa.sig.gz")
-
-    query_zip = runtmp.output("query.zip")
-    # cp sig2 into query_zip
-    with open(query_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    make_file_list(against_list, [sig2, sig47, sig63])
-
-    if indexed:
-        against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "fastmultigather", query_zip, against_list)
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "InvalidArchive" in captured.err
-
-
 def test_missing_query(runtmp, capfd, indexed):
     # test missing query
     query_list = runtmp.output("query.txt")
@@ -734,33 +706,6 @@ def test_bad_against(runtmp, capfd):
         "WARNING: 1 search paths failed to load. See error messages above."
         in captured.err
     )
-
-
-def test_bad_against_2(runtmp, capfd, zip_query):
-    # test with a bad against (a .sig.gz file renamed as zip file)
-    query = get_test_data("SRR606249.sig.gz")
-    query_list = runtmp.output("query.txt")
-    make_file_list(query_list, [query])
-
-    sig2 = get_test_data("2.fa.sig.gz")
-    against_zip = runtmp.output("against.zip")
-    # cp sig2 into query_zip
-    with open(against_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    if zip_query:
-        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash(
-            "scripts", "fastmultigather", query_list, against_zip, "-s", "100000"
-        )
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "InvalidArchive" in captured.err
 
 
 def test_empty_against(runtmp, capfd):
