@@ -9,7 +9,9 @@ use stats::{median, stddev};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{csvwriter_thread, load_collection, ReportType, SearchResult};
+use crate::utils::{
+    csvwriter_thread, load_collection, ManySearchResult, ReportType, SmallSignature,
+};
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
 use sourmash::selection::Selection;
@@ -25,6 +27,7 @@ pub fn manysearch(
     output: Option<String>,
     allow_failed_sigpaths: bool,
     ignore_abundance: bool,
+    output_all_comparisons: bool,
 ) -> Result<()> {
     // Load query collection
     let query_collection = load_collection(
@@ -61,7 +64,8 @@ pub fn manysearch(
     )?;
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<ManySearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = csvwriter_thread(recv, output);
@@ -95,80 +99,18 @@ pub fn manysearch(
                         <SigStore as TryInto<KmerMinHash>>::try_into(against_sig)
                     {
                         for query in query_sketchlist.iter() {
-                            // be paranoid and confirm scaled match.
-                            if query.minhash.scaled() != common_scaled {
-                                panic!("different query scaled");
-                            }
-                            if against_mh.scaled() != common_scaled {
-                                panic!("different against scaled");
-                            }
-
-                            let overlap = query
-                                .minhash
-                                .count_common(&against_mh, false)
-                                .expect("incompatible sketches")
-                                as f64;
-
-                            let query_size = query.minhash.size() as f64;
-                            let containment_query_in_target = overlap / query_size;
-                            // only calculate results if we have shared hashes
-                            if containment_query_in_target > threshold {
-                                let target_size = against_mh.size() as f64;
-                                let containment_target_in_query = overlap / target_size;
-
-                                let max_containment =
-                                    containment_query_in_target.max(containment_target_in_query);
-                                let jaccard = overlap / (target_size + query_size - overlap);
-
-                                let qani = ani_from_containment(
-                                    containment_query_in_target,
-                                    against_mh.ksize() as f64,
-                                );
-                                let mani = ani_from_containment(
-                                    containment_target_in_query,
-                                    against_mh.ksize() as f64,
-                                );
-                                let query_containment_ani = Some(qani);
-                                let match_containment_ani = Some(mani);
-                                let average_containment_ani = Some((qani + mani) / 2.);
-                                let max_containment_ani = Some(f64::max(qani, mani));
-
-                                let calc_abund_stats =
-                                    against_mh.track_abundance() && !ignore_abundance;
-                                let (
-                                    total_weighted_hashes,
-                                    n_weighted_found,
-                                    average_abund,
-                                    median_abund,
-                                    std_abund,
-                                ) = if calc_abund_stats {
-                                    inflate_abundances(&query.minhash, &against_mh).ok()?
-                                } else {
-                                    (None, None, None, None, None)
-                                };
-
-                                results.push(SearchResult {
-                                    query_name: query.name.clone(),
-                                    query_md5: query.md5sum.clone(),
-                                    match_name: against_name.clone(),
-                                    containment: containment_query_in_target,
-                                    intersect_hashes: overlap as u64,
-                                    ksize: query.minhash.ksize() as u16,
-                                    scaled: query.minhash.scaled(),
-                                    moltype: query.minhash.hash_function().to_string(),
-                                    match_md5: Some(against_md5.clone()),
-                                    jaccard: Some(jaccard),
-                                    max_containment: Some(max_containment),
-                                    average_abund,
-                                    median_abund,
-                                    std_abund,
-                                    query_containment_ani,
-                                    match_containment_ani,
-                                    average_containment_ani,
-                                    max_containment_ani,
-                                    n_weighted_found,
-                                    total_weighted_hashes,
-                                });
+                            let sr = calculate_manysearch_result(
+                                query,
+                                &against_mh,
+                                &against_name,
+                                &against_md5,
+                                threshold,
+                                common_scaled,
+                                ignore_abundance,
+                                output_all_comparisons,
+                            );
+                            if let Some(sr) = sr {
+                                results.push(sr);
                             }
                         }
                     } else {
@@ -226,6 +168,9 @@ pub fn manysearch(
     Ok(())
 }
 
+// inflate_abundances: "borrow" the abundances from 'against' onto the
+// intersection with 'query'.
+
 fn inflate_abundances(
     query: &KmerMinHash,
     against: &KmerMinHash,
@@ -241,10 +186,9 @@ fn inflate_abundances(
 > {
     let abunds: Vec<u64>;
     let sum_weighted: u64;
-    let sum_all_abunds: u64;
+    let sum_all_abunds: u64 = against.sum_abunds();
 
     (abunds, sum_weighted) = query.inflated_abundances(against)?;
-    sum_all_abunds = against.sum_abunds();
 
     let average_abund = sum_weighted as f64 / abunds.len() as f64;
     let median_abund = median(abunds.iter().cloned()).expect("error");
@@ -257,4 +201,82 @@ fn inflate_abundances(
         Some(median_abund),
         Some(std_abund),
     ))
+}
+
+// calculate_manysearch_result: calculate all the things
+
+fn calculate_manysearch_result(
+    query: &SmallSignature,
+    against_mh: &KmerMinHash,
+    against_name: &str,
+    against_md5: &str,
+    threshold: f64,
+    common_scaled: u32,
+    ignore_abundance: bool,
+    output_all_comparisons: bool,
+) -> Option<ManySearchResult> {
+    // be paranoid and confirm scaled match.
+    if query.minhash.scaled() != common_scaled {
+        panic!("different query scaled");
+    }
+    if against_mh.scaled() != common_scaled {
+        panic!("different against scaled");
+    }
+
+    let overlap = query
+        .minhash
+        .count_common(against_mh, false)
+        .expect("incompatible sketches") as f64;
+
+    let query_size = query.minhash.size() as f64;
+    let containment_query_in_target = overlap / query_size;
+
+    // only calculate results if we have shared hashes
+    if containment_query_in_target > threshold || output_all_comparisons {
+        let target_size = against_mh.size() as f64;
+        let containment_target_in_query = overlap / target_size;
+
+        let max_containment = containment_query_in_target.max(containment_target_in_query);
+        let jaccard = overlap / (target_size + query_size - overlap);
+
+        let qani = ani_from_containment(containment_query_in_target, against_mh.ksize() as f64);
+        let mani = ani_from_containment(containment_target_in_query, against_mh.ksize() as f64);
+        let query_containment_ani = Some(qani);
+        let match_containment_ani = Some(mani);
+        let average_containment_ani = Some((qani + mani) / 2.);
+        let max_containment_ani = Some(f64::max(qani, mani));
+
+        let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
+        let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) =
+            if calc_abund_stats {
+                inflate_abundances(&query.minhash, against_mh).ok()?
+            } else {
+                (None, None, None, None, None)
+            };
+
+        let sr = ManySearchResult {
+            query_name: query.name.clone(),
+            query_md5: query.md5sum.clone(),
+            match_name: against_name.to_string(),
+            containment: containment_query_in_target,
+            intersect_hashes: overlap as u64,
+            ksize: query.minhash.ksize() as u16,
+            scaled: query.minhash.scaled(),
+            moltype: query.minhash.hash_function().to_string(),
+            match_md5: Some(against_md5.to_string()),
+            jaccard: Some(jaccard),
+            max_containment: Some(max_containment),
+            average_abund,
+            median_abund,
+            std_abund,
+            query_containment_ani,
+            match_containment_ani,
+            average_containment_ani,
+            max_containment_ani,
+            n_weighted_found,
+            total_weighted_hashes,
+        };
+        return Some(sr);
+    }
+    None
 }
