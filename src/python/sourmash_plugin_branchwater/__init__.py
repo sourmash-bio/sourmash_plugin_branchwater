@@ -107,6 +107,12 @@ class Branchwater_Manysearch(CommandLinePlugin):
             action="store_true",
             help="do not do expensive abundance calculations",
         )
+        p.add_argument(
+            "-A",
+            "--output-all-comparisons",
+            action="store_true",
+            help="ignore threshold and output all comparisons; against a RocksDB database, this will only output comparisons with some overlap",
+        )
 
     def main(self, args):
         print_version()
@@ -129,6 +135,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
             args.moltype,
             args.output,
             args.ignore_abundance,
+            args.output_all_comparisons,
         )
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
@@ -462,6 +469,12 @@ class Branchwater_Multisearch(CommandLinePlugin):
             action="store_true",
             help="estimate probability of overlap for significance ranking of search results, of the specific query and match, given all queries and possible matches",
         )
+        p.add_argument(
+            "-A",
+            "--output-all-comparisons",
+            action="store_true",
+            help="ignore threshold and output all comparisons",
+        )
 
     def main(self, args):
         print_version()
@@ -488,6 +501,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
             args.moltype,
             args.ani,
             args.prob_significant_overlap,
+            args.output_all_comparisons,
             args.output,
         )
         if status == 0:
@@ -545,8 +559,15 @@ class Branchwater_Pairwise(CommandLinePlugin):
         )
         p.add_argument(
             "--write-all",
+            "--write-self-comparisons",
             action="store_true",
             help="write self comparisons for all sketches",
+        )
+        p.add_argument(
+            "-A",
+            "--output-all-comparisons",
+            action="store_true",
+            help="ignore threshold and output all comparisons",
         )
 
     def main(self, args):
@@ -570,6 +591,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
             args.moltype,
             args.ani,
             args.write_all,
+            args.output_all_comparisons,
             args.output,
         )
         if status == 0:

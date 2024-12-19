@@ -14,7 +14,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, ReportType, SearchResult,
+    csvwriter_thread, is_revindex_database, load_collection, ManySearchResult, ReportType,
 };
 
 pub fn manysearch_rocksdb(
@@ -24,6 +24,7 @@ pub fn manysearch_rocksdb(
     minimum_containment: f64,
     output: Option<String>,
     allow_failed_sigpaths: bool,
+    output_all_comparisons: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !is_revindex_database(&index) {
         bail!("'{}' is not a valid RevIndex database", index);
@@ -68,7 +69,8 @@ pub fn manysearch_rocksdb(
     )?;
 
     // set up a multi-producer, single-consumer channel.
-    let (send, recv) = std::sync::mpsc::sync_channel::<SearchResult>(rayon::current_num_threads());
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<ManySearchResult>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
     let thrd = csvwriter_thread(recv, output);
@@ -107,13 +109,13 @@ pub fn manysearch_rocksdb(
                         // filter the matches for containment
                         for (path, overlap) in matches {
                             let containment = overlap as f64 / query_size as f64;
-                            if containment >= minimum_containment {
+                            if containment >= minimum_containment || output_all_comparisons {
                                 let query_containment_ani = Some(ani_from_containment(
                                     containment,
                                     query_mh.ksize() as f64,
                                 ));
 
-                                results.push(SearchResult {
+                                results.push(ManySearchResult {
                                     query_name: query_name.clone(),
                                     query_md5: query_md5.clone(),
                                     match_name: path.clone(),

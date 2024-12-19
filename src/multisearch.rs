@@ -143,6 +143,7 @@ pub fn multisearch(
     allow_failed_sigpaths: bool,
     estimate_ani: bool,
     estimate_prob_overlap: bool,
+    output_all_comparisons: bool,
     output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load all queries into memory at once.
@@ -249,7 +250,7 @@ pub fn multisearch(
 
                 let containment_query_in_target = overlap / query_size;
 
-                if containment_query_in_target > threshold {
+                if containment_query_in_target > threshold || output_all_comparisons {
                     let containment_target_in_query = overlap / target_size;
                     let max_containment =
                         containment_query_in_target.max(containment_target_in_query);
