@@ -206,7 +206,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "proc-macro2",
@@ -1772,7 +1772,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.18.0"
-source = "git+https://github.com/sourmash-bio/sourmash/?branch=py-skipmers#379633ae6a5caca52c15a619ff3c18aa35f9b0cc"
+source = "git+https://github.com/sourmash-bio/sourmash/?branch=latest#150967b60d712b62cc70060a5d47e744887ce4dc"
 dependencies = [
  "az",
  "byteorder",
