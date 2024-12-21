@@ -791,8 +791,8 @@ impl BuildCollection {
                 }
             } else if (input_moltype == "DNA" || input_moltype == "dna")
                 && (rec.moltype() == HashFunctions::Murmur64Dna
-                || rec.moltype() == HashFunctions::Murmur64Skipm1n3
-                || rec.moltype() == HashFunctions::Murmur64Skipm2n3)
+                    || rec.moltype() == HashFunctions::Murmur64Skipm1n3
+                    || rec.moltype() == HashFunctions::Murmur64Skipm2n3)
             {
                 sig.add_sequence(&record.seq(), true)
                     .context("Failed to add sequence")?;
