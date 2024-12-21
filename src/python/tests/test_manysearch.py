@@ -1425,3 +1425,20 @@ def test_no_pretty_print(runtmp):
     # do line by line?
     expected = "p_genome"
     assert expected not in runtmp.last_result.out
+
+
+def test_bug_550(runtmp):
+    # check a bug where a manifest made from a .sig file causes problems
+    # due to a problem with the way Signature::name() behaved in sourmash
+    # before r0.18.0.
+    # see https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/550
+    fa_file = get_test_data('short.fa')
+    sig_out = runtmp.output('short.sig')
+    mf_out = runtmp.output('short.mf.csv')
+    csv_out = runtmp.output('out.csv')
+
+    runtmp.sourmash('sketch', 'dna', fa_file, '-o', sig_out)
+    runtmp.sourmash('sig', 'collect', '-F', 'csv', sig_out, '-o', mf_out)
+    runtmp.sourmash('scripts', 'manysearch', mf_out, mf_out, '-o', csv_out)
+
+    assert os.path.exists(csv_out)
