@@ -1432,13 +1432,13 @@ def test_bug_550(runtmp):
     # due to a problem with the way Signature::name() behaved in sourmash
     # before r0.18.0.
     # see https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/550
-    fa_file = get_test_data('short.fa')
-    sig_out = runtmp.output('short.sig')
-    mf_out = runtmp.output('short.mf.csv')
-    csv_out = runtmp.output('out.csv')
+    fa_file = get_test_data("short.fa")
+    sig_out = runtmp.output("short.sig")
+    mf_out = runtmp.output("short.mf.csv")
+    csv_out = runtmp.output("out.csv")
 
-    runtmp.sourmash('sketch', 'dna', fa_file, '-o', sig_out)
-    runtmp.sourmash('sig', 'collect', '-F', 'csv', sig_out, '-o', mf_out)
-    runtmp.sourmash('scripts', 'manysearch', mf_out, mf_out, '-o', csv_out)
+    runtmp.sourmash("sketch", "dna", fa_file, "-o", sig_out)
+    runtmp.sourmash("sig", "collect", "-F", "csv", sig_out, "-o", mf_out)
+    runtmp.sourmash("scripts", "manysearch", mf_out, mf_out, "-o", csv_out)
 
     assert os.path.exists(csv_out)
