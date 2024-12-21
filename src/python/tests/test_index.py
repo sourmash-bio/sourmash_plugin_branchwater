@@ -485,3 +485,50 @@ def test_index_subdir(runtmp, toggle_internal_storage):
     print(runtmp.last_result.err)
 
     runtmp.sourmash("scripts", "check", output)
+
+
+def test_index_misnamed_zipfile(runtmp, capfd):
+    # test with a bad input zipfile (a .sig.gz file renamed as zip file)
+    # (this is a generic test that makes sure that misnamed .zip files
+    # can be loaded by MultiCollection)
+    sig2 = get_test_data("2.fa.sig.gz")
+
+    query_zip = runtmp.output("query.zip")
+    # cp sig2 into query_zip
+    with open(query_zip, "wb") as fp:
+        with open(sig2, "rb") as fp2:
+            fp.write(fp2.read())
+
+    output = runtmp.output("out.rocksdb")
+
+    runtmp.sourmash("scripts", "index", query_zip, "-o", output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert os.path.exists(output)
+    assert os.path.isdir(output)
+
+
+def test_index_misnamed_zipfile(runtmp, capfd):
+    # test with a misnamed input zipfile (a .sig.gz file renamed as zip file)
+    # (This is a generic test that checks to make sure misnamed zip files
+    # can be loaded. It's not really specific to index. See
+    # https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/551)
+    sig2 = get_test_data("2.fa.sig.gz")
+
+    query_zip = runtmp.output("query.zip")
+    # cp sig2 into query_zip
+    with open(query_zip, "wb") as fp:
+        with open(sig2, "rb") as fp2:
+            fp.write(fp2.read())
+
+    output = runtmp.output("out.rocksdb")
+
+    runtmp.sourmash("scripts", "index", query_zip, "-o", output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert os.path.exists(output)
+    assert os.path.isdir(output)
