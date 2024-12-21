@@ -78,8 +78,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -187,8 +187,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -264,8 +264,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -348,8 +348,8 @@ class Branchwater_Index(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -450,8 +450,8 @@ class Branchwater_Multisearch(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -544,8 +544,8 @@ class Branchwater_Pairwise(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -640,7 +640,7 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             args.param_string = ["k=31,scaled=1000,dna"]
 
         # Check and append 'dna' if no moltype is found in a param string
-        moltypes = ["dna", "protein", "dayhoff", "hp"]
+        moltypes = ["dna", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"]
         updated_param_strings = []
 
         for param in args.param_string:

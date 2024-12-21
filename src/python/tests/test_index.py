@@ -487,6 +487,48 @@ def test_index_subdir(runtmp, toggle_internal_storage):
     runtmp.sourmash("scripts", "check", output)
 
 
+def test_index_skipm2n3(runtmp, toggle_internal_storage):
+    # test basic index!
+    sigzip = get_test_data("skipm2n3.zip")
+    output = runtmp.output("db.rocksdb")
+
+    runtmp.sourmash(
+        "scripts",
+        "index",
+        sigzip,
+        "-o",
+        output,
+        toggle_internal_storage,
+        "-m",
+        "skipm2n3",
+    )
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert "index is done" in runtmp.last_result.err
+
+
+def test_index_skipm1n3(runtmp, toggle_internal_storage):
+    # test basic index!
+    sigzip = get_test_data("skipm1n3.zip")
+    output = runtmp.output("db.rocksdb")
+
+    runtmp.sourmash(
+        "scripts",
+        "index",
+        sigzip,
+        "-o",
+        output,
+        toggle_internal_storage,
+        "-m",
+        "skipm1n3",
+    )
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert "index is done" in runtmp.last_result.err
+
+
 def test_index_misnamed_zipfile(runtmp, capfd):
     # test with a misnamed input zipfile (a .sig.gz file renamed as zip file)
     # (This is a generic test that checks to make sure misnamed zip files
