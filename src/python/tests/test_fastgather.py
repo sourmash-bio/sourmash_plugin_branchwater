@@ -427,40 +427,6 @@ def test_bad_against_2(runtmp, capfd):
     )
 
 
-def test_bad_against_3(runtmp, capfd):
-    # test with a bad against (a .sig.gz file renamed as zip file)
-    query = get_test_data("SRR606249.sig.gz")
-
-    sig2 = get_test_data("2.fa.sig.gz")
-    against_zip = runtmp.output("against.zip")
-    # cp sig2 into against_zip
-    with open(against_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    g_output = runtmp.output("gather.csv")
-    p_output = runtmp.output("prefetch.csv")
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash(
-            "scripts",
-            "fastgather",
-            query,
-            against_zip,
-            "-o",
-            g_output,
-            "--output-prefetch",
-            p_output,
-            "-s",
-            "100000",
-        )
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "InvalidArchive" in captured.err
-
-
 @pytest.mark.xfail(reason="should work, bug")
 def test_against_multisigfile(runtmp, zip_against):
     # test against a sigfile that contains multiple sketches

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 // use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
-use std::fs::{create_dir_all, File};
+use std::fs::{create_dir_all, metadata, File};
 use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
@@ -33,7 +33,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 pub mod multicollection;
-use multicollection::MultiCollection;
+pub use multicollection::{MultiCollection, SmallSignature};
 
 pub mod buildutils;
 use buildutils::{BuildCollection, BuildManifest};
@@ -555,6 +555,14 @@ pub fn load_collection(
         }
     });
 
+    // we support RocksDB directory paths, but nothing else, unlike sourmash.
+    if collection.is_none() {
+        let path_metadata = metadata(sigpath.clone()).expect("getting path metadata failed");
+        if path_metadata.is_dir() {
+            bail!("arbitrary directories are not supported as input");
+        }
+    }
+
     let collection =
         collection.or_else(
             || match MultiCollection::from_standalone_manifest(&sigpath) {
@@ -617,7 +625,7 @@ pub fn load_collection(
 ///
 /// # Arguments
 ///
-/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
+/// * `collection` - A MultiCollection.
 /// * `skipped_paths` - # paths that contained no compatible sketches.
 /// * `failed_paths` - # paths that failed to load.
 /// * `report_type` - ReportType Enum (Query or Against). Used to specify
@@ -1001,7 +1009,7 @@ pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
 }
 
 #[derive(Serialize)]
-pub struct SearchResult {
+pub struct ManySearchResult {
     pub query_name: String,
     pub query_md5: String,
     pub match_name: String,
