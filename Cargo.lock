@@ -206,7 +206,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.11.0",
  "lazy_static",
  "lazycell",
  "proc-macro2",
@@ -1773,7 +1773,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.18.0"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=latest#f4f5187e7dc9b9c177e099bbf7f3f42556867328"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=latest#2325d8d83a1f3366cf6f00c6d717b39fe7d8f9c8"
 dependencies = [
  "az",
  "byteorder",
