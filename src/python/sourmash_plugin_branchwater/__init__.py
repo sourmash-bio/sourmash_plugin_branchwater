@@ -78,8 +78,8 @@ class Branchwater_Manysearch(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -107,6 +107,12 @@ class Branchwater_Manysearch(CommandLinePlugin):
             action="store_true",
             help="do not do expensive abundance calculations",
         )
+        p.add_argument(
+            "-A",
+            "--output-all-comparisons",
+            action="store_true",
+            help="ignore threshold and output all comparisons; against a RocksDB database, this will only output comparisons with some overlap",
+        )
 
     def main(self, args):
         print_version()
@@ -129,6 +135,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
             args.moltype,
             args.output,
             args.ignore_abundance,
+            args.output_all_comparisons,
         )
         if status == 0:
             notify(f"...manysearch is done! results in '{args.output}'")
@@ -180,8 +187,8 @@ class Branchwater_Fastgather(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -257,8 +264,8 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -341,8 +348,8 @@ class Branchwater_Index(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -443,8 +450,8 @@ class Branchwater_Multisearch(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -461,6 +468,12 @@ class Branchwater_Multisearch(CommandLinePlugin):
             "--prob-significant-overlap",
             action="store_true",
             help="estimate probability of overlap for significance ranking of search results, of the specific query and match, given all queries and possible matches",
+        )
+        p.add_argument(
+            "-A",
+            "--output-all-comparisons",
+            action="store_true",
+            help="ignore threshold and output all comparisons",
         )
 
     def main(self, args):
@@ -488,6 +501,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
             args.moltype,
             args.ani,
             args.prob_significant_overlap,
+            args.output_all_comparisons,
             args.output,
         )
         if status == 0:
@@ -530,8 +544,8 @@ class Branchwater_Pairwise(CommandLinePlugin):
             "-m",
             "--moltype",
             default="DNA",
-            choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type (DNA, protein, dayhoff, or hp; default DNA)",
+            choices=["DNA", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"],
+            help="molecule type: DNA, protein, dayhoff, hp, or skipmer (skipm1n3 or skipm2n3); default DNA",
         )
         p.add_argument(
             "-c",
@@ -545,8 +559,15 @@ class Branchwater_Pairwise(CommandLinePlugin):
         )
         p.add_argument(
             "--write-all",
+            "--write-self-comparisons",
             action="store_true",
             help="write self comparisons for all sketches",
+        )
+        p.add_argument(
+            "-A",
+            "--output-all-comparisons",
+            action="store_true",
+            help="ignore threshold and output all comparisons",
         )
 
     def main(self, args):
@@ -570,6 +591,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
             args.moltype,
             args.ani,
             args.write_all,
+            args.output_all_comparisons,
             args.output,
         )
         if status == 0:
@@ -618,7 +640,7 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             args.param_string = ["k=31,scaled=1000,dna"]
 
         # Check and append 'dna' if no moltype is found in a param string
-        moltypes = ["dna", "protein", "dayhoff", "hp"]
+        moltypes = ["dna", "protein", "dayhoff", "hp", "skipm1n3", "skipm2n3"]
         updated_param_strings = []
 
         for param in args.param_string:

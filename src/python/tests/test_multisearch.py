@@ -91,6 +91,80 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert intersect_hashes == 2529
 
 
+def test_simple_no_ani_output_all(runtmp, zip_query, zip_db):
+    # test basic execution!
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    if zip_db:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output("db.zip"))
+    if zip_query:
+        query_list = zip_siglist(runtmp, query_list, runtmp.output("query.zip"))
+
+    runtmp.sourmash(
+        "scripts", "multisearch", query_list, against_list, "-o", output, "-A"
+    )
+    assert os.path.exists(output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 9
+
+    dd = df.to_dict(orient="index")
+    print(dd)
+
+    for idx, row in dd.items():
+        assert not ("prob_overlap" in row)
+
+        # identical?
+        if row["match_name"] == row["query_name"]:
+            assert row["query_md5"] == row["match_md5"], row
+            assert float(row["containment"] == 1.0)
+            assert float(row["jaccard"] == 1.0)
+            assert float(row["max_containment"] == 1.0)
+            assert "query_containment_ani" not in row
+            assert "match_containment_ani" not in row
+            assert "average_containment_ani" not in row
+            assert "max_containment_ani" not in row
+
+        else:
+            # confirm hand-checked numbers
+            q = row["query_name"].split()[0]
+            m = row["match_name"].split()[0]
+            cont = float_round(row["containment"], 4)
+            jaccard = float_round(row["jaccard"], 4)
+            maxcont = float_round(row["max_containment"], 4)
+
+            intersect_hashes = int(row["intersect_hashes"])
+
+            print(q, m, f"{jaccard:.04}", f"{cont:.04}", f"{maxcont:.04}")
+
+            if q == "NC_011665.1" and m == "NC_009661.1":
+                assert jaccard == 0.3207
+                assert cont == 0.4828
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+
+            elif q == "NC_009661.1" and m == "NC_011665.1":
+                assert jaccard == 0.3207
+                assert cont == 0.4885
+                assert maxcont == 0.4885
+                assert intersect_hashes == 2529
+            else:
+                assert jaccard == 0
+                assert cont == 0
+                assert maxcont == 0
+                assert intersect_hashes == 0
+
+
 def test_simple_prob_overlap(runtmp, zip_query, zip_db, indexed_query, indexed_against):
     # test basic execution!
     query_list = runtmp.output("query.txt")
@@ -626,33 +700,6 @@ def test_bad_query(runtmp, capfd):
         "WARNING: 1 query paths failed to load. See error messages above."
         in captured.err
     )
-
-
-def test_bad_query_3(runtmp, capfd):
-    # test with a bad query (a .sig.gz file renamed as zip file)
-    against_list = runtmp.output("against.txt")
-
-    sig2 = get_test_data("2.fa.sig.gz")
-    sig47 = get_test_data("47.fa.sig.gz")
-    sig63 = get_test_data("63.fa.sig.gz")
-
-    query_zip = runtmp.output("query.zip")
-    # cp sig2 into query_zip
-    with open(query_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    make_file_list(against_list, [sig2, sig47, sig63])
-
-    output = runtmp.output("out.csv")
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "multisearch", query_zip, against_list, "-o", output)
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "InvalidArchive" in captured.err
 
 
 def test_missing_against(runtmp, capfd, zip_db):

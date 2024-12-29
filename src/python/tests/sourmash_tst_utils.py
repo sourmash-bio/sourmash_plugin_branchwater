@@ -60,24 +60,6 @@ def index_siglist(
     return db
 
 
-def scriptpath(scriptname="sourmash"):
-    """Return the path to the scripts, in both dev and install situations."""
-    # note - it doesn't matter what the scriptname is here, as long as
-    # it's some script present in this version of sourmash.
-
-    path = os.path.join(os.path.dirname(__file__), "../")
-    if os.path.exists(os.path.join(path, scriptname)):
-        return path
-
-    path = os.path.join(os.path.dirname(__file__), "../../EGG-INFO/")
-    if os.path.exists(os.path.join(path, scriptname)):
-        return path
-
-    for path in os.environ["PATH"].split(":"):
-        if os.path.exists(os.path.join(path, scriptname)):
-            return path
-
-
 def _runscript(scriptname):
     """Find & run a script with exec (i.e. not via os.system or subprocess)."""
     namespace = {"__name__": "__main__"}

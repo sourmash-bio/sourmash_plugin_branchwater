@@ -429,27 +429,6 @@ def test_index_zipfile_multiparam(runtmp, capfd, toggle_internal_storage):
         runtmp.sourmash("scripts", "index", zipf, "-o", output, toggle_internal_storage)
 
 
-def test_index_zipfile_bad(runtmp, capfd):
-    # test with a bad input zipfile (a .sig.gz file renamed as zip file)
-    sig2 = get_test_data("2.fa.sig.gz")
-
-    query_zip = runtmp.output("query.zip")
-    # cp sig2 into query_zip
-    with open(query_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    output = runtmp.output("out.csv")
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "index", query_zip, "-o", output)
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "Couldn't find End Of Central Directory Record" in captured.err
-
-
 def test_index_check(runtmp, toggle_internal_storage):
     # test check index
     siglist = runtmp.output("db-sigs.txt")
@@ -506,3 +485,69 @@ def test_index_subdir(runtmp, toggle_internal_storage):
     print(runtmp.last_result.err)
 
     runtmp.sourmash("scripts", "check", output)
+
+
+def test_index_skipm2n3(runtmp, toggle_internal_storage):
+    # test basic index!
+    sigzip = get_test_data("skipm2n3.zip")
+    output = runtmp.output("db.rocksdb")
+
+    runtmp.sourmash(
+        "scripts",
+        "index",
+        sigzip,
+        "-o",
+        output,
+        toggle_internal_storage,
+        "-m",
+        "skipm2n3",
+    )
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert "index is done" in runtmp.last_result.err
+
+
+def test_index_skipm1n3(runtmp, toggle_internal_storage):
+    # test basic index!
+    sigzip = get_test_data("skipm1n3.zip")
+    output = runtmp.output("db.rocksdb")
+
+    runtmp.sourmash(
+        "scripts",
+        "index",
+        sigzip,
+        "-o",
+        output,
+        toggle_internal_storage,
+        "-m",
+        "skipm1n3",
+    )
+    assert os.path.exists(output)
+    print(runtmp.last_result.err)
+
+    assert "index is done" in runtmp.last_result.err
+
+
+def test_index_misnamed_zipfile(runtmp, capfd):
+    # test with a misnamed input zipfile (a .sig.gz file renamed as zip file)
+    # (This is a generic test that checks to make sure misnamed zip files
+    # can be loaded. It's not really specific to index. See
+    # https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/551)
+    sig2 = get_test_data("2.fa.sig.gz")
+
+    query_zip = runtmp.output("query.zip")
+    # cp sig2 into query_zip
+    with open(query_zip, "wb") as fp:
+        with open(sig2, "rb") as fp2:
+            fp.write(fp2.read())
+
+    output = runtmp.output("out.rocksdb")
+
+    runtmp.sourmash("scripts", "index", query_zip, "-o", output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    assert os.path.exists(output)
+    assert os.path.isdir(output)
