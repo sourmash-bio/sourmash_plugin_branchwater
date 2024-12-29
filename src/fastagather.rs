@@ -28,7 +28,7 @@ pub fn fastagather(
 
     // Build signature templates based on parsed parameters
     let sig_template_result = BuildCollection::from_selection(selection);
-    let mut sig_template = match sig_template_result {
+    let sig_template = match sig_template_result {
         Ok(sig_template) => sig_template,
         Err(e) => {
             bail!("Failed to build template signatures: {}", e);
@@ -41,10 +41,10 @@ pub fn fastagather(
 
     let input_moltype = input_moltype.to_ascii_lowercase();
 
-    let mut against_selection = selection;
+    let against_selection = selection;
     // get scaled from selection here
     let scaled = selection.scaled().unwrap(); // rm this unwrap?
-    against_selection.set_scaled(scaled as u32);
+                                              //against_selection.set_scaled(scaled as u32);
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes = {
@@ -77,9 +77,13 @@ pub fn fastagather(
     // later: can we parallelize across records or sigs? Do we want to batch groups of records for improved gather efficiency?
     while let Some(record_result) = reader.next() {
         // clone sig_templates for use
-        let sigcoll = sig_template.clone();
+        let mut sigcoll = sig_template.clone();
         match record_result {
             Ok(record) => {
+                let query_name = std::str::from_utf8(record.id())
+                    .expect("record.id() contains invalid UTF-8")
+                    .to_string();
+                //let query_name = record.id().to_string();   //query_sig.name(); // this is actually just record.id --> so maybe don't get it from sig here?
                 if let Err(err) =
                     sigcoll.build_singleton_sigs(record, &input_moltype, query_filename.clone())
                 {
@@ -93,17 +97,16 @@ pub fn fastagather(
                 for query_sig in sigcoll.sigs.iter() {
                     let query_md5 = query_sig.md5sum();
                     let query_mh = query_sig.minhash().expect("could not get minhash from sig");
-                    let query_name = query_sig.name(); // this is actually just record.id --> so maybe don't get it from sig here?
 
                     // now do prefetch/gather
                     let prefetch_result = load_sketches_above_threshold(
-                        against_collection,
+                        against_collection.clone(), // need to get rid of this clone
                         &query_mh,
                         threshold_hashes,
                     )?;
                     let matchlist = prefetch_result.0;
-                    let skipped_paths = prefetch_result.1;
-                    let failed_paths = prefetch_result.2;
+                    let _skipped_paths = prefetch_result.1;
+                    let _failed_paths = prefetch_result.2;
 
                     if prefetch_output.is_some() {
                         write_prefetch(
@@ -117,8 +120,8 @@ pub fn fastagather(
                     }
 
                     consume_query_by_gather(
-                        query_name,
-                        query_filename,
+                        query_name.clone(),
+                        query_filename.clone(),
                         query_mh.clone(),
                         scaled as u32,
                         matchlist,
