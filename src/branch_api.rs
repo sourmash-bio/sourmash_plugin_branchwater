@@ -7,8 +7,27 @@ use crate::utils::ReportType;
 use crate::utils::multicollection::MultiCollection;
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
+use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use pyo3::types::{IntoPyDict, PyDict, PyList};
 use pyo3::IntoPyObjectExt;
+use camino::Utf8PathBuf as PathBuf;
+
+#[pyclass]
+pub struct BranchRevIndex {
+    db: RevIndex
+}
+
+#[pymethods]
+impl BranchRevIndex {
+    pub fn open(location: PathBuf) -> PyResult<Py<Self>> {
+        let db = RevIndex::open(location, true, None).expect("foo");
+
+        let obj = Python::with_gil(|py| {
+            Py::new(py, BranchRevIndex { db }).unwrap()
+        });
+        Ok(obj)
+    }
+}
 
 #[pyclass]
 pub struct BranchRecord {
