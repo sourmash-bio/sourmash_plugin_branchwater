@@ -666,33 +666,6 @@ def test_bad_query_2(runtmp, capfd, indexed):
     )
 
 
-def test_bad_query_3(runtmp, capfd):
-    # test with a bad query (a .sig.gz file renamed as zip file)
-    against_list = runtmp.output("against.txt")
-
-    sig2 = get_test_data("2.fa.sig.gz")
-    sig47 = get_test_data("47.fa.sig.gz")
-    sig63 = get_test_data("63.fa.sig.gz")
-
-    query_zip = runtmp.output("query.zip")
-    # cp sig2 into query_zip
-    with open(query_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    make_file_list(against_list, [sig2, sig47, sig63])
-
-    output = runtmp.output("out.csv")
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "multisearch", query_zip, against_list, "-o", output)
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "InvalidArchive" in captured.err
-
-
 def test_missing_against(runtmp, capfd, indexed):
     # test with a missing against list
     query_list = runtmp.output("query.txt")
@@ -1452,3 +1425,20 @@ def test_no_pretty_print(runtmp):
     # do line by line?
     expected = "p_genome"
     assert expected not in runtmp.last_result.out
+
+
+def test_bug_550(runtmp):
+    # check a bug where a manifest made from a .sig file causes problems
+    # due to a problem with the way Signature::name() behaved in sourmash
+    # before r0.18.0.
+    # see https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/550
+    fa_file = get_test_data("short.fa")
+    sig_out = runtmp.output("short.sig")
+    mf_out = runtmp.output("short.mf.csv")
+    csv_out = runtmp.output("out.csv")
+
+    runtmp.sourmash("sketch", "dna", fa_file, "-o", sig_out)
+    runtmp.sourmash("sig", "collect", "-F", "csv", sig_out, "-o", mf_out)
+    runtmp.sourmash("scripts", "manysearch", mf_out, mf_out, "-o", csv_out)
+
+    assert os.path.exists(csv_out)

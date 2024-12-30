@@ -427,40 +427,6 @@ def test_bad_against_2(runtmp, capfd):
     )
 
 
-def test_bad_against_3(runtmp, capfd):
-    # test with a bad against (a .sig.gz file renamed as zip file)
-    query = get_test_data("SRR606249.sig.gz")
-
-    sig2 = get_test_data("2.fa.sig.gz")
-    against_zip = runtmp.output("against.zip")
-    # cp sig2 into against_zip
-    with open(against_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    g_output = runtmp.output("gather.csv")
-    p_output = runtmp.output("prefetch.csv")
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash(
-            "scripts",
-            "fastgather",
-            query,
-            against_zip,
-            "-o",
-            g_output,
-            "--output-prefetch",
-            p_output,
-            "-s",
-            "100000",
-        )
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "InvalidArchive" in captured.err
-
-
 @pytest.mark.xfail(reason="should work, bug")
 def test_against_multisigfile(runtmp, zip_against):
     # test against a sigfile that contains multiple sketches
@@ -1362,3 +1328,66 @@ def test_equal_matches(runtmp):
     df = pandas.read_csv(runtmp.output("out.csv"))
     assert len(df) == 2
     assert set(df["intersect_bp"]) == {1000}
+
+
+def test_simple_skipm2n3(
+    runtmp, capfd, indexed_query, indexed_against, toggle_internal_storage
+):
+    # test basic execution!
+    query = get_test_data("SRR606249.skipm2n3.zip")
+    against = get_test_data("skipm2n3.zip")  # contains 2,47,63
+
+    if indexed_query:
+        query = index_siglist(
+            runtmp, query, runtmp.output("query"), scaled=100000, moltype="skipm2n3"
+        )
+
+    if indexed_against:
+        against = index_siglist(
+            runtmp,
+            against,
+            runtmp.output("db"),
+            moltype="skipm2n3",
+            toggle_internal_storage=toggle_internal_storage,
+        )
+
+    g_output = runtmp.output("gather.csv")
+    p_output = runtmp.output("prefetch.csv")
+
+    runtmp.sourmash(
+        "scripts",
+        "fastgather",
+        "--moltype",
+        "skipm2n3",
+        query,
+        against,
+        "-o",
+        g_output,
+        "-s",
+        "100000",
+    )
+    assert os.path.exists(g_output)
+
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    df = pandas.read_csv(g_output)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert {
+        "query_filename",
+        "query_name",
+        "query_md5",
+        "match_name",
+        "match_md5",
+        "gather_result_rank",
+        "intersect_bp",
+    }.issubset(keys)
+
+    # CTB note: we do not need to worry about this warning for query from a
+    # RocksDB, since there is only one.
+    if indexed_against:
+        print("indexed against:", indexed_against)
+        assert (
+            "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
+        )

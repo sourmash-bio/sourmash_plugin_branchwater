@@ -1,5 +1,6 @@
 import os
 import pytest
+import csv
 import pandas
 import sourmash
 from sourmash import index
@@ -1435,3 +1436,181 @@ def test_singlesketch_zip_output(runtmp):
     runtmp.sourmash("sketch", "dna", fa1, "-o", output2)
     sig2 = sourmash.load_one_signature(output2)
     assert sig.minhash.hashes == sig2.minhash.hashes
+
+
+def test_manysketch_skipm2n3(runtmp, capfd):
+    fa_csv = runtmp.output("db-fa.csv")
+
+    fa1 = get_test_data("short.fa")
+    fa2 = get_test_data("short2.fa")
+    fa3 = get_test_data("short3.fa")
+    protfa1 = get_test_data("short-protein.fa")
+
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3], [protfa1])
+
+    output = runtmp.output("db.zip")
+
+    runtmp.sourmash(
+        "scripts",
+        "manysketch",
+        fa_csv,
+        "-o",
+        output,
+        "--param-str",
+        "dna,k=21,scaled=1",
+        "--param-str",
+        "skipm2n3,k=31,scaled=30",
+    )
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out  # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.err)
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 3  # 3 dna, 3 skipmer. But sourmash can only read the DNA sigs!!
+    # check moltypes, etc!
+    dna_md5sums = {
+        "short": "1474578c5c46dd09da4c2df29cf86621",
+        "short2": "4efeebd26644278e36b9553e018a851a",
+        "short3": "f85747ac4f473c4a71c1740d009f512b",
+    }
+    for sig in sigs:
+        if sig.minhash.is_dna:
+            assert sig.minhash.ksize == 21
+            assert sig.minhash.scaled == 1
+            print("DNA: ", sig.name, sig.md5sum())
+            assert sig.md5sum() == dna_md5sums[sig.name]
+
+    # read the file with python and check sigs
+    import zipfile, gzip, json
+
+    with zipfile.ZipFile(output, "r") as zf:
+        # Check the manifest exists
+        assert "SOURMASH-MANIFEST.csv" in zf.namelist()
+
+        expected_signatures = [
+            {
+                "name": "short",
+                "ksize": 31,
+                "scaled": 30,
+                "moltype": "skipm2n3",
+                "md5sum": "0486fcae73545363da9cd5bfcf18d322",
+            },
+            {
+                "name": "short3",
+                "ksize": 31,
+                "scaled": 30,
+                "moltype": "skipm2n3",
+                "md5sum": "890557b39ae66d3177035296818de7c6",
+            },
+            {
+                "name": "short2",
+                "ksize": 31,
+                "scaled": 30,
+                "moltype": "skipm2n3",
+                "md5sum": "ec6305f5d82e51659f3914d47fcc32ee",
+            },
+        ]
+        expected_signatures_dict = {exp["md5sum"]: exp for exp in expected_signatures}
+
+        # Read and parse the manifest
+        with zf.open("SOURMASH-MANIFEST.csv") as manifest_file:
+            manifest_data = manifest_file.read().decode("utf-8").splitlines()
+            manifest_data = [line for line in manifest_data if not line.startswith("#")]
+            manifest_reader = csv.DictReader(manifest_data)
+
+            for row in manifest_reader:
+                if row["moltype"] == "skipm2n3":
+                    print("Manifest Row:", row)
+
+                    # Validate row fields
+                    md5sum = row["md5"]
+                    assert (
+                        md5sum in expected_signatures_dict
+                    ), f"Unexpected md5sum: {md5sum}"
+                    expected = expected_signatures_dict[md5sum]
+                    assert (
+                        row["name"] == expected["name"]
+                    ), f"Name mismatch: {row['name']}"
+                    assert (
+                        int(row["ksize"]) == expected["ksize"]
+                    ), f"Ksize mismatch: {row['ksize']}"
+                    assert (
+                        row["moltype"] == expected["moltype"]
+                    ), f"Moltype mismatch: {row['moltype']}"
+
+                    sig_path = row["internal_location"]
+                    assert sig_path.startswith("signatures/")
+
+                    # Extract and read the signature file
+                    with zf.open(sig_path) as sig_gz:
+                        with gzip.open(sig_gz, "rt") as sig_file:
+                            sig_contents = json.load(sig_file)
+                            print("Signature Contents:", sig_contents)
+
+                            # Validate signature contents
+                            sig_data = sig_contents[0]
+                            print(sig_data)
+                            siginfo = sig_data["signatures"][0]
+                            assert (
+                                siginfo["md5sum"] == md5sum
+                            ), f"MD5 mismatch: {siginfo['md5sum']}"
+                            assert (
+                                siginfo["ksize"] == expected["ksize"]
+                            ), f"Ksize mismatch: {siginfo['ksize']}"
+                            assert (
+                                siginfo["molecule"] == expected["moltype"]
+                            ), f"Moltype mismatch: {siginfo['molecule']}"
+
+
+def test_singlesketch_skipm2n3(runtmp):
+    """Test singlesketch with skipm2n3."""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short.sig")
+
+    # Run the singlesketch command
+    runtmp.sourmash(
+        "scripts", "singlesketch", fa1, "-p", "skipm2n3,k=31,scaled=100", "-o", output
+    )
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    # Load the output signature file
+    import json
+
+    with open(output, "r") as f:
+        data = json.load(f)
+
+    # Extract the signature part from the JSON
+    signatures = data[0]["signatures"]
+
+    # Expected signature fields
+    expected_signatures = [
+        {
+            "name": "short.fa",
+            "ksize": 31,
+            "moltype": "skipm2n3",
+            "md5sum": "387d25c8e4b4878c78872efd13621491",
+        }
+    ]
+
+    # Check if the signatures match the expected
+    assert len(signatures) == len(
+        expected_signatures
+    ), "Number of signatures does not match."
+
+    for sig, expected in zip(signatures, expected_signatures):
+        assert sig["ksize"] == expected["ksize"], f"Unexpected ksize: {sig['ksize']}"
+        assert (
+            sig["molecule"] == expected["moltype"]
+        ), f"Unexpected moltype: {sig['molecule']}"
+        assert (
+            sig["md5sum"] == expected["md5sum"]
+        ), f"Unexpected md5sum: {sig['md5sum']}"
+        assert (
+            data[0]["name"] == expected["name"]
+        ), f"Unexpected name: {data[0]['name']}"

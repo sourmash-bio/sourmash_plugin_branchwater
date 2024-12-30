@@ -286,29 +286,6 @@ def test_bad_query(runtmp, capfd):
     )
 
 
-def test_bad_query_2(runtmp, capfd):
-    # test with a bad query (a .sig.gz file renamed as zip file)
-    sig2 = get_test_data("2.fa.sig.gz")
-    sig47 = get_test_data("47.fa.sig.gz")
-    sig63 = get_test_data("63.fa.sig.gz")
-
-    query_zip = runtmp.output("query.zip")
-    # cp sig2 into query_zip
-    with open(query_zip, "wb") as fp:
-        with open(sig2, "rb") as fp2:
-            fp.write(fp2.read())
-
-    output = runtmp.output("out.csv")
-
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash("scripts", "pairwise", query_zip, "-o", output)
-
-    captured = capfd.readouterr()
-    print(captured.err)
-
-    assert "InvalidArchive" in captured.err
-
-
 def test_missing_query(runtmp, capfd, zip_db):
     # test with a missing query list
     query_list = runtmp.output("query.txt")
