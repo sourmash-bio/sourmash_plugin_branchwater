@@ -1,5 +1,7 @@
 # The branchwater plugin for sourmash
 
+<p align="center"><img src="https://raw.githubusercontent.com/sourmash-bio/sourmash_plugin_branchwater/main/doc/_static/logo.png" height="256" /></p>
+
 | command | functionality | docs |
 | -------- | -------- | -------- |
 | `manysketch` | Rapidly build sketches for many input files     | [link](#Running-manysketch)     |
