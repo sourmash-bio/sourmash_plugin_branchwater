@@ -8,6 +8,7 @@ use crate::utils::multicollection::MultiCollection;
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
 use pyo3::types::{IntoPyDict, PyDict, PyList};
+use pyo3::IntoPyObjectExt;
 
 #[pyclass]
 pub struct BranchRecord {
@@ -24,12 +25,12 @@ impl BranchRecord {
     pub fn get_as_row<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let dict = {
             let key_vals: Vec<(&str, PyObject)> = vec![
-                ("ksize", self.record.ksize().to_object(py)),
-                ("moltype", self.record.moltype().to_string().to_object(py)),
-                ("scaled", self.record.scaled().to_object(py)),
-                ("num", self.record.num().to_object(py)),
-                ("with_abundance", self.record.with_abundance().to_object(py)),
-                ("n_hashes", self.record.n_hashes().to_object(py)),
+                ("ksize", self.record.ksize().into_bound_py_any(py)?.unbind()),
+                ("moltype", self.record.moltype().to_string().into_bound_py_any(py)?.unbind()),
+                ("scaled", self.record.scaled().into_bound_py_any(py)?.unbind()),
+                ("num", self.record.num().into_bound_py_any(py)?.unbind()),
+                ("with_abundance", self.record.with_abundance().into_bound_py_any(py)?.unbind()),
+                ("n_hashes", self.record.n_hashes().into_bound_py_any(py)?.unbind()),
             ];
             key_vals.into_py_dict_bound(py)
         };
@@ -96,7 +97,7 @@ impl BranchCollection {
     pub fn __len__(&self) -> PyResult<usize> {
         Ok(self.collection.len())
     }
-
+/*
     #[getter]
     pub fn get_manifest(&self) -> PyResult<Py<BranchManifest>> {
         let manifest: Manifest = self.collection.manifest().clone();
@@ -137,16 +138,17 @@ impl BranchCollection {
         // @CTB: this does the GIL grabbing as needed?
         Ok(obj)
     }
+*/
 }
 
 #[pyfunction]
 pub fn api_load_collection(
     location: String,
     ksize: u8,
-    scaled: usize,
+    scaled: u32,
     moltype: String,
 ) -> PyResult<Py<BranchCollection>> {
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(ksize, Some(scaled), &moltype);
 
     let collection = load_collection(&location, &selection, ReportType::Query, true).unwrap();
     let obj = Python::with_gil(|py| {
