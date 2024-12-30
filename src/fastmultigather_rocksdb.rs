@@ -31,7 +31,7 @@ pub fn fastmultigather_rocksdb(
     println!("Loaded DB");
 
     fastmultigather_rocksdb_obj(queries_file,
-                                db,
+                                &db,
                                 selection,
                                 threshold_bp,
                                 output,
@@ -40,7 +40,7 @@ pub fn fastmultigather_rocksdb(
 
 pub fn fastmultigather_rocksdb_obj(
     queries_file: String,
-    db: RevIndex,
+    db: &RevIndex,
     selection: Selection,
     threshold_bp: u32,
     output: Option<String>,

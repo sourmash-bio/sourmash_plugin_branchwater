@@ -5,6 +5,7 @@ use crate::utils::build_selection;
 use crate::utils::load_collection;
 use crate::utils::ReportType;
 use crate::utils::multicollection::MultiCollection;
+use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
 use sourmash::collection::Collection;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
@@ -19,13 +20,38 @@ pub struct BranchRevIndex {
 
 #[pymethods]
 impl BranchRevIndex {
-    pub fn open(location: PathBuf) -> PyResult<Py<Self>> {
+    #[new]
+    pub fn open(location: &str) -> PyResult<Py<Self>> {
         let db = RevIndex::open(location, true, None).expect("foo");
 
         let obj = Python::with_gil(|py| {
             Py::new(py, BranchRevIndex { db }).unwrap()
         });
         Ok(obj)
+    }
+
+    #[pyo3(signature = (queries_file, ksize, scaled, moltype, threshold_bp, output))]
+    pub fn fastmultigather_against(&self,
+                                   queries_file: String,
+                                   ksize: u8,
+                                   scaled: u32,
+                                   moltype: String,
+                                   threshold_bp: u32,
+                                   output: String) -> anyhow::Result<u8> {
+        let selection = build_selection(ksize, Some(scaled), &moltype);
+
+        match fastmultigather_rocksdb_obj(queries_file,
+                                          &self.db,
+                                          selection,
+                                          threshold_bp,
+                                          Some(output),
+                                          true) { // @CTB 
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
     }
 }
 
