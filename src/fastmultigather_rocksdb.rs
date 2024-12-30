@@ -12,7 +12,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType,
+    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType, MultiCollection
 };
 
 pub fn fastmultigather_rocksdb(
@@ -77,6 +77,21 @@ pub fn fastmultigather_rocksdb_obj(
         allow_failed_sigpaths,
     )?;
 
+    fastmultigather_rocksdb_obj2(&query_collection,
+                                 db,
+                                 &set_selection,
+                                 threshold_bp,
+                                 output)
+}
+
+pub fn fastmultigather_rocksdb_obj2(
+    query_collection: &MultiCollection,
+    db: &RevIndex,
+    selection: &Selection,
+    threshold_bp: u32,
+    output: Option<String>
+) -> Result<(), Box<dyn std::error::Error>> {
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
@@ -98,8 +113,8 @@ pub fn fastmultigather_rocksdb_obj(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / set_selection.scaled().expect("scaled is not set!?");
-            let ksize = set_selection.ksize().expect("ksize not set!?");
+            let threshold = threshold_bp / selection.scaled().expect("scaled is not set!?");
+            let ksize = selection.ksize().expect("ksize not set!?");
 
             // query downsampling happens here
             match coll.sig_from_record(record) {
@@ -121,7 +136,7 @@ pub fn fastmultigather_rocksdb_obj(
                             hash_to_color,
                             threshold as usize,
                             &query_mh,
-                            Some(set_selection.clone()),
+                            Some(selection.clone()),
                         );
                         if let Ok(matches) = matches {
                             for match_ in &matches {

@@ -2,7 +2,7 @@
 use pyo3::prelude::*;
 use sourmash::prelude::*;
 
-use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
+use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj2;
 use crate::utils::build_selection;
 use crate::utils::load_collection;
 use crate::utils::multicollection::MultiCollection;
@@ -14,7 +14,7 @@ use sourmash::manifest::{Manifest, Record};
 
 #[pyclass]
 pub struct BranchSelection {
-    selection: Selection,
+    pub selection: Selection,
 }
 
 impl BranchSelection {
@@ -104,25 +104,20 @@ impl BranchRevIndex {
         Ok(selection)
     }
 
-    #[pyo3(signature = (queries_file, ksize, scaled, moltype, threshold_bp, output))]
+    #[pyo3(signature = (query_collection, selection, threshold_bp, output))]
     pub fn fastmultigather_against(
         &self,
-        queries_file: String,
-        ksize: u8,
-        scaled: u32,
-        moltype: String,
+        query_collection: &BranchCollection,
+        selection: &BranchSelection,
         threshold_bp: u32,
         output: String,
     ) -> anyhow::Result<u8> {
-        let selection = build_selection(ksize, Some(scaled), &moltype);
-
-        match fastmultigather_rocksdb_obj(
-            queries_file,
+        match fastmultigather_rocksdb_obj2(
+            &query_collection.collection,
             &self.db,
-            selection,
+            &selection.selection,
             threshold_bp,
-            Some(output),
-            true,
+            Some(output)
         ) {
             // @CTB
             Ok(_) => Ok(0),
@@ -230,7 +225,7 @@ pub struct BranchCollection {
     #[pyo3(get)]
     pub has_manifest: bool,
 
-    collection: MultiCollection,
+    pub collection: MultiCollection,
 }
 
 #[pymethods]

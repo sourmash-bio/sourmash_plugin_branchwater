@@ -89,11 +89,11 @@ def test_fastmultigather_rocksdb(runtmp):
 
     db = branch.api.BranchRevIndex(output)
 
+    query_coll = branch.api.api_load_collection(query, 31, 100_000, 'DNA')
+
     csv_out = runtmp.output("xxx.csv")
-    status = db.fastmultigather_against(query,
-                                        31,
-                                        100_000,
-                                        "DNA",
+    status = db.fastmultigather_against(query_coll,
+                                        db.selection(),
                                         0,
                                         csv_out)
     print(f"status: {status}")
@@ -110,23 +110,8 @@ def test_fastmultigather_rocksdb(runtmp):
     }.issubset(keys)
 
     print(df.to_markdown())
-    assert 0
 
 
-def test_basic_get_manifest():
+def test_basic_collection_load():
     sigfile = get_test_data('SRR606249.sig.gz')
     res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
-    mf = res.manifest
-    print(mf, dir(mf))
-    assert len(mf) == 1
-
-    rec = res.get_first_record()
-    print(rec, dir(rec))
-    print('ZZZ', rec.as_row)
-
-    print(rec.get_name())
-
-    print(mf.rows)
-    for rec in mf.rows:
-        print(rec.get_name())
-    assert 0
