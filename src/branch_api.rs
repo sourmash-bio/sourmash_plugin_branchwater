@@ -150,7 +150,8 @@ pub fn api_load_collection(
 ) -> PyResult<Py<BranchCollection>> {
     let selection = build_selection(ksize, Some(scaled), &moltype);
 
-    let collection = load_collection(&location, &selection, ReportType::Query, true).unwrap();
+    let collection = load_collection(&location, &selection, ReportType::Query, true)?;
+
     let obj = Python::with_gil(|py| {
         Py::new(
             py,
@@ -160,8 +161,7 @@ pub fn api_load_collection(
                 is_database: false,
                 has_manifest: true,
             },
-        )
-        .unwrap()
+        ).expect("cannot convert collection into py object")
     });
     Ok(obj)
 }

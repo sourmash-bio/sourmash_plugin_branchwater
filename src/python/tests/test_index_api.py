@@ -1,3 +1,5 @@
+import pytest
+
 import sourmash_plugin_branchwater as branch
 from . import sourmash_tst_utils as utils
 from .sourmash_tst_utils import get_test_data
@@ -13,11 +15,10 @@ def test_basic():
 def test_fail():
     # try to load a (nonexistent) collection
     sigfile = get_test_data('XXX_SRR606249.sig.gz')
-    try:
+
+    with pytest.raises(RuntimeError):
         res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
-    except:
-        pass
-    # @CTB should do something better here ;)
+    # @CTB should do something better here than RuntimeError ;)
 
 
 def test_basic_get_manifest():
