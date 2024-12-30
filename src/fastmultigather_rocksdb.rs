@@ -30,12 +30,14 @@ pub fn fastmultigather_rocksdb(
     let db = RevIndex::open(index, true, None)?;
     println!("Loaded DB");
 
-    fastmultigather_rocksdb_obj(queries_file,
-                                &db,
-                                selection,
-                                threshold_bp,
-                                output,
-                                allow_failed_sigpaths)
+    fastmultigather_rocksdb_obj(
+        queries_file,
+        &db,
+        selection,
+        threshold_bp,
+        output,
+        allow_failed_sigpaths,
+    )
 }
 
 pub fn fastmultigather_rocksdb_obj(
@@ -47,13 +49,10 @@ pub fn fastmultigather_rocksdb_obj(
     allow_failed_sigpaths: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // grab scaled from the database.
-    let max_db_scaled = db
+    let (_, max_db_scaled) = db
         .collection()
-        .manifest()
-        .iter()
-        .map(|r| r.scaled())
-        .max()
-        .expect("no records in db?!");
+        .min_max_scaled()
+        .expect("no records in db?!"); // @CTB backport!
 
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
