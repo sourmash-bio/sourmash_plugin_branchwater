@@ -31,6 +31,18 @@ impl BranchSelection {
         let selection = build_selection(ksize, Some(scaled), moltype);
         Self { selection }
     }
+
+    pub fn ksize(&self) -> PyResult<u32> {
+        Ok(self.selection.ksize().expect("ksize not set"))
+    }
+
+    pub fn moltype(&self) -> PyResult<String> {
+        Ok(self.selection.moltype().expect("moltype not set").to_string())
+    }
+
+    pub fn scaled(&self) -> PyResult<u32> {
+        Ok(self.selection.scaled().expect("scaled not set"))
+    }
 }
 
 #[pyclass]
@@ -61,7 +73,7 @@ impl BranchRevIndex {
         Ok((*min_scaled, *max_scaled))
     }
 
-    pub fn ksize(&self) -> PyResult<u32> {
+    pub fn ksize(&self) -> PyResult<u8> {
         let ksize = self
             .db
             .collection()
@@ -69,7 +81,7 @@ impl BranchRevIndex {
             .first()
             .map(|first| first.ksize())
             .expect("no records in db");
-        Ok(ksize)
+        Ok(ksize.try_into().unwrap())
     }
 
     pub fn moltype(&self) -> PyResult<String> {
@@ -81,6 +93,15 @@ impl BranchRevIndex {
             .map(|first| first.moltype())
             .expect("no records in db");
         Ok(moltype.to_string())
+    }
+
+    pub fn selection(&self) -> PyResult<BranchSelection> {
+        let ksize = self.ksize().expect("foo 1");
+        let moltype = self.moltype().expect("foo 2");
+        let (_, max_scaled) = self.min_max_scaled().expect("foo 3");
+        let selection = BranchSelection::build(ksize, max_scaled, moltype.as_ref());
+
+        Ok(selection)
     }
 
     #[pyo3(signature = (queries_file, ksize, scaled, moltype, threshold_bp, output))]

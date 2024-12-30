@@ -45,7 +45,30 @@ def test_load_rocksdb(runtmp):
     assert db.moltype() == "DNA"
     assert db.min_max_scaled() == (1000, 1000) # @CTB guaranteed to be only one
     assert len(db) == 3
-    # success!
+
+
+def test_load_rocksdb_get_selection(runtmp):
+    # test basic index!
+    siglist = runtmp.output("db-sigs.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    output = runtmp.output("db.rocksdb")
+
+    runtmp.sourmash("scripts", "index", siglist, "-o", output)
+    assert os.path.exists(output)
+
+    db = branch.api.BranchRevIndex(output)
+
+    selection = db.selection()
+
+    assert selection.ksize() == 31
+    assert selection.moltype() == "DNA"
+    assert selection.scaled() == 1000
 
 
 def test_fastmultigather_rocksdb(runtmp):
