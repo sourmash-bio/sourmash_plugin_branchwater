@@ -243,12 +243,15 @@ impl BranchCollection {
         threshold_bp: u32,
         scaled: u32,
     ) -> anyhow::Result<u8> {
+        let threshold_hashes: u64 = (threshold_bp / scaled).into();
+        eprintln!("foo: {} {}", threshold_hashes, scaled);
+
         match fastmultigather_obj(
             &query_collection.collection,
             &self.collection,
             false,
             false,
-            (threshold_bp / scaled).into(),
+            threshold_hashes,
             scaled,
         ) {
             // @CTB

@@ -82,7 +82,7 @@ pub fn prefetch(
             let searchsig = &result.minhash;
             let overlap = searchsig.count_common(query_mh, false);
             if let Ok(overlap) = overlap {
-                if overlap >= threshold_hashes {
+                if overlap > 0 && overlap >= threshold_hashes { // @CTB backport
                     let result = PrefetchResult { overlap, ..result };
                     mm = Some(result);
                 }
@@ -762,6 +762,7 @@ pub fn branchwater_calculate_gather_stats(
         average_abund = n_unique_weighted_found as f64 / abunds.len() as f64;
 
         // todo: try to avoid clone for these?
+        eprintln!("abunds size: {}", abunds.len());
         median_abund = median(abunds.iter().cloned()).expect("cannot calculate median");
         std_abund = stddev(abunds.iter().cloned());
     }
