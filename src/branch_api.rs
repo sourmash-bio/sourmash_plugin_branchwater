@@ -3,11 +3,13 @@ use pyo3::prelude::*;
 use sourmash::prelude::*;
 
 use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj2;
+use crate::fastmultigather::fastmultigather_obj;
+
 use crate::utils::build_selection;
 use crate::utils::load_collection;
 use crate::utils::multicollection::MultiCollection;
 use crate::utils::ReportType;
-use pyo3::types::{IntoPyDict, PyDict, PyList};
+use pyo3::types::{IntoPyDict, PyDict};
 use pyo3::IntoPyObjectExt;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::manifest::{Manifest, Record};
@@ -233,6 +235,31 @@ impl BranchCollection {
     pub fn __len__(&self) -> PyResult<usize> {
         Ok(self.collection.len())
     }
+
+    #[pyo3(signature = (query_collection, threshold_bp, scaled))]
+    pub fn fastmultigather_against(
+        &self,
+        query_collection: &BranchCollection,
+        threshold_bp: u32,
+        scaled: u32,
+    ) -> anyhow::Result<u8> {
+        match fastmultigather_obj(
+            &query_collection.collection,
+            &self.collection,
+            false,
+            false,
+            (threshold_bp / scaled).into(),
+            scaled,
+        ) {
+            // @CTB
+            Ok(_) => Ok(0),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                Ok(1)
+            }
+        }
+    }
+    
     /*
         #[getter]
         pub fn get_manifest(&self) -> PyResult<Py<BranchManifest>> {

@@ -112,6 +112,42 @@ def test_fastmultigather_rocksdb(runtmp):
     print(df.to_markdown())
 
 
+def test_fastmultigather_general(runtmp):
+    siglist = runtmp.output("db-sigs.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query = get_test_data('SRR606249.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    against_coll = branch.api.api_load_collection(siglist, 31, 100_000, "DNA")
+    query_coll = branch.api.api_load_collection(query, 31, 100_000, 'DNA')
+
+    csv_out = runtmp.output("xxx.csv")
+    status = against_coll.fastmultigather_against(query_coll,
+                                                  0,
+                                                  100_000)
+    print(f"status: {status}")
+    df = pandas.read_csv(csv_out)
+    assert len(df) == 3
+    keys = set(df.keys())
+    assert {
+        "query_filename",
+        "query_name",
+        "query_md5",
+        "match_name",
+        "match_md5",
+        "gather_result_rank",
+        "intersect_bp",
+    }.issubset(keys)
+
+    print(df.to_markdown())
+    assert 0
+
+
 def test_basic_collection_load():
     sigfile = get_test_data('SRR606249.sig.gz')
     res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')

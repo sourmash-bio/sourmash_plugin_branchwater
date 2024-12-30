@@ -22,7 +22,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
+    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType, MultiCollection
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -79,8 +79,22 @@ pub fn fastmultigather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    fastmultigather_obj(&query_collection, &against_collection,
+                        save_matches, create_empty_results,
+                        threshold_hashes, common_scaled)
+}
+
+pub fn fastmultigather_obj(
+    query_collection: &MultiCollection,
+    against_collection: &MultiCollection,
+    save_matches: bool,
+    create_empty_results: bool,
+    threshold_hashes: u64,
+    common_scaled: u32,
+) -> Result<()> {
     // load against sketches into memory
-    let against = against_collection.load_sketches()?;
+    let against = against_collection.clone().load_sketches()?; // @CTB clone
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
