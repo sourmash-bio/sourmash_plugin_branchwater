@@ -44,6 +44,7 @@ def test_load_rocksdb(runtmp):
     assert db.ksize() == 31
     assert db.moltype() == "DNA"
     assert db.min_max_scaled() == (1000, 1000) # @CTB guaranteed to be only one
+    assert len(db) == 3
     # success!
 
 
