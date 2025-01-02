@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.23.3", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
-serde = { version = "1.0.216", features = ["derive"] }
+serde = { version = "1.0.217", features = ["derive"] }
 sourmash = { version = "0.18.0", features = ["branchwater"] }
 serde_json = "1.0.134"
 niffler = "2.4.0"
