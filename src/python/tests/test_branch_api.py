@@ -126,17 +126,11 @@ def test_fastmultigather_general(runtmp):
     against_coll = branch.api.api_load_collection(siglist, 31, 100_000, "DNA")
     query_coll = branch.api.api_load_collection(query, 31, 100_000, 'DNA')
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(runtmp.output(''))
-        status = against_coll.fastmultigather_against(query_coll,
-                                                      0,
-                                                      100_000)
-    finally:
-        os.chdir(cwd)
-
-    csv_out = runtmp.output("SRR606249.gather.csv")
-
+    csv_out = runtmp.output('xxx.csv')
+    status = against_coll.fastmultigather_against(query_coll,
+                                                  0,
+                                                  100_000,
+                                                  csv_out)
     print(f"status: {status}")
     df = pandas.read_csv(csv_out)
     assert len(df) == 3
