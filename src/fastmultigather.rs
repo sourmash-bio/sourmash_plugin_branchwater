@@ -85,7 +85,7 @@ pub fn fastmultigather(
         &query_collection,
         &against_collection,
         save_matches,
-        create_empty_results,
+        output_path,
         threshold_hashes,
         common_scaled,
     )
@@ -95,7 +95,7 @@ pub fn fastmultigather_obj(
     query_collection: &MultiCollection,
     against_collection: &MultiCollection,
     save_matches: bool,
-    create_empty_results: bool,
+    output_path: Option<String>,
     threshold_hashes: u64,
     common_scaled: u32,
 ) -> Result<()> {

@@ -258,12 +258,13 @@ impl BranchCollection {
         Ok(obj)
     }
 
-    #[pyo3(signature = (query_collection, threshold_bp, scaled))]
+    #[pyo3(signature = (query_collection, threshold_bp, scaled, output))]
     pub fn fastmultigather_against(
         &self,
         query_collection: &BranchCollection,
         threshold_bp: u32,
         scaled: u32,
+        output: String,
     ) -> anyhow::Result<u8> {
         let threshold_hashes: u64 = (threshold_bp / scaled).into();
         eprintln!("foo: {} {}", threshold_hashes, scaled);
@@ -272,7 +273,7 @@ impl BranchCollection {
             &query_collection.collection,
             &self.collection,
             false,
-            false,
+            Some(output),
             threshold_hashes,
             scaled,
         ) {
