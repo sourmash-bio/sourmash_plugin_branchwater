@@ -22,7 +22,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType, MultiCollection
+    consume_query_by_gather, load_collection, write_prefetch, MultiCollection, PrefetchResult,
+    ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -80,9 +81,14 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
-    fastmultigather_obj(&query_collection, &against_collection,
-                        save_matches, create_empty_results,
-                        threshold_hashes, common_scaled)
+    fastmultigather_obj(
+        &query_collection,
+        &against_collection,
+        save_matches,
+        create_empty_results,
+        threshold_hashes,
+        common_scaled,
+    )
 }
 
 pub fn fastmultigather_obj(

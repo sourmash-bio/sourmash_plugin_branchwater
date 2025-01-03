@@ -12,7 +12,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType, MultiCollection
+    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult,
+    MultiCollection, ReportType,
 };
 
 pub fn fastmultigather_rocksdb(
@@ -79,11 +80,7 @@ pub fn fastmultigather_rocksdb_obj(
         allow_failed_sigpaths,
     )?;
 
-    fastmultigather_rocksdb_obj2(&query_collection,
-                                 db,
-                                 &set_selection,
-                                 threshold_bp,
-                                 output)
+    fastmultigather_rocksdb_obj2(&query_collection, db, &set_selection, threshold_bp, output)
 }
 
 pub fn fastmultigather_rocksdb_obj2(
@@ -91,9 +88,8 @@ pub fn fastmultigather_rocksdb_obj2(
     db: &RevIndex,
     selection: &Selection,
     threshold_bp: u32,
-    output: Option<String>
+    output: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());

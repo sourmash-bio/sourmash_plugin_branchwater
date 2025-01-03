@@ -2,8 +2,8 @@
 use pyo3::prelude::*;
 use sourmash::prelude::*;
 
-use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj2;
 use crate::fastmultigather::fastmultigather_obj;
+use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj2;
 
 use crate::utils::build_selection;
 use crate::utils::load_collection;
@@ -39,7 +39,11 @@ impl BranchSelection {
     }
 
     pub fn moltype(&self) -> PyResult<String> {
-        Ok(self.selection.moltype().expect("moltype not set").to_string())
+        Ok(self
+            .selection
+            .moltype()
+            .expect("moltype not set")
+            .to_string())
     }
 
     pub fn scaled(&self) -> PyResult<u32> {
@@ -119,7 +123,7 @@ impl BranchRevIndex {
             &self.db,
             &selection.selection,
             threshold_bp,
-            Some(output)
+            Some(output),
         ) {
             // @CTB
             Ok(_) => Ok(0),
@@ -230,10 +234,28 @@ pub struct BranchCollection {
     pub collection: MultiCollection,
 }
 
+/// Wraps MultiCollection
+
 #[pymethods]
 impl BranchCollection {
     pub fn __len__(&self) -> PyResult<usize> {
         Ok(self.collection.len())
+    }
+
+    pub fn select(&self, selection: &BranchSelection) -> PyResult<Self> {
+        let collection = self
+            .collection
+            .clone()
+            .select(&selection.selection)
+            .expect("selection failed");
+
+        let obj = BranchCollection {
+            location: self.location.clone(),
+            collection,
+            is_database: false,
+            has_manifest: true,
+        };
+        Ok(obj)
     }
 
     #[pyo3(signature = (query_collection, threshold_bp, scaled))]
@@ -262,7 +284,7 @@ impl BranchCollection {
             }
         }
     }
-    
+
     /*
         #[getter]
         pub fn get_manifest(&self) -> PyResult<Py<BranchManifest>> {
@@ -307,6 +329,7 @@ impl BranchCollection {
     */
 }
 
+// @CTB move into struct?
 #[pyfunction]
 pub fn api_load_collection(
     location: String,
