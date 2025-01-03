@@ -23,7 +23,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, PrefetchResult, ReportType,
+    BranchwaterGatherResult, PrefetchResult, ReportType, MultiCollection
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -80,8 +80,27 @@ pub fn fastmultigather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    fastmultigather_obj(
+        &query_collection,
+        &against_collection,
+        save_matches,
+        output_path,
+        threshold_hashes,
+        common_scaled,
+    )
+}
+
+pub fn fastmultigather_obj(
+    query_collection: &MultiCollection,
+    against_collection: &MultiCollection,
+    save_matches: bool,
+    output_path: Option<String>,
+    threshold_hashes: u64,
+    common_scaled: u32,
+) -> Result<()> {
     // load against sketches into memory
-    let against = against_collection.load_sketches()?;
+    let against = against_collection.clone().load_sketches()?; // @CTB clone
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =

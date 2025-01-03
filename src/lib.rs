@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 #[macro_use]
 extern crate simple_error;
 
+mod branch_api;
 mod utils;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
@@ -379,5 +380,11 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
+
+    // lower level API stuff
+    m.add_class::<branch_api::BranchRevIndex>()?;
+    m.add_class::<branch_api::BranchCollection>()?;
+    m.add_function(wrap_pyfunction!(branch_api::api_load_collection, m)?)?;
+
     Ok(())
 }

@@ -12,7 +12,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType,
+    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult,
+    MultiCollection, ReportType,
 };
 
 pub fn fastmultigather_rocksdb(
@@ -30,14 +31,31 @@ pub fn fastmultigather_rocksdb(
     let db = RevIndex::open(index, true, None)?;
     println!("Loaded DB");
 
+    fastmultigather_rocksdb_obj(
+        queries_file,
+        &db,
+        selection,
+        threshold_bp,
+        output,
+        allow_failed_sigpaths,
+    )
+}
+
+pub fn fastmultigather_rocksdb_obj(
+    queries_file: String,
+    db: &RevIndex,
+    selection: Selection,
+    threshold_bp: u32,
+    output: Option<String>,
+    allow_failed_sigpaths: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     // grab scaled from the database.
-    let max_db_scaled = db
+    let (_, max_db_scaled) = db
         .collection()
-        .manifest()
-        .iter()
-        .map(|r| r.scaled())
-        .max()
-        .expect("no records in db?!");
+        .min_max_scaled()
+        .expect("no records in db?!"); // @CTB backport!
+
+    // @CTB no checking for moltype or ksize...
 
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
@@ -62,6 +80,16 @@ pub fn fastmultigather_rocksdb(
         allow_failed_sigpaths,
     )?;
 
+    fastmultigather_rocksdb_obj2(&query_collection, db, &set_selection, threshold_bp, output)
+}
+
+pub fn fastmultigather_rocksdb_obj2(
+    query_collection: &MultiCollection,
+    db: &RevIndex,
+    selection: &Selection,
+    threshold_bp: u32,
+    output: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
@@ -83,8 +111,8 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / set_selection.scaled().expect("scaled is not set!?");
-            let ksize = set_selection.ksize().expect("ksize not set!?");
+            let threshold = threshold_bp / selection.scaled().expect("scaled is not set!?");
+            let ksize = selection.ksize().expect("ksize not set!?");
 
             // query downsampling happens here
             match coll.sig_from_record(record) {
@@ -106,7 +134,7 @@ pub fn fastmultigather_rocksdb(
                             hash_to_color,
                             threshold as usize,
                             &query_mh,
-                            Some(set_selection.clone()),
+                            Some(selection.clone()),
                         );
                         if let Ok(matches) = matches {
                             for match_ in &matches {
