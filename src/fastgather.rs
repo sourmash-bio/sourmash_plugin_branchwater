@@ -1,5 +1,6 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
+
 use sourmash::prelude::Select;
 use sourmash::selection::Selection;
 use sourmash::sketch::minhash::KmerMinHash;
@@ -7,6 +8,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use crate::utils::{
     consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
     ReportType,
+    csvwriter_thread, BranchwaterGatherResult
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -109,6 +111,10 @@ pub fn fastgather(
         .ok();
     }
 
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+    let gather_out_thrd = csvwriter_thread(recv, gather_output);
+
     // run the gather!
     consume_query_by_gather(
         query_name,
@@ -117,8 +123,14 @@ pub fn fastgather(
         scaled as u32,
         matchlist,
         threshold_hashes,
-        gather_output,
+        Some(send),
     )
-    .ok();
+        .ok();
+
+    if let Err(e) = gather_out_thrd.join() {
+        eprintln!("Unable to join internal thread: {:?}", e);
+        // @CTB panic?
+    }
+
     Ok(())
 }

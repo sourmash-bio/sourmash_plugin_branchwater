@@ -1,7 +1,7 @@
 /// fastmultigather: Run gather for multiple queries against a list of files.
 use anyhow::Result;
-use rayon::prelude::*;
-
+use rayon::iter::ParallelIterator;
+    
 use sourmash::prelude::{Storage, ToWriter};
 use sourmash::{selection::Selection, signature::SigsTrait};
 
@@ -22,7 +22,9 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
+    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult,
+    ReportType,
+    csvwriter_thread, BranchwaterGatherResult,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -148,6 +150,10 @@ pub fn fastmultigather(
                     let prefetch_output = format!("{}.prefetch.csv", location);
                     let gather_output = format!("{}.gather.csv", location);
 
+                    let (send, recv) =
+                        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+                    let gather_out_thrd = csvwriter_thread(recv, Some(gather_output));
+
                     // Save initial list of matches to prefetch output
                     write_prefetch(
                         query_filename.clone(),
@@ -166,9 +172,14 @@ pub fn fastmultigather(
                         common_scaled,
                         matchlist,
                         threshold_hashes,
-                        Some(gather_output),
+                        Some(send),
                     )
                     .ok();
+
+                    if let Err(e) = gather_out_thrd.join() {
+                        eprintln!("Unable to join internal thread: {:?}", e);
+                        // @CTB panic?
+                    }
 
                     // Save matching hashes to .sig file if save_matches is true
                     if save_matches {
