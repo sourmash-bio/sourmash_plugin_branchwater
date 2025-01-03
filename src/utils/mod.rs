@@ -19,7 +19,7 @@ use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread::JoinHandle;
 use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
@@ -809,26 +809,8 @@ pub fn consume_query_by_gather(
     scaled: u32,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
-    gather_output: Option<String>,
+    gather_output: Option<SyncSender<BranchwaterGatherResult>>,
 ) -> Result<()> {
-    // Define the writer to stdout by default
-    let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
-
-    if let Some(output_path) = &gather_output {
-        // Account for potential missing dir in output path
-        let directory_path = Path::new(output_path).parent();
-
-        // If a directory path exists in the filename, create it if it doesn't already exist
-        if let Some(dir) = directory_path {
-            create_dir_all(dir)?;
-        }
-
-        let file = File::create(output_path)?;
-        writer = Box::new(BufWriter::new(file));
-    }
-    // create csv writer
-    let mut csv_writer = Writer::from_writer(writer);
-
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
@@ -939,8 +921,10 @@ pub fn consume_query_by_gather(
             match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
         };
         sum_weighted_found = gather_result.sum_weighted_found;
-        // serialize result to file.
-        csv_writer.serialize(gather_result)?;
+        // send result to channel => CSV file.
+        if let Some(ref s) = gather_output {
+            s.send(gather_result)?;
+        }
 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
