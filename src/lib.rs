@@ -133,7 +133,7 @@ fn do_fastmultigather(
     moltype: String,
     output_path: Option<String>,
     save_matches: bool,
-    create_empty_results: bool,
+    create_empty_results: bool, // @CTB remove
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
@@ -156,9 +156,6 @@ fn do_fastmultigather(
             }
         }
     } else {
-        if output_path.is_some() {
-            bail!("output path specified, but not running fastmultigather against a rocksdb. See issue #239");
-        }
         match fastmultigather::fastmultigather(
             query_filenames,
             siglist_path,
@@ -167,7 +164,7 @@ fn do_fastmultigather(
             selection,
             allow_failed_sigpaths,
             save_matches,
-            create_empty_results,
+            output_path,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
