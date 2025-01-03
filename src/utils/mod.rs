@@ -19,7 +19,7 @@ use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use std::sync::mpsc::{ Receiver, SyncSender };
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread::JoinHandle;
 use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;

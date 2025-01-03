@@ -1,7 +1,7 @@
 /// fastmultigather: Run gather for multiple queries against a list of files.
 use anyhow::Result;
 use rayon::iter::ParallelIterator;
-    
+
 use sourmash::prelude::{Storage, ToWriter};
 use sourmash::{selection::Selection, signature::SigsTrait};
 
@@ -22,9 +22,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult,
-    ReportType,
-    csvwriter_thread, BranchwaterGatherResult,
+    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
+    BranchwaterGatherResult, PrefetchResult, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -150,8 +149,9 @@ pub fn fastmultigather(
                     let prefetch_output = format!("{}.prefetch.csv", location);
                     let gather_output = format!("{}.gather.csv", location);
 
-                    let (send, recv) =
-                        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+                    let (send, recv) = std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(
+                        rayon::current_num_threads(),
+                    );
                     let gather_out_thrd = csvwriter_thread(recv, Some(gather_output));
 
                     // Save initial list of matches to prefetch output

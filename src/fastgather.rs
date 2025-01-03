@@ -6,9 +6,8 @@ use sourmash::selection::Selection;
 use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
-    ReportType,
-    csvwriter_thread, BranchwaterGatherResult
+    consume_query_by_gather, csvwriter_thread, load_collection, load_sketches_above_threshold,
+    write_prefetch, BranchwaterGatherResult, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -125,7 +124,7 @@ pub fn fastgather(
         threshold_hashes,
         Some(send),
     )
-        .ok();
+    .ok();
 
     if let Err(e) = gather_out_thrd.join() {
         eprintln!("Unable to join internal thread: {:?}", e);
