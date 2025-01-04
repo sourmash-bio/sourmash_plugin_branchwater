@@ -1471,12 +1471,17 @@ def test_manysketch_skipm2n3(runtmp, capfd):
     sigs = list(idx.signatures())
     print(sigs)
 
-    assert len(sigs) == 3  # 3 dna, 3 skipmer. But sourmash can only read the DNA sigs!!
+    assert len(sigs) == 6  # 3 dna, 3 skipmer. But sourmash can only read the DNA sigs!!
     # check moltypes, etc!
     dna_md5sums = {
         "short": "1474578c5c46dd09da4c2df29cf86621",
         "short2": "4efeebd26644278e36b9553e018a851a",
         "short3": "f85747ac4f473c4a71c1740d009f512b",
+    }
+    skip_md5sums = {
+        "short2": "ec6305f5d82e51659f3914d47fcc32ee",
+        "short": "0486fcae73545363da9cd5bfcf18d322",
+        "short3": "890557b39ae66d3177035296818de7c6",
     }
     for sig in sigs:
         if sig.minhash.is_dna:
@@ -1484,6 +1489,11 @@ def test_manysketch_skipm2n3(runtmp, capfd):
             assert sig.minhash.scaled == 1
             print("DNA: ", sig.name, sig.md5sum())
             assert sig.md5sum() == dna_md5sums[sig.name]
+        elif sig.minhash.moltype == 'skipm2n3':
+            print(sig.minhash.ksize, sig.minhash.scaled, sig.name, sig.md5sum())
+            assert sig.minhash.ksize == 31
+            assert sig.minhash.scaled == 30
+            assert sig.md5sum() == skip_md5sums[sig.name]
 
     # read the file with python and check sigs
     import zipfile, gzip, json
