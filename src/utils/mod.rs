@@ -83,7 +83,6 @@ pub fn prefetch(
             let overlap = searchsig.count_common(query_mh, false);
             if let Ok(overlap) = overlap {
                 if overlap > 0 && overlap >= threshold_hashes {
-                    // @CTB backport
                     let result = PrefetchResult { overlap, ..result };
                     mm = Some(result);
                 }
