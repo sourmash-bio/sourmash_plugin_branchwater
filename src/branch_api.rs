@@ -53,6 +53,7 @@ impl BranchSelection {
 
 #[pyclass]
 pub struct BranchRevIndex {
+    location: String,
     db: RevIndex,
 }
 
@@ -62,7 +63,10 @@ impl BranchRevIndex {
     pub fn open(location: &str) -> PyResult<Py<Self>> {
         let db = RevIndex::open(location, true, None).expect("foo");
 
-        let obj = Python::with_gil(|py| Py::new(py, BranchRevIndex { db }).unwrap());
+        let obj = Python::with_gil(|py| Py::new(py, BranchRevIndex {
+            location: location.to_string(),
+            db
+        }).unwrap());
         Ok(obj)
     }
 
@@ -108,6 +112,25 @@ impl BranchRevIndex {
         let selection = BranchSelection::build(ksize, max_scaled, moltype.as_ref());
 
         Ok(selection)
+    }
+
+    pub fn to_collection(&self) -> Py<BranchCollection> {
+        let cs = self.db.collection().clone();
+        let mc = MultiCollection::new(vec![cs.into_inner()], true);
+
+        let obj = Python::with_gil(|py| {
+            Py::new(
+                py,
+                BranchCollection {
+                    location: self.location.clone(),
+                    collection: mc,
+                    is_database: true,
+                    has_manifest: true,
+                },
+            )
+            .expect("cannot convert collection into py object")
+        });
+        obj
     }
 
     #[pyo3(signature = (query_collection, selection, threshold_bp, output))]

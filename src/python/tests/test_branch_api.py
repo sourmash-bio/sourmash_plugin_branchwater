@@ -112,6 +112,27 @@ def test_fastmultigather_rocksdb(runtmp):
     print(df.to_markdown())
 
 
+def test_load_rocksdb_then_into_collection(runtmp):
+    # test basic index!
+    siglist = runtmp.output("db-sigs.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    output = runtmp.output("db.rocksdb")
+
+    runtmp.sourmash("scripts", "index", siglist, "-o", output)
+    assert os.path.exists(output)
+
+    db = branch.api.BranchRevIndex(output)
+    db2 = db.to_collection()
+
+    assert len(db2) == 3
+
+
 def test_fastmultigather_general(runtmp):
     siglist = runtmp.output("db-sigs.txt")
 
