@@ -1471,7 +1471,7 @@ def test_manysketch_skipm2n3(runtmp, capfd):
     sigs = list(idx.signatures())
     print(sigs)
 
-    assert len(sigs) == 6  # 3 dna, 3 skipmer. But sourmash can only read the DNA sigs!!
+    assert len(sigs) == 6  # 3 dna, 3 skipmer.
     # check moltypes, etc!
     dna_md5sums = {
         "short": "1474578c5c46dd09da4c2df29cf86621",
