@@ -19,12 +19,13 @@ use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
-type AbundanceStats = (Option<u64>,
-                       Option<u64>,
-                       Option<f64>,
-                       Option<f64>,
-                       Option<f64>);
-
+type AbundanceStats = (
+    Option<u64>,
+    Option<u64>,
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+);
 
 pub fn manysearch(
     query_filepath: String,

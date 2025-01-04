@@ -17,11 +17,13 @@ use crate::utils::multicollection::SmallSignature;
 use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
-type OverlapStatsReturn = (f64,
-                           HashMap<u64, f64>,
-                           HashMap<u64, f64>,
-                           HashMap<String, HashMap<u64, f64>>,
-                           HashMap<u64, f64>);
+type OverlapStatsReturn = (
+    f64,
+    HashMap<u64, f64>,
+    HashMap<u64, f64>,
+    HashMap<String, HashMap<u64, f64>>,
+    HashMap<u64, f64>,
+);
 
 #[derive(Default, Clone, Debug)]
 struct ProbOverlapStats {
