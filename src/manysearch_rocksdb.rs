@@ -36,12 +36,9 @@ pub fn manysearch_rocksdb(
     println!("Loaded DB");
 
     // grab scaled from the database.
-    let max_db_scaled = db
+    let (_, max_db_scaled) = db
         .collection()
-        .manifest()
-        .iter()
-        .map(|r| r.scaled())
-        .max()
+        .min_max_scaled()
         .expect("no records in db?!");
 
     let selection_scaled: u32 = match selection.scaled() {
