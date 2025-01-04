@@ -114,14 +114,14 @@ impl BranchRevIndex {
         Ok(selection)
     }
 
-    pub fn to_collection(&self) -> Py<BranchCollection> {
+    pub fn to_collection(&self) -> Py<BranchMultiCollection> {
         let cs = self.db.collection().clone();
         let mc = MultiCollection::new(vec![cs.into_inner()], true);
 
         let obj = Python::with_gil(|py| {
             Py::new(
                 py,
-                BranchCollection {
+                BranchMultiCollection {
                     location: self.location.clone(),
                     collection: mc,
                     is_database: true,
@@ -136,7 +136,7 @@ impl BranchRevIndex {
     #[pyo3(signature = (query_collection, selection, threshold_bp, output))]
     pub fn fastmultigather_against(
         &self,
-        query_collection: &BranchCollection,
+        query_collection: &BranchMultiCollection,
         selection: &BranchSelection,
         threshold_bp: u32,
         output: String,
@@ -244,7 +244,7 @@ impl BranchManifest {
 }
 
 #[pyclass]
-pub struct BranchCollection {
+pub struct BranchMultiCollection {
     #[pyo3(get)]
     pub location: String,
 
@@ -260,7 +260,7 @@ pub struct BranchCollection {
 /// Wraps MultiCollection
 
 #[pymethods]
-impl BranchCollection {
+impl BranchMultiCollection {
     pub fn __len__(&self) -> PyResult<usize> {
         Ok(self.collection.len())
     }
@@ -272,7 +272,7 @@ impl BranchCollection {
             .select(&selection.selection)
             .expect("selection failed");
 
-        let obj = BranchCollection {
+        let obj = BranchMultiCollection {
             location: self.location.clone(),
             collection,
             is_database: false,
@@ -284,7 +284,7 @@ impl BranchCollection {
     #[pyo3(signature = (query_collection, threshold_bp, scaled, output))]
     pub fn fastmultigather_against(
         &self,
-        query_collection: &BranchCollection,
+        query_collection: &BranchMultiCollection,
         threshold_bp: u32,
         scaled: u32,
         output: String,
@@ -360,7 +360,7 @@ pub fn api_load_collection(
     ksize: u8,
     scaled: u32,
     moltype: String,
-) -> PyResult<Py<BranchCollection>> {
+) -> PyResult<Py<BranchMultiCollection>> {
     let selection = build_selection(ksize, Some(scaled), &moltype);
 
     let collection = load_collection(&location, &selection, ReportType::Query, true)?;
@@ -368,7 +368,7 @@ pub fn api_load_collection(
     let obj = Python::with_gil(|py| {
         Py::new(
             py,
-            BranchCollection {
+            BranchMultiCollection {
                 location: location,
                 collection,
                 is_database: false,
