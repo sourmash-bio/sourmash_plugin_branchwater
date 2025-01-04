@@ -220,7 +220,6 @@ pub fn fastmultigather(
         }
     });
 
-    eprintln!("done! trying join.");
     drop(send);
     if let Err(e) = gather_out_thrd.join() {
         eprintln!("Unable to join internal thread: {:?}", e);

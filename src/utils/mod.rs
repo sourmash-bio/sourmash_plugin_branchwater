@@ -951,8 +951,6 @@ pub fn consume_query_by_gather(
         last_matches = matching_sketches.len();
     }
 
-    drop(gather_output);
-
     Ok(())
 }
 
