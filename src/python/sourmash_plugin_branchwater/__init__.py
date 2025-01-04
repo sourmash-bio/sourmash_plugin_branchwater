@@ -824,7 +824,7 @@ class Branchwater_Cluster(CommandLinePlugin):
         return status
 
 
-###
+### @CTB these can maybe all be removed?
 
 class BranchwaterManifestWrapper:
     def __init__(self, mf_obj):
