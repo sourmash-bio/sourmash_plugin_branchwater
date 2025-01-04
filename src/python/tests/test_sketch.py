@@ -1489,7 +1489,7 @@ def test_manysketch_skipm2n3(runtmp, capfd):
             assert sig.minhash.scaled == 1
             print("DNA: ", sig.name, sig.md5sum())
             assert sig.md5sum() == dna_md5sums[sig.name]
-        elif sig.minhash.moltype == 'skipm2n3':
+        elif sig.minhash.moltype == "skipm2n3":
             print(sig.minhash.ksize, sig.minhash.scaled, sig.name, sig.md5sum())
             assert sig.minhash.ksize == 31
             assert sig.minhash.scaled == 30
