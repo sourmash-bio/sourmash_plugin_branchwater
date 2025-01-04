@@ -657,8 +657,9 @@ def test_sig_against(runtmp, capfd):
 
     g_output = runtmp.output("SRR606249.gather.csv")
     p_output = runtmp.output("SRR606249.prefetch.csv")
-    runtmp.sourmash("scripts", "fastmultigather", query, sig2, "-s", "100000",
-                    "-o", g_output)
+    runtmp.sourmash(
+        "scripts", "fastmultigather", query, sig2, "-s", "100000", "-o", g_output
+    )
 
     captured = capfd.readouterr()
     print(captured.err)
