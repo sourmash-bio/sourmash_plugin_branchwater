@@ -951,8 +951,6 @@ pub fn consume_query_by_gather(
         last_matches = matching_sketches.len();
     }
 
-    drop(gather_output);
-
     Ok(())
 }
 
@@ -1246,7 +1244,6 @@ pub fn csvwriter_thread<T: Serialize + Send + 'static>(
         let mut writer = Writer::from_writer(out);
 
         for res in recv.iter() {
-            eprintln!("writing!");
             if let Err(e) = writer.serialize(res) {
                 eprintln!("Error writing item: {:?}", e);
             }
