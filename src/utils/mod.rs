@@ -461,7 +461,7 @@ pub fn load_sketches_above_threshold(
 
                 // good? ok, store as candidate from prefetch.
                 if let Ok(overlap) = against_mh_ds.count_common(query, false) {
-                    if overlap >= threshold_hashes {
+                    if overlap > 0 && overlap >= threshold_hashes {
                         let result = PrefetchResult {
                             name: against_record.name().to_string(),
                             md5sum: against_md5,
