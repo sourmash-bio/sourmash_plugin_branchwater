@@ -53,7 +53,7 @@ pub fn fastmultigather_rocksdb_obj(
     let (_, max_db_scaled) = db
         .collection()
         .min_max_scaled()
-        .expect("no records in db?!"); // @CTB backport!
+        .expect("no records in db?!");
 
     // @CTB no checking for moltype or ksize...
 

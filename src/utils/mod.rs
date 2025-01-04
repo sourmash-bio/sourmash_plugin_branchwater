@@ -954,7 +954,7 @@ pub fn consume_query_by_gather(
     }
 
     drop(gather_output);
-    
+
     Ok(())
 }
 
