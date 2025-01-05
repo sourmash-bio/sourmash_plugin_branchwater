@@ -1,11 +1,14 @@
 /// Lower-level Python API implementation for sourmash_plugin_branchwater
 use pyo3::prelude::*;
 use sourmash::prelude::*;
+use anyhow::Result;
 
 use crate::fastmultigather::fastmultigather_obj;
 use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
 use crate::manysearch::manysearch_obj;
 use crate::manysearch_rocksdb::manysearch_rocksdb_obj;
+use crate::multisearch::multisearch_obj;
+use crate::pairwise::pairwise_obj;
 
 use crate::utils::build_selection;
 use crate::utils::load_collection;
@@ -165,7 +168,7 @@ impl BranchRevIndex {
         selection: &BranchSelection,
         threshold_bp: u32,
         output: String,
-    ) -> anyhow::Result<(usize, usize, usize)> {
+    ) -> Result<(usize, usize, usize)> {
         fastmultigather_rocksdb_obj(
             &query_collection.collection,
             &self.db,
@@ -182,7 +185,7 @@ impl BranchRevIndex {
         threshold: f64,
         output: Option<String>,
         output_all_comparisons: bool,
-    ) -> anyhow::Result<(usize, usize, usize)> {
+    ) -> Result<(usize, usize, usize)> {
         manysearch_rocksdb_obj(
             &query_collection.collection,
             &self.db,
@@ -331,7 +334,7 @@ impl BranchMultiCollection {
         scaled: Option<u32>,
         output: Option<String>,
         save_matches: bool,
-    ) -> anyhow::Result<(usize, usize, usize)> {
+    ) -> Result<(usize, usize, usize)> {
         let scaled = if let Some(scaled) = scaled {
             scaled
         } else {
@@ -360,7 +363,7 @@ impl BranchMultiCollection {
         output: Option<String>,
         ignore_abundance: bool,
         output_all_comparisons: bool,
-    ) -> anyhow::Result<(usize, usize, usize)> {
+    ) -> Result<(usize, usize, usize)> {
         let query_sketchlist = query_collection.collection.clone().load_sketches()?;
 
         manysearch_obj(
@@ -372,6 +375,36 @@ impl BranchMultiCollection {
             ignore_abundance,
             output_all_comparisons,
         )
+    }
+
+    #[pyo3(signature = (queries, threshold, expected_scaled, ksize, estimate_ani=true, estimate_prob_overlap=false, output_all_comparisons=false, output=None))]
+    pub fn multisearch_against(
+        &self,
+        queries: &BranchMultiCollection,
+        threshold: f64,
+        expected_scaled: u32,
+        ksize: u8,
+        estimate_ani: bool,
+        estimate_prob_overlap: bool,
+        output_all_comparisons: bool,
+        output: Option<String>,
+    ) -> Result<usize> {
+        let query_sketches = queries.collection.clone().load_sketches()?;
+        let against_sketches = self.collection.clone().load_sketches()?;
+
+        let n_processed = multisearch_obj(
+            &query_sketches,
+            &against_sketches,
+            threshold,
+            estimate_ani,
+            estimate_prob_overlap,
+            output_all_comparisons,
+            output,
+            expected_scaled,
+            ksize as f64
+        )?;
+
+        Ok(n_processed)
     }
 
     /*
