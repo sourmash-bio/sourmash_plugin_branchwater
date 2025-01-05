@@ -47,8 +47,7 @@ pub fn manysearch_rocksdb(
             if *max_db_scaled > scaled {
                 return Err(anyhow::anyhow!(
                     "Error: database scaled is higher than requested scaled"
-                )
-                .into());
+                ));
             }
             scaled
         }

@@ -42,7 +42,9 @@ pub fn fastmultigather_rocksdb(
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
             if *max_db_scaled > scaled {
-                return Err(anyhow::anyhow!("Error: database scaled is higher than requested scaled").into());
+                return Err(anyhow::anyhow!(
+                    "Error: database scaled is higher than requested scaled"
+                ));
             }
             scaled
         }
@@ -209,8 +211,6 @@ pub(crate) fn fastmultigather_rocksdb_obj(
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));
 
-    let mut do_fail = false;
-
     // do some cleanup and error handling -
     send.expect("Unable to send internal data");
     thrd.join().expect("Unable to join CSV writing thread.");
@@ -222,12 +222,15 @@ pub(crate) fn fastmultigather_rocksdb_obj(
     let failed_gathers = failed_gathers.load(atomic::Ordering::SeqCst);
 
     if n_processed == 0 {
-        eprintln!("ERROR: no search sigs found!?");
-        do_fail = true;
+        return Err(anyhow::anyhow!("no search sigs found!?"));
     }
 
-    if do_fail || failed_gathers > 0 {
-        bail!("Unresolvable errors found; results cannot be trusted. Quitting.");
+    if failed_gathers > 0 {
+        return Err(anyhow::anyhow!(
+            "{} failed gathers. See error messages above.",
+            failed_gathers
+        ));
     }
+
     Ok((n_processed, skipped_paths, failed_paths))
 }
