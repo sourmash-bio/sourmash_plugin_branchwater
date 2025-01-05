@@ -14,7 +14,7 @@ def do_fastmultigather(query_path,
         is_rocksdb = True
         against_db = api.BranchRevIndex(against_path)
         # @CTB check scaled, ksize, moltype here? or in a 'select'?
-        against_scaled = against_db.scaled()
+        _, against_scaled = against_db.min_max_scaled()
     else:
         is_rocksdb = False
         against_coll = api.api_load_collection(against_path, ksize, scaled, moltype)
