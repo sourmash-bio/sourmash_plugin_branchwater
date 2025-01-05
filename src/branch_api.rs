@@ -23,10 +23,13 @@ pub fn is_revindex_database(path: String) -> bool {
 pub fn build_revindex(multi: &BranchMultiCollection,
                       output: String,
                       use_colors: bool,
-                      use_internal_storage: bool) -> PyResult<u8>
+                      use_internal_storage: bool) -> PyResult<()>
 {
-    
-    Ok(0)
+    crate::index::index_obj(&multi.collection,
+                            output,
+                            use_colors,
+                            use_internal_storage)?;
+    Ok(())
 }
 
 #[pyclass]

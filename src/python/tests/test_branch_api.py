@@ -49,6 +49,32 @@ def test_load_rocksdb(runtmp):
     assert len(db) == 3
 
 
+def test_api_index_rocksdb(runtmp):
+    # test basic index!
+    siglist = runtmp.output("db-sigs.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    output = runtmp.output("db.rocksdb")
+
+    coll = branch.api.api_load_collection(siglist, 31, 1000, 'DNA')
+    branch.api.build_revindex(coll, output, False, True)
+    assert os.path.exists(output)
+
+    assert branch.api.is_revindex_database(output)
+
+    db = branch.api.BranchRevIndex(output)
+
+    assert db.ksize() == 31
+    assert db.moltype() == "DNA"
+    assert db.min_max_scaled() == (1000, 1000) # @CTB guaranteed to be only one
+    assert len(db) == 3
+
+
 def test_load_rocksdb_get_selection(runtmp):
     # test basic index!
     siglist = runtmp.output("db-sigs.txt")
