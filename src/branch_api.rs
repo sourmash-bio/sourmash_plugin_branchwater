@@ -7,7 +7,7 @@ use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
 
 use crate::utils::build_selection;
 use crate::utils::load_collection;
-use crate::utils::multicollection::MultiCollection;
+use crate::utils::multicollection::{ MultiCollection, SmallSignature };
 use crate::utils::ReportType;
 use pyo3::types::{IntoPyDict, PyDict};
 use pyo3::IntoPyObjectExt;
@@ -126,6 +126,7 @@ impl BranchRevIndex {
                     collection: mc,
                     is_database: true,
                     has_manifest: true,
+                    loaded_sketches: None,
                 },
             )
             .expect("cannot convert collection into py object")
@@ -255,6 +256,7 @@ pub struct BranchMultiCollection {
     pub has_manifest: bool,
 
     pub collection: MultiCollection,
+    pub loaded_sketches: Option<Vec<SmallSignature>>,
 }
 
 /// Wraps MultiCollection
@@ -277,6 +279,7 @@ impl BranchMultiCollection {
             collection,
             is_database: false,
             has_manifest: true,
+            loaded_sketches: None,
         };
         Ok(obj)
     }
@@ -373,6 +376,7 @@ pub fn api_load_collection(
                 collection,
                 is_database: false,
                 has_manifest: true,
+                loaded_sketches: None,
             },
         )
         .expect("cannot convert collection into py object")

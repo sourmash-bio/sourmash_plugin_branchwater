@@ -65,7 +65,7 @@ pub fn fastmultigather_rocksdb(
     fastmultigather_rocksdb_obj(&query_collection, &db, &set_selection, threshold_bp, output)
 }
 
-pub fn fastmultigather_rocksdb_obj(
+pub(crate) fn fastmultigather_rocksdb_obj(
     query_collection: &MultiCollection,
     db: &RevIndex,
     selection: &Selection,
