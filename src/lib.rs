@@ -386,6 +386,7 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_class::<branch_api::BranchRevIndex>()?;
     m.add_class::<branch_api::BranchMultiCollection>()?;
     m.add_function(wrap_pyfunction!(branch_api::is_revindex_database, m)?)?;
+    m.add_function(wrap_pyfunction!(branch_api::build_revindex, m)?)?;
     m.add_function(wrap_pyfunction!(branch_api::api_load_collection, m)?)?;
 
     Ok(())

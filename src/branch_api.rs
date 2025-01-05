@@ -19,6 +19,16 @@ pub fn is_revindex_database(path: String) -> bool {
     crate::utils::is_revindex_database(&path[..].into())
 }
 
+#[pyfunction]
+pub fn build_revindex(multi: &BranchMultiCollection,
+                      output: String,
+                      use_colors: bool,
+                      use_internal_storage: bool) -> PyResult<u8>
+{
+    
+    Ok(0)
+}
+
 #[pyclass]
 pub struct BranchSelection {
     pub selection: Selection,
