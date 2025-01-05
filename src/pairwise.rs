@@ -209,9 +209,7 @@ pub(crate) fn pairwise_obj(
     // do some cleanup and error handling -
     drop(send); // close the channel
 
-    if let Err(e) = thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-    }
+    thrd.join().expect("Unable to join internal thread");
 
     // done!
     let i: usize = processed_cmp.load(atomic::Ordering::SeqCst);
