@@ -306,7 +306,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         )
         super().main(args)
         fn = api.do_fastmultigather
-        if 1:                   # swap out for testing purposes!
+        if 1:  # swap out for testing purposes!
             fn = py_example.do_fastmultigather
         status = fn(
             args.query_paths,
@@ -830,6 +830,7 @@ class Branchwater_Cluster(CommandLinePlugin):
 
 ### @CTB these can maybe all be removed?
 
+
 class BranchwaterManifestWrapper:
     def __init__(self, mf_obj):
         self.obj = mf_obj
@@ -868,8 +869,10 @@ class BranchwaterCollectionWrapper:
 
 def load_collection(path, *, traverse_yield_all=False, cache_size=0):
     try:
-        coll_obj = api.api_load_collection(path, 31, 100_000, 'DNA')
+        coll_obj = api.api_load_collection(path, 31, 100_000, "DNA")
         return BranchwaterCollectionWrapper(coll_obj)
     except:
         raise IndexNotLoaded(f"branchwater could not load '{path}'")
+
+
 load_collection.priority = 20
