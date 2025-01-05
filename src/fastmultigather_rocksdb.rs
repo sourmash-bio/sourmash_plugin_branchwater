@@ -31,24 +31,6 @@ pub fn fastmultigather_rocksdb(
     let db = RevIndex::open(index, true, None)?;
     println!("Loaded DB");
 
-    fastmultigather_rocksdb_obj(
-        queries_file,
-        &db,
-        selection,
-        threshold_bp,
-        output,
-        allow_failed_sigpaths,
-    )
-}
-
-pub fn fastmultigather_rocksdb_obj(
-    queries_file: String,
-    db: &RevIndex,
-    selection: Selection,
-    threshold_bp: u32,
-    output: Option<String>,
-    allow_failed_sigpaths: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
     // grab scaled from the database.
     let (_, max_db_scaled) = db
         .collection()
@@ -80,10 +62,10 @@ pub fn fastmultigather_rocksdb_obj(
         allow_failed_sigpaths,
     )?;
 
-    fastmultigather_rocksdb_obj2(&query_collection, db, &set_selection, threshold_bp, output)
+    fastmultigather_rocksdb_obj(&query_collection, &db, &set_selection, threshold_bp, output)
 }
 
-pub fn fastmultigather_rocksdb_obj2(
+pub fn fastmultigather_rocksdb_obj(
     query_collection: &MultiCollection,
     db: &RevIndex,
     selection: &Selection,

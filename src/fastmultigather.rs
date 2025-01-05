@@ -91,7 +91,7 @@ pub fn fastmultigather(
     )
 }
 
-pub fn fastmultigather_obj(
+pub(crate) fn fastmultigather_obj(
     query_collection: &MultiCollection,
     against_collection: &MultiCollection,
     save_matches: bool,

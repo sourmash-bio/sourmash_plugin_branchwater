@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use sourmash::prelude::*;
 
 use crate::fastmultigather::fastmultigather_obj;
-use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj2;
+use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
 
 use crate::utils::build_selection;
 use crate::utils::load_collection;
@@ -141,7 +141,7 @@ impl BranchRevIndex {
         threshold_bp: u32,
         output: String,
     ) -> anyhow::Result<u8> {
-        match fastmultigather_rocksdb_obj2(
+        match fastmultigather_rocksdb_obj(
             &query_collection.collection,
             &self.db,
             &selection.selection,
