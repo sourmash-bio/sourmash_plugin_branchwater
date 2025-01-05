@@ -306,7 +306,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         )
         super().main(args)
         fn = api.do_fastmultigather
-        if 1:  # swap out for testing purposes!
+        if 0:  # swap out for testing purposes!
             fn = py_example.do_fastmultigather
         status = fn(
             args.query_paths,
