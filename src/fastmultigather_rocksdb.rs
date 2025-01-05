@@ -23,7 +23,7 @@ pub fn fastmultigather_rocksdb(
     threshold_bp: u32,
     output: Option<String>,
     allow_failed_sigpaths: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     if !is_revindex_database(&index) {
         bail!("'{}' is not a valid RevIndex database", index);
     }
@@ -42,7 +42,7 @@ pub fn fastmultigather_rocksdb(
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
             if *max_db_scaled > scaled {
-                return Err("Error: database scaled is higher than requested scaled".into());
+                return Err(anyhow::anyhow!("Error: database scaled is higher than requested scaled").into());
             }
             scaled
         }
