@@ -10,7 +10,8 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, ManySearchResult, ReportType, SmallSignature,
+    csvwriter_thread, load_collection, ManySearchResult, MultiCollection, ReportType,
+    SmallSignature,
 };
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
@@ -71,6 +72,43 @@ pub fn manysearch(
         allow_failed_sigpaths,
     )?;
 
+    let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
+        &query_sketchlist,
+        &against_collection,
+        threshold,
+        common_scaled,
+        output,
+        ignore_abundance,
+        output_all_comparisons,
+    )?;
+
+    eprintln!("DONE. Processed {} search sigs", n_processed);
+
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} search paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} search paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+
+    Ok(())
+}
+
+pub(crate) fn manysearch_obj(
+    query_sketchlist: &Vec<SmallSignature>,
+    against_collection: &MultiCollection,
+    threshold: f64,
+    common_scaled: u32,
+    output: Option<String>,
+    ignore_abundance: bool,
+    output_all_comparisons: bool,
+) -> Result<(usize, usize, usize)> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<ManySearchResult>(rayon::current_num_threads());
@@ -144,36 +182,16 @@ pub fn manysearch(
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));
 
-    // do some cleanup and error handling -
-    if let Err(e) = send {
-        eprintln!("Unable to send internal data: {:?}", e);
-    }
-
-    if let Err(e) = thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-    }
+    send.expect("Unable to send internal data");
+    thrd.join().expect("Unable to join internal thread.");
 
     // done!
     let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
-    eprintln!("DONE. Processed {} search sigs", i);
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} search paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} search paths failed to load. See error messages above.",
-            failed_paths
-        );
-    }
-
-    Ok(())
+    Ok((i, skipped_paths, failed_paths))
 }
 
 // inflate_abundances: "borrow" the abundances from 'against' onto the

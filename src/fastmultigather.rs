@@ -23,7 +23,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, PrefetchResult, ReportType,
+    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -80,8 +80,51 @@ pub fn fastmultigather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
+        &query_collection,
+        &against_collection,
+        save_matches,
+        output_path,
+        threshold_hashes,
+        common_scaled,
+    )?;
+
+    println!("DONE. Processed {} queries total.", n_processed);
+
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} query paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} query paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+
+    Ok(())
+}
+
+pub(crate) fn fastmultigather_obj(
+    query_collection: &MultiCollection,
+    against_collection: &MultiCollection,
+    save_matches: bool,
+    output_path: Option<String>,
+    threshold_hashes: u64,
+    common_scaled: u32,
+) -> Result<(usize, usize, usize)> {
     // load against sketches into memory
-    let against = against_collection.load_sketches()?;
+    // @CTB we probably only want to do this once... or make it an option on
+    // MultiCollection?
+    let against = against_collection.clone().load_sketches()?; // @CTB clone
+
+    // @CTB challenge here, for API usage: we may not have properly
+    // prepared collections of matching ksize etc. What to do/how to report?
+    // Current skipped, failed, etc are not going to be accurate.
+    // See test_fastmultigather_general_nomatch for one example.
 
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -147,6 +190,10 @@ pub fn fastmultigather(
                                 };
                                 mm = Some(result);
                             }
+                        } else {
+                            // @CTB: this will incorrectly count once for
+                            // each against record that is incompatible.
+                            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         }
                         mm
                     })
@@ -221,31 +268,13 @@ pub fn fastmultigather(
     });
 
     drop(send);
-    if let Err(e) = gather_out_thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-        // @CTB panic?
-    }
+    gather_out_thrd
+        .join()
+        .expect("unable to join CSV writing thread!?");
 
-    println!(
-        "DONE. Processed {} queries total.",
-        processed_queries.into_inner()
-    );
-
-    let skipped_paths = skipped_paths.into_inner();
-    let failed_paths = failed_paths.into_inner();
-
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
-    }
-
-    Ok(())
+    Ok((
+        processed_queries.into_inner(),
+        skipped_paths.into_inner(),
+        failed_paths.into_inner(),
+    ))
 }

@@ -140,6 +140,7 @@ fn do_fastmultigather(
 
     // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
     if is_revindex_database(&againstfile_path) {
+        // @CTB note: save_matches does not work with rocksdb!
         match fastmultigather_rocksdb::fastmultigather_rocksdb(
             query_filenames,
             againstfile_path,
@@ -379,5 +380,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
+
     Ok(())
 }
