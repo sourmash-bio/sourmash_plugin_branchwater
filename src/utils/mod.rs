@@ -82,7 +82,7 @@ pub fn prefetch(
             let searchsig = &result.minhash;
             let overlap = searchsig.count_common(query_mh, false);
             if let Ok(overlap) = overlap {
-                if overlap >= threshold_hashes {
+                if overlap >0 && >= threshold_hashes {
                     let result = PrefetchResult { overlap, ..result };
                     mm = Some(result);
                 }
