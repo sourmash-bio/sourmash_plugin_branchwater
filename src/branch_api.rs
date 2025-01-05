@@ -282,21 +282,32 @@ impl BranchMultiCollection {
         Ok(obj)
     }
 
+    pub fn max_scaled(&self) -> PyResult<u32> {
+        Ok(*self.collection.max_scaled().expect("no collection!?"))
+    }
+
     /// Returns (n_processed, n_skipped, n_failed) on success.
-    #[pyo3(signature = (query_collection, threshold_bp, scaled, output=None))]
+    #[pyo3(signature = (query_collection, threshold_bp, scaled=None, output=None, save_matches=false))]
     pub fn fastmultigather_against(
         &self,
         query_collection: &BranchMultiCollection,
         threshold_bp: u32,
-        scaled: u32,
+        scaled: Option<u32>,
         output: Option<String>,
+        save_matches: bool,
     ) -> anyhow::Result<(usize, usize, usize)> {
+        let scaled = if let Some(scaled) = scaled {
+            scaled
+        } else {
+            1000
+        };
+
         let threshold_hashes: u64 = (threshold_bp / scaled).into();
 
         fastmultigather_obj(
             &query_collection.collection,
             &self.collection,
-            false,
+            save_matches,
             output,
             threshold_hashes,
             scaled,
@@ -349,13 +360,16 @@ impl BranchMultiCollection {
 
 // @CTB move into struct?
 #[pyfunction]
+#[pyo3(signature = (location, ksize=None, scaled=None, moltype=None))]
 pub fn api_load_collection(
     location: String,
-    ksize: u8,
-    scaled: u32,
-    moltype: String,
+    ksize: Option<u8>,
+    scaled: Option<u32>,
+    moltype: Option<String>,
 ) -> PyResult<Py<BranchMultiCollection>> {
-    let selection = build_selection(ksize, Some(scaled), &moltype);
+    let ksize = ksize.expect("no ksize specified!?");
+    let moltype = moltype.expect("no moltype specified!?");
+    let selection = build_selection(ksize, scaled, &moltype);
 
     let collection = load_collection(&location, &selection, ReportType::General, true)?;
 

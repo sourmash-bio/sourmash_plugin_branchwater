@@ -1,3 +1,4 @@
+import sys
 from . import sourmash_plugin_branchwater as api
 
 def do_fastmultigather(query_path,
@@ -12,11 +13,21 @@ def do_fastmultigather(query_path,
     if api.is_revindex_database(against_path):
         is_rocksdb = True
         against_db = api.BranchRevIndex(against_path)
+        # @CTB check scaled, ksize, moltype here? or in a 'select'?
+        against_scaled = against_db.scaled()
     else:
         is_rocksdb = False
         against_coll = api.api_load_collection(against_path, ksize, scaled, moltype)
+        against_scaled = against_coll.max_scaled()
 
-    query_coll = api.api_load_collection(query_path, ksize, scaled, moltype)
+    try:
+        query_coll = api.api_load_collection(query_path, ksize, scaled, moltype)
+    except:
+        return 1
+
+    if scaled is None:
+        query_scaled = query_coll.max_scaled()
+        scaled = max(query_scaled, against_scaled)
 
     threshold_hashes = int(threshold_bp / scaled)
 
@@ -29,7 +40,8 @@ def do_fastmultigather(query_path,
         res = against_coll.fastmultigather_against(query_coll,
                                                    threshold_hashes,
                                                    scaled,
-                                                   output)
+                                                   output,
+                                                   save_matches=save_matches)
 
     n_processed, n_skipped, n_failed = res
     print(f"DONE. Processed {n_processed} queries total.")

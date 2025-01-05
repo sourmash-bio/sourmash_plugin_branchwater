@@ -141,6 +141,7 @@ fn do_fastmultigather(
 
     // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
     if is_revindex_database(&againstfile_path) {
+        // @CTB note: save_matches does not work with rocksdb!
         match fastmultigather_rocksdb::fastmultigather_rocksdb(
             query_filenames,
             againstfile_path,
