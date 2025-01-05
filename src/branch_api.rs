@@ -14,6 +14,11 @@ use pyo3::IntoPyObjectExt;
 use sourmash::index::revindex::{RevIndex, RevIndexOps};
 use sourmash::manifest::{Manifest, Record};
 
+#[pyfunction]
+pub fn is_revindex_database(path: String) -> bool {
+    crate::utils::is_revindex_database(&path[..].into())
+}
+
 #[pyclass]
 pub struct BranchSelection {
     pub selection: Selection,
@@ -285,13 +290,13 @@ impl BranchMultiCollection {
     }
 
     /// Returns (n_processed, n_skipped, n_failed) on success.
-    #[pyo3(signature = (query_collection, threshold_bp, scaled, output))]
+    #[pyo3(signature = (query_collection, threshold_bp, scaled, output=None))]
     pub fn fastmultigather_against(
         &self,
         query_collection: &BranchMultiCollection,
         threshold_bp: u32,
         scaled: u32,
-        output: String,
+        output: Option<String>,
     ) -> anyhow::Result<(usize, usize, usize)> {
         let threshold_hashes: u64 = (threshold_bp / scaled).into();
 
@@ -299,7 +304,7 @@ impl BranchMultiCollection {
             &query_collection.collection,
             &self.collection,
             false,
-            Some(output),
+            output,
             threshold_hashes,
             scaled,
         )

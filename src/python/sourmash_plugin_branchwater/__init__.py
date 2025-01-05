@@ -8,6 +8,7 @@ import importlib.metadata
 
 from . import sourmash_plugin_branchwater as api
 from . import prettyprint
+from . import py_example
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")
 
@@ -304,7 +305,10 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
             f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads"
         )
         super().main(args)
-        status = api.do_fastmultigather(
+        fn = api.do_fastmultigather
+        if 1:                   # swap out for testing purposes!
+            fn = py_example.do_fastmultigather
+        status = fn(
             args.query_paths,
             args.against_paths,
             int(args.threshold_bp),

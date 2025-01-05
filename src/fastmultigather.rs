@@ -123,6 +123,11 @@ pub(crate) fn fastmultigather_obj(
     // MultiCollection?
     let against = against_collection.clone().load_sketches()?; // @CTB clone
 
+    // @CTB challenge here, for API usage: we may not have properly
+    // prepared collections of matching ksize etc. What to do/how to report?
+    // Current skipped, failed, etc are not going to be accurate.
+    // See test_fastmultigather_general_nomatch for one example.
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());

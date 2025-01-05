@@ -39,6 +39,8 @@ def test_load_rocksdb(runtmp):
     runtmp.sourmash("scripts", "index", siglist, "-o", output)
     assert os.path.exists(output)
 
+    assert branch.api.is_revindex_database(output)
+
     db = branch.api.BranchRevIndex(output)
 
     assert db.ksize() == 31
