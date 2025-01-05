@@ -10,7 +10,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, ManySearchResult, ReportType, SmallSignature,
+    csvwriter_thread, load_collection, ManySearchResult, ReportType, SmallSignature, MultiCollection
 };
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
@@ -71,6 +71,19 @@ pub fn manysearch(
         allow_failed_sigpaths,
     )?;
 
+    manysearch_obj(query_sketchlist, &against_collection, threshold, common_scaled,
+                   output, ignore_abundance, output_all_comparisons)
+}
+
+pub(crate) fn manysearch_obj(
+    query_sketchlist: Vec<SmallSignature>,
+    against_collection: &MultiCollection,
+    threshold: f64,
+    common_scaled: u32,
+    output: Option<String>,
+    ignore_abundance: bool,
+    output_all_comparisons: bool
+) -> Result<()> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<ManySearchResult>(rayon::current_num_threads());
