@@ -260,6 +260,57 @@ def test_manysearch_rocksdb(runtmp):
     assert len(df) == 5
 
 
+def test_multisearch(runtmp):
+    # test basic execution!
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    query_coll = branch.api.api_load_collection(query_list, 31, 1000, 'DNA')
+    against_coll = branch.api.api_load_collection(against_list, 31, 1000, 'DNA')
+
+    against_coll.multisearch_against(query_coll,
+                                     0,
+                                     1000,
+                                     31,
+                                     True,
+                                     True,
+                                     False,
+                                     output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 5
+
+
+def test_pairwise(runtmp):
+    # test basic execution!
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    make_file_list(query_list, [sig2, sig47, sig63])
+
+    output = runtmp.output("out.csv")
+
+    query_coll = branch.api.api_load_collection(query_list, 31, 1000, 'DNA')
+
+    query_coll.pairwise(0, 31, True, False, False, output)
+
+    df = pandas.read_csv(output)
+    assert len(df) == 1
+
+
 def test_basic_collection_load():
     sigfile = get_test_data("SRR606249.sig.gz")
     res = branch.api.api_load_collection(sigfile, 31, 100_000, "DNA")
