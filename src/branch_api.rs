@@ -146,21 +146,14 @@ impl BranchRevIndex {
         selection: &BranchSelection,
         threshold_bp: u32,
         output: String,
-    ) -> anyhow::Result<u8> {
-        match fastmultigather_rocksdb_obj(
+    ) -> anyhow::Result<(usize, usize, usize)> {
+        fastmultigather_rocksdb_obj(
             &query_collection.collection,
             &self.db,
             &selection.selection,
             threshold_bp,
             Some(output),
-        ) {
-            // @CTB
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
+        )
     }
 }
 
