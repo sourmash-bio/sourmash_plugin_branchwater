@@ -1,7 +1,7 @@
+use anyhow::Result;
 /// Lower-level Python API implementation for sourmash_plugin_branchwater
 use pyo3::prelude::*;
 use sourmash::prelude::*;
-use anyhow::Result;
 
 use crate::fastmultigather::fastmultigather_obj;
 use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
@@ -191,7 +191,7 @@ impl BranchRevIndex {
             &self.db,
             threshold,
             output,
-            output_all_comparisons
+            output_all_comparisons,
         )
     }
 }
@@ -401,7 +401,7 @@ impl BranchMultiCollection {
             output_all_comparisons,
             output,
             expected_scaled,
-            ksize as f64
+            ksize as f64,
         )?;
 
         Ok(n_processed)
@@ -426,7 +426,7 @@ impl BranchMultiCollection {
             output_all_comparisons,
             output,
             threshold,
-            ksize as f64
+            ksize as f64,
         )?;
 
         Ok(n_processed)

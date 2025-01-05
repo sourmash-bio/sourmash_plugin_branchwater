@@ -42,7 +42,10 @@ pub fn fastmultigather_rocksdb(
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
             if *max_db_scaled > scaled {
-                return Err(anyhow::anyhow!("Error: database scaled is higher than requested scaled").into());
+                return Err(anyhow::anyhow!(
+                    "Error: database scaled is higher than requested scaled"
+                )
+                .into());
             }
             scaled
         }

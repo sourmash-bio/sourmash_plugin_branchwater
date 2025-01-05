@@ -243,18 +243,16 @@ def test_manysearch_rocksdb(runtmp):
     sig47 = get_test_data("47.fa.sig.gz")
     sig63 = get_test_data("63.fa.sig.gz")
 
-    query = get_test_data('SRR606249.sig.gz')
+    query = get_test_data("SRR606249.sig.gz")
 
     make_file_list(siglist, [sig2, sig47, sig63])
     indexed_db = index_siglist(runtmp, siglist, runtmp.output("db"))
 
     db = branch.api.BranchRevIndex(indexed_db)
-    query_coll = branch.api.api_load_collection(siglist, 31, 1000, 'DNA')
+    query_coll = branch.api.api_load_collection(siglist, 31, 1000, "DNA")
 
-    csv_out = runtmp.output('xxx.csv')
-    status = db.manysearch_against(query_coll,
-                                   0.0,
-                                   csv_out)
+    csv_out = runtmp.output("xxx.csv")
+    status = db.manysearch_against(query_coll, 0.0, csv_out)
     print(f"status: {status}")
     df = pandas.read_csv(csv_out)
     assert len(df) == 5
@@ -274,17 +272,10 @@ def test_multisearch(runtmp):
 
     output = runtmp.output("out.csv")
 
-    query_coll = branch.api.api_load_collection(query_list, 31, 1000, 'DNA')
-    against_coll = branch.api.api_load_collection(against_list, 31, 1000, 'DNA')
+    query_coll = branch.api.api_load_collection(query_list, 31, 1000, "DNA")
+    against_coll = branch.api.api_load_collection(against_list, 31, 1000, "DNA")
 
-    against_coll.multisearch_against(query_coll,
-                                     0,
-                                     1000,
-                                     31,
-                                     True,
-                                     True,
-                                     False,
-                                     output)
+    against_coll.multisearch_against(query_coll, 0, 1000, 31, True, True, False, output)
 
     df = pandas.read_csv(output)
     assert len(df) == 5
@@ -303,7 +294,7 @@ def test_pairwise(runtmp):
 
     output = runtmp.output("out.csv")
 
-    query_coll = branch.api.api_load_collection(query_list, 31, 1000, 'DNA')
+    query_coll = branch.api.api_load_collection(query_list, 31, 1000, "DNA")
 
     query_coll.pairwise(0, 31, True, False, False, output)
 
