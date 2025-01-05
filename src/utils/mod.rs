@@ -99,7 +99,7 @@ pub fn write_prefetch(
     query_md5: String,
     prefetch_output: Option<String>,
     matchlist: &BinaryHeap<PrefetchResult>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Define the writer to stdout by default
     let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
 

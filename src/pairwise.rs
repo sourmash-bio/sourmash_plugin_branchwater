@@ -24,7 +24,7 @@ pub fn pairwise(
     write_all: bool,
     output_all_comparisons: bool,
     output: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Load all sigs into memory at once.
     let collection = load_collection(
         &siglist,
