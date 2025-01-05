@@ -5,7 +5,7 @@ import pytest
 
 import sourmash_plugin_branchwater as branch
 from . import sourmash_tst_utils as utils
-from .sourmash_tst_utils import get_test_data, make_file_list
+from .sourmash_tst_utils import get_test_data, make_file_list, index_siglist
 
 
 def test_basic():
@@ -231,6 +231,30 @@ def test_manysearch_general(runtmp):
 
     csv_out = runtmp.output("xxx.csv")
     status = against_coll.manysearch_against(query_coll, 0, 1000, csv_out)
+    print(f"status: {status}")
+    df = pandas.read_csv(csv_out)
+    assert len(df) == 5
+
+
+def test_manysearch_rocksdb(runtmp):
+    siglist = runtmp.output("db-sigs.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query = get_test_data('SRR606249.sig.gz')
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+    indexed_db = index_siglist(runtmp, siglist, runtmp.output("db"))
+
+    db = branch.api.BranchRevIndex(indexed_db)
+    query_coll = branch.api.api_load_collection(siglist, 31, 1000, 'DNA')
+
+    csv_out = runtmp.output('xxx.csv')
+    status = db.manysearch_against(query_coll,
+                                   0.0,
+                                   csv_out)
     print(f"status: {status}")
     df = pandas.read_csv(csv_out)
     assert len(df) == 5

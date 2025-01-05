@@ -5,6 +5,7 @@ use sourmash::prelude::*;
 use crate::fastmultigather::fastmultigather_obj;
 use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
 use crate::manysearch::manysearch_obj;
+use crate::manysearch_rocksdb::manysearch_rocksdb_obj;
 
 use crate::utils::build_selection;
 use crate::utils::load_collection;
@@ -171,6 +172,23 @@ impl BranchRevIndex {
             &selection.selection,
             threshold_bp,
             Some(output),
+        )
+    }
+
+    #[pyo3(signature = (query_collection, threshold, output=None, output_all_comparisons=false))]
+    pub fn manysearch_against(
+        &self,
+        query_collection: &BranchMultiCollection,
+        threshold: f64,
+        output: Option<String>,
+        output_all_comparisons: bool,
+    ) -> anyhow::Result<(usize, usize, usize)> {
+        manysearch_rocksdb_obj(
+            &query_collection.collection,
+            &self.db,
+            threshold,
+            output,
+            output_all_comparisons
         )
     }
 }
