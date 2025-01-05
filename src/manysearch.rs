@@ -73,7 +73,7 @@ pub fn manysearch(
     )?;
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
-        query_sketchlist,
+        &query_sketchlist,
         &against_collection,
         threshold,
         common_scaled,
@@ -101,7 +101,7 @@ pub fn manysearch(
 }
 
 pub(crate) fn manysearch_obj(
-    query_sketchlist: Vec<SmallSignature>,
+    query_sketchlist: &Vec<SmallSignature>,
     against_collection: &MultiCollection,
     threshold: f64,
     common_scaled: u32,

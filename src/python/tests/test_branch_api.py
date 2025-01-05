@@ -215,6 +215,27 @@ def test_fastmultigather_general_nomatch(runtmp):
     assert 0, res
 
 
+def test_manysearch_general(runtmp):
+    siglist = runtmp.output("db-sigs.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+
+    query = get_test_data("SRR606249.sig.gz")
+
+    make_file_list(siglist, [sig2, sig47, sig63])
+
+    against_coll = branch.api.api_load_collection(siglist, 31, 1000, "DNA")
+    query_coll = branch.api.api_load_collection(siglist, 31, 1000, "DNA")
+
+    csv_out = runtmp.output("xxx.csv")
+    status = against_coll.manysearch_against(query_coll, 0, 1000, csv_out)
+    print(f"status: {status}")
+    df = pandas.read_csv(csv_out)
+    assert len(df) == 5
+
+
 def test_basic_collection_load():
     sigfile = get_test_data("SRR606249.sig.gz")
     res = branch.api.api_load_collection(sigfile, 31, 100_000, "DNA")

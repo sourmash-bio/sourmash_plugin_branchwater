@@ -4,6 +4,7 @@ use sourmash::prelude::*;
 
 use crate::fastmultigather::fastmultigather_obj;
 use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
+use crate::manysearch::manysearch_obj;
 
 use crate::utils::build_selection;
 use crate::utils::load_collection;
@@ -328,6 +329,30 @@ impl BranchMultiCollection {
             output,
             threshold_hashes,
             scaled,
+        )
+    }
+
+    /// Returns (n_processed, n_skipped, n_failed) on success.
+    #[pyo3(signature = (query_collection, threshold, common_scaled, output=None, ignore_abundance=false, output_all_comparisons=false))]
+    pub fn manysearch_against(
+        &self,
+        query_collection: &BranchMultiCollection,
+        threshold: f64,
+        common_scaled: u32,
+        output: Option<String>,
+        ignore_abundance: bool,
+        output_all_comparisons: bool,
+    ) -> anyhow::Result<(usize, usize, usize)> {
+        let query_sketchlist = query_collection.collection.clone().load_sketches()?;
+
+        manysearch_obj(
+            &query_sketchlist,
+            &self.collection,
+            threshold,
+            common_scaled,
+            output,
+            ignore_abundance,
+            output_all_comparisons,
         )
     }
 
