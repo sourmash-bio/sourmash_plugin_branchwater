@@ -5,8 +5,8 @@ use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
 use std::path::Path;
 
-use crate::utils::{load_collection, ReportType};
 use crate::utils::MultiCollection;
+use crate::utils::{load_collection, ReportType};
 use sourmash::collection::{Collection, CollectionSet};
 
 pub fn index<P: AsRef<Path>>(
@@ -33,10 +33,11 @@ pub fn index<P: AsRef<Path>>(
     index_obj(&multi, output, use_colors, use_internal_storage)
 }
 
-pub(crate) fn index_obj<P: AsRef<Path>>(multi: &MultiCollection,
-                        output: P,
-                        use_colors: bool,
-                        use_internal_storage: bool,
+pub(crate) fn index_obj<P: AsRef<Path>>(
+    multi: &MultiCollection,
+    output: P,
+    use_colors: bool,
+    use_internal_storage: bool,
 ) -> Result<()> {
     let multi = multi.clone();
 

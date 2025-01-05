@@ -7,7 +7,7 @@ use crate::fastmultigather_rocksdb::fastmultigather_rocksdb_obj;
 
 use crate::utils::build_selection;
 use crate::utils::load_collection;
-use crate::utils::multicollection::{ MultiCollection, SmallSignature };
+use crate::utils::multicollection::{MultiCollection, SmallSignature};
 use crate::utils::ReportType;
 use pyo3::types::{IntoPyDict, PyDict};
 use pyo3::IntoPyObjectExt;
@@ -20,15 +20,13 @@ pub fn is_revindex_database(path: String) -> bool {
 }
 
 #[pyfunction]
-pub fn build_revindex(multi: &BranchMultiCollection,
-                      output: String,
-                      use_colors: bool,
-                      use_internal_storage: bool) -> PyResult<()>
-{
-    crate::index::index_obj(&multi.collection,
-                            output,
-                            use_colors,
-                            use_internal_storage)?;
+pub fn build_revindex(
+    multi: &BranchMultiCollection,
+    output: String,
+    use_colors: bool,
+    use_internal_storage: bool,
+) -> PyResult<()> {
+    crate::index::index_obj(&multi.collection, output, use_colors, use_internal_storage)?;
     Ok(())
 }
 
@@ -81,10 +79,16 @@ impl BranchRevIndex {
     pub fn open(location: &str) -> PyResult<Py<Self>> {
         let db = RevIndex::open(location, true, None).expect("foo");
 
-        let obj = Python::with_gil(|py| Py::new(py, BranchRevIndex {
-            location: location.to_string(),
-            db
-        }).unwrap());
+        let obj = Python::with_gil(|py| {
+            Py::new(
+                py,
+                BranchRevIndex {
+                    location: location.to_string(),
+                    db,
+                },
+            )
+            .unwrap()
+        });
         Ok(obj)
     }
 

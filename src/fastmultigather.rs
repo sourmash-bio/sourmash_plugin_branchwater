@@ -23,7 +23,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, PrefetchResult, ReportType, MultiCollection
+    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -90,9 +90,7 @@ pub fn fastmultigather(
         common_scaled,
     )?;
 
-    println!(
-        "DONE. Processed {} queries total.", n_processed
-    );
+    println!("DONE. Processed {} queries total.", n_processed);
 
     if skipped_paths > 0 {
         eprintln!(
@@ -270,9 +268,13 @@ pub(crate) fn fastmultigather_obj(
     });
 
     drop(send);
-    gather_out_thrd.join().expect("unable to join CSV writing thread!?");
+    gather_out_thrd
+        .join()
+        .expect("unable to join CSV writing thread!?");
 
-    Ok((processed_queries.into_inner(),
+    Ok((
+        processed_queries.into_inner(),
         skipped_paths.into_inner(),
-        failed_paths.into_inner()))
+        failed_paths.into_inner(),
+    ))
 }

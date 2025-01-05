@@ -62,11 +62,10 @@ pub fn fastmultigather_rocksdb(
         allow_failed_sigpaths,
     )?;
 
-    let (n_processed, skipped_paths, failed_paths) = fastmultigather_rocksdb_obj(&query_collection, &db, &set_selection, threshold_bp, output)?;
+    let (n_processed, skipped_paths, failed_paths) =
+        fastmultigather_rocksdb_obj(&query_collection, &db, &set_selection, threshold_bp, output)?;
 
-    println!(
-        "DONE. Processed {} queries total.", n_processed
-    );
+    println!("DONE. Processed {} queries total.", n_processed);
 
     if skipped_paths > 0 {
         eprintln!(
@@ -221,7 +220,6 @@ pub(crate) fn fastmultigather_rocksdb_obj(
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
     let failed_gathers = failed_gathers.load(atomic::Ordering::SeqCst);
-
 
     if n_processed == 0 {
         eprintln!("ERROR: no search sigs found!?");

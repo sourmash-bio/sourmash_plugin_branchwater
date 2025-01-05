@@ -10,7 +10,8 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, ManySearchResult, ReportType, SmallSignature, MultiCollection
+    csvwriter_thread, load_collection, ManySearchResult, MultiCollection, ReportType,
+    SmallSignature,
 };
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
@@ -73,8 +74,13 @@ pub fn manysearch(
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
         query_sketchlist,
-        &against_collection, threshold, common_scaled,
-        output, ignore_abundance, output_all_comparisons)?;
+        &against_collection,
+        threshold,
+        common_scaled,
+        output,
+        ignore_abundance,
+        output_all_comparisons,
+    )?;
 
     eprintln!("DONE. Processed {} search sigs", n_processed);
 
@@ -101,7 +107,7 @@ pub(crate) fn manysearch_obj(
     common_scaled: u32,
     output: Option<String>,
     ignore_abundance: bool,
-    output_all_comparisons: bool
+    output_all_comparisons: bool,
 ) -> Result<(usize, usize, usize)> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
