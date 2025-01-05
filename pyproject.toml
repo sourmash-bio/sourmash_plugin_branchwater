@@ -23,9 +23,6 @@ authors = [
 requires = ["maturin>=1.4.0,<2"]
 build-backend = "maturin"
 
-#[project.entry-points."sourmash.load_from"]
-#collection_reader = "sourmash_plugin_branchwater:load_collection"
-
 [project.entry-points."sourmash.cli_script"]
 manysearch = "sourmash_plugin_branchwater:Branchwater_Manysearch"
 multisearch = "sourmash_plugin_branchwater:Branchwater_Multisearch"
