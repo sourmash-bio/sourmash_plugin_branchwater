@@ -28,6 +28,10 @@ def do_fastmultigather(query_path,
     if scaled is None:
         query_scaled = query_coll.max_scaled()
         scaled = max(query_scaled, against_scaled)
+#    else:
+#        if scaled > max(query_scaled, against_scaled):
+#            print('ERROR, incompatible scaled')
+#            return 1
 
     threshold_hashes = int(threshold_bp / scaled)
 
