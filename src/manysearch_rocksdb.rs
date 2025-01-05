@@ -14,7 +14,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, ManySearchResult, ReportType,
+    csvwriter_thread, is_revindex_database, load_collection, ManySearchResult, MultiCollection,
+    ReportType,
 };
 
 pub fn manysearch_rocksdb(
@@ -25,7 +26,7 @@ pub fn manysearch_rocksdb(
     output: Option<String>,
     allow_failed_sigpaths: bool,
     output_all_comparisons: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     if !is_revindex_database(&index) {
         bail!("'{}' is not a valid RevIndex database", index);
     }
@@ -44,7 +45,10 @@ pub fn manysearch_rocksdb(
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
             if *max_db_scaled > scaled {
-                return Err("Error: database scaled is higher than requested scaled".into());
+                return Err(anyhow::anyhow!(
+                    "Error: database scaled is higher than requested scaled"
+                )
+                .into());
             }
             scaled
         }
@@ -65,6 +69,40 @@ pub fn manysearch_rocksdb(
         allow_failed_sigpaths,
     )?;
 
+    let (n_processed, skipped_paths, failed_paths) = manysearch_rocksdb_obj(
+        &query_collection,
+        &db,
+        minimum_containment,
+        output,
+        output_all_comparisons,
+    )?;
+
+    // done!
+    eprintln!("DONE. Processed {} search sigs", n_processed);
+
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} query paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} query paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+
+    Ok(())
+}
+
+pub(crate) fn manysearch_rocksdb_obj(
+    query_collection: &MultiCollection,
+    db: &RevIndex,
+    minimum_containment: f64,
+    output: Option<String>,
+    output_all_comparisons: bool,
+) -> Result<(usize, usize, usize)> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<ManySearchResult>(rayon::current_num_threads());
@@ -167,35 +205,13 @@ pub fn manysearch_rocksdb(
             }
         });
 
-    // do some cleanup and error handling -
-    if let Err(e) = send_result {
-        eprintln!("Error during parallel processing: {}", e);
-    }
+    send_result.expect("Error during parallel processing");
+    thrd.join().expect("Unable to join internal thread.");
 
-    // join the writer thread
-    if let Err(e) = thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-    }
-
-    // done!
-    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
-    eprintln!("DONE. Processed {} search sigs", i);
+    let i = processed_sigs.load(atomic::Ordering::SeqCst);
 
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
-    }
-
-    Ok(())
+    Ok((i, skipped_paths, failed_paths))
 }
