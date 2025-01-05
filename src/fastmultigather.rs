@@ -81,14 +81,33 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
-    fastmultigather_obj(
+    let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
         &query_collection,
         &against_collection,
         save_matches,
         output_path,
         threshold_hashes,
         common_scaled,
-    )
+    )?;
+
+    println!(
+        "DONE. Processed {} queries total.", n_processed
+    );
+
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} query paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} query paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+
+    Ok(())
 }
 
 pub(crate) fn fastmultigather_obj(
@@ -98,8 +117,10 @@ pub(crate) fn fastmultigather_obj(
     output_path: Option<String>,
     threshold_hashes: u64,
     common_scaled: u32,
-) -> Result<()> {
+) -> Result<(usize, usize, usize)> {
     // load against sketches into memory
+    // @CTB we probably only want to do this once... or make it an option on
+    // MultiCollection?
     let against = against_collection.clone().load_sketches()?; // @CTB clone
 
     // set up a multi-producer, single-consumer channel.
@@ -166,6 +187,10 @@ pub(crate) fn fastmultigather_obj(
                                 };
                                 mm = Some(result);
                             }
+                        } else {
+                            // @CTB: this will incorrectly count once for
+                            // each against record that is incompatible.
+                            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         }
                         mm
                     })
@@ -240,31 +265,9 @@ pub(crate) fn fastmultigather_obj(
     });
 
     drop(send);
-    if let Err(e) = gather_out_thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-        // @CTB panic?
-    }
+    gather_out_thrd.join().expect("unable to join CSV writing thread!?");
 
-    println!(
-        "DONE. Processed {} queries total.",
-        processed_queries.into_inner()
-    );
-
-    let skipped_paths = skipped_paths.into_inner();
-    let failed_paths = failed_paths.into_inner();
-
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
-    }
-
-    Ok(())
+    Ok((processed_queries.into_inner(),
+        skipped_paths.into_inner(),
+        failed_paths.into_inner()))
 }

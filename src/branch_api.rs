@@ -284,6 +284,7 @@ impl BranchMultiCollection {
         Ok(obj)
     }
 
+    /// Returns (n_processed, n_skipped, n_failed) on success.
     #[pyo3(signature = (query_collection, threshold_bp, scaled, output))]
     pub fn fastmultigather_against(
         &self,
@@ -291,25 +292,17 @@ impl BranchMultiCollection {
         threshold_bp: u32,
         scaled: u32,
         output: String,
-    ) -> anyhow::Result<u8> {
+    ) -> anyhow::Result<(usize, usize, usize)> {
         let threshold_hashes: u64 = (threshold_bp / scaled).into();
-        eprintln!("foo: {} {}", threshold_hashes, scaled);
 
-        match fastmultigather_obj(
+        fastmultigather_obj(
             &query_collection.collection,
             &self.collection,
             false,
             Some(output),
             threshold_hashes,
             scaled,
-        ) {
-            // @CTB
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
+        )
     }
 
     /*
@@ -366,7 +359,7 @@ pub fn api_load_collection(
 ) -> PyResult<Py<BranchMultiCollection>> {
     let selection = build_selection(ksize, Some(scaled), &moltype);
 
-    let collection = load_collection(&location, &selection, ReportType::Query, true)?;
+    let collection = load_collection(&location, &selection, ReportType::General, true)?;
 
     let obj = Python::with_gil(|py| {
         Py::new(

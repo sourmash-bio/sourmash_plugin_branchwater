@@ -169,6 +169,33 @@ def test_fastmultigather_general(runtmp):
     print(df.to_markdown())
 
 
+def test_fastmultigather_general_nomatch(runtmp):
+    raise pytest.xfail("fix later")
+    # test nomatch file in querylist => skipped paths
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sig2 = get_test_data("2.fa.sig.gz")
+    sig47 = get_test_data("47.fa.sig.gz")
+    sig63 = get_test_data("63.fa.sig.gz")
+    badsig1 = get_test_data("1.fa.k21.sig.gz")
+
+    make_file_list(query_list, [sig2, badsig1])
+    make_file_list(against_list, [sig2, sig47, sig63])
+
+    query_coll = branch.api.api_load_collection(query_list, 21, 100_000, 'DNA')
+    print('loaded query:', len(query_coll))
+    against_coll = branch.api.api_load_collection(against_list, 31, 100_000, "DNA")
+    print('loaded against:', len(against_coll))
+
+    csv_out = runtmp.output('xxx.csv')
+    res = against_coll.fastmultigather_against(query_coll,
+                                               0,
+                                               100_000,
+                                               csv_out)
+    assert 0, res
+
+
 def test_basic_collection_load():
     sigfile = get_test_data('SRR606249.sig.gz')
     res = branch.api.api_load_collection(sigfile, 31, 100_000, 'DNA')
