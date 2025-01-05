@@ -407,6 +407,31 @@ impl BranchMultiCollection {
         Ok(n_processed)
     }
 
+    #[pyo3(signature = (threshold, ksize, estimate_ani=true, write_all=false, output_all_comparisons=false, output=None))]
+    pub fn pairwise(
+        &self,
+        threshold: f64,
+        ksize: u8,
+        estimate_ani: bool,
+        write_all: bool,
+        output_all_comparisons: bool,
+        output: Option<String>,
+    ) -> Result<usize> {
+        let sketches = self.collection.clone().load_sketches()?;
+
+        let n_processed = pairwise_obj(
+            &sketches,
+            estimate_ani,
+            write_all,
+            output_all_comparisons,
+            output,
+            threshold,
+            ksize as f64
+        )?;
+
+        Ok(n_processed)
+    }
+
     /*
         #[getter]
         pub fn get_manifest(&self) -> PyResult<Py<BranchManifest>> {
