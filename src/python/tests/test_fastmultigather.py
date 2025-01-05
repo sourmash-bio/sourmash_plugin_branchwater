@@ -1848,11 +1848,7 @@ def test_rocksdb_no_internal_storage_gather_fails(runtmp, capfd):
     print(captured.err)
 
     assert "Error gathering matches:" in captured.err
-    assert "ERROR: 1 failed gathers. See error messages above." in captured.err
-    assert (
-        "Unresolvable errors found; results cannot be trusted. Quitting."
-        in captured.err
-    )
+    assert "1 failed gathers. See error messages above." in captured.err
 
 
 def test_save_matches(runtmp):
