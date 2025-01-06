@@ -889,7 +889,7 @@ impl BuildCollection {
                 record.set_filename(Some(filename.clone()));
                 record.set_md5(Some(sig.md5sum()));
                 record.set_md5short(Some(sig.md5sum()[0..8].into()));
-                record.set_n_hashes(Some(sig.size()));
+                record.set_n_hashes(Some(sig.n_hashes()));
 
                 // note, this needs to be set when writing sigs (not here)
                 // record.set_internal_location("")
