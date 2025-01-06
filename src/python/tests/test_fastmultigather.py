@@ -1924,7 +1924,7 @@ def test_save_matches(runtmp):
     assert mg_ss.minhash.contained_by(match_mh) < 1
 
 
-def test_create_empty_results(runtmp):
+def test_create_empty_prefetch_results(runtmp):
     # sig2 has 0 hashes in common with 47 and 63
     sig2 = get_test_data("2.fa.sig.gz")
     sig47 = get_test_data("47.fa.sig.gz")
@@ -1946,7 +1946,7 @@ def test_create_empty_results(runtmp):
         "100000",
         "-t",
         "0",
-#        "--create-empty-results",
+        "--create-empty-results",
         "-o",
         gather_out,
         in_directory=runtmp.output("")
@@ -1955,8 +1955,7 @@ def test_create_empty_results(runtmp):
     print(os.listdir(runtmp.output("")))
 
     p_output = runtmp.output("CP001071.1.prefetch.csv")
-    # @CTB - dive into this a bit more...
-    #assert os.path.exists(p_output)
+    assert os.path.exists(p_output)
 
 
 def test_simple_against_scaled(runtmp, zip_against):

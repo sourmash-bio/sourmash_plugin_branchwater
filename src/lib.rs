@@ -132,7 +132,7 @@ fn do_fastmultigather(
     moltype: String,
     output_path: Option<String>,
     save_matches: bool,
-    create_empty_results: bool, // @CTB remove
+    create_empty_results: bool,
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
@@ -164,6 +164,7 @@ fn do_fastmultigather(
             allow_failed_sigpaths,
             save_matches,
             output_path,
+            create_empty_results,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {

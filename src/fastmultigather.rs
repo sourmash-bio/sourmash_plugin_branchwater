@@ -36,6 +36,7 @@ pub fn fastmultigather(
     allow_failed_sigpaths: bool,
     save_matches: bool,
     output_path: Option<String>,
+    create_empty_results: bool,
 ) -> Result<()> {
     let _ = env_logger::try_init();
 
@@ -152,7 +153,7 @@ pub fn fastmultigather(
                     })
                     .collect();
 
-                if !matchlist.is_empty() {
+                if !matchlist.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
 
                     // Save initial list of matches to prefetch output
