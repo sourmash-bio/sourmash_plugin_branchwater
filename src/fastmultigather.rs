@@ -223,7 +223,6 @@ pub fn fastmultigather(
     drop(send);
     if let Err(e) = gather_out_thrd.join() {
         eprintln!("Unable to join internal thread: {:?}", e);
-        // @CTB panic?
     }
 
     println!(
