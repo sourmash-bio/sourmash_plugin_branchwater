@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use camino::Utf8PathBuf;
 use getset::{Getters, Setters};
 use needletail::parser::SequenceRecord;
-use needletail::{parse_fastx_file, parse_fastx_reader};
+use needletail::{parse_fastx_file, parse_fastx_reader, parse_fastx_stdin};
 use serde::Serialize;
 use sourmash::cmd::ComputeParameters;
 use sourmash::encodings::{HashFunctions, Idx};
@@ -836,8 +836,7 @@ impl BuildCollection {
     ) -> Result<u64> {
         // Create a FASTX reader from the file or stdin
         let mut fastx_reader = if filename == "-" {
-            let stdin = std::io::stdin();
-            parse_fastx_reader(stdin).context("Failed to parse FASTA/FASTQ data from stdin")?
+            parse_fastx_stdin().context("Failed to parse FASTA/FASTQ data from stdin")?
         } else {
             parse_fastx_file(&filename).context("Failed to open file for FASTA/FASTQ data")?
         };
