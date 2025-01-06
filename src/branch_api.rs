@@ -343,9 +343,11 @@ impl BranchMultiCollection {
 
         let threshold_hashes: u64 = (threshold_bp / scaled).into();
 
+        let sketches = self.collection.clone().load_sketches()?;
+
         fastmultigather_obj(
             &query_collection.collection,
-            &self.collection,
+            &sketches,
             save_matches,
             output,
             threshold_hashes,
