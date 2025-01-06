@@ -12,6 +12,7 @@ use sourmash::errors::SourmashError;
 use sourmash::manifest::Record;
 use sourmash::selection::Selection;
 use sourmash::signature::Signature;
+use sourmash::signature::SigsTrait;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -889,7 +890,7 @@ impl BuildCollection {
                 record.set_filename(Some(filename.clone()));
                 record.set_md5(Some(sig.md5sum()));
                 record.set_md5short(Some(sig.md5sum()[0..8].into()));
-                record.set_n_hashes(Some(sig.n_hashes()));
+                record.set_n_hashes(Some(sig.minhash().map(|mh| mh.size()).unwrap_or(0)));
 
                 // note, this needs to be set when writing sigs (not here)
                 // record.set_internal_location("")
