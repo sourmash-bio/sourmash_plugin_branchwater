@@ -24,6 +24,7 @@ use sourmash::sketch::Sketch;
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
     BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType,
+    SmallSignature,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -81,9 +82,11 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
+    let against_sketches = against_collection.load_sketches()?;
+
     let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
         &query_collection,
-        &against_collection,
+        &against_sketches,
         save_matches,
         output_path,
         threshold_hashes,
@@ -110,22 +113,12 @@ pub fn fastmultigather(
 
 pub(crate) fn fastmultigather_obj(
     query_collection: &MultiCollection,
-    against_collection: &MultiCollection,
+    against: &Vec<SmallSignature>,
     save_matches: bool,
     output_path: Option<String>,
     threshold_hashes: u64,
     common_scaled: u32,
 ) -> Result<(usize, usize, usize)> {
-    // load against sketches into memory
-    // @CTB we probably only want to do this once... or make it an option on
-    // MultiCollection?
-    let against = against_collection.clone().load_sketches()?; // @CTB clone
-
-    // @CTB challenge here, for API usage: we may not have properly
-    // prepared collections of matching ksize etc. What to do/how to report?
-    // Current skipped, failed, etc are not going to be accurate.
-    // See test_fastmultigather_general_nomatch for one example.
-
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
