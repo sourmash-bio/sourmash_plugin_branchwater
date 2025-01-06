@@ -1179,7 +1179,7 @@ def test_simple_protein(runtmp):
         "-k",
         "19",
         "-o",
-        gather_out
+        gather_out,
     )
 
     all_df = pandas.read_csv(gather_out)
@@ -1187,7 +1187,7 @@ def test_simple_protein(runtmp):
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
         assert os.path.exists(p_output)
 
-        df = all_df[all_df['match_name'] == qsig]
+        df = all_df[all_df["match_name"] == qsig]
 
         assert len(df) == 1
         keys = set(df.keys())
@@ -1224,7 +1224,7 @@ def test_simple_dayhoff(runtmp):
         "-k",
         "19",
         "-o",
-        gather_out
+        gather_out,
     )
 
     all_df = pandas.read_csv(gather_out)
@@ -1232,7 +1232,7 @@ def test_simple_dayhoff(runtmp):
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
         assert os.path.exists(p_output)
 
-        df = all_df[all_df['match_name'] == qsig]
+        df = all_df[all_df["match_name"] == qsig]
 
         assert len(df) == 1
         keys = set(df.keys())
@@ -1269,7 +1269,7 @@ def test_simple_hp(runtmp):
         "-k",
         "19",
         "-o",
-        gather_out
+        gather_out,
     )
 
     all_df = pandas.read_csv(gather_out)
@@ -1277,7 +1277,7 @@ def test_simple_hp(runtmp):
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
         assert os.path.exists(p_output)
 
-        df = all_df[all_df['match_name'] == qsig]
+        df = all_df[all_df["match_name"] == qsig]
         assert len(df) == 1
         keys = set(df.keys())
         assert {
@@ -1949,7 +1949,7 @@ def test_create_empty_prefetch_results(runtmp):
         "--create-empty-results",
         "-o",
         gather_out,
-        in_directory=runtmp.output("")
+        in_directory=runtmp.output(""),
     )
 
     print(os.listdir(runtmp.output("")))
