@@ -12,7 +12,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult, ReportType,
+    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult,
+    MultiCollection, ReportType,
 };
 
 pub fn fastmultigather_rocksdb(
@@ -22,7 +23,7 @@ pub fn fastmultigather_rocksdb(
     threshold_bp: u32,
     output: Option<String>,
     allow_failed_sigpaths: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     if !is_revindex_database(&index) {
         bail!("'{}' is not a valid RevIndex database", index);
     }
@@ -39,7 +40,9 @@ pub fn fastmultigather_rocksdb(
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
             if *max_db_scaled > scaled {
-                return Err("Error: database scaled is higher than requested scaled".into());
+                return Err(anyhow::anyhow!(
+                    "Error: database scaled is higher than requested scaled"
+                ));
             }
             scaled
         }
@@ -59,6 +62,34 @@ pub fn fastmultigather_rocksdb(
         allow_failed_sigpaths,
     )?;
 
+    let (n_processed, skipped_paths, failed_paths) =
+        fastmultigather_rocksdb_obj(&query_collection, &db, &set_selection, threshold_bp, output)?;
+
+    println!("DONE. Processed {} queries total.", n_processed);
+
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} query paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} query paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+
+    Ok(())
+}
+
+pub(crate) fn fastmultigather_rocksdb_obj(
+    query_collection: &MultiCollection,
+    db: &RevIndex,
+    selection: &Selection,
+    threshold_bp: u32,
+    output: Option<String>,
+) -> Result<(usize, usize, usize)> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
@@ -80,8 +111,8 @@ pub fn fastmultigather_rocksdb(
     let send = query_collection
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / set_selection.scaled().expect("scaled is not set!?");
-            let ksize = set_selection.ksize().expect("ksize not set!?");
+            let threshold = threshold_bp / selection.scaled().expect("scaled is not set!?");
+            let ksize = selection.ksize().expect("ksize not set!?");
 
             // query downsampling happens here
             match coll.sig_from_record(record) {
@@ -103,7 +134,7 @@ pub fn fastmultigather_rocksdb(
                             hash_to_color,
                             threshold as usize,
                             &query_mh,
-                            Some(set_selection.clone()),
+                            Some(selection.clone()),
                         );
                         if let Ok(matches) = matches {
                             for match_ in &matches {
@@ -178,55 +209,26 @@ pub fn fastmultigather_rocksdb(
         .flatten()
         .try_for_each_with(send, |s, m| s.send(m));
 
-    let mut do_fail = false;
-
     // do some cleanup and error handling -
-    if let Err(e) = send {
-        eprintln!("Unable to send internal data: {:?}", e);
-        do_fail = true;
-    }
-
-    if let Err(e) = thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-        do_fail = true;
-    }
+    send.expect("Unable to send internal data");
+    thrd.join().expect("Unable to join CSV writing thread.");
 
     // done!
-    let i: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
-    eprintln!("DONE. Processed {} search sigs", i);
-
-    if i == 0 {
-        eprintln!("ERROR: no search sigs found!?");
-        do_fail = true;
-    }
-
+    let n_processed: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
     let failed_gathers = failed_gathers.load(atomic::Ordering::SeqCst);
 
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
+    if n_processed == 0 {
+        return Err(anyhow::anyhow!("no search sigs found!?"));
     }
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
-    }
+
     if failed_gathers > 0 {
-        eprintln!(
-            "ERROR: {} failed gathers. See error messages above.",
+        return Err(anyhow::anyhow!(
+            "{} failed gathers. See error messages above.",
             failed_gathers
-        );
-        do_fail = true;
+        ));
     }
 
-    if do_fail {
-        bail!("Unresolvable errors found; results cannot be trusted. Quitting.");
-    }
-
-    Ok(())
+    Ok((n_processed, skipped_paths, failed_paths))
 }

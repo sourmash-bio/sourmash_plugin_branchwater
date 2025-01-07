@@ -23,7 +23,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, PrefetchResult, ReportType,
+    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType, SmallSignature,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -81,9 +81,46 @@ pub fn fastmultigather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    // load against sketches into memory
-    let against = against_collection.load_sketches()?;
 
+    let against_sketches = against_collection.load_sketches()?;
+
+    let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
+        &query_collection,
+        &against_sketches,
+        save_matches,
+        output_path,
+        threshold_hashes,
+        common_scaled,
+        create_empty_results,
+    )?;
+
+    println!("DONE. Processed {} queries total.", n_processed);
+
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} query paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} query paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+
+    Ok(())
+}
+
+pub(crate) fn fastmultigather_obj(
+    query_collection: &MultiCollection,
+    against: &Vec<SmallSignature>,
+    save_matches: bool,
+    output_path: Option<String>,
+    threshold_hashes: u64,
+    common_scaled: u32,
+    create_empty_results: bool,
+) -> Result<(usize, usize, usize)> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
@@ -222,30 +259,13 @@ pub fn fastmultigather(
     });
 
     drop(send);
-    if let Err(e) = gather_out_thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-    }
+    gather_out_thrd
+        .join()
+        .expect("unable to join CSV writing thread!?");
 
-    println!(
-        "DONE. Processed {} queries total.",
-        processed_queries.into_inner()
-    );
-
-    let skipped_paths = skipped_paths.into_inner();
-    let failed_paths = failed_paths.into_inner();
-
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
-    }
-
-    Ok(())
+    Ok((
+        processed_queries.into_inner(),
+        skipped_paths.into_inner(),
+        failed_paths.into_inner(),
+    ))
 }

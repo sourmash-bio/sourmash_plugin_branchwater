@@ -380,5 +380,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
+
     Ok(())
 }
