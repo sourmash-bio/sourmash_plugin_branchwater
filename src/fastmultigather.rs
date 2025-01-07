@@ -23,8 +23,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType,
-    SmallSignature,
+    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType, SmallSignature,
 };
 
 #[allow(clippy::too_many_arguments)]

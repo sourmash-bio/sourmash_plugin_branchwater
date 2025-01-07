@@ -126,7 +126,9 @@ pub fn fastgather(
     )
     .ok();
 
-    gather_out_thrd.join().expect("Unable to join internal thread");
+    gather_out_thrd
+        .join()
+        .expect("Unable to join internal thread");
 
     Ok(())
 }
