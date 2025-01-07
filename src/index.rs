@@ -30,17 +30,15 @@ pub fn index<P: AsRef<Path>>(
     };
     eprintln!("Found {} sketches total.", multi.len());
 
-    index_obj(&multi, output, use_colors, use_internal_storage)
+    index_obj(multi, output, use_colors, use_internal_storage)
 }
 
 pub(crate) fn index_obj<P: AsRef<Path>>(
-    multi: &MultiCollection,
+    multi: MultiCollection,
     output: P,
     use_colors: bool,
     use_internal_storage: bool,
 ) -> Result<()> {
-    let multi = multi.clone();
-
     // Try to convert it into a Collection and then CollectionSet.
     let collection = match Collection::try_from(multi.clone()) {
         // conversion worked!
