@@ -277,7 +277,7 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument(
             "-o",
             "--output",
-            help="CSV output file for all gather matches",
+            help="CSV output file containing gather matches",
             required=True,
         )
         p.add_argument(
