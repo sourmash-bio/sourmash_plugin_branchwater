@@ -23,8 +23,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType,
-    SmallSignature,
+    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType, SmallSignature,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -37,6 +36,7 @@ pub fn fastmultigather(
     allow_failed_sigpaths: bool,
     save_matches: bool,
     output_path: Option<String>,
+    create_empty_results: bool,
 ) -> Result<()> {
     let _ = env_logger::try_init();
 
@@ -91,6 +91,7 @@ pub fn fastmultigather(
         output_path,
         threshold_hashes,
         common_scaled,
+        create_empty_results,
     )?;
 
     println!("DONE. Processed {} queries total.", n_processed);
@@ -118,7 +119,15 @@ pub(crate) fn fastmultigather_obj(
     output_path: Option<String>,
     threshold_hashes: u64,
     common_scaled: u32,
+    create_empty_results: bool,
 ) -> Result<(usize, usize, usize)> {
+    // set up a multi-producer, single-consumer channel.
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+
+    // spawn a thread that is dedicated to printing to a buffered output
+    let gather_out_thrd = csvwriter_thread(recv, output_path);
+
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
@@ -192,7 +201,7 @@ pub(crate) fn fastmultigather_obj(
                     })
                     .collect();
 
-                if !matchlist.is_empty() {
+                if !matchlist.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
 
                     // Save initial list of matches to prefetch output

@@ -1172,13 +1172,12 @@ def test_csv_columns_vs_sourmash_gather_indexed(runtmp):
 
 
 def test_simple_protein(runtmp):
-    # @CTB fix
-    return
     # test basic protein execution
     sigs = get_test_data("protein.zip")
 
     sig_names = ["GCA_001593935", "GCA_001593925"]
 
+    gather_out = runtmp.output("xxx.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1190,16 +1189,17 @@ def test_simple_protein(runtmp):
         "protein",
         "-k",
         "19",
+        "-o",
+        gather_out,
     )
 
+    all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + ".gather.csv"))
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
-        print(g_output)
-        assert os.path.exists(g_output)
         assert os.path.exists(p_output)
 
-        df = pandas.read_csv(g_output)
+        df = all_df[all_df["match_name"] == qsig]
+
         assert len(df) == 1
         keys = set(df.keys())
         assert {
@@ -1213,17 +1213,16 @@ def test_simple_protein(runtmp):
         }.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
-        assert df["query_md5"][0] == df["match_md5"][0]
+        assert set(df["query_md5"]) == set(df["match_md5"])
 
 
 def test_simple_dayhoff(runtmp):
-    # @CTB fix
-    return
     # test basic protein execution
     sigs = get_test_data("dayhoff.zip")
 
     sig_names = ["GCA_001593935", "GCA_001593925"]
 
+    gather_out = runtmp.output("xxx.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1235,16 +1234,17 @@ def test_simple_dayhoff(runtmp):
         "dayhoff",
         "-k",
         "19",
+        "-o",
+        gather_out,
     )
 
+    all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + ".gather.csv"))
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
-        print(g_output)
-        assert os.path.exists(g_output)
         assert os.path.exists(p_output)
 
-        df = pandas.read_csv(g_output)
+        df = all_df[all_df["match_name"] == qsig]
+
         assert len(df) == 1
         keys = set(df.keys())
         assert {
@@ -1258,17 +1258,16 @@ def test_simple_dayhoff(runtmp):
         }.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
-        assert df["query_md5"][0] == df["match_md5"][0]
+        assert set(df["query_md5"]) == set(df["match_md5"])
 
 
 def test_simple_hp(runtmp):
-    # @CTB fix
-    return
     # test basic protein execution
     sigs = get_test_data("hp.zip")
 
     sig_names = ["GCA_001593935", "GCA_001593925"]
 
+    gather_out = runtmp.output("xxx.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1280,16 +1279,16 @@ def test_simple_hp(runtmp):
         "hp",
         "-k",
         "19",
+        "-o",
+        gather_out,
     )
 
+    all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + ".gather.csv"))
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
-        print(g_output)
-        assert os.path.exists(g_output)
         assert os.path.exists(p_output)
 
-        df = pandas.read_csv(g_output)
+        df = all_df[all_df["match_name"] == qsig]
         assert len(df) == 1
         keys = set(df.keys())
         assert {
@@ -1303,7 +1302,7 @@ def test_simple_hp(runtmp):
         }.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
-        assert df["query_md5"][0] == df["match_md5"][0]
+        assert set(df["query_md5"]) == set(df["match_md5"])
 
 
 def test_simple_protein_indexed(runtmp):
@@ -1585,7 +1584,7 @@ def test_indexed_full_output(runtmp):
     # check a few columns
     average_ani = set(df["average_containment_ani"])
     avg_ani = set([round(x, 4) for x in average_ani])
-    assert avg_ani == {0.9221, 0.9306, 0.9316}  # @CTB check against py gather
+    assert avg_ani == {0.9221, 0.9306, 0.9316}
 
     f_unique_weighted = set(df["f_unique_weighted"])
     f_unique_weighted = set([round(x, 4) for x in f_unique_weighted])
@@ -1932,9 +1931,7 @@ def test_save_matches(runtmp):
     assert mg_ss.minhash.contained_by(match_mh) < 1
 
 
-def test_create_empty_results(runtmp):
-    # @CTB fix
-    return
+def test_create_empty_prefetch_results(runtmp):
     # sig2 has 0 hashes in common with 47 and 63
     sig2 = get_test_data("2.fa.sig.gz")
     sig47 = get_test_data("47.fa.sig.gz")
@@ -1946,6 +1943,7 @@ def test_create_empty_results(runtmp):
     make_file_list(query_list, [sig2])
     make_file_list(against_list, [sig47, sig63])
 
+    gather_out = runtmp.output("SRR606249.gather.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1957,13 +1955,12 @@ def test_create_empty_results(runtmp):
         "0",
         "--create-empty-results",
         "-o",
-        runtmp.output("SRR606249.gather.csv"),
+        gather_out,
         in_directory=runtmp.output(""),
     )
 
     print(os.listdir(runtmp.output("")))
 
-    g_output = runtmp.output("CP001071.1.gather.csv")
     p_output = runtmp.output("CP001071.1.prefetch.csv")
     assert os.path.exists(p_output)
 
