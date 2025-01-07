@@ -1476,8 +1476,16 @@ def test_manysketch_skipm2n3(runtmp, capfd):
     sigs = list(idx.signatures())
     print(sigs)
 
-    #assert len(sigs) == 6  # 3 dna, 3 skipmer. re-enable w/new sourmash @CTB.
-    assert len(sigs) == 3  # 3 dna, 3 skipmer.
+    # add in a version check? dumb but... @CTB
+    ver = sourmash.version('sourmash')
+    major, minor, micro = map(int, ver.split('.')[:3])
+    assert major == 4
+    assert minor >= 8
+    if 'dev' in ver:
+        assert len(sigs) == 6  # 3 dna, 3 skipmer. @CTB
+    else:
+        assert len(sigs) == 3  # 3 dna, 3 skipmer.
+
     # check moltypes, etc!
     dna_md5sums = {
         "short": "1474578c5c46dd09da4c2df29cf86621",
