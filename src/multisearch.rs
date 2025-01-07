@@ -17,6 +17,14 @@ use crate::utils::multicollection::SmallSignature;
 use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
+type OverlapStatsReturn = (
+    f64,
+    HashMap<u64, f64>,
+    HashMap<u64, f64>,
+    HashMap<String, HashMap<u64, f64>>,
+    HashMap<u64, f64>,
+);
+
 #[derive(Default, Clone, Debug)]
 struct ProbOverlapStats {
     prob_overlap: f64,
@@ -71,13 +79,7 @@ fn compute_single_prob_overlap(
 fn compute_prob_overlap_stats(
     queries: &Vec<SmallSignature>,
     againsts: &Vec<SmallSignature>,
-) -> (
-    f64,
-    HashMap<u64, f64>,
-    HashMap<u64, f64>,
-    HashMap<String, HashMap<u64, f64>>,
-    HashMap<u64, f64>,
-) {
+) -> OverlapStatsReturn {
     let n_comparisons = againsts.len() as f64 * queries.len() as f64;
 
     // Combine all the queries and against into a single signature each

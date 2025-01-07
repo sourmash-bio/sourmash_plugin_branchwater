@@ -49,6 +49,8 @@ def test_simple(runtmp, zip_against):
         "100000",
         "-t",
         "0",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -109,6 +111,8 @@ def test_simple_list_of_zips(runtmp):
         "100000",
         "-t",
         "0",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_dir=runtmp.output(""),
     )
 
@@ -172,6 +176,8 @@ def test_simple_space_in_signame(runtmp):
         "100000",
         "-t",
         "0",
+        "-o",
+        runtmp.output("my-favorite-signame.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -207,6 +213,8 @@ def test_simple_zip_query(runtmp):
         "100000",
         "-t",
         "0",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -269,6 +277,8 @@ def test_simple_read_manifests(runtmp):
         "100000",
         "-t",
         "0",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -499,14 +509,13 @@ def test_sig_query(runtmp, capfd, indexed):
 
     make_file_list(against_list, [sig2, sig47, sig63])
 
+    g_output = runtmp.output("out.csv")
+    output_params = ["-o", g_output]
+
     if indexed:
         against_list = index_siglist(runtmp, against_list, runtmp.output("db"))
-        g_output = runtmp.output("out.csv")
-        output_params = ["-o", g_output]
     else:
-        g_output = runtmp.output("SRR606249.gather.csv")
         p_output = runtmp.output("SRR606249.prefetch.csv")
-        output_params = []
 
     runtmp.sourmash(
         "scripts",
@@ -648,7 +657,9 @@ def test_sig_against(runtmp, capfd):
 
     g_output = runtmp.output("SRR606249.gather.csv")
     p_output = runtmp.output("SRR606249.prefetch.csv")
-    runtmp.sourmash("scripts", "fastmultigather", query, sig2, "-s", "100000")
+    runtmp.sourmash(
+        "scripts", "fastmultigather", query, sig2, "-s", "100000", "-o", g_output
+    )
 
     captured = capfd.readouterr()
     print(captured.err)
@@ -779,6 +790,8 @@ def test_md5(runtmp, zip_query):
         "100000",
         "-t",
         "0",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -930,6 +943,8 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_query, zip_against):
         "100000",
         "-t",
         "0",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -1003,7 +1018,9 @@ def test_csv_columns_vs_sourmash_gather_fullresults(runtmp):
         "100000",
         "-t",
         "0",
-    )  # '-o', g_output,
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
+    )
 
     assert os.path.exists(g_output)
     # now run sourmash gather
@@ -1149,6 +1166,7 @@ def test_simple_protein(runtmp):
 
     sig_names = ["GCA_001593935", "GCA_001593925"]
 
+    gather_out = runtmp.output("xxx.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1160,16 +1178,17 @@ def test_simple_protein(runtmp):
         "protein",
         "-k",
         "19",
+        "-o",
+        gather_out,
     )
 
+    all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + ".gather.csv"))
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
-        print(g_output)
-        assert os.path.exists(g_output)
         assert os.path.exists(p_output)
 
-        df = pandas.read_csv(g_output)
+        df = all_df[all_df["match_name"] == qsig]
+
         assert len(df) == 1
         keys = set(df.keys())
         assert {
@@ -1183,7 +1202,7 @@ def test_simple_protein(runtmp):
         }.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
-        assert df["query_md5"][0] == df["match_md5"][0]
+        assert set(df["query_md5"]) == set(df["match_md5"])
 
 
 def test_simple_dayhoff(runtmp):
@@ -1192,6 +1211,7 @@ def test_simple_dayhoff(runtmp):
 
     sig_names = ["GCA_001593935", "GCA_001593925"]
 
+    gather_out = runtmp.output("xxx.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1203,16 +1223,17 @@ def test_simple_dayhoff(runtmp):
         "dayhoff",
         "-k",
         "19",
+        "-o",
+        gather_out,
     )
 
+    all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + ".gather.csv"))
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
-        print(g_output)
-        assert os.path.exists(g_output)
         assert os.path.exists(p_output)
 
-        df = pandas.read_csv(g_output)
+        df = all_df[all_df["match_name"] == qsig]
+
         assert len(df) == 1
         keys = set(df.keys())
         assert {
@@ -1226,7 +1247,7 @@ def test_simple_dayhoff(runtmp):
         }.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
-        assert df["query_md5"][0] == df["match_md5"][0]
+        assert set(df["query_md5"]) == set(df["match_md5"])
 
 
 def test_simple_hp(runtmp):
@@ -1235,6 +1256,7 @@ def test_simple_hp(runtmp):
 
     sig_names = ["GCA_001593935", "GCA_001593925"]
 
+    gather_out = runtmp.output("xxx.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1246,16 +1268,16 @@ def test_simple_hp(runtmp):
         "hp",
         "-k",
         "19",
+        "-o",
+        gather_out,
     )
 
+    all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
-        g_output = runtmp.output(os.path.join(qsig + ".gather.csv"))
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
-        print(g_output)
-        assert os.path.exists(g_output)
         assert os.path.exists(p_output)
 
-        df = pandas.read_csv(g_output)
+        df = all_df[all_df["match_name"] == qsig]
         assert len(df) == 1
         keys = set(df.keys())
         assert {
@@ -1269,7 +1291,7 @@ def test_simple_hp(runtmp):
         }.issubset(keys)
         print(df)
         # since we're just matching to identical sigs, the md5s should be the same
-        assert df["query_md5"][0] == df["match_md5"][0]
+        assert set(df["query_md5"]) == set(df["match_md5"])
 
 
 def test_simple_protein_indexed(runtmp):
@@ -1551,7 +1573,7 @@ def test_indexed_full_output(runtmp):
     # check a few columns
     average_ani = set(df["average_containment_ani"])
     avg_ani = set([round(x, 4) for x in average_ani])
-    assert avg_ani == {0.9221, 0.9306, 0.9316}  # @CTB check against py gather
+    assert avg_ani == {0.9221, 0.9306, 0.9316}
 
     f_unique_weighted = set(df["f_unique_weighted"])
     f_unique_weighted = set([round(x, 4) for x in f_unique_weighted])
@@ -1584,6 +1606,8 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
         "100000",
         "-t",
         "0",
+        "-o",
+        g_output,
     )
 
     print(runtmp.last_result.out)
@@ -1842,6 +1866,8 @@ def test_save_matches(runtmp):
         "-t",
         "0",
         "--save-matches",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -1898,7 +1924,7 @@ def test_save_matches(runtmp):
     assert mg_ss.minhash.contained_by(match_mh) < 1
 
 
-def test_create_empty_results(runtmp):
+def test_create_empty_prefetch_results(runtmp):
     # sig2 has 0 hashes in common with 47 and 63
     sig2 = get_test_data("2.fa.sig.gz")
     sig47 = get_test_data("47.fa.sig.gz")
@@ -1910,6 +1936,7 @@ def test_create_empty_results(runtmp):
     make_file_list(query_list, [sig2])
     make_file_list(against_list, [sig47, sig63])
 
+    gather_out = runtmp.output("SRR606249.gather.csv")
     runtmp.sourmash(
         "scripts",
         "fastmultigather",
@@ -1920,12 +1947,13 @@ def test_create_empty_results(runtmp):
         "-t",
         "0",
         "--create-empty-results",
+        "-o",
+        gather_out,
         in_directory=runtmp.output(""),
     )
 
     print(os.listdir(runtmp.output("")))
 
-    g_output = runtmp.output("CP001071.1.gather.csv")
     p_output = runtmp.output("CP001071.1.prefetch.csv")
     assert os.path.exists(p_output)
 
@@ -1985,6 +2013,8 @@ def test_simple_query_scaled(runtmp):
         against_list,
         "-t",
         "0",
+        "-o",
+        runtmp.output("SRR606249.gather.csv"),
         in_directory=runtmp.output(""),
     )
 
@@ -2089,9 +2119,6 @@ def test_equal_matches(runtmp, indexed):
             against_list,
             runtmp.output("db"),
         )
-        out_args = ("-o", outfile)
-    else:
-        out_args = ()
 
     runtmp.sourmash(
         "scripts",
@@ -2099,7 +2126,8 @@ def test_equal_matches(runtmp, indexed):
         "mg.sig",
         against_list,
         "--threshold-bp=0",
-        *out_args,
+        "-o",
+        outfile,
     )
 
     df = pandas.read_csv(runtmp.output(outfile))
@@ -2122,14 +2150,12 @@ def test_explicit_scaled(runtmp, indexed):
     against_list = zip_siglist(runtmp, against_list, runtmp.output("against.zip"))
 
     outfile = runtmp.output("SRR606249.gather.csv")
-    out_args = ()
     if indexed:
         against_list = index_siglist(
             runtmp,
             against_list,
             runtmp.output("db"),
         )
-        out_args = ("-o", outfile)
 
     runtmp.sourmash(
         "scripts",
@@ -2140,7 +2166,8 @@ def test_explicit_scaled(runtmp, indexed):
         "150000",
         "-t",
         "0",
-        *out_args,
+        "-o",
+        outfile,
         in_directory=runtmp.output(""),
     )
 

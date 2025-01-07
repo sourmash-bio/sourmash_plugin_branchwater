@@ -19,6 +19,14 @@ use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
+type AbundanceStats = (
+    Option<u64>,
+    Option<u64>,
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+);
+
 pub fn manysearch(
     query_filepath: String,
     against_filepath: String,
@@ -174,16 +182,7 @@ pub fn manysearch(
 fn inflate_abundances(
     query: &KmerMinHash,
     against: &KmerMinHash,
-) -> Result<
-    (
-        Option<u64>,
-        Option<u64>,
-        Option<f64>,
-        Option<f64>,
-        Option<f64>,
-    ),
-    SourmashError,
-> {
+) -> Result<AbundanceStats, SourmashError> {
     let abunds: Vec<u64>;
     let sum_weighted: u64;
     let sum_all_abunds: u64 = against.sum_abunds();
