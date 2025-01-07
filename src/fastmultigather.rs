@@ -128,6 +128,13 @@ pub(crate) fn fastmultigather_obj(
     // spawn a thread that is dedicated to printing to a buffered output
     let gather_out_thrd = csvwriter_thread(recv, output_path);
 
+    // set up a multi-producer, single-consumer channel.
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+
+    // spawn a thread that is dedicated to printing to a buffered output
+    let gather_out_thrd = csvwriter_thread(recv, output_path);
+
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
     let skipped_paths = AtomicUsize::new(0);
