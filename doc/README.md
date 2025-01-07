@@ -327,16 +327,14 @@ this can be a significant time savings for large databases.
 
 #### Output files for `fastmultigather`
 
-`fastmultigather` will output a single file containing all gather
-results, specified with `-o/--output`. No prefetch results will be
-output.
-
-`fastmultigather` gather CSVs provide the same columns as `fastgather`, above.
+`fastmultigather` will output a gather file containing all results in
+one file, specified with `-o/--output`. `fastmultigather` gather CSVs
+provide the same columns as `fastgather`, above.
 
 In addition, on a database of sketches (but not on RocksDB indexes)
 `fastmultigather` will output a `prefetch` file containing all
 overlapping matches between that query and the database. The prefetch
-CSV will be named `{signame}.prefetch.csv`, were, `{signame}` is the
+CSV will be named `{signame}.prefetch.csv`, where `{signame}` is the
 name of your sourmash signature.
 
 `--save-matches` is an optional flag that will save the matched hashes
