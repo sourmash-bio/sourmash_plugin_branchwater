@@ -326,7 +326,7 @@ impl BranchMultiCollection {
     }
 
     /// Returns (n_processed, n_skipped, n_failed) on success.
-    #[pyo3(signature = (query_collection, threshold_bp, scaled=None, output=None, save_matches=false))]
+    #[pyo3(signature = (query_collection, threshold_bp, scaled=None, output=None, save_matches=false, create_empty_results=false))]
     pub fn fastmultigather_against(
         &self,
         query_collection: &BranchMultiCollection,
@@ -334,6 +334,7 @@ impl BranchMultiCollection {
         scaled: Option<u32>,
         output: Option<String>,
         save_matches: bool,
+        create_empty_results: bool,
     ) -> Result<(usize, usize, usize)> {
         let scaled = if let Some(scaled) = scaled {
             scaled
@@ -352,6 +353,7 @@ impl BranchMultiCollection {
             output,
             threshold_hashes,
             scaled,
+            create_empty_results,
         )
     }
 
