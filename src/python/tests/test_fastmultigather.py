@@ -740,7 +740,10 @@ def test_empty_against(runtmp, capfd):
     assert "No search signatures loaded, exiting." in captured.err
 
 
-def test_nomatch_in_against(runtmp, capfd, zip_against):
+def test_nomatch_in_against(runtmp, capfd, zip_against, indexed_against):
+    if indexed_against:
+        raise pytest.skip("ksize not checked in rocksdb")
+
     # test an against file that has a non-matching ksize sig in it
     query = get_test_data("SRR606249.sig.gz")
     query_list = runtmp.output("query.txt")
@@ -754,6 +757,14 @@ def test_nomatch_in_against(runtmp, capfd, zip_against):
 
     if zip_against:
         against_list = zip_siglist(runtmp, against_list, runtmp.output("against.zip"))
+
+    if indexed_against:
+        against_list = index_siglist(
+            runtmp,
+            against_list,
+            runtmp.output("db"),
+            ksize=21,
+        )
 
     runtmp.sourmash(
         "scripts", "fastmultigather", query_list, against_list, "-s", "100000"

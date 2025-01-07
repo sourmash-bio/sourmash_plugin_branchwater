@@ -6,8 +6,9 @@ from sourmash.logging import notify
 import os
 import importlib.metadata
 
-from . import sourmash_plugin_branchwater
+from . import sourmash_plugin_branchwater as api
 from . import prettyprint
+from . import py_example
 
 __version__ = importlib.metadata.version("sourmash_plugin_branchwater")
 
@@ -38,7 +39,7 @@ def set_thread_pool(user_cores):
         notify(
             f"warning: only {avail_threads} threads available, using {avail_threads}"
         )
-    actual_rayon_cores = sourmash_plugin_branchwater.set_global_thread_pool(num_threads)
+    actual_rayon_cores = api.set_global_thread_pool(num_threads)
     return actual_rayon_cores
 
 
@@ -126,7 +127,7 @@ class Branchwater_Manysearch(CommandLinePlugin):
         )
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_manysearch(
+        status = api.do_manysearch(
             args.query_paths,
             args.against_paths,
             args.threshold,
@@ -210,7 +211,7 @@ class Branchwater_Fastgather(CommandLinePlugin):
             f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}' using {num_threads} threads"
         )
         super().main(args)
-        status = sourmash_plugin_branchwater.do_fastgather(
+        status = api.do_fastgather(
             args.query_sig,
             args.against_paths,
             int(args.threshold_bp),
@@ -305,7 +306,10 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
             f"gathering all sketches in '{args.query_paths}' against '{args.against_paths}' using {num_threads} threads"
         )
         super().main(args)
-        status = sourmash_plugin_branchwater.do_fastmultigather(
+        fn = api.do_fastmultigather
+        if 0:  # swap out for testing purposes!
+            fn = py_example.do_fastmultigather
+        status = fn(
             args.query_paths,
             args.against_paths,
             int(args.threshold_bp),
@@ -383,7 +387,7 @@ class Branchwater_Index(CommandLinePlugin):
         notify(f"indexing all sketches in '{args.siglist}'")
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_index(
+        status = api.do_index(
             args.siglist,
             args.ksize,
             args.scaled,
@@ -409,7 +413,7 @@ class Branchwater_Check(CommandLinePlugin):
     def main(self, args):
         notify(f"checking index '{args.index}'")
         super().main(args)
-        status = sourmash_plugin_branchwater.do_check(args.index, args.quick)
+        status = api.do_check(args.index, args.quick)
         if status == 0:
             notify(f"...index is ok!")
         return status
@@ -493,7 +497,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
         )
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_multisearch(
+        status = api.do_multisearch(
             args.query_paths,
             args.against_paths,
             args.threshold,
@@ -584,7 +588,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
         )
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_pairwise(
+        status = api.do_pairwise(
             args.sig_paths,
             args.threshold,
             args.ksize,
@@ -671,7 +675,7 @@ class Branchwater_SingleSketch(CommandLinePlugin):
         )
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_singlesketch(
+        status = api.do_singlesketch(
             args.input_filename,
             args.input_moltype,
             args.param_string,
@@ -743,7 +747,7 @@ class Branchwater_Manysketch(CommandLinePlugin):
         )
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_manysketch(
+        status = api.do_manysketch(
             args.fromfile_csv,
             args.param_string,
             args.output,
@@ -812,7 +816,7 @@ class Branchwater_Cluster(CommandLinePlugin):
         )
 
         super().main(args)
-        status = sourmash_plugin_branchwater.do_cluster(
+        status = api.do_cluster(
             args.pairwise_csv,
             args.output,
             args.similarity_column,
@@ -823,3 +827,53 @@ class Branchwater_Cluster(CommandLinePlugin):
             notify(f"...clustering is done! results in '{args.output}'")
             notify(f"                       cluster counts in '{args.cluster_sizes}'")
         return status
+
+
+### @CTB these can maybe all be removed?
+
+
+class BranchwaterManifestWrapper:
+    def __init__(self, mf_obj):
+        self.obj = mf_obj
+
+    def _check_row_values(self):
+        return self.obj._check_row_values()
+
+    @property
+    def rows(self):
+        return self.obj.rows
+
+
+class BranchwaterCollectionWrapper:
+    def __init__(self, coll_obj):
+        self.obj = coll_obj
+
+    @property
+    def location(self):
+        return self.obj.location
+
+    @property
+    def is_database(self):
+        return self.obj.is_database
+
+    @property
+    def has_manifest(self):
+        return self.obj.has_manifest
+
+    @property
+    def manifest(self):
+        return BranchwaterManifestWrapper(self.obj.manifest)
+
+    def __len__(self):
+        return len(self.obj)
+
+
+def load_collection(path, *, traverse_yield_all=False, cache_size=0):
+    try:
+        coll_obj = api.api_load_collection(path, 31, 100_000, "DNA")
+        return BranchwaterCollectionWrapper(coll_obj)
+    except:
+        raise IndexNotLoaded(f"branchwater could not load '{path}'")
+
+
+load_collection.priority = 20

@@ -31,7 +31,7 @@ pub struct MultiCollection {
 }
 
 impl MultiCollection {
-    fn new(collections: Vec<Collection>, contains_revindex: bool) -> Self {
+    pub(crate) fn new(collections: Vec<Collection>, contains_revindex: bool) -> Self {
         Self {
             collections,
             contains_revindex,

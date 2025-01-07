@@ -185,6 +185,10 @@ pub(crate) fn fastmultigather_obj(
                                 };
                                 mm = Some(result);
                             }
+                        } else {
+                            // @CTB: this will incorrectly count once for
+                            // each against record that is incompatible.
+                            let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                         }
                         mm
                     })
