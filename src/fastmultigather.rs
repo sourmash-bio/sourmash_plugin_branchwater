@@ -92,6 +92,7 @@ pub fn fastmultigather(
         output_path,
         threshold_hashes,
         common_scaled,
+        create_empty_results,
     )?;
 
     println!("DONE. Processed {} queries total.", n_processed);
@@ -119,6 +120,7 @@ pub(crate) fn fastmultigather_obj(
     output_path: Option<String>,
     threshold_hashes: u64,
     common_scaled: u32,
+    create_empty_results: bool,
 ) -> Result<(usize, usize, usize)> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
