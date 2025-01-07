@@ -37,8 +37,6 @@ pub fn fastmultigather_rocksdb(
         .min_max_scaled()
         .expect("no records in db?!");
 
-    // @CTB no checking for moltype or ksize...
-
     let selection_scaled: u32 = match selection.scaled() {
         Some(scaled) => {
             if *max_db_scaled > scaled {
