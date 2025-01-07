@@ -31,7 +31,8 @@ pub fn build_revindex(
     use_colors: bool,
     use_internal_storage: bool,
 ) -> PyResult<()> {
-    crate::index::index_obj(&multi.collection, output, use_colors, use_internal_storage)?;
+    let mc = multi.collection.clone();
+    crate::index::index_obj(mc, output, use_colors, use_internal_storage)?;
     Ok(())
 }
 
