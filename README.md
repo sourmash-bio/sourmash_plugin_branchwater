@@ -5,6 +5,8 @@
 
 tl;dr Do faster and lower-memory sourmash functions via this plugin.
 
+<p align="center"><img src="https://raw.githubusercontent.com/sourmash-bio/sourmash_plugin_branchwater/main/doc/_static/logo.png" height="256" /></p>
+
 ## Details
 
 [sourmash](https://sourmash.readthedocs.io/en/latest/) is a

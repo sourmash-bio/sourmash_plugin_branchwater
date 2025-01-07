@@ -277,13 +277,14 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument(
             "-o",
             "--output",
-            help="CSV output file for matches. Used for non-rocksdb searches only.",
+            help="CSV output file containing gather matches",
         )
         p.add_argument(
             "--create-empty-results",
+            "--create-empty-prefetch-results",
             action="store_true",
             default=False,
-            help="create empty results file(s) even if no matches",
+            help="create empty prefetch results file for each query, even if no matches (non-RockSDB only)",
         )
         p.add_argument(
             "--save-matches",
