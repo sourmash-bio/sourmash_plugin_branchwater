@@ -4,7 +4,7 @@ import csv
 import pandas
 import sourmash
 import subprocess
-from sourmash import index
+from sourmash import index, sourmash_args
 import io
 from . import sourmash_tst_utils as utils
 
@@ -559,30 +559,13 @@ def test_zip_manifest(runtmp, capfd):
         "dna,k=31,scaled=1",
     )
 
-    loader = sourmash.load_file_as_index(output)
-
-    rows = []
-    siglist = []
-    for sig, loc in loader._signatures_with_internal():
-        row = index.CollectionManifest.make_manifest_row(sig, loc)
-        rows.append(row)
-        siglist.append(sig)
-
-    manifest = index.CollectionManifest(rows)
-
-    assert len(manifest) == len(rows)
+    idx = sourmash.load_file_as_index(output)
+    manifest = sourmash_args.get_manifest(idx)
     assert len(manifest) == 3
-
     md5_nhashes = [(row["md5"], row["n_hashes"]) for row in manifest.rows]
     assert ("9191284a3a23a913d8d410f3d53ce8f0", 970) in md5_nhashes
     assert ("d663bb55b2a0f8782c53c8af89f20fff", 925) in md5_nhashes
     assert ("bf752903d635b1eb83c53fe4aae951db", 955) in md5_nhashes
-
-    for sig in siglist:
-        assert sig in manifest
-        assert sig.minhash.ksize == 31
-        assert sig.minhash.moltype == "DNA"
-        assert sig.minhash.scaled == 1
 
 
 def test_protein_zip_manifest(runtmp, capfd):
@@ -605,37 +588,16 @@ def test_protein_zip_manifest(runtmp, capfd):
         "protein,k=10,scaled=1",
     )
 
-    loader = sourmash.load_file_as_index(output)
-
-    rows = []
-    siglist = []
-    # make manifest via sourmash python code
-    for sig, loc in loader._signatures_with_internal():
-        row = index.CollectionManifest.make_manifest_row(sig, loc)
-        rows.append(row)
-        siglist.append(sig)
-
-    manifest = index.CollectionManifest(rows)
-
-    assert len(manifest) == len(rows)
+    idx = sourmash.load_file_as_index(output)
+    manifest = sourmash_args.get_manifest(idx)
     assert len(manifest) == 1
-
-    md5_list = [row["md5"] for row in manifest.rows]
-    assert "eb4467d11e0ecd2dbde4193bfc255310" in md5_list
-    ksize_list = [row["ksize"] for row in manifest.rows]
-    assert 10 in ksize_list  # manifest ksizes are human-readable (k, not k*3)
-    scaled_list = [row["scaled"] for row in manifest.rows]
-    assert 1 in scaled_list
-    moltype_list = [row["moltype"] for row in manifest.rows]
-    assert "protein" in moltype_list
-
-    for sig in siglist:
-        assert sig in manifest
-        assert (
-            sig.minhash.ksize == 10
-        )  # minhash stores k*3, but does the conversion back for us
-        assert sig.minhash.moltype == "protein"
-        assert sig.minhash.scaled == 1
+    # for row in manifest.rows:
+    row = manifest.rows[0]
+    assert row["md5"] == "eb4467d11e0ecd2dbde4193bfc255310"
+    assert row["ksize"] == 10
+    assert row["scaled"] == 1
+    assert row["moltype"] == "protein"
+    assert row["n_hashes"] == 902
 
 
 def test_manysketch_singleton(runtmp):
