@@ -28,7 +28,7 @@ pub fn fastmultigather_rocksdb(
         bail!("'{}' is not a valid RevIndex database", index);
     }
     // Open database once
-    let db = RevIndex::open(index, true, None)?;
+    let db = RevIndex::open(index, false, None)?;
     println!("Loaded DB");
 
     // grab scaled from the database.

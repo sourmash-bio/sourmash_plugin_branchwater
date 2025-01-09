@@ -32,7 +32,7 @@ pub fn manysearch_rocksdb(
     }
     // Open database once
     debug!("Opened revindex: '{index}')");
-    let db = RevIndex::open(index, true, None)?;
+    let db = RevIndex::open(index, false, None)?;
 
     println!("Loaded DB");
 
