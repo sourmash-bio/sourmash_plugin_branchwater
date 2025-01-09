@@ -5,7 +5,7 @@
 | command | functionality | docs |
 | -------- | -------- | -------- |
 | `manysketch` | Rapidly build sketches for many input files     | [link](#Running-manysketch)     |
-| `singlesketch` | Sketch a single sequence file | [link](#Running-singlesketch)
+| `singlesketch` | Sketch a single sample | [link](#Running-singlesketch)
 | `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link](#Running-fastgather)
 | `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link](#Running-fastmultigather)
 | `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
@@ -259,18 +259,20 @@ In this case, three sketches of `protein`, `dayhoff`, and `hp` moltypes were mad
 
 ## Running `singlesketch`
 
-The `singlesketch` command generates a sketch for a single sequence file.
+The `singlesketch` command generates a sketch for a single sample, with one or more input FASTA/FASTQ files.
 
 ### Basic Usage
+
 ```bash
 sourmash scripts singlesketch input.fa -p k=21,scaled=1000,dna -o output.sig --name signature_name
 ```
+
 ### Using `stdin/stdout`
+
 You can use `-` for `stdin` and output the result to `stdout`:
 ```bash
 cat input.fa | sourmash scripts singlesketch - -o -
 ```
-
 
 ### Running `multisearch` and `pairwise`
 
