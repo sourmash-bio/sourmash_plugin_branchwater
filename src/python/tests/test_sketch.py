@@ -1630,3 +1630,55 @@ def test_singlesketch_stdin(runtmp):
     runtmp.sourmash("sketch", "dna", fa1, "-o", output2, "-p", "dna,scaled=10")
     sig2 = sourmash.load_one_signature(output2)
     assert sig.minhash.hashes == sig2.minhash.hashes
+
+
+def test_singlesketch_multifiles(runtmp, capfd):
+    # multiple input files to singlesketch
+    fa_csv = runtmp.output("db-fa.csv")
+
+    fa1 = get_test_data("short.fa")
+    fa2 = get_test_data("short2.fa")
+
+    output = runtmp.output("db.zip")
+
+    runtmp.sourmash(
+        "scripts",
+        "singlesketch",
+        fa1,
+        fa2,
+        "-o",
+        output,
+        "--param-str",
+        "dna,k=31,scaled=1",
+    )
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out  # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+    assert "calculated 1 signatures for 2 sequences in 2 files" in captured.err
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+    assert len(sigs) == 1
+    made_sig = sigs[0]
+    assert made_sig.name == "short.fa"
+
+    s1 = runtmp.output("short.sig")
+    runtmp.sourmash(
+        "sketch",
+        "dna",
+        fa1,
+        fa2,
+        "-o",
+        s1,
+        "--param-str",
+        "k=31,scaled=1",
+        "--name",
+        "short.fa",
+    )
+    sig1 = sourmash.load_one_signature(s1)
+
+    assert made_sig == sig1

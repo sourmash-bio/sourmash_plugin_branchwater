@@ -324,15 +324,15 @@ fn do_manysketch(
 }
 
 #[pyfunction]
-#[pyo3(signature = (input_filename, input_moltype, param_str, output, name))]
+#[pyo3(signature = (input_filenames, input_moltype, param_str, output, name))]
 fn do_singlesketch(
-    input_filename: String,
+    input_filenames: Vec<String>,
     input_moltype: String,
     param_str: String,
     output: String,
     name: String,
 ) -> anyhow::Result<u8> {
-    match singlesketch::singlesketch(input_filename, input_moltype, param_str, output, name) {
+    match singlesketch::singlesketch(input_filenames, input_moltype, param_str, output, name) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

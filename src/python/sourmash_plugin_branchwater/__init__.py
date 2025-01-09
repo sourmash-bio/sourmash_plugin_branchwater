@@ -602,11 +602,13 @@ class Branchwater_Pairwise(CommandLinePlugin):
 
 class Branchwater_SingleSketch(CommandLinePlugin):
     command = "singlesketch"
-    description = "sketch a single sequence file"
+    description = "sketch a single sample"
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument("input_filename", help="input FASTA file or '-' for stdin")
+        p.add_argument(
+            "input_filenames", help="input file(s); use '-' for stdin", nargs="+"
+        )
         p.add_argument(
             "-o",
             "--output",
@@ -660,19 +662,19 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             args.name
             if args.name
             else (
-                os.path.basename(args.input_filename)
-                if args.input_filename != "-"
+                os.path.basename(args.input_filenames[0])
+                if args.input_filenames[0] != "-"
                 else ""
             )
         )
 
         notify(
-            f"sketching file '{args.input_filename}' ({args.input_moltype}) with params '{args.param_string}' and name '{signature_name}' using a single thread"
+            f"sketching {len(args.input_filenames)} files ({args.input_moltype}) with params '{args.param_string}' and name '{signature_name}' using a single thread"
         )
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_singlesketch(
-            args.input_filename,
+            args.input_filenames,
             args.input_moltype,
             args.param_string,
             args.output,
