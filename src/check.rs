@@ -9,7 +9,12 @@ pub fn check(index: camino::Utf8PathBuf, quick: bool, rw: bool) -> Result<()> {
     }
 
     println!("Opening DB (rw mode? {})", rw);
-    let db = RevIndex::open(index, !rw, None)?;
+    let db = match RevIndex::open(index, !rw, None) {
+        Ok(db) => db,
+        Err(e) => return Err(anyhow::anyhow!(
+            "cannot open RocksDB database. Error is: {}", e
+        )),
+    };
 
     println!("Starting check");
     db.check(quick);

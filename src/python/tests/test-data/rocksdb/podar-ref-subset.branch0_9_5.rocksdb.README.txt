@@ -1,6 +1,6 @@
 Created with:
 
-sourmash scripts index podar-ref-subset.sig.zip -o podar-ref-subset.branch095.rocksdb -s 100_000 -k 31
+sourmash scripts index podar-ref-subset.sig.zip -o podar-ref-subset.branch0_9_5.rocksdb -s 100_000 -k 31
 
 using sourmash_plugin_branchwater v0.9.5.
 
