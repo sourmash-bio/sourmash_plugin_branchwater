@@ -69,7 +69,10 @@ pub(crate) fn index_obj<P: AsRef<Path>>(
             let mut index = RevIndex::create(output.as_ref(), collection, use_colors)?;
 
             if use_internal_storage {
+                eprintln!("Internalizing storage.");
                 index.internalize_storage()?;
+            } else {
+                eprintln!("Using external storage - not copying sketches.");
             }
             Ok(())
         }

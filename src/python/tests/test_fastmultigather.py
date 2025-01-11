@@ -1740,7 +1740,7 @@ def test_nonindexed_full_vs_sourmash_gather(runtmp):
     assert fmg_total_weighted_hashes == g_total_weighted_hashes == set([73489])
 
 
-def test_rocksdb_gather_against_index_with_sigs(runtmp, capfd):
+def test_rocksdb_gather_against_index_with_sigs(runtmp, zip_against, capfd):
     # fastmultigather should succeed if indexed sigs are stored internally.
     query = get_test_data("SRR606249.sig.gz")
 
@@ -1756,6 +1756,9 @@ def test_rocksdb_gather_against_index_with_sigs(runtmp, capfd):
     against_list = runtmp.output("against.txt")
     make_file_list(against_list, ["2.fa.sig.gz", "47.fa.sig.gz", "63.fa.sig.gz"])
 
+    if zip_against:
+        against_list = zip_siglist(runtmp, against_list, runtmp.output("against.zip"))
+
     # index! note: '--internal-storage' defaults to True
     runtmp.sourmash("scripts", "index", against_list, "-o", "subdir/against.rocksdb")
 
@@ -1763,6 +1766,8 @@ def test_rocksdb_gather_against_index_with_sigs(runtmp, capfd):
     os.unlink(runtmp.output("2.fa.sig.gz"))
     os.unlink(runtmp.output("47.fa.sig.gz"))
     os.unlink(runtmp.output("63.fa.sig.gz"))
+    if zip_against:
+        os.unlink(against_list)
 
     g_output = runtmp.output("zzz.csv")
 
