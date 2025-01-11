@@ -1438,17 +1438,8 @@ def test_manysketch_skipm2n3(runtmp, capfd):
     sigs = list(idx.signatures())
     print(sigs)
 
-    # add in a version check so this works under latest release AND latest
-    # dev.
-    ver = sourmash.version("sourmash")
-    print(f"operating with sourmash version: {ver}")
-    major, minor, micro = map(int, ver.split(".")[:3])
-    assert major == 4
-    assert minor >= 8
-    if "dev" in ver:
-        assert len(sigs) == 6  # 3 dna, 3 skipmer.
-    else:
-        assert len(sigs) == 3  # 3 dna, 3 skipmer but not recognized yet.
+    # note: requires sourmash v4.8.13 or later.
+    assert len(sigs) == 6  # 3 dna, 3 skipmer.
 
     # check moltypes, etc!
     dna_md5sums = {
