@@ -1495,3 +1495,62 @@ def test_rocksdb_v0_9_5(runtmp):
         "100_000",
         in_dir=runtmp.output(""),
     )
+
+
+def test_rocksdb_v0_9_13_internal(runtmp):
+    # test that databases created with v0.9.13 w/internal storage can be
+    # opened/searched.
+    sig2 = get_test_data("2.fa.sig.gz")
+
+    rocksdb_dir = get_test_data(
+        "rocksdb/podar-ref-subset.branch0_9_13.internal.rocksdb"
+    )
+
+    # no need to copy zip file: internal storage
+    target_rocksdb = runtmp.output("podar-ref-subset.branch0_9_13.internal.rocksdb")
+    shutil.copytree(rocksdb_dir, runtmp.output(target_rocksdb))
+
+    runtmp.sourmash(
+        "scripts",
+        "manysearch",
+        sig2,
+        "podar-ref-subset.branch0_9_13.internal.rocksdb",
+        "-o",
+        "out.csv",
+        "-s",
+        "100_000",
+        in_dir=runtmp.output(""),
+    )
+
+    assert os.path.exists(runtmp.output("out.csv"))
+
+
+def test_rocksdb_v0_9_13_external(runtmp):
+    # test that databases created with v0.9.13 w/external storage can be
+    # opened/searched.
+    sig2 = get_test_data("2.fa.sig.gz")
+
+    rocksdb_dir = get_test_data(
+        "rocksdb/podar-ref-subset.branch0_9_13.external.rocksdb"
+    )
+    rocksdb_zip = get_test_data("rocksdb/podar-ref-subset.sig.zip")
+
+    # note: copy zipfile b/c external storage.
+    target_rocksdb = runtmp.output("podar-ref-subset.branch0_9_13.external.rocksdb")
+    target_zip = runtmp.output("podar-ref-subset.sig.zip")
+    shutil.copytree(rocksdb_dir, runtmp.output(target_rocksdb))
+    shutil.copyfile(rocksdb_zip, target_zip)
+
+    runtmp.sourmash(
+        "scripts",
+        "manysearch",
+        sig2,
+        "podar-ref-subset.branch0_9_13.external.rocksdb",
+        "-o",
+        "out.csv",
+        "-s",
+        "100_000",
+        in_dir=runtmp.output(""),
+    )
+
+    assert os.path.exists(runtmp.output("out.csv"))
