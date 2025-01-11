@@ -1452,30 +1452,46 @@ def test_rocksdb_v0_9_5(runtmp):
 
     sig2 = get_test_data("2.fa.sig.gz")
 
-    rocksdb_dir = get_test_data('rocksdb/podar-ref-subset.branch0_9_5.rocksdb')
-    rocksdb_zip = get_test_data('rocksdb/podar-ref-subset.sig.zip')
+    rocksdb_dir = get_test_data("rocksdb/podar-ref-subset.branch0_9_5.rocksdb")
+    rocksdb_zip = get_test_data("rocksdb/podar-ref-subset.sig.zip")
 
-    target_rocksdb = runtmp.output('podar-ref-subset.branch0_9_5.rocksdb')
-    target_zip = runtmp.output('podar-ref-subset.sig.zip')
+    target_rocksdb = runtmp.output("podar-ref-subset.branch0_9_5.rocksdb")
+    target_zip = runtmp.output("podar-ref-subset.sig.zip")
     shutil.copytree(rocksdb_dir, runtmp.output(target_rocksdb))
     shutil.copyfile(rocksdb_zip, target_zip)
 
     # fails b/c Column family not found: storage
     with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash('scripts', 'manysearch',
-                        sig2, 'podar-ref-subset.branch0_9_5.rocksdb',
-                        '-o', 'out.csv',
-                        '-s', '100_000',
-                        in_dir=runtmp.output(''))
+        runtmp.sourmash(
+            "scripts",
+            "manysearch",
+            sig2,
+            "podar-ref-subset.branch0_9_5.rocksdb",
+            "-o",
+            "out.csv",
+            "-s",
+            "100_000",
+            in_dir=runtmp.output(""),
+        )
 
     # upgrade with 'check'
-    runtmp.sourmash('scripts', 'check', '--upgrade',
-                    'podar-ref-subset.branch0_9_5.rocksdb',
-                    in_dir=runtmp.output(''))
+    runtmp.sourmash(
+        "scripts",
+        "check",
+        "--upgrade",
+        "podar-ref-subset.branch0_9_5.rocksdb",
+        in_dir=runtmp.output(""),
+    )
 
     # should now work...
-    runtmp.sourmash('scripts', 'manysearch',
-                    sig2, 'podar-ref-subset.branch0_9_5.rocksdb',
-                    '-o', 'out.csv',
-                    '-s', '100_000',
-                    in_dir=runtmp.output(''))
+    runtmp.sourmash(
+        "scripts",
+        "manysearch",
+        sig2,
+        "podar-ref-subset.branch0_9_5.rocksdb",
+        "-o",
+        "out.csv",
+        "-s",
+        "100_000",
+        in_dir=runtmp.output(""),
+    )

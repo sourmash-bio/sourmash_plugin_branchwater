@@ -30,9 +30,12 @@ pub fn fastmultigather_rocksdb(
     // Open database once
     let db = match RevIndex::open(index, true, None) {
         Ok(db) => db,
-        Err(e) => return Err(anyhow::anyhow!(
-            "cannot open RocksDB database. Error is: {}", e
-        )),
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "cannot open RocksDB database. Error is: {}",
+                e
+            ))
+        }
     };
     println!("Loaded DB");
 
