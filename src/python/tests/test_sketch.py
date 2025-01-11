@@ -1441,6 +1441,7 @@ def test_manysketch_skipm2n3(runtmp, capfd):
     # add in a version check so this works under latest release AND latest
     # dev.
     ver = sourmash.version("sourmash")
+    print(f"operating with sourmash version: {ver}")
     major, minor, micro = map(int, ver.split(".")[:3])
     assert major == 4
     assert minor >= 8
