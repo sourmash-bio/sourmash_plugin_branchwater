@@ -1,0 +1,8 @@
+Created with:
+
+sourmash scripts index podar-ref-subset.sig.zip -o podar-ref-subset.branch0_9_13.external.rocksdb -s 100_000 -k 31 --no-internal-storage
+
+using sourmash_plugin_branchwater v0.9.13.
+
+This command uses external storage for the sketches, so the zip file must be
+in the cwd in order to do a fastmultigather.
