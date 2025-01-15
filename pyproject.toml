@@ -9,7 +9,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     ]
-dependencies = ["sourmash>=4.8.13,<5"]
+dependencies = ["sourmash>=4.8.14,<5"]
 
 authors = [
   { name="N. Tessa Pierce-Ward", orcid="0000-0002-2942-5331" },
@@ -60,7 +60,7 @@ libclang = ">=16.0.6,<16.1"
 python = "3.10.*"
 rust = ">=1.80.0,<1.81"
 maturin = ">=1.7.4,<2"
-sourmash-minimal = ">=4.8.10,<5"
+sourmash-minimal = ">=4.8.14,<5"
 
 [tool.pixi.feature.build.target.linux-64.dependencies]
 patchelf = ">=0.17.2,<0.18"
