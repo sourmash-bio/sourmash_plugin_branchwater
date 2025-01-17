@@ -2,7 +2,7 @@ use crate::utils::buildutils::BuildCollection;
 use anyhow::{bail, Result};
 
 pub fn singlesketch(
-    input_filename: String,
+    input_filenames: Vec<String>,
     input_moltype: String,
     param_str: String,
     output: String,
@@ -26,14 +26,20 @@ pub fn singlesketch(
         bail!("No signatures to build for the given parameters.");
     }
 
-    let sequence_count =
-        sigs.build_sigs_from_file_or_stdin(&input_moltype, name, input_filename.clone())?;
+    let mut sequence_count = 0;
+    for input_filename in input_filenames.iter() {
+        sequence_count += sigs.build_sigs_from_file_or_stdin(
+            &input_moltype,
+            name.clone(),
+            input_filename.clone(),
+        )?;
+    }
 
     eprintln!(
-        "calculated {} signatures for {} sequences in {}",
+        "calculated {} signatures for {} sequences in {} files",
         sigs.size(),
         sequence_count,
-        input_filename
+        input_filenames.len(),
     );
 
     // Write signatures to stdout or output file

@@ -1,9 +1,11 @@
 # The branchwater plugin for sourmash
 
+<p align="center"><img src="https://raw.githubusercontent.com/sourmash-bio/sourmash_plugin_branchwater/main/doc/_static/logo.png" height="256" /></p>
+
 | command | functionality | docs |
 | -------- | -------- | -------- |
 | `manysketch` | Rapidly build sketches for many input files     | [link](#Running-manysketch)     |
-| `singlesketch` | Sketch a single sequence file | [link](#Running-singlesketch)
+| `singlesketch` | Sketch a single sample | [link](#Running-singlesketch)
 | `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link](#Running-fastgather)
 | `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link](#Running-fastmultigather)
 | `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
@@ -257,18 +259,20 @@ In this case, three sketches of `protein`, `dayhoff`, and `hp` moltypes were mad
 
 ## Running `singlesketch`
 
-The `singlesketch` command generates a sketch for a single sequence file.
+The `singlesketch` command generates a sketch for a single sample, with one or more input FASTA/FASTQ files.
 
 ### Basic Usage
+
 ```bash
 sourmash scripts singlesketch input.fa -p k=21,scaled=1000,dna -o output.sig --name signature_name
 ```
+
 ### Using `stdin/stdout`
+
 You can use `-` for `stdin` and output the result to `stdout`:
 ```bash
 cat input.fa | sourmash scripts singlesketch - -o -
 ```
-
 
 ### Running `multisearch` and `pairwise`
 
@@ -310,9 +314,9 @@ sourmash scripts fastgather query.sig.gz database.zip -o results.csv --cores 4
 
 ### Running `fastmultigather`
 
-`fastmultigather` takes a collection of query metagenomes and a collection of sketches as a database, and outputs many CSVs:
+`fastmultigather` takes a collection of query metagenomes and a collection of sketches as a database, and outputs a CSV file containing all the matches.
 ```
-sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4 --save-matches
+sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4 --save-matches -o results.csv
 ```
 
 We suggest using standalone manifest CSVs wherever possible, especially if
@@ -325,32 +329,26 @@ this can be a significant time savings for large databases.
 
 #### Output files for `fastmultigather`
 
-On a database of sketches (but not on RocksDB indexes)
-`fastmultigather` will output two CSV files for each query, a
-`prefetch` file containing all overlapping matches between that query
-and the database, and a `gather` file containing the minimum
-metagenome cover for that query in the database.
+`fastmultigather` will output a gather file containing all results in
+one file, specified with `-o/--output`. `fastmultigather` gather CSVs
+provide the same columns as `fastgather`, above.
 
-The prefetch CSV will be named `{signame}.prefetch.csv`, and the
-gather CSV will be named `{signame}.gather.csv`.  Here, `{signame}` is
-the name of your sourmash signature.
+In addition, on a database of sketches (but not on RocksDB indexes)
+`fastmultigather` will output a `prefetch` file containing all
+overlapping matches between that query and the database. The prefetch
+CSV will be named `{signame}.prefetch.csv`, where `{signame}` is the
+name of your sourmash signature.
 
 `--save-matches` is an optional flag that will save the matched hashes
 for each query in a separate sourmash signature
 `{signame}.matches.sig`. This can be useful for debugging or for
 further analysis.
 
-When searching against a RocksDB index, `fastmultigather` will output
-a single file containing all gather results, specified with
-`-o/--output`. No prefetch results will be output.
-
-`fastmultigather` gather CSVs provide the same columns as `fastgather`, above.
-
 **Warning:** At the moment, if two different queries have the same
-  `{signame}`, the CSVs for one of the queries will be overwritten by
-  the other query. The behavior here is undefined in practice, because
-  of multithreading: we don't know what queries will be executed when
-  or files will be written first.
+  `{signame}`, the output files for one query will be overwritten by
+  the results from the other query. The behavior here is undefined in
+  practice, because of multithreading: we don't know what queries will
+  be executed when or files will be written first.
 
 ### Running `manysearch`
 

@@ -277,13 +277,14 @@ class Branchwater_Fastmultigather(CommandLinePlugin):
         p.add_argument(
             "-o",
             "--output",
-            help="CSV output file for matches. Used for non-rocksdb searches only.",
+            help="CSV output file containing gather matches",
         )
         p.add_argument(
             "--create-empty-results",
+            "--create-empty-prefetch-results",
             action="store_true",
             default=False,
-            help="create empty results file(s) even if no matches",
+            help="create empty prefetch results file for each query, even if no matches (non-RockSDB only)",
         )
         p.add_argument(
             "--save-matches",
@@ -404,11 +405,19 @@ class Branchwater_Check(CommandLinePlugin):
         super().__init__(p)
         p.add_argument("index", help="RocksDB index file created with 'index'")
         p.add_argument("--quick", action="store_true")
+        p.add_argument(
+            "--writable",
+            "--upgrade",
+            action="store_true",
+            help="open database in read-write mode to upgrade the internal format if needed",
+        )
 
     def main(self, args):
         notify(f"checking index '{args.index}'")
         super().main(args)
-        status = sourmash_plugin_branchwater.do_check(args.index, args.quick)
+        status = sourmash_plugin_branchwater.do_check(
+            args.index, args.quick, args.writable
+        )
         if status == 0:
             notify(f"...index is ok!")
         return status
@@ -601,11 +610,13 @@ class Branchwater_Pairwise(CommandLinePlugin):
 
 class Branchwater_SingleSketch(CommandLinePlugin):
     command = "singlesketch"
-    description = "sketch a single sequence file"
+    description = "sketch a single sample"
 
     def __init__(self, p):
         super().__init__(p)
-        p.add_argument("input_filename", help="input FASTA file or '-' for stdin")
+        p.add_argument(
+            "input_filenames", help="input file(s); use '-' for stdin", nargs="+"
+        )
         p.add_argument(
             "-o",
             "--output",
@@ -659,19 +670,19 @@ class Branchwater_SingleSketch(CommandLinePlugin):
             args.name
             if args.name
             else (
-                os.path.basename(args.input_filename)
-                if args.input_filename != "-"
+                os.path.basename(args.input_filenames[0])
+                if args.input_filenames[0] != "-"
                 else ""
             )
         )
 
         notify(
-            f"sketching file '{args.input_filename}' ({args.input_moltype}) with params '{args.param_string}' and name '{signature_name}' using a single thread"
+            f"sketching {len(args.input_filenames)} files ({args.input_moltype}) with params '{args.param_string}' and name '{signature_name}' using a single thread"
         )
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_singlesketch(
-            args.input_filename,
+            args.input_filenames,
             args.input_moltype,
             args.param_string,
             args.output,

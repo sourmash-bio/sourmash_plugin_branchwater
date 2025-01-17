@@ -19,7 +19,7 @@ use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread::JoinHandle;
 use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
@@ -82,7 +82,7 @@ pub fn prefetch(
             let searchsig = &result.minhash;
             let overlap = searchsig.count_common(query_mh, false);
             if let Ok(overlap) = overlap {
-                if overlap >= threshold_hashes {
+                if overlap > 0 && overlap >= threshold_hashes {
                     let result = PrefetchResult { overlap, ..result };
                     mm = Some(result);
                 }
@@ -99,7 +99,7 @@ pub fn write_prefetch(
     query_md5: String,
     prefetch_output: Option<String>,
     matchlist: &BinaryHeap<PrefetchResult>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Define the writer to stdout by default
     let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
 
@@ -461,7 +461,7 @@ pub fn load_sketches_above_threshold(
 
                 // good? ok, store as candidate from prefetch.
                 if let Ok(overlap) = against_mh_ds.count_common(query, false) {
-                    if overlap >= threshold_hashes {
+                    if overlap > 0 && overlap >= threshold_hashes {
                         let result = PrefetchResult {
                             name: against_record.name().to_string(),
                             md5sum: against_md5,
@@ -807,26 +807,8 @@ pub fn consume_query_by_gather(
     scaled: u32,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
-    gather_output: Option<String>,
+    gather_output: Option<SyncSender<BranchwaterGatherResult>>,
 ) -> Result<()> {
-    // Define the writer to stdout by default
-    let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
-
-    if let Some(output_path) = &gather_output {
-        // Account for potential missing dir in output path
-        let directory_path = Path::new(output_path).parent();
-
-        // If a directory path exists in the filename, create it if it doesn't already exist
-        if let Some(dir) = directory_path {
-            create_dir_all(dir)?;
-        }
-
-        let file = File::create(output_path)?;
-        writer = Box::new(BufWriter::new(file));
-    }
-    // create csv writer
-    let mut csv_writer = Writer::from_writer(writer);
-
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
@@ -937,8 +919,10 @@ pub fn consume_query_by_gather(
             match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
         };
         sum_weighted_found = gather_result.sum_weighted_found;
-        // serialize result to file.
-        csv_writer.serialize(gather_result)?;
+        // send result to channel => CSV file.
+        if let Some(ref s) = gather_output {
+            s.send(gather_result)?;
+        }
 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
@@ -966,6 +950,7 @@ pub fn consume_query_by_gather(
         last_hashes = query_mh.size();
         last_matches = matching_sketches.len();
     }
+
     Ok(())
 }
 

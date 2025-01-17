@@ -4,7 +4,9 @@ use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
+use crate::utils::{
+    csvwriter_thread, load_collection, MultiSearchResult, ReportType, SmallSignature,
+};
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
@@ -22,7 +24,7 @@ pub fn pairwise(
     write_all: bool,
     output_all_comparisons: bool,
     output: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Load all sigs into memory at once.
     let collection = load_collection(
         &siglist,
@@ -53,7 +55,31 @@ pub fn pairwise(
     selection.set_scaled(common_scaled);
 
     let sketches = collection.load_sketches()?;
+    let ksize = selection.ksize().unwrap() as f64;
 
+    let n_processed = pairwise_obj(
+        &sketches,
+        estimate_ani,
+        write_all,
+        output_all_comparisons,
+        output,
+        threshold,
+        ksize,
+    )?;
+    eprintln!("DONE. Processed {} comparisons", n_processed);
+
+    Ok(())
+}
+
+pub(crate) fn pairwise_obj(
+    sketches: &Vec<SmallSignature>,
+    estimate_ani: bool,
+    write_all: bool,
+    output_all_comparisons: bool,
+    output: Option<String>,
+    threshold: f64,
+    ksize: f64,
+) -> Result<usize> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<MultiSearchResult>(rayon::current_num_threads());
@@ -66,7 +92,6 @@ pub fn pairwise(
     // Results written to the writer thread above.
 
     let processed_cmp = AtomicUsize::new(0);
-    let ksize = selection.ksize().unwrap() as f64;
 
     sketches.par_iter().enumerate().for_each(|(idx, query)| {
         for against in sketches.iter().skip(idx + 1) {
@@ -184,13 +209,9 @@ pub fn pairwise(
     // do some cleanup and error handling -
     drop(send); // close the channel
 
-    if let Err(e) = thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-    }
+    thrd.join().expect("Unable to join internal thread");
 
     // done!
     let i: usize = processed_cmp.load(atomic::Ordering::SeqCst);
-    eprintln!("DONE. Processed {} comparisons", i);
-
-    Ok(())
+    Ok(i)
 }

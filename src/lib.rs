@@ -156,9 +156,6 @@ fn do_fastmultigather(
             }
         }
     } else {
-        if output_path.is_some() {
-            bail!("output path specified, but not running fastmultigather against a rocksdb. See issue #239");
-        }
         match fastmultigather::fastmultigather(
             query_filenames,
             siglist_path,
@@ -167,6 +164,7 @@ fn do_fastmultigather(
             selection,
             allow_failed_sigpaths,
             save_matches,
+            output_path,
             create_empty_results,
         ) {
             Ok(_) => Ok(0),
@@ -225,9 +223,9 @@ fn do_index(
 }
 
 #[pyfunction]
-fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
+fn do_check(index: String, quick: bool, rw: bool) -> anyhow::Result<u8> {
     let idx: PathBuf = index.into();
-    match check::check(idx, quick) {
+    match check::check(idx, quick, rw) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -327,15 +325,15 @@ fn do_manysketch(
 }
 
 #[pyfunction]
-#[pyo3(signature = (input_filename, input_moltype, param_str, output, name))]
+#[pyo3(signature = (input_filenames, input_moltype, param_str, output, name))]
 fn do_singlesketch(
-    input_filename: String,
+    input_filenames: Vec<String>,
     input_moltype: String,
     param_str: String,
     output: String,
     name: String,
 ) -> anyhow::Result<u8> {
-    match singlesketch::singlesketch(input_filename, input_moltype, param_str, output, name) {
+    match singlesketch::singlesketch(input_filenames, input_moltype, param_str, output, name) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -419,5 +417,7 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastagather, m)?)?;
+
+
     Ok(())
 }

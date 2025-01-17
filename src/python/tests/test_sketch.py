@@ -3,7 +3,8 @@ import pytest
 import csv
 import pandas
 import sourmash
-from sourmash import index
+import subprocess
+from sourmash import index, sourmash_args
 import io
 from . import sourmash_tst_utils as utils
 
@@ -558,30 +559,13 @@ def test_zip_manifest(runtmp, capfd):
         "dna,k=31,scaled=1",
     )
 
-    loader = sourmash.load_file_as_index(output)
-
-    rows = []
-    siglist = []
-    for sig, loc in loader._signatures_with_internal():
-        row = index.CollectionManifest.make_manifest_row(sig, loc)
-        rows.append(row)
-        siglist.append(sig)
-
-    manifest = index.CollectionManifest(rows)
-
-    assert len(manifest) == len(rows)
+    idx = sourmash.load_file_as_index(output)
+    manifest = sourmash_args.get_manifest(idx)
     assert len(manifest) == 3
-
-    md5_list = [row["md5"] for row in manifest.rows]
-    assert "9191284a3a23a913d8d410f3d53ce8f0" in md5_list
-    assert "d663bb55b2a0f8782c53c8af89f20fff" in md5_list
-    assert "bf752903d635b1eb83c53fe4aae951db" in md5_list
-
-    for sig in siglist:
-        assert sig in manifest
-        assert sig.minhash.ksize == 31
-        assert sig.minhash.moltype == "DNA"
-        assert sig.minhash.scaled == 1
+    md5_nhashes = [(row["md5"], row["n_hashes"]) for row in manifest.rows]
+    assert ("9191284a3a23a913d8d410f3d53ce8f0", 970) in md5_nhashes
+    assert ("d663bb55b2a0f8782c53c8af89f20fff", 925) in md5_nhashes
+    assert ("bf752903d635b1eb83c53fe4aae951db", 955) in md5_nhashes
 
 
 def test_protein_zip_manifest(runtmp, capfd):
@@ -604,37 +588,16 @@ def test_protein_zip_manifest(runtmp, capfd):
         "protein,k=10,scaled=1",
     )
 
-    loader = sourmash.load_file_as_index(output)
-
-    rows = []
-    siglist = []
-    # make manifest via sourmash python code
-    for sig, loc in loader._signatures_with_internal():
-        row = index.CollectionManifest.make_manifest_row(sig, loc)
-        rows.append(row)
-        siglist.append(sig)
-
-    manifest = index.CollectionManifest(rows)
-
-    assert len(manifest) == len(rows)
+    idx = sourmash.load_file_as_index(output)
+    manifest = sourmash_args.get_manifest(idx)
     assert len(manifest) == 1
-
-    md5_list = [row["md5"] for row in manifest.rows]
-    assert "eb4467d11e0ecd2dbde4193bfc255310" in md5_list
-    ksize_list = [row["ksize"] for row in manifest.rows]
-    assert 10 in ksize_list  # manifest ksizes are human-readable (k, not k*3)
-    scaled_list = [row["scaled"] for row in manifest.rows]
-    assert 1 in scaled_list
-    moltype_list = [row["moltype"] for row in manifest.rows]
-    assert "protein" in moltype_list
-
-    for sig in siglist:
-        assert sig in manifest
-        assert (
-            sig.minhash.ksize == 10
-        )  # minhash stores k*3, but does the conversion back for us
-        assert sig.minhash.moltype == "protein"
-        assert sig.minhash.scaled == 1
+    # for row in manifest.rows:
+    row = manifest.rows[0]
+    assert row["md5"] == "eb4467d11e0ecd2dbde4193bfc255310"
+    assert row["ksize"] == 10
+    assert row["scaled"] == 1
+    assert row["moltype"] == "protein"
+    assert row["n_hashes"] == 902
 
 
 def test_manysketch_singleton(runtmp):
@@ -1159,7 +1122,7 @@ def test_singlesketch_simple(runtmp):
     output = runtmp.output("short.sig")
 
     # Run the singlesketch command
-    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output)
+    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output, "-p", "scaled=10")
 
     # Check if the output exists and contains the expected data
     assert os.path.exists(output)
@@ -1168,11 +1131,12 @@ def test_singlesketch_simple(runtmp):
     assert sig.name == "short.fa"
     assert sig.minhash.ksize == 31
     assert sig.minhash.is_dna
-    assert sig.minhash.scaled == 1000
+    assert sig.minhash.scaled == 10
+    print("HASHES", sig.minhash.hashes)
 
     # validate against sourmash sketch
     output2 = runtmp.output("short2.sig")
-    runtmp.sourmash("sketch", "dna", fa1, "-o", output2)
+    runtmp.sourmash("sketch", "dna", fa1, "-o", output2, "-p", "scaled=10")
     sig2 = sourmash.load_one_signature(output2)
     assert sig.minhash.hashes == sig2.minhash.hashes
 
@@ -1301,6 +1265,7 @@ def test_singlesketch_protein_moltype(runtmp):
     assert sig.minhash.ksize == 10
     assert sig.minhash.is_protein
     assert sig.minhash.scaled == 100
+    print("HASHES:", sig.minhash.hashes)
 
     # validate against sourmash sketch
     output2 = runtmp.output("short2.sig")
@@ -1381,7 +1346,7 @@ def test_singlesketch_gzipped_output(runtmp):
     output = runtmp.output("short.sig.gz")
 
     # Run the singlesketch command
-    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output)
+    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output, "-p", "scaled=10")
 
     # Check if the output exists and contains the expected data
     assert os.path.exists(output)
@@ -1397,15 +1362,16 @@ def test_singlesketch_gzipped_output(runtmp):
 
     # check the signatures
     sig = sourmash.load_one_signature(output)
+    print("HASHES:", sig.minhash.hashes)
 
     assert sig.name == "short.fa"
     assert sig.minhash.ksize == 31
     assert sig.minhash.is_dna
-    assert sig.minhash.scaled == 1000
+    assert sig.minhash.scaled == 10
 
     # validate against sourmash sketch
     output2 = runtmp.output("short2.sig")
-    runtmp.sourmash("sketch", "dna", fa1, "-o", output2)
+    runtmp.sourmash("sketch", "dna", fa1, "-o", output2, "-p", "scaled=10")
     sig2 = sourmash.load_one_signature(output2)
     assert sig.minhash.hashes == sig2.minhash.hashes
 
@@ -1416,7 +1382,7 @@ def test_singlesketch_zip_output(runtmp):
     output = runtmp.output("short.zip")
 
     # Run the singlesketch command
-    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output)
+    runtmp.sourmash("scripts", "singlesketch", fa1, "-o", output, "-p", "scaled=10")
 
     # Check if the output exists and contains the expected data
     assert os.path.exists(output)
@@ -1425,15 +1391,16 @@ def test_singlesketch_zip_output(runtmp):
     assert len(sigs) == 1
     print(sigs)
     sig = sigs[0]
+    print("HASHES:", sig.minhash.hashes)
 
     assert sig.name == "short.fa"
     assert sig.minhash.ksize == 31
     assert sig.minhash.is_dna
-    assert sig.minhash.scaled == 1000
+    assert sig.minhash.scaled == 10
 
     # validate against sourmash sketch
     output2 = runtmp.output("short2.sig")
-    runtmp.sourmash("sketch", "dna", fa1, "-o", output2)
+    runtmp.sourmash("sketch", "dna", fa1, "-o", output2, "-p", "scaled=10")
     sig2 = sourmash.load_one_signature(output2)
     assert sig.minhash.hashes == sig2.minhash.hashes
 
@@ -1471,12 +1438,19 @@ def test_manysketch_skipm2n3(runtmp, capfd):
     sigs = list(idx.signatures())
     print(sigs)
 
-    assert len(sigs) == 3  # 3 dna, 3 skipmer. But sourmash can only read the DNA sigs!!
+    # note: requires sourmash v4.8.13 or later.
+    assert len(sigs) == 6  # 3 dna, 3 skipmer.
+
     # check moltypes, etc!
     dna_md5sums = {
         "short": "1474578c5c46dd09da4c2df29cf86621",
         "short2": "4efeebd26644278e36b9553e018a851a",
         "short3": "f85747ac4f473c4a71c1740d009f512b",
+    }
+    skip_md5sums = {
+        "short2": "ec6305f5d82e51659f3914d47fcc32ee",
+        "short": "0486fcae73545363da9cd5bfcf18d322",
+        "short3": "890557b39ae66d3177035296818de7c6",
     }
     for sig in sigs:
         if sig.minhash.is_dna:
@@ -1484,6 +1458,11 @@ def test_manysketch_skipm2n3(runtmp, capfd):
             assert sig.minhash.scaled == 1
             print("DNA: ", sig.name, sig.md5sum())
             assert sig.md5sum() == dna_md5sums[sig.name]
+        elif sig.minhash.moltype == "skipm2n3":
+            print(sig.minhash.ksize, sig.minhash.scaled, sig.name, sig.md5sum())
+            assert sig.minhash.ksize == 31
+            assert sig.minhash.scaled == 30
+            assert sig.md5sum() == skip_md5sums[sig.name]
 
     # read the file with python and check sigs
     import zipfile, gzip, json
@@ -1614,3 +1593,84 @@ def test_singlesketch_skipm2n3(runtmp):
         assert (
             data[0]["name"] == expected["name"]
         ), f"Unexpected name: {data[0]['name']}"
+
+
+def test_singlesketch_stdin(runtmp):
+    """Test basic single sketching with default parameters."""
+    fa1 = get_test_data("short.fa")
+    output = runtmp.output("short.sig")
+
+    # Run the singlesketch command using subprocess
+    cmd = f"cat {fa1} | sourmash scripts singlesketch - --name short -o {output} -p dna,scaled=10"
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+    # Check if the command succeeded
+    assert result.returncode == 0, f"Command failed: {result.stderr}"
+
+    # Check if the output exists and contains the expected data
+    assert os.path.exists(output)
+    sig = sourmash.load_one_signature(output)
+
+    assert sig.name == "short"
+    assert sig.minhash.ksize == 31
+    assert sig.minhash.is_dna
+    assert sig.minhash.scaled == 10
+    print("HASHES:", sig.minhash.hashes)
+
+    # validate against sourmash sketch
+    output2 = runtmp.output("short2.sig")
+    runtmp.sourmash("sketch", "dna", fa1, "-o", output2, "-p", "dna,scaled=10")
+    sig2 = sourmash.load_one_signature(output2)
+    assert sig.minhash.hashes == sig2.minhash.hashes
+
+
+def test_singlesketch_multifiles(runtmp, capfd):
+    # multiple input files to singlesketch
+    fa_csv = runtmp.output("db-fa.csv")
+
+    fa1 = get_test_data("short.fa")
+    fa2 = get_test_data("short2.fa")
+
+    output = runtmp.output("db.zip")
+
+    runtmp.sourmash(
+        "scripts",
+        "singlesketch",
+        fa1,
+        fa2,
+        "-o",
+        output,
+        "--param-str",
+        "dna,k=31,scaled=1",
+    )
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out  # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+    assert "calculated 1 signatures for 2 sequences in 2 files" in captured.err
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+    assert len(sigs) == 1
+    made_sig = sigs[0]
+    assert made_sig.name == "short.fa"
+
+    s1 = runtmp.output("short.sig")
+    runtmp.sourmash(
+        "sketch",
+        "dna",
+        fa1,
+        fa2,
+        "-o",
+        s1,
+        "--param-str",
+        "k=31,scaled=1",
+        "--name",
+        "short.fa",
+    )
+    sig1 = sourmash.load_one_signature(s1)
+
+    assert made_sig == sig1

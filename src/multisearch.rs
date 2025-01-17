@@ -17,6 +17,14 @@ use crate::utils::multicollection::SmallSignature;
 use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
 use sourmash::ani_utils::ani_from_containment;
 
+type OverlapStatsReturn = (
+    f64,
+    HashMap<u64, f64>,
+    HashMap<u64, f64>,
+    HashMap<String, HashMap<u64, f64>>,
+    HashMap<u64, f64>,
+);
+
 #[derive(Default, Clone, Debug)]
 struct ProbOverlapStats {
     prob_overlap: f64,
@@ -71,13 +79,7 @@ fn compute_single_prob_overlap(
 fn compute_prob_overlap_stats(
     queries: &Vec<SmallSignature>,
     againsts: &Vec<SmallSignature>,
-) -> (
-    f64,
-    HashMap<u64, f64>,
-    HashMap<u64, f64>,
-    HashMap<String, HashMap<u64, f64>>,
-    HashMap<u64, f64>,
-) {
+) -> OverlapStatsReturn {
     let n_comparisons = againsts.len() as f64 * queries.len() as f64;
 
     // Combine all the queries and against into a single signature each
@@ -145,7 +147,7 @@ pub fn multisearch(
     estimate_prob_overlap: bool,
     output_all_comparisons: bool,
     output: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Load all queries into memory at once.
     let query_collection = load_collection(
         &query_filepath,
@@ -186,6 +188,34 @@ pub fn multisearch(
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
 
+    let n_processed = multisearch_obj(
+        &queries,
+        &againsts,
+        threshold,
+        estimate_ani,
+        estimate_prob_overlap,
+        output_all_comparisons,
+        output,
+        expected_scaled,
+        ksize,
+    )?;
+
+    eprintln!("DONE. Processed {} comparisons", n_processed);
+
+    Ok(())
+}
+
+pub(crate) fn multisearch_obj(
+    queries: &Vec<SmallSignature>,
+    againsts: &Vec<SmallSignature>,
+    threshold: f64,
+    estimate_ani: bool,
+    estimate_prob_overlap: bool,
+    output_all_comparisons: bool,
+    output: Option<String>,
+    expected_scaled: u32,
+    ksize: f64,
+) -> Result<usize> {
     let (
         n_comparisons,
         query_merged_frequencies,
@@ -328,17 +358,10 @@ pub fn multisearch(
         .try_for_each_with(send, |s, m| s.send(m));
 
     // do some cleanup and error handling -
-    if let Err(e) = send {
-        eprintln!("Unable to send internal data: {:?}", e);
-    }
-
-    if let Err(e) = thrd.join() {
-        eprintln!("Unable to join internal thread: {:?}", e);
-    }
+    send.expect("Unable to send internal data");
+    thrd.join().expect("Unable to join internal thread");
 
     // done!
     let i: usize = processed_cmp.fetch_max(0, atomic::Ordering::SeqCst);
-    eprintln!("DONE. Processed {} comparisons", i);
-
-    Ok(())
+    Ok(i)
 }

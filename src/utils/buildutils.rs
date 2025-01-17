@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use camino::Utf8PathBuf;
 use getset::{Getters, Setters};
 use needletail::parser::SequenceRecord;
-use needletail::{parse_fastx_file, parse_fastx_reader};
+use needletail::{parse_fastx_file, parse_fastx_reader, parse_fastx_stdin};
 use serde::Serialize;
 use sourmash::cmd::ComputeParameters;
 use sourmash::encodings::{HashFunctions, Idx};
@@ -12,6 +12,7 @@ use sourmash::errors::SourmashError;
 use sourmash::manifest::Record;
 use sourmash::selection::Selection;
 use sourmash::signature::Signature;
+use sourmash::signature::SigsTrait;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -887,8 +888,7 @@ impl BuildCollection {
     ) -> Result<u64> {
         // Create a FASTX reader from the file or stdin
         let mut fastx_reader = if filename == "-" {
-            let stdin = std::io::stdin();
-            parse_fastx_reader(stdin).context("Failed to parse FASTA/FASTQ data from stdin")?
+            parse_fastx_stdin().context("Failed to parse FASTA/FASTQ data from stdin")?
         } else {
             parse_fastx_file(&filename).context("Failed to open file for FASTA/FASTQ data")?
         };
@@ -941,7 +941,9 @@ impl BuildCollection {
                 record.set_filename(Some(filename.clone()));
                 record.set_md5(Some(sig.md5sum()));
                 record.set_md5short(Some(sig.md5sum()[0..8].into()));
-                record.set_n_hashes(Some(sig.size()));
+                record.set_n_hashes(Some(
+                    sig.get_sketch().expect("cannot retrieve sketch").size(),
+                ));
 
                 // note, this needs to be set when writing sigs (not here)
                 // record.set_internal_location("")

@@ -80,3 +80,7 @@ docs/_build/
 
 # pixi
 .pixi/
+
+*.csv
+*.zip
+*.rocksdb

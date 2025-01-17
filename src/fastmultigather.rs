@@ -1,6 +1,6 @@
 /// fastmultigather: Run gather for multiple queries against a list of files.
 use anyhow::Result;
-use rayon::prelude::*;
+use rayon::iter::ParallelIterator;
 
 use sourmash::prelude::{Storage, ToWriter};
 use sourmash::{selection::Selection, signature::SigsTrait};
@@ -22,7 +22,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, write_prefetch, PrefetchResult, ReportType,
+    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
+    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType, SmallSignature,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -34,6 +35,7 @@ pub fn fastmultigather(
     selection: Selection,
     allow_failed_sigpaths: bool,
     save_matches: bool,
+    output_path: Option<String>,
     create_empty_results: bool,
 ) -> Result<()> {
     let _ = env_logger::try_init();
@@ -79,8 +81,52 @@ pub fn fastmultigather(
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
-    // load against sketches into memory
-    let against = against_collection.load_sketches()?;
+
+    let against_sketches = against_collection.load_sketches()?;
+
+    let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
+        &query_collection,
+        &against_sketches,
+        save_matches,
+        output_path,
+        threshold_hashes,
+        common_scaled,
+        create_empty_results,
+    )?;
+
+    println!("DONE. Processed {} queries total.", n_processed);
+
+    if skipped_paths > 0 {
+        eprintln!(
+            "WARNING: skipped {} query paths - no compatible signatures.",
+            skipped_paths
+        );
+    }
+    if failed_paths > 0 {
+        eprintln!(
+            "WARNING: {} query paths failed to load. See error messages above.",
+            failed_paths
+        );
+    }
+
+    Ok(())
+}
+
+pub(crate) fn fastmultigather_obj(
+    query_collection: &MultiCollection,
+    against: &Vec<SmallSignature>,
+    save_matches: bool,
+    output_path: Option<String>,
+    threshold_hashes: u64,
+    common_scaled: u32,
+    create_empty_results: bool,
+) -> Result<(usize, usize, usize)> {
+    // set up a multi-producer, single-consumer channel.
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+
+    // spawn a thread that is dedicated to printing to a buffered output
+    let gather_out_thrd = csvwriter_thread(recv, output_path);
 
     // Iterate over all queries => do prefetch and gather!
     let processed_queries = AtomicUsize::new(0);
@@ -144,9 +190,8 @@ pub fn fastmultigather(
                     })
                     .collect();
 
-                if !matchlist.is_empty() {
+                if !matchlist.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
-                    let gather_output = format!("{}.gather.csv", location);
 
                     // Save initial list of matches to prefetch output
                     write_prefetch(
@@ -166,7 +211,7 @@ pub fn fastmultigather(
                         common_scaled,
                         matchlist,
                         threshold_hashes,
-                        Some(gather_output),
+                        Some(send.clone()),
                     )
                     .ok();
 
@@ -200,21 +245,6 @@ pub fn fastmultigather(
                     }
                 } else {
                     println!("No matches to '{}'", location);
-                    if create_empty_results {
-                        let prefetch_output = format!("{}.prefetch.csv", location);
-                        let gather_output = format!("{}.gather.csv", location);
-                        // touch output files
-                        match std::fs::File::create(&prefetch_output) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                eprintln!("Failed to create empty prefetch output: {}", e)
-                            }
-                        }
-                        match std::fs::File::create(&gather_output) {
-                            Ok(_) => {}
-                            Err(e) => eprintln!("Failed to create empty gather output: {}", e),
-                        }
-                    }
                 }
             }
             Err(_) => {
@@ -228,26 +258,14 @@ pub fn fastmultigather(
         }
     });
 
-    println!(
-        "DONE. Processed {} queries total.",
-        processed_queries.into_inner()
-    );
+    drop(send);
+    gather_out_thrd
+        .join()
+        .expect("unable to join CSV writing thread!?");
 
-    let skipped_paths = skipped_paths.into_inner();
-    let failed_paths = failed_paths.into_inner();
-
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
-    }
-
-    Ok(())
+    Ok((
+        processed_queries.into_inner(),
+        skipped_paths.into_inner(),
+        failed_paths.into_inner(),
+    ))
 }
