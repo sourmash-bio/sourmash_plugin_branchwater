@@ -374,13 +374,12 @@ fn do_fastagather(
     against_filepath: String,
     input_moltype: String,
     threshold_bp: u64,
-    ksize: u8,
-    scaled: Option<u32>,
+    ksize: u32,
+    scaled: u32,
     moltype: String,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
     match fastagather::fastagather(
@@ -388,7 +387,9 @@ fn do_fastagather(
         against_filepath,
         input_moltype,
         threshold_bp,
-        &selection,
+        ksize,
+        scaled,
+        moltype,
         output_path_prefetch,
         output_path_gather,
         allow_failed_sigpaths,
@@ -417,7 +418,6 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
     m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
     m.add_function(wrap_pyfunction!(do_fastagather, m)?)?;
-
 
     Ok(())
 }

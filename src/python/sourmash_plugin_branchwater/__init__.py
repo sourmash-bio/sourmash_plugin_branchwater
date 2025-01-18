@@ -862,10 +862,10 @@ class Branchwater_Fastagather(CommandLinePlugin):
         )
         p.add_argument(
             "-t",
-            "--threshold-bp",
-            default=4000,
+            "--threshold-hashes",
+            default=4,
             type=float,
-            help="threshold in estimated base pairs, for reporting matches (default: 4kb)",
+            help="threshold in hashes, for reporting matches (default: 3)",
         )
         p.add_argument(
             "-k",
@@ -886,7 +886,7 @@ class Branchwater_Fastagather(CommandLinePlugin):
             "--moltype",
             default="DNA",
             choices=["DNA", "protein", "dayhoff", "hp"],
-            help="molecule type for search (DNA, protein, dayhoff, or hp; default DNA)",
+            help="molecule type for search (DNA, protein, dayhoff, hp, skipm1n3, or skipm2n3; default DNA)",
         )
         p.add_argument(
             "-c",
@@ -905,7 +905,7 @@ class Branchwater_Fastagather(CommandLinePlugin):
         num_threads = set_thread_pool(args.cores)
 
         notify(
-            f"gathering all sketches in '{args.query_sig}' against '{args.against_paths}' using {num_threads} threads"
+            f"gathering all sketches in '{args.query_fa}' against '{args.against_paths}' using {num_threads} threads"
         )
         super().main(args)
         status = sourmash_plugin_branchwater.do_fastagather(
