@@ -368,31 +368,26 @@ fn do_cluster(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (query_filename, against_filepath, input_moltype, threshold_bp, ksize, scaled, moltype, output_path_prefetch=None, output_path_gather=None))]
+#[pyo3(signature = (query_filename, index, input_moltype, threshold_hashes, ksize, scaled, moltype, output))]
 fn do_fastagather(
     query_filename: String,
-    against_filepath: String,
+    index: String,
     input_moltype: String,
-    threshold_bp: u64,
+    threshold_hashes: u64,
     ksize: u32,
     scaled: u32,
     moltype: String,
-    output_path_prefetch: Option<String>,
-    output_path_gather: Option<String>,
+    output: String,
 ) -> anyhow::Result<u8> {
-    let allow_failed_sigpaths = true;
-
     match fastagather::fastagather(
         query_filename,
-        against_filepath,
+        index,
         input_moltype,
-        threshold_bp,
+        threshold_hashes,
         ksize,
         scaled,
         moltype,
-        output_path_prefetch,
-        output_path_gather,
-        allow_failed_sigpaths,
+        output,
     ) {
         Ok(_) => Ok(0),
         Err(e) => {

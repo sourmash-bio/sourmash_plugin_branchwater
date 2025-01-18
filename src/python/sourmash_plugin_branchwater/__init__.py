@@ -858,14 +858,11 @@ class Branchwater_Fastagather(CommandLinePlugin):
             help="save gather output (minimum metagenome cover) to this file",
         )
         p.add_argument(
-            "--output-prefetch", help="save prefetch output (all overlaps) to this file"
-        )
-        p.add_argument(
             "-t",
             "--threshold-hashes",
             default=4,
             type=float,
-            help="threshold in hashes, for reporting matches (default: 3)",
+            help="threshold in hashes, for reporting matches (default: 4)",
         )
         p.add_argument(
             "-k",
@@ -879,7 +876,7 @@ class Branchwater_Fastagather(CommandLinePlugin):
             "--scaled",
             default=1000,
             type=int,
-            help="scaled factor at which to do comparisons (default: 1000)",
+            help="scaled factor at which to do comparisons (default: 10)",
         )
         p.add_argument(
             "-m",
@@ -899,7 +896,7 @@ class Branchwater_Fastagather(CommandLinePlugin):
     def main(self, args):
         print_version()
         notify(
-            f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold bp: {args.threshold_bp}"
+            f"ksize: {args.ksize} / scaled: {args.scaled} / moltype: {args.moltype} / threshold hashes: {args.threshold_hashes}"
         )
 
         num_threads = set_thread_pool(args.cores)
@@ -912,15 +909,12 @@ class Branchwater_Fastagather(CommandLinePlugin):
             args.query_fa,
             args.against_paths,
             args.input_moltype,
-            int(args.threshold_bp),
+            int(args.threshold_hashes),
             args.ksize,
             args.scaled,
             args.moltype,
             args.output_gather,
-            args.output_prefetch,
         )
         if status == 0:
             notify(f"...fastgather is done! gather results in '{args.output_gather}'")
-            if args.output_prefetch:
-                notify(f"prefetch results in '{args.output_prefetch}'")
         return status

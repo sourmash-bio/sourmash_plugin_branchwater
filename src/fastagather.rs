@@ -1,288 +1,265 @@
-// use crate::utils::buildutils::BuildCollection;
 use anyhow::{bail, Result};
-
 use needletail::parse_fastx_file;
-// use sourmash::selection::Selection;
-use sourmash::encodings::HashFunctions;
+use sourmash::selection::Selection;
+// use sourmash::encodings::HashFunctions;
+use camino::Utf8PathBuf;
+use sourmash::index::revindex::RevIndex;
+use sourmash::index::revindex::RevIndexOps;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::{KmerMinHash, KmerMinHashBTree};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::utils::{
-    build_selection, consume_query_by_gather, csvwriter_thread, load_collection,
-    load_sketches_above_threshold, write_prefetch, BranchwaterGatherResult, ReportType,
+    build_selection, csvwriter_thread, is_revindex_database, BranchwaterGatherResult,
 };
+
+// to start, implement straightforward record --> sketch --> gather
+// other ideas/to do:
+// - add full-file (lower resolution) prefetch first, to reduce search space
+// - parallelize and/or batch records?
+// - write function to filter fasta entries for those with matches (or those without)
+// - could use that with this structure for charcoal decontam or other functions
+// - add rocksdb search -- only way this will make sense.
+// to do -- use input moltype to check that we can build desired moltype
+// let _input_moltype = input_moltype.to_ascii_lowercase();
 
 #[allow(clippy::too_many_arguments)]
 pub fn fastagather(
     query_filename: String,
-    against_filepath: String,
-    input_moltype: String,
-    threshold_bp: u64,
+    index: String,
+    _input_moltype: String,
+    threshold_hashes: u64,
     ksize: u32,
     scaled: u32,
     moltype: String,
-    prefetch_output: Option<String>,
-    gather_output: Option<String>,
-    allow_failed_sigpaths: bool,
+    output: String,
 ) -> Result<()> {
-    // to start, implement straightforward record --> sketch --> gather
-    // other ideas/to do:
-    // - add full-file (lower resolution) prefetch first, to reduce search space
-    // - parallelize and/or batch records?
-    // - write function to filter fasta entries for those with matches (or those without)
-    // - could use that with this structure for charcoal decontam or other functions
-    // - add rocksdb search -- only way this will make sense.
+    let index_path = Utf8PathBuf::from(index.clone());
 
-    // Build minhash template based on parsed parameters
+    if !is_revindex_database(&index_path) {
+        bail!("'{}' is not a valid RevIndex database", index_path);
+    }
 
-    // to do -- use input moltype to check that we can build desired moltype
-    let _input_moltype = input_moltype.to_ascii_lowercase();
+    // Open database once
+    let db = match RevIndex::open(index, true, None) {
+        Ok(db) => db,
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "cannot open RocksDB database. Error is: {}",
+                e
+            ))
+        }
+    };
+    println!("Loaded DB");
 
-    let hash_function = HashFunctions::try_from(moltype.as_str())
-        .map_err(|_| panic!("Unknown molecule type: {}", moltype))
-        .unwrap();
-
-    let mh_template = KmerMinHashBTree::new(scaled, ksize, hash_function, 42, true, 0); // track abund by default
     let selection = build_selection(ksize as u8, Some(scaled), &moltype);
 
-    // calculate the minimum number of hashes based on desired threshold
-    let threshold_hashes = {
-        let x = threshold_bp / scaled as u64;
-        if x > 0 {
-            x
-        } else {
-            1
+    // grab scaled from the database.
+    let (_, max_db_scaled) = db
+        .collection()
+        .min_max_scaled()
+        .expect("no records in db?!");
+
+    let selection_scaled: u32 = match selection.scaled() {
+        Some(scaled) => {
+            if *max_db_scaled > scaled {
+                return Err(anyhow::anyhow!(
+                    "Error: database scaled is higher than requested scaled"
+                ));
+            }
+            scaled
+        }
+        None => {
+            eprintln!("Setting scaled={} from the database", *max_db_scaled);
+            *max_db_scaled
         }
     };
 
-    // load collection to match against.
-    let against_collection = load_collection(
-        &against_filepath,
-        &selection,
-        ReportType::Against,
-        allow_failed_sigpaths,
+    let mut set_selection = selection;
+    set_selection.set_scaled(selection_scaled);
+
+    let (n_processed, n_failed_records, n_matched_gathers) = fastmultigather_fasta_rocksdb_obj(
+        query_filename.as_str(),
+        &db,
+        &set_selection,
+        threshold_hashes,
+        output,
     )?;
 
-    let failed_records = AtomicUsize::new(0);
-    // open file and start iterating through sequences
-    // Open fasta file reader
-    let mut reader = match parse_fastx_file(query_filename.clone()) {
-        Ok(r) => r,
-        Err(err) => {
-            bail!("Error opening file {}: {:?}", query_filename, err);
-        }
-    };
+    println!("DONE. Processed {} records total.", n_processed);
 
-    // channel for gather results
+    if n_failed_records > 0 {
+        eprintln!(
+            "WARNING: {} records could not be queried. See error messages above.",
+            n_failed_records
+        );
+    }
+
+    eprintln!(
+        "Found gather results for {}/{} records.",
+        n_matched_gathers, n_processed,
+    );
+
+    Ok(())
+}
+
+pub(crate) fn fastmultigather_fasta_rocksdb_obj(
+    query_filename: &str,
+    db: &RevIndex,
+    selection: &Selection,
+    threshold_hashes: u64,
+    output: String,
+) -> Result<(usize, usize, usize)> {
+    // Set up a multi-producer, single-consumer channel.
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
-    let _gather_out_thrd = csvwriter_thread(recv, gather_output);
 
-    // later: can we parallelize across records or sigs? Do we want to batch groups of records for improved gather efficiency?
+    // Spawn a thread for writing CSV output.
+    let thrd = csvwriter_thread(recv, Some(output));
+
+    // Atomic counters for tracking progress and failures.
+    let processed_records = AtomicUsize::new(0);
+    let failed_records = AtomicUsize::new(0);
+    let matched_gathers = AtomicUsize::new(0);
+
+    // Extract and validate the required fields from `Selection` using `expect`.
+    let ksize = selection.ksize().expect("ksize is not set in selection");
+    let scaled = selection.scaled().expect("scaled is not set in selection");
+    let hash_function = selection
+        .moltype()
+        .expect("moltype is not set in selection");
+
+    // Build the minhash template.
+    let mh_template = KmerMinHashBTree::new(
+        scaled,
+        ksize,
+        hash_function,
+        42,                                // Example seed value
+        selection.abund().unwrap_or(true), // Default to tracking abundance if not specified
+        0,                                 // Default value for num, can be changed as needed
+    );
+
+    // Open the FASTA file reader.
+    let mut reader = parse_fastx_file(query_filename)
+        .map_err(|err| anyhow::anyhow!("Error opening file {}: {:?}", query_filename, err))?;
+
+    // Main loop to process each record in the FASTA file.
     while let Some(record_result) = reader.next() {
-        // clone sig_templates for use
-        // let mut sigcoll = sig_template.clone();
-        let mut query_mh = mh_template.clone();
+        // Clone the template minhash for this record.
+        let mut build_mh = mh_template.clone();
         match record_result {
             Ok(record) => {
                 let query_name = std::str::from_utf8(record.id())
                     .expect("record.id() contains invalid UTF-8")
                     .to_string();
-                if let Err(err) = query_mh.add_sequence(&record.seq(), true) {
+                if let Err(err) = build_mh.add_sequence(&record.seq(), true) {
                     eprintln!(
-                        "Error building minhash from record: {}, {:?}",
-                        query_filename, err
+                        "Error building minhash for record '{}' in {}: {:?}",
+                        query_name, query_filename, err
                     );
                     failed_records.fetch_add(1, Ordering::SeqCst);
+                    continue;
                 }
+                let query_mh = KmerMinHash::from(build_mh);
                 let query_md5 = query_mh.md5sum();
-                eprintln!("query minhash; {:?}", query_mh);
+                let n_unique_kmers = query_mh.n_unique_kmers();
+                processed_records.fetch_add(1, Ordering::SeqCst);
 
-                // now do prefetch/gather
-                let prefetch_result = load_sketches_above_threshold(
-                    against_collection.clone(), // can we get rid of this clone??
-                    &KmerMinHash::from(query_mh.clone()),
-                    threshold_hashes,
-                )?;
-                let matchlist = prefetch_result.0;
-                let _skipped_paths = prefetch_result.1;
-                let _failed_paths = prefetch_result.2;
+                // Prepare gather counters.
+                let (counter, query_colors, hash_to_color) = db.prepare_gather_counters(&query_mh);
 
-                if prefetch_output.is_some() {
-                    write_prefetch(
-                        query_filename.clone(),
-                        query_name.clone(),
-                        query_md5,
-                        prefetch_output.clone(),
-                        &matchlist,
-                    )
-                    .ok();
+                // Perform the gather operation.
+                match db.gather(
+                    counter,
+                    query_colors,
+                    hash_to_color,
+                    threshold_hashes as usize,
+                    &query_mh,
+                    Some(selection.clone()),
+                ) {
+                    Ok(matches) => {
+                        let mut results = vec![];
+                        for match_ in matches {
+                            results.push(BranchwaterGatherResult {
+                                intersect_bp: match_.intersect_bp(),
+                                f_orig_query: match_.f_orig_query(),
+                                f_match: match_.f_match(),
+                                f_unique_to_query: match_.f_unique_to_query(),
+                                f_unique_weighted: match_.f_unique_weighted(),
+                                average_abund: match_.average_abund(),
+                                median_abund: match_.median_abund(),
+                                std_abund: match_.std_abund(),
+                                match_filename: match_.filename().clone(),
+                                match_name: match_.name().clone(),
+                                match_md5: match_.md5().clone(),
+                                f_match_orig: match_.f_match_orig(),
+                                unique_intersect_bp: match_.unique_intersect_bp(),
+                                gather_result_rank: match_.gather_result_rank(),
+                                remaining_bp: match_.remaining_bp(),
+                                query_filename: query_filename.to_string(),
+                                query_name: query_name.clone(),
+                                query_md5: query_md5.clone(),
+                                query_bp: n_unique_kmers,
+                                ksize: selection.ksize().expect("ksize not set!?") as u16,
+                                moltype: query_mh.hash_function().to_string(),
+                                scaled: query_mh.scaled(),
+                                query_n_hashes: query_mh.size() as u64,
+                                query_abundance: query_mh.track_abundance(),
+                                query_containment_ani: match_.query_containment_ani(),
+                                match_containment_ani: match_.match_containment_ani(),
+                                average_containment_ani: match_.average_containment_ani(),
+                                max_containment_ani: match_.max_containment_ani(),
+                                n_unique_weighted_found: match_.n_unique_weighted_found(),
+                                sum_weighted_found: match_.sum_weighted_found(),
+                                total_weighted_hashes: match_.total_weighted_hashes(),
+                                query_containment_ani_ci_low: match_.query_containment_ani_ci_low(),
+                                query_containment_ani_ci_high: match_
+                                    .query_containment_ani_ci_high(),
+                                match_containment_ani_ci_low: match_.match_containment_ani_ci_low(),
+                                match_containment_ani_ci_high: match_
+                                    .match_containment_ani_ci_high(),
+                            });
+                        }
+
+                        if !results.is_empty() {
+                            eprintln!("Matches found for record: {}", query_name);
+                            matched_gathers.fetch_add(1, Ordering::SeqCst);
+                            for result in results {
+                                if let Err(err) = send.send(result) {
+                                    eprintln!("Error sending result: {:?}", err);
+                                }
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!(
+                            "Error gathering matches for query '{}': {:?}",
+                            query_name, err
+                        );
+                    }
                 }
-
-                consume_query_by_gather(
-                    query_name.clone(),
-                    query_filename.clone(),
-                    KmerMinHash::from(query_mh),
-                    scaled as u32,
-                    matchlist,
-                    threshold_hashes,
-                    Some(send.clone()), // is this clone ok?
-                )
-                .ok();
             }
-            Err(err) => eprintln!("Error while processing record: {:?}", err),
+            Err(err) => {
+                eprintln!("Error processing record in {}: {:?}", query_filename, err);
+                failed_records.fetch_add(1, Ordering::SeqCst);
+            }
         }
     }
-    Ok(())
-}
 
-pub(crate) fn fastmultigather_rocksdb_obj(
-    query_collection: &MultiCollection,
-    db: &RevIndex,
-    selection: &Selection,
-    threshold_bp: u32,
-    output: Option<String>,
-) -> Result<(usize, usize, usize)> {
-    // set up a multi-producer, single-consumer channel.
-    let (send, recv) =
-        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+    // Cleanup and join the writer thread.
+    drop(send); // Close the sender to signal the thread to finish.
+    thrd.join().expect("Unable to join CSV writer thread.");
 
-    // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = csvwriter_thread(recv, output);
-
-    //
-    // Main loop: iterate (in parallel) over all records,
-    // loading them individually and searching them. Stuff results into
-    // the writer thread above.
-    //
-
-    let processed_sigs = AtomicUsize::new(0);
-    let skipped_paths = AtomicUsize::new(0);
-    let failed_paths = AtomicUsize::new(0);
-    let failed_gathers = AtomicUsize::new(0);
-
-    let send = query_collection
-        .par_iter()
-        .filter_map(|(coll, _idx, record)| {
-            let threshold = threshold_bp / selection.scaled().expect("scaled is not set!?");
-            let ksize = selection.ksize().expect("ksize not set!?");
-
-            // query downsampling happens here
-            match coll.sig_from_record(record) {
-                Ok(query_sig) => {
-                    let query_filename = query_sig.filename();
-                    let query_name = query_sig.name();
-                    let query_md5 = query_sig.md5sum();
-
-                    let mut results = vec![];
-                    if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
-                        let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
-                        // Gather!
-                        let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(&query_mh);
-
-                        let matches = db.gather(
-                            counter,
-                            query_colors,
-                            hash_to_color,
-                            threshold as usize,
-                            &query_mh,
-                            Some(selection.clone()),
-                        );
-                        if let Ok(matches) = matches {
-                            for match_ in &matches {
-                                results.push(BranchwaterGatherResult {
-                                    intersect_bp: match_.intersect_bp(),
-                                    f_orig_query: match_.f_orig_query(),
-                                    f_match: match_.f_match(),
-                                    f_unique_to_query: match_.f_unique_to_query(),
-                                    f_unique_weighted: match_.f_unique_weighted(),
-                                    average_abund: match_.average_abund(),
-                                    median_abund: match_.median_abund(),
-                                    std_abund: match_.std_abund(),
-                                    match_filename: match_.filename().clone(),
-                                    match_name: match_.name().clone(),
-                                    match_md5: match_.md5().clone(),
-                                    f_match_orig: match_.f_match_orig(),
-                                    unique_intersect_bp: match_.unique_intersect_bp(),
-                                    gather_result_rank: match_.gather_result_rank(),
-                                    remaining_bp: match_.remaining_bp(),
-                                    query_filename: query_filename.clone(),
-                                    query_name: query_name.clone(),
-                                    query_md5: query_md5.clone(),
-                                    query_bp: query_mh.n_unique_kmers(),
-                                    ksize: ksize as u16,
-                                    moltype: query_mh.hash_function().to_string(),
-                                    scaled: query_mh.scaled(),
-                                    query_n_hashes: query_mh.size() as u64,
-                                    query_abundance: query_mh.track_abundance(),
-                                    query_containment_ani: match_.query_containment_ani(),
-                                    match_containment_ani: match_.match_containment_ani(),
-                                    average_containment_ani: match_.average_containment_ani(),
-                                    max_containment_ani: match_.max_containment_ani(),
-                                    n_unique_weighted_found: match_.n_unique_weighted_found(),
-                                    sum_weighted_found: match_.sum_weighted_found(),
-                                    total_weighted_hashes: match_.total_weighted_hashes(),
-
-                                    query_containment_ani_ci_low: match_
-                                        .query_containment_ani_ci_low(),
-                                    query_containment_ani_ci_high: match_
-                                        .query_containment_ani_ci_high(),
-                                    match_containment_ani_ci_low: match_
-                                        .match_containment_ani_ci_low(),
-                                    match_containment_ani_ci_high: match_
-                                        .match_containment_ani_ci_high(),
-                                });
-                            }
-                        } else {
-                            eprintln!("Error gathering matches: {:?}", matches.err());
-                            let _ = failed_gathers.fetch_add(1, atomic::Ordering::SeqCst);
-                        }
-                    } else {
-                        eprintln!(
-                            "WARNING: no compatible sketches in path '{}'",
-                            query_filename
-                        );
-                        let _ = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    }
-
-                    if results.is_empty() {
-                        None
-                    } else {
-                        Some(results)
-                    }
-                }
-                Err(err) => {
-                    eprintln!("Error loading sketch: {}", err);
-                    let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                    None
-                }
-            }
-        })
-        .flatten()
-        .try_for_each_with(send, |s, m| s.send(m));
-
-    // do some cleanup and error handling -
-    send.expect("Unable to send internal data");
-    thrd.join().expect("Unable to join CSV writing thread.");
-
-    // done!
-    let n_processed: usize = processed_sigs.fetch_max(0, atomic::Ordering::SeqCst);
-    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
-    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
-    let failed_gathers = failed_gathers.load(atomic::Ordering::SeqCst);
+    // Gather final stats.
+    let n_processed = processed_records.load(Ordering::SeqCst);
+    let n_failed_records = failed_records.load(Ordering::SeqCst);
+    let n_matched_gathers = matched_gathers.load(Ordering::SeqCst);
 
     if n_processed == 0 {
-        return Err(anyhow::anyhow!("no search sigs found!?"));
+        Err(anyhow::anyhow!(
+            "No records were processed from the FASTA file."
+        ))
+    } else {
+        Ok((n_processed, n_failed_records, n_matched_gathers))
     }
-
-    if failed_gathers > 0 {
-        return Err(anyhow::anyhow!(
-            "{} failed gathers. See error messages above.",
-            failed_gathers
-        ));
-    }
-
-    Ok((n_processed, skipped_paths, failed_paths))
 }
