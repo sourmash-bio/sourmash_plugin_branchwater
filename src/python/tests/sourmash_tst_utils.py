@@ -73,6 +73,7 @@ def _runscript(scriptname):
     smash_cli()
     return 0
 
+
 ScriptResults = collections.namedtuple("ScriptResults", ["status", "out", "err"])
 
 
