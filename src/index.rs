@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use sourmash::index::revindex::RevIndex;
 use sourmash::index::revindex::RevIndexOps;
+use sourmash::index::revindex::disk_revindex;
 use sourmash::prelude::*;
 use std::path::Path;
 
@@ -13,7 +13,6 @@ pub fn index<P: AsRef<Path>>(
     siglist: String,
     selection: Selection,
     output: P,
-    use_colors: bool,
     allow_failed_sigpaths: bool,
     use_internal_storage: bool,
 ) -> Result<()> {
@@ -30,13 +29,12 @@ pub fn index<P: AsRef<Path>>(
     };
     eprintln!("Found {} sketches total.", multi.len());
 
-    index_obj(multi, output, use_colors, use_internal_storage)
+    index_obj(multi, output, use_internal_storage)
 }
 
 pub(crate) fn index_obj<P: AsRef<Path>>(
     multi: MultiCollection,
     output: P,
-    use_colors: bool,
     use_internal_storage: bool,
 ) -> Result<()> {
     // Try to convert it into a Collection and then CollectionSet.
@@ -66,7 +64,7 @@ pub(crate) fn index_obj<P: AsRef<Path>>(
     match collection {
         Ok(collection) => {
             eprintln!("Indexing {} sketches.", collection.len());
-            let mut index = RevIndex::create(output.as_ref(), collection, use_colors)?;
+            let mut index = disk_revindex::DiskRevIndex::create(output.as_ref(), collection)?;
 
             if use_internal_storage {
                 eprintln!("Internalizing storage.");

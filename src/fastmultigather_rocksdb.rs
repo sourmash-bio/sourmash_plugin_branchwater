@@ -133,13 +133,10 @@ pub(crate) fn fastmultigather_rocksdb_obj(
                     if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
                         let _ = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
                         // Gather!
-                        let (counter, query_colors, hash_to_color) =
-                            db.prepare_gather_counters(&query_mh);
+                        let cg = db.prepare_gather_counters(&query_mh, None);
 
                         let matches = db.gather(
-                            counter,
-                            query_colors,
-                            hash_to_color,
+                            cg,
                             threshold as usize,
                             &query_mh,
                             Some(selection.clone()),
