@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use sourmash::index::revindex::RevIndexOps;
 use sourmash::index::revindex::disk_revindex;
+use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
 use std::path::Path;
 

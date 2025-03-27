@@ -135,12 +135,8 @@ pub(crate) fn fastmultigather_rocksdb_obj(
                         // Gather!
                         let cg = db.prepare_gather_counters(&query_mh, None);
 
-                        let matches = db.gather(
-                            cg,
-                            threshold as usize,
-                            &query_mh,
-                            Some(selection.clone()),
-                        );
+                        let matches =
+                            db.gather(cg, threshold as usize, &query_mh, Some(selection.clone()));
                         if let Ok(matches) = matches {
                             for match_ in &matches {
                                 results.push(BranchwaterGatherResult {
