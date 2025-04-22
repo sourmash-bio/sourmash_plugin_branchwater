@@ -26,6 +26,7 @@ type AbundanceStats = (
     Option<f64>,
     Option<f64>,
     Option<f64>,
+    Option<f64>,
 );
 
 pub fn manysearch(
@@ -211,12 +212,18 @@ fn inflate_abundances(
     let median_abund = median(abunds.iter().cloned()).expect("error");
     let std_abund = stddev(abunds.iter().cloned());
 
+    // to get weighted % of target:
+    // get weighted intersection (abunds, summed in sum_weighted)
+    // divided by total weighted hashes in against (metagenome, summed in sum_all_abunds)
+    let f_weighted_target_in_query = sum_weighted as f64 / sum_all_abunds as f64;
+
     Ok((
         Some(sum_all_abunds),
         Some(sum_weighted),
         Some(average_abund),
         Some(median_abund),
         Some(std_abund),
+        Some(f_weighted_target_in_query),
     ))
 }
 
@@ -264,12 +271,18 @@ fn calculate_manysearch_result(
         let max_containment_ani = Some(f64::max(qani, mani));
 
         let calc_abund_stats = against_mh.track_abundance() && !ignore_abundance;
-        let (total_weighted_hashes, n_weighted_found, average_abund, median_abund, std_abund) =
-            if calc_abund_stats {
-                inflate_abundances(&query.minhash, against_mh).ok()?
-            } else {
-                (None, None, None, None, None)
-            };
+        let (
+            total_weighted_hashes,
+            n_weighted_found,
+            average_abund,
+            median_abund,
+            std_abund,
+            f_weighted_target_in_query,
+        ) = if calc_abund_stats {
+            inflate_abundances(&query.minhash, against_mh).ok()?
+        } else {
+            (None, None, None, None, None, None)
+        };
 
         let sr = ManySearchResult {
             query_name: query.name.clone(),
@@ -292,6 +305,8 @@ fn calculate_manysearch_result(
             max_containment_ani,
             n_weighted_found,
             total_weighted_hashes,
+            containment_target_in_query: Some(containment_target_in_query),
+            f_weighted_target_in_query,
         };
         return Some(sr);
     }
