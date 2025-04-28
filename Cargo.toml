@@ -10,7 +10,7 @@ name = "sourmash_plugin_branchwater"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.24.1", features = ["extension-module", "anyhow"] }
+pyo3 = { version = "0.24.2", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
 serde = { version = "1.0.219", features = ["derive"] }
 sourmash = { version = "0.18.0", features = ["branchwater"] }
@@ -19,7 +19,7 @@ niffler = "2.4.0"
 log = "0.4.27"
 env_logger = { version = "0.11.6" }
 simple-error = "0.3.1"
-anyhow = "1.0.97"
+anyhow = "1.0.98"
 zip = { version = "2.5", default-features = false }
 tempfile = "3.19"
 needletail = "0.5.1"
@@ -33,7 +33,7 @@ rust_decimal_macros = "1.37.1"
 getset = "0.1"
 
 [dev-dependencies]
-assert_cmd = "2.0.16"
+assert_cmd = "2.0.17"
 assert_matches = "1.5.0"
 predicates = "3.1.3"
 tempfile = "3.19.1"
