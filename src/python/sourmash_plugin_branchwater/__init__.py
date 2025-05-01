@@ -484,6 +484,11 @@ class Branchwater_Multisearch(CommandLinePlugin):
             action="store_true",
             help="ignore threshold and output all comparisons",
         )
+        p.add_argument(
+            '--calc-abund-stats',
+            action='store_true',
+            help='if sketches have abundance information, calculate angular similarity (cosine) for each comparison',
+        )
 
     def main(self, args):
         print_version()
@@ -511,6 +516,7 @@ class Branchwater_Multisearch(CommandLinePlugin):
             args.ani,
             args.prob_significant_overlap,
             args.output_all_comparisons,
+            args.calc_abund_stats,
             args.output,
         )
         if status == 0:
@@ -578,6 +584,11 @@ class Branchwater_Pairwise(CommandLinePlugin):
             action="store_true",
             help="ignore threshold and output all comparisons",
         )
+        p.add_argument(
+            '--calc-abund-stats',
+            action='store_true',
+            help='if sketches have abundance information, calculate angular similarity (cosine) for each comparison',
+        )
 
     def main(self, args):
         print_version()
@@ -601,6 +612,7 @@ class Branchwater_Pairwise(CommandLinePlugin):
             args.ani,
             args.write_all,
             args.output_all_comparisons,
+            args.calc_abund_stats,
             args.output,
         )
         if status == 0:

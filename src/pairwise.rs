@@ -23,6 +23,7 @@ pub fn pairwise(
     estimate_ani: bool,
     write_all: bool,
     output_all_comparisons: bool,
+    calc_abund_stats: bool,
     output: Option<String>,
 ) -> Result<()> {
     // Load all sigs into memory at once.
@@ -65,6 +66,7 @@ pub fn pairwise(
         output,
         threshold,
         ksize,
+        calc_abund_stats,
     )?;
     eprintln!("DONE. Processed {} comparisons", n_processed);
 
@@ -79,6 +81,7 @@ pub(crate) fn pairwise_obj(
     output: Option<String>,
     threshold: f64,
     ksize: f64,
+    calc_abund_stats: bool,
 ) -> Result<usize> {
     // set up a multi-producer, single-consumer channel.
     let (send, recv) =
@@ -118,6 +121,7 @@ pub(crate) fn pairwise_obj(
             {
                 let max_containment = containment_q1_in_q2.max(containment_q2_in_q1);
                 let jaccard = overlap / (query1_size + query2_size - overlap);
+                let average_containment = (containment_q1_in_q2 + containment_q2_in_q1) / 2.0;
                 let mut query_containment_ani = None;
                 let mut match_containment_ani = None;
                 let mut average_containment_ani = None;
@@ -132,6 +136,12 @@ pub(crate) fn pairwise_obj(
                     average_containment_ani = Some((qani + mani) / 2.);
                     max_containment_ani = Some(f64::max(qani, mani));
                 }
+                let mut cosine = None;
+                if calc_abund_stats {
+                    if query.minhash.track_abundance() && against.minhash.track_abundance() {
+                        cosine = query.minhash.angular_similarity(&against.minhash).ok();
+                    }
+                }
                 send.send(MultiSearchResult {
                     query_name: query.name.clone(),
                     query_md5: query.md5sum.clone(),
@@ -143,7 +153,9 @@ pub(crate) fn pairwise_obj(
                     containment: containment_q1_in_q2,
                     max_containment,
                     jaccard,
+                    average_containment,
                     intersect_hashes: overlap,
+                    cosine,
                     query_containment_ani,
                     match_containment_ani,
                     average_containment_ani,
@@ -191,7 +203,9 @@ pub(crate) fn pairwise_obj(
                 containment: 1.0,
                 max_containment: 1.0,
                 jaccard: 1.0,
+                average_containment: 1.0,
                 intersect_hashes: query.minhash.size() as f64,
+                cosine: Some(1.0),
                 query_containment_ani,
                 match_containment_ani,
                 average_containment_ani,
