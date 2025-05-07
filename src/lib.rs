@@ -193,14 +193,13 @@ fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (siglist, ksize, scaled, moltype, output, colors, use_internal_storage))]
+#[pyo3(signature = (siglist, ksize, scaled, moltype, output, use_internal_storage))]
 fn do_index(
     siglist: String,
     ksize: u8,
     scaled: Option<u32>,
     moltype: String,
     output: String,
-    colors: bool,
     use_internal_storage: bool,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(ksize, scaled, &moltype);
@@ -209,7 +208,6 @@ fn do_index(
         siglist,
         selection,
         output,
-        colors,
         allow_failed_sigpaths,
         use_internal_storage,
     ) {
