@@ -1674,3 +1674,67 @@ def test_singlesketch_multifiles(runtmp, capfd):
     sig1 = sourmash.load_one_signature(s1)
 
     assert made_sig == sig1
+
+
+def test_manysketch_gzipped_fasta(runtmp):
+    fa_csv = runtmp.output("db-fa.txt")
+
+    fa1 = get_test_data("short.fa.gz")
+    fa2 = get_test_data("short2.fa.gz")
+    fa3 = get_test_data("short3.fa.gz")
+
+    make_assembly_csv(fa_csv, [fa1, fa2, fa3])
+
+    output = runtmp.output("db.zip")
+
+    runtmp.sourmash(
+        "scripts",
+        "manysketch",
+        fa_csv,
+        "-o",
+        output,
+        "--param-str",
+        "dna,k=31,scaled=1",
+    )
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out  # stdout should be empty
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 3
+
+
+def test_manysketch_fastq(runtmp, capfd):
+    fa_csv = runtmp.output("db-fa.txt")
+
+    fq1 = get_test_data("short.fq")
+    fq2 = get_test_data("short.fq.gz")
+
+    make_reads_csv(fa_csv, [("shortfq", fq1, ""), ("shortfq2", fq2, "")])
+
+    output = runtmp.output("db.zip")
+
+    runtmp.sourmash(
+        "scripts",
+        "manysketch",
+        fa_csv,
+        "-o",
+        output,
+        "--param-str",
+        "dna,k=31,scaled=1",
+    )
+
+    assert os.path.exists(output)
+    assert not runtmp.last_result.out  # stdout should be empty
+    captured = capfd.readouterr()
+    print(captured.out)
+    print(captured.err)
+
+    idx = sourmash.load_file_as_index(output)
+    sigs = list(idx.signatures())
+    print(sigs)
+
+    assert len(sigs) == 2
