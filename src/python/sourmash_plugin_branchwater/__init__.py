@@ -389,7 +389,6 @@ class Branchwater_Index(CommandLinePlugin):
             args.scaled,
             args.moltype,
             args.output,
-            False,  # colors - currently must be false?
             args.internal_storage,
         )
         if status == 0:
