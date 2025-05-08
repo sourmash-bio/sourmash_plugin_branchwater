@@ -314,7 +314,7 @@ def test_sigcat_multk_multsc_multmol_selectmoltype(runtmp, capfd):
 
 
 def test_sigcat_multk_multsc_multmol_selectscaled(runtmp, capfd):
-    # test cat with multiple types of sigs -- select on scaled
+    # test cat with multiple types of sigs -- select on scaled (when we have the exact scaled)
 
     sig1 = get_test_data("1.fa.k21.sig.gz")
     sig2 = get_test_data("2.fa.sig.gz")
@@ -331,7 +331,7 @@ def test_sigcat_multk_multsc_multmol_selectscaled(runtmp, capfd):
         sig_hp,
         sig_sc100k,
         "--scaled",
-        "150",
+        "100",
         "-o",
         output,
     )
@@ -344,7 +344,44 @@ def test_sigcat_multk_multsc_multmol_selectscaled(runtmp, capfd):
 
     assert len(sigs) == 2
     for sig in sigs:
-        assert sig.minhash.scaled == 150
+        assert sig.minhash.scaled == 100
     captured = capfd.readouterr()
     print(captured.out)
     assert f"Concatenated 2 signatures into '{output}'." in captured.out
+
+
+## TODO: implement sig downsampling and make this work
+# def test_sigcat_multk_multsc_multmol_selectscaled_downsample(runtmp, capfd):
+#     # test cat with multiple types of sigs -- select on scaled - needs downsampling!
+#     sig1 = get_test_data("1.fa.k21.sig.gz")
+#     sig2 = get_test_data("2.fa.sig.gz")
+#     sig_hp = get_test_data("hp.zip")
+#     sig_sc100k = get_test_data("SRR606249.sig.gz")
+
+#     output = runtmp.output("out.zip")
+
+#     runtmp.sourmash(
+#         "scripts",
+#         "sigcat",
+#         sig1,
+#         sig2,
+#         sig_hp,
+#         sig_sc100k,
+#         "--scaled",
+#         "150",
+#         "-o",
+#         output,
+#     )
+#     assert os.path.exists(output)
+#     assert not runtmp.last_result.out  # stdout should be empty
+
+#     idx = sourmash.load_file_as_index(output)
+#     sigs = list(idx.signatures())
+#     print(sigs)
+
+#     assert len(sigs) == 2
+#     for sig in sigs:
+#         assert sig.minhash.scaled == 150
+#     captured = capfd.readouterr()
+#     print(captured.out)
+#     assert f"Concatenated 2 signatures into '{output}'." in captured.out

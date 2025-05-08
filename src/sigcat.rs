@@ -34,7 +34,6 @@ pub fn zipreader_spawn(
     for record in selected.iter() {
         let sig = collection.sig_from_record(record)?;
         let mut build_rec = BuildRecord::from_record(record);
-        build_rec.sequence_added = true; // otherwise we won't write
 
         // do we need to select on the sig to downsample?? if so, need to update build rec?
 
@@ -89,7 +88,6 @@ pub fn multicollection_reader(
         .try_for_each(|(coll, _idx, record)| -> Result<()> {
             let sig = coll.sig_from_record(record)?;
             let mut build_rec = BuildRecord::from_record(record);
-            build_rec.sequence_added = true; // otherwise we won't write
             let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
 
             {
