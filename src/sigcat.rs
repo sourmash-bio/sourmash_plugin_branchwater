@@ -22,8 +22,8 @@ pub fn zipreader_spawn(
     selection: &Selection,
     batch_size: usize,
     verbose: bool,
-) -> Result<()> {
-    let collection = Collection::from_zipfile(zip_path)?;
+) -> Result<usize> {
+    let collection = Collection::from_zipfile(zip_path.clone())?;
     let manifest = collection.manifest().clone();
     let selected = manifest.select(selection)?;
 
@@ -33,7 +33,8 @@ pub fn zipreader_spawn(
 
     for record in selected.iter() {
         let sig = collection.sig_from_record(record)?;
-        let build_rec = BuildRecord::from_record(record);
+        let mut build_rec = BuildRecord::from_record(record);
+        build_rec.sequence_added = true; // otherwise we won't write
 
         // do we need to select on the sig to downsample?? if so, need to update build rec?
 
@@ -42,7 +43,7 @@ pub fn zipreader_spawn(
 
         let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
         if verbose || total <= 100 {
-            eprintln!("processed {} of {}", count, total);
+            eprintln!("{}: processed {} of {}", zip_path, count, total);
         } else if count % (total / 100).max(1) == 0 {
             let percent = (count * 100) / total;
             eprintln!("... {}% done", percent);
@@ -57,7 +58,12 @@ pub fn zipreader_spawn(
         tx.send(Some(batch))?;
     }
 
-    Ok(())
+    eprintln!(
+        "finished reading {}: found {} matching signatures",
+        zip_path, total
+    );
+
+    Ok(total)
 }
 
 // Handle non-zip inputs using MultiCollection and rayon
@@ -67,7 +73,7 @@ pub fn multicollection_reader(
     selection: &Selection,
     batch_size: usize,
     verbose: bool,
-) -> Result<()> {
+) -> Result<usize> {
     let pathset: std::collections::HashSet<String> =
         input_paths.iter().map(|p| p.to_string()).collect();
 
@@ -82,13 +88,14 @@ pub fn multicollection_reader(
         .par_iter()
         .try_for_each(|(coll, _idx, record)| -> Result<()> {
             let sig = coll.sig_from_record(record)?;
-            let record = BuildRecord::from_record(record);
+            let mut build_rec = BuildRecord::from_record(record);
+            build_rec.sequence_added = true; // otherwise we won't write
             let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
 
             {
                 let mut batch = batch.lock().unwrap();
                 batch.sigs.push(sig.into());
-                batch.manifest.add_record(record);
+                batch.manifest.add_record(build_rec);
 
                 if batch.sigs.len() >= batch_size {
                     tx.send(Some(std::mem::take(&mut *batch)))
@@ -97,7 +104,7 @@ pub fn multicollection_reader(
             }
 
             if verbose || total <= 100 {
-                eprintln!("processed {} of {}", count, total);
+                eprintln!("non-zips: processed {} of {}", count, total);
             } else if count % (total / 100).max(1) == 0 {
                 let percent = (count * 100) / total;
                 eprintln!("... {}% done", percent);
@@ -111,7 +118,7 @@ pub fn multicollection_reader(
             .expect("send failed");
     }
 
-    Ok(())
+    Ok(total)
 }
 
 // Expand pathlists (.txt files) into a flat list of paths
@@ -158,24 +165,21 @@ pub fn sig_cat(
     let (tx, rx) = sync_channel::<Option<BuildCollection>>(rayon::current_num_threads());
     let writer_handle = zipwriter_handle(rx, output.clone());
 
-    eprintln!("spawned writer thread...");
-
+    let total_written = std::sync::Arc::new(AtomicUsize::new(0));
     // flatten input paths and split into zip / non-zip
     let (zip_inputs, other_inputs) = expand_and_partition_inputs(inputs)?;
 
     py.check_signals()?;
-
-    // did we spawn a thread?
-    let did_spawn = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     // spawn processing
     rayon::scope(|s| {
         for zip_path in &zip_inputs {
             let tx = tx.clone();
             let selection = selection.clone();
+            let total_written = total_written.clone();
             s.spawn(move |_| {
-                if let Err(e) = zipreader_spawn(zip_path, tx, &selection, batch_size, verbose) {
-                    eprintln!("Error in zipreader_spawn: {}", e);
+                if let Ok(n) = zipreader_spawn(&zip_path, tx, &selection, batch_size, verbose) {
+                    total_written.fetch_add(n, Ordering::SeqCst);
                 }
             });
         }
@@ -183,11 +187,12 @@ pub fn sig_cat(
         if !other_inputs.is_empty() {
             let tx = tx.clone();
             let selection = selection.clone();
+            let total_written = total_written.clone();
             s.spawn(move |_| {
-                if let Err(e) =
+                if let Ok(n) =
                     multicollection_reader(&other_inputs, tx, &selection, batch_size, verbose)
                 {
-                    eprintln!("Error in multicollection_reader: {}", e);
+                    total_written.fetch_add(n, Ordering::SeqCst);
                 }
             });
         }
@@ -195,9 +200,14 @@ pub fn sig_cat(
 
     // After all reading threads finish, send None to signal completion (and write the manifest)
     tx.send(None).expect("failed to send final None");
-    // drop(tx);
     // Now wait for the writer thread to finish
     writer_handle.join().expect("writer thread panicked")?;
+
+    println!(
+        "Concatenated {} signatures into '{}'.",
+        total_written.load(Ordering::SeqCst),
+        output
+    );
 
     Ok(())
 }

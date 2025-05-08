@@ -204,6 +204,8 @@ impl BuildRecord {
         self.moltype.as_str().try_into().unwrap()
     }
 
+    // for sigcat, we need the FULL record, not just a template with similar params
+    // not sure if this means we are using this function differently between here and directsketch
     pub fn from_record(record: &Record) -> Self {
         Self {
             ksize: record.ksize(),
@@ -211,6 +213,14 @@ impl BuildRecord {
             num: *record.num(),
             scaled: *record.scaled() as u64,
             with_abundance: record.with_abundance(),
+            filename: Some(record.filename().to_string()),
+            md5: Some(record.md5().clone()),
+            md5short: Some(record.md5().clone()[0..8].to_string()),
+            internal_location: Some(record.internal_location().clone()),
+            n_hashes: Some(record.n_hashes().clone()),
+            name: Some(record.name().clone()),
+            sequence_added: true,
+
             ..Self::default_dna() // ignore remaining fields
         }
     }
