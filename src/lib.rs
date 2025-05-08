@@ -9,8 +9,7 @@ use pyo3::prelude::*;
 extern crate simple_error;
 
 mod utils;
-use crate::utils::build_selection;
-use crate::utils::is_revindex_database;
+use crate::utils::{build_selection, is_revindex_database, parse_picklist};
 mod check;
 mod cluster;
 mod fastgather;
@@ -43,7 +42,7 @@ fn do_manysearch(
     output_all_comparisons: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(Some(ksize), scaled, Some(moltype), None)?;
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
 
@@ -101,7 +100,7 @@ fn do_fastgather(
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(Some(ksize), scaled, Some(moltype), None)?;
     let allow_failed_sigpaths = true;
 
     match fastgather::fastgather(
@@ -136,7 +135,7 @@ fn do_fastmultigather(
     create_empty_results: bool,
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(Some(ksize), scaled, Some(moltype), None)?;
     let allow_failed_sigpaths = true;
 
     // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
@@ -203,7 +202,7 @@ fn do_index(
     output: String,
     use_internal_storage: bool,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(Some(ksize), scaled, Some(moltype), None)?;
     let allow_failed_sigpaths = false;
     match index::index(
         siglist,
@@ -249,7 +248,7 @@ fn do_multisearch(
 ) -> anyhow::Result<u8> {
     let _ = env_logger::try_init();
 
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(Some(ksize), scaled, Some(moltype), None)?;
     let allow_failed_sigpaths = true;
 
     match multisearch::multisearch(
@@ -285,7 +284,7 @@ fn do_pairwise(
     output_all_comparisons: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, &moltype);
+    let selection = build_selection(Some(ksize), scaled, Some(moltype), None)?;
     let allow_failed_sigpaths = true;
     match pairwise::pairwise(
         siglist_path,
@@ -370,21 +369,20 @@ fn do_sigcat(
     py: Python,
     sigfiles: String,
     output_path: String,
-    force: bool,
+    verbose: bool,
+    pickstyle: bool,
     ksize: Option<u8>,
-    scaled: Option<usize>,
+    scaled: Option<u32>,
     moltype: Option<String>,
+    picklist_info: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(ksize, scaled, moltype.as_deref());
-    let allow_failed_sigpaths = true;
-    match sigcat::sig_cat(
-        py,
-        sigfiles,
-        &selection,
-        allow_failed_sigpaths,
-        output_path,
-        force,
-    ) {
+    let mut picklist = None;
+    if let Some(picklist_info) = picklist_info {
+        picklist = Some(parse_picklist(&picklist_info, pickstyle)?);
+    }
+    let selection = build_selection(ksize, scaled, moltype, picklist)?;
+    let batch_size = 10000;
+    match sigcat::sig_cat(py, sigfiles, output_path, &selection, batch_size, verbose) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");

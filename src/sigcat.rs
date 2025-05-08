@@ -1,149 +1,189 @@
 /// sigcat: concatenate signatures into a single sourmash zip file
 use anyhow::Result;
+use camino::Utf8PathBuf;
 use pyo3::Python;
 use sourmash::{collection::Collection, selection::Selection};
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use camino::Utf8PathBuf as PathBuf;
-use sourmash::manifest::{Manifest, Record};
+// use sourmash::manifest::{Manifest, Record};
+use crate::utils::buildutils::{BuildCollection, BuildRecord};
+use crate::utils::multicollection::MultiCollection;
+use rayon::iter::ParallelIterator;
 use sourmash::prelude::Select;
-use zip::write::{FileOptions, ZipWriter};
-use zip::CompressionMethod;
-use piz::ZipArchive;
-use rayon::ThreadPoolBuilder;
+use std::sync::mpsc::{sync_channel, SyncSender};
 
+use crate::utils::zipwriter_handle;
 
-use crate::utils::{load_collection, open_output_file, write_signature, ReportType, zipwriter_handle};
+// batched reading and sending to the writer thread
+pub fn zipreader_spawn(
+    zip_path: &Utf8PathBuf,
+    tx: SyncSender<Option<BuildCollection>>,
+    selection: &Selection,
+    batch_size: usize,
+    verbose: bool,
+) -> Result<()> {
+    let collection = Collection::from_zipfile(zip_path)?;
+    let manifest = collection.manifest().clone();
+    let selected = manifest.select(selection)?;
 
+    let total = selected.iter().count();
+    let processed = AtomicUsize::new(0);
+    let mut batch = BuildCollection::new();
 
-// Use piz to parallel-read signatures from a zip file and send BuildCollection objects to writer
-pub fn zipreader_spawn(zip_path: &Utf8PathBuf, tx: Sender<Option<BuildCollection>>) -> Result<()> {
-    let file = File::open(zip_path)?;
-    let archive = ZipArchive::new(file)?;
-    let pool = ThreadPoolBuilder::new().build()?;
+    for record in selected.iter() {
+        let sig = collection.sig_from_record(record)?;
+        let build_rec = BuildRecord::from_record(record);
 
-    archive.entries_parallel(&pool, |name, mut entry| {
-        if name.ends_with(".sig.gz") && name.starts_with("signatures/") {
-            let mut buf = vec![];
-            entry.read_to_end(&mut buf)?;
-            let (_fmt, decompressed) = niffler::decompress(&buf)?;
-            let sigs: Vec<Signature> = serde_json::from_slice(&decompressed)?;
-            for sig in sigs {
-                let record = BuildRecord::from(&sig);
-                let mut build_coll = BuildCollection::new();
-                build_coll.sigs.push(sig);
-                build_coll.manifest.add_record(record);
-                tx.send(Some(build_coll)).expect("send failed");
-            }
+        // do we need to select on the sig to downsample?? if so, need to update build rec?
+
+        batch.sigs.push(sig.into());
+        batch.manifest.add_record(build_rec);
+
+        let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
+        if verbose || total <= 100 {
+            eprintln!("processed {} of {}", count, total);
+        } else if count % (total / 100).max(1) == 0 {
+            let percent = (count * 100) / total;
+            eprintln!("... {}% done", percent);
         }
-        Ok(())
-    })?;
 
-    tx.send(None).expect("failed to send final None");
+        if batch.sigs.len() >= batch_size {
+            tx.send(Some(std::mem::take(&mut batch)))?;
+        }
+    }
+
+    if !batch.sigs.is_empty() {
+        tx.send(Some(batch))?;
+    }
+
     Ok(())
 }
 
+// Handle non-zip inputs using MultiCollection and rayon
+pub fn multicollection_reader(
+    input_paths: &[Utf8PathBuf],
+    tx: SyncSender<Option<BuildCollection>>,
+    selection: &Selection,
+    batch_size: usize,
+    verbose: bool,
+) -> Result<()> {
+    let pathset: std::collections::HashSet<String> =
+        input_paths.iter().map(|p| p.to_string()).collect();
+
+    let (mut multi, _nloaded) = MultiCollection::load_set_of_paths(&pathset);
+    multi = multi.select(selection)?;
+
+    let total = multi.len();
+    let processed = AtomicUsize::new(0);
+    let batch = std::sync::Mutex::new(BuildCollection::new());
+
+    multi
+        .par_iter()
+        .try_for_each(|(coll, _idx, record)| -> Result<()> {
+            let sig = coll.sig_from_record(record)?;
+            let record = BuildRecord::from_record(record);
+            let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
+
+            {
+                let mut batch = batch.lock().unwrap();
+                batch.sigs.push(sig.into());
+                batch.manifest.add_record(record);
+
+                if batch.sigs.len() >= batch_size {
+                    tx.send(Some(std::mem::take(&mut *batch)))
+                        .expect("send failed");
+                }
+            }
+
+            if verbose || total <= 100 {
+                eprintln!("processed {} of {}", count, total);
+            } else if count % (total / 100).max(1) == 0 {
+                let percent = (count * 100) / total;
+                eprintln!("... {}% done", percent);
+            }
+
+            Ok::<(), anyhow::Error>(())
+        })?;
+    let mut batch = batch.lock().unwrap();
+    if !batch.sigs.is_empty() {
+        tx.send(Some(std::mem::take(&mut *batch)))
+            .expect("send failed");
+    }
+
+    Ok(())
+}
 
 pub fn sig_cat(
     py: Python,
-    input_sigs: String,
+    input: String,
+    output: String,
     selection: &Selection,
-    allow_failed_sigpaths: bool,
-    output_path: String,
+    batch_size: usize,
     verbose: bool,
 ) -> Result<()> {
     // Check if output_path ends with ".zip"
-    if !output_path.ends_with(".zip") {
+    if !output.ends_with(".zip") {
         return Err(anyhow::anyhow!("Output file must end with '.zip'"));
     }
 
-    // Convert input string to path set
-    let sig_paths: std::collections::HashSet<String> =
-        input_sigs.split_whitespace().map(|s| s.to_string()).collect();
+    // init channels and writer thread
+    let (tx, rx) = sync_channel::<Option<BuildCollection>>(rayon::current_num_threads());
+    let writer_handle = zipwriter_handle(rx, output.clone());
 
-    // Load all input collections
-    let (mut multi, _nloaded) = MultiCollection::load_set_of_paths(&sig_paths);
+    eprintln!("spawned writer thread...");
 
-    if !selection.is_empty() {
-        multi = multi.select(selection)?;
+    // inputs strings to paths
+    let input_paths: Vec<Utf8PathBuf> = input.split_whitespace().map(Utf8PathBuf::from).collect();
+
+    // print found input paths
+    if verbose {
+        eprintln!("Found {} input paths:", input_paths.len());
+        for path in &input_paths {
+            eprintln!("  {}", path);
+        }
     }
 
-    if multi.is_empty() {
-        bail!("No signatures to concatenate, exiting.");
-    }
+    // split input sigs into zip / non-zip
+    let (zip_inputs, other_inputs): (Vec<_>, Vec<_>) = input_paths
+        .into_iter()
+        .partition(|p| p.extension().map_or(false, |e| e == "zip"));
 
-    // Setup for writing zip
-    let outpath: PathBuf = output_path.into();
-    let writer = open_output_file(&outpath);
-    let options = FileOptions::default()
-        .compression_method(CompressionMethod::Stored)
-        .unix_permissions(0o644)
-        .large_file(true);
-    let mut zip = ZipWriter::new(writer);
+    py.check_signals()?;
 
-    // Track md5sums to handle duplicates
-    let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
-    let mut build_manifest = BuildManifest::new();
+    // did we spawn a thread?
+    let did_spawn = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
-    // info for progress reporting
-    let processed = AtomicUsize::new(0);
-    let total_sigs = multi.len();
-
-    // Iterate over all items in MultiCollection
-    for (coll, _idx, record) in multi.item_iter() {
-        py.check_signals();
-
-        // progress reporting
-        let p = processed.load(Ordering::SeqCst);
-        if verbose || total_sigs <= 100 {
-            eprintln!("processed {} of {}", p, total_sigs);
-        } else if processed % (total_sigs / 100).max(1) == 0 {
-            eprintln!("processed {} of {} ({}%)", p, total_sigs, (p * 100) / total_sigs);
+    // spawn processing
+    rayon::scope(|s| {
+        for zip_path in &zip_inputs {
+            let tx = tx.clone();
+            let selection = selection.clone();
+            s.spawn(move |_| {
+                if let Err(e) = zipreader_spawn(zip_path, tx, &selection, batch_size, verbose) {
+                    eprintln!("Error in zipreader_spawn: {}", e);
+                }
+            });
         }
 
-        let sig = coll.sig_from_record(record).context("failed to load signature")?;
-        // do we need to do a select here?? I think maybe yes? .select(selection)?
-        // i think this is required for downsampling, right?
+        if !other_inputs.is_empty() {
+            let tx = tx.clone();
+            let selection = selection.clone();
+            s.spawn(move |_| {
+                if let Err(e) =
+                    multicollection_reader(&other_inputs, tx, &selection, batch_size, verbose)
+                {
+                    eprintln!("Error in multicollection_reader: {}", e);
+                }
+            });
+        }
+    });
 
-        let md5 = sig.md5sum();
-        let count = md5sum_occurrences.entry(md5.clone()).or_insert(0);
-        *count += 1;
+    // After all reading threads finish, send None to signal completion (and write the manifest)
+    // tx.send(None).expect("failed to send final None");
+    drop(tx);
+    // Now wait for the writer thread to finish
+    writer_handle.join().expect("writer thread panicked")?;
 
-        let sig_filename = if *count > 1 {
-            format!("signatures/{}_{}.sig.gz", md5, count)
-        } else {
-            format!("signatures/{}.sig.gz", md5)
-        };
-
-        // Write signature to zip
-        write_signature(&sig, &mut zip, options.clone(), &sig_filename)?;
-         
-        // Build new BuildRecord and update fields
-        let mut brec = BuildRecord::from_record(record);
-        brec.set_internal_location(Some(sig_filename.clone().into()));
-        brec.set_md5(Some(md5.clone()));
-        brec.set_md5short(Some(md5[..8].to_string()));
-        brec.set_n_hashes(Some(sig.get_sketch()?.size()));
-        brec.set_name(sig.name().map(|s| s.to_string()));
-        brec.set_filename(sig.filename().map(|s| s.to_string()));
-        brec.sequence_added = true;
-
-        build_manifest.add_record(brec);
-        processed.fetch_add(1, Ordering::SeqCst);
-    }
-
-    // Write manifest
-    println!("Writing manifest...");
-    build_manifest
-        .write_manifest_to_zip(&mut zip, &options)
-        .context("failed to write manifest")?;
-
-    zip.finish()?;
-
-    let total = collected_sigs.load(Ordering::SeqCst);
-    eprintln!("Concatenated {} signatures into '{}'.", total, outpath);
-    
     Ok(())
 }
