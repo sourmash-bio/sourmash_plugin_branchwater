@@ -1,43 +1,44 @@
-/// Utility functions for sourmash_plugin_branchwater.
+//! Utility functions for `sourmash_plugin_branchwater`.
 use rayon::prelude::*;
+
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
+use sourmash::ScaledType;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use glob::glob;
 use serde::{Deserialize, Serialize};
+// use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
-use std::fs::{create_dir_all, File};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::fs::{create_dir_all, metadata, File};
+use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use zip::write::{ExtendedFileOptions, FileOptions, ZipWriter};
+use std::sync::mpsc::{Receiver, SyncSender};
+use std::thread::JoinHandle;
+use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
-use sourmash::collection::Collection;
-use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::Selection;
-use sourmash::signature::{Signature, SigsTrait};
+use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
-/// Track a name/minhash.
+use std::hash::{Hash, Hasher};
 
-pub struct SmallSignature {
-    pub location: String,
-    pub name: String,
-    pub md5sum: String,
-    pub minhash: KmerMinHash,
-}
+pub mod multicollection;
+pub use multicollection::{MultiCollection, SmallSignature};
+
+pub mod buildutils;
+use buildutils::{BuildCollection, BuildManifest};
+
 /// Structure to hold overlap information from comparisons.
-
 pub struct PrefetchResult {
     pub name: String,
     pub md5sum: String,
@@ -79,10 +80,9 @@ pub fn prefetch(
         .filter_map(|result| {
             let mut mm = None;
             let searchsig = &result.minhash;
-            // downsample within count_common
-            let overlap = searchsig.count_common(query_mh, true);
+            let overlap = searchsig.count_common(query_mh, false);
             if let Ok(overlap) = overlap {
-                if overlap >= threshold_hashes {
+                if overlap > 0 && overlap >= threshold_hashes {
                     let result = PrefetchResult { overlap, ..result };
                     mm = Some(result);
                 }
@@ -94,10 +94,12 @@ pub fn prefetch(
 
 /// Write list of prefetch matches.
 pub fn write_prefetch(
-    query: &SigStore,
+    query_filename: String,
+    query_name: String,
+    query_md5: String,
     prefetch_output: Option<String>,
     matchlist: &BinaryHeap<PrefetchResult>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Define the writer to stdout by default
     let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
 
@@ -124,12 +126,7 @@ pub fn write_prefetch(
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
-            query.filename(),
-            query.name(),
-            query.md5sum(),
-            m.name,
-            m.md5sum,
-            m.overlap
+            query_filename, query_name, query_md5, m.name, m.md5sum, m.overlap
         )
         .ok();
     }
@@ -432,68 +429,52 @@ fn process_prefix_csv(
     Ok((results, n_fastas))
 }
 
-// Load all compatible minhashes from a collection into memory
-// also store sig name and md5 alongside, as we usually need those
-pub fn load_sketches(
-    collection: Collection,
-    selection: &Selection,
-    _report_type: ReportType,
-) -> Result<Vec<SmallSignature>> {
-    let sketchinfo: Vec<SmallSignature> = collection
-        .par_iter()
-        .filter_map(|(_idx, record)| {
-            let sig = collection.sig_from_record(record).ok()?;
-            let selected_sig = sig.clone().select(selection).ok()?;
-            let minhash = selected_sig.minhash()?.clone();
-
-            Some(SmallSignature {
-                location: record.internal_location().to_string(),
-                name: sig.name(),
-                md5sum: sig.md5sum(),
-                minhash,
-            })
-        })
-        .collect();
-
-    Ok(sketchinfo)
-}
+/////////
 
 /// Load a collection of sketches from a file, filtering to keep only
 /// those with a minimum overlap.
 
 pub fn load_sketches_above_threshold(
-    against_collection: Collection,
+    against_collection: MultiCollection,
     query: &KmerMinHash,
     threshold_hashes: u64,
 ) -> Result<(BinaryHeap<PrefetchResult>, usize, usize)> {
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
+    if against_collection.contains_revindex {
+        eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
+    }
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
-        .filter_map(|(_idx, against_record)| {
+        .filter_map(|(coll, _idx, against_record)| {
             let mut results = Vec::new();
             // Load against into memory
-            if let Ok(against_sig) = against_collection.sig_from_record(against_record) {
-                if let Some(against_mh) = against_sig.minhash() {
-                    // downsample against_mh, but keep original md5sum
-                    let against_mh_ds = against_mh.downsample_scaled(query.scaled()).unwrap();
-                    if let Ok(overlap) = against_mh_ds.count_common(query, false) {
-                        if overlap >= threshold_hashes {
-                            let result = PrefetchResult {
-                                name: against_record.name().to_string(),
-                                md5sum: against_mh.md5sum(),
-                                minhash: against_mh_ds.clone(),
-                                location: against_record.internal_location().to_string(),
-                                overlap,
-                            };
-                            results.push(result);
-                        }
+            if let Ok(against_sig) = coll.sig_from_record(against_record) {
+                let against_filename = against_sig.filename();
+                let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
+                let against_md5 = against_record.md5().clone(); // keep original md5sum
+
+                let against_mh_ds = against_mh
+                    .downsample_scaled(query.scaled())
+                    .expect("cannot downsample sketch");
+
+                // good? ok, store as candidate from prefetch.
+                if let Ok(overlap) = against_mh_ds.count_common(query, false) {
+                    if overlap > 0 && overlap >= threshold_hashes {
+                        let result = PrefetchResult {
+                            name: against_record.name().to_string(),
+                            md5sum: against_md5,
+                            minhash: against_mh_ds,
+                            location: against_record.internal_location().to_string(),
+                            overlap,
+                        };
+                        results.push(result);
                     }
                 } else {
                     eprintln!(
                         "WARNING: no compatible sketches in path '{}'",
-                        against_sig.filename()
+                        against_filename
                     );
                     let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
@@ -537,149 +518,25 @@ impl std::fmt::Display for ReportType {
     }
 }
 
-pub fn collection_from_zipfile(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
-    match Collection::from_zipfile(sigpath) {
-        Ok(collection) => Ok(collection),
-        Err(_) => bail!("failed to load {} zipfile: '{}'", report_type, sigpath),
-    }
-}
-
-fn collection_from_manifest(
-    sigpath: &Path,
-    report_type: &ReportType,
-) -> Result<Collection, anyhow::Error> {
-    let file = File::open(sigpath)
-        .with_context(|| format!("Failed to open {} file: '{}'", report_type, sigpath))?;
-
-    let reader = BufReader::new(file);
-    let manifest = Manifest::from_reader(reader).with_context(|| {
-        format!(
-            "Failed to read {} manifest from: '{}'",
-            report_type, sigpath
-        )
-    })?;
-
-    if manifest.is_empty() {
-        // If the manifest is empty, return an error constructed with the anyhow! macro
-        Err(anyhow!("could not read as manifest: '{}'", sigpath))
-    } else {
-        // If the manifest is not empty, proceed to create and return the Collection
-        Ok(Collection::new(
-            manifest,
-            InnerStorage::new(
-                FSStorage::builder()
-                    .fullpath("".into())
-                    .subdir("".into())
-                    .build(),
-            ),
-        ))
-    }
-}
-
-fn collection_from_pathlist(
-    sigpath: &Path,
-    report_type: &ReportType,
-) -> Result<(Collection, usize), anyhow::Error> {
-    let file = File::open(sigpath).with_context(|| {
-        format!(
-            "Failed to open {} pathlist file: '{}'",
-            report_type, sigpath
-        )
-    })?;
-    let reader = BufReader::new(file);
-
-    // load list of paths
-    let lines: Vec<_> = reader
-        .lines()
-        .filter_map(|line| match line {
-            Ok(path) => Some(path),
-            Err(_err) => None,
-        })
-        .collect();
-
-    // load sketches from paths in parallel.
-    let n_failed = AtomicUsize::new(0);
-    let records: Vec<Record> = lines
-        .par_iter()
-        .filter_map(|path| match Signature::from_path(path) {
-            Ok(signatures) => {
-                let recs: Vec<Record> = signatures
-                    .into_iter()
-                    .flat_map(|v| Record::from_sig(&v, path))
-                    .collect();
-                Some(recs)
-            }
-            Err(err) => {
-                eprintln!("Sketch loading error: {}", err);
-                eprintln!("WARNING: could not load sketches from path '{}'", path);
-                let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
-                None
-            }
-        })
-        .flatten()
-        .collect();
-
-    if records.is_empty() {
-        eprintln!(
-            "No valid signatures found in {} pathlist '{}'",
-            report_type, sigpath
-        );
-    }
-
-    let manifest: Manifest = records.into();
-    let collection = Collection::new(
-        manifest,
-        InnerStorage::new(
-            FSStorage::builder()
-                .fullpath("".into())
-                .subdir("".into())
-                .build(),
-        ),
-    );
-    let n_failed = n_failed.load(atomic::Ordering::SeqCst);
-
-    Ok((collection, n_failed))
-}
-
-fn collection_from_signature(sigpath: &Path, report_type: &ReportType) -> Result<Collection> {
-    let signatures = Signature::from_path(sigpath).with_context(|| {
-        format!(
-            "Failed to load {} signatures from: '{}'",
-            report_type, sigpath
-        )
-    })?;
-
-    Collection::from_sigs(signatures).with_context(|| {
-        format!(
-            "Loaded {} signatures but failed to load as collection: '{}'",
-            report_type, sigpath
-        )
-    })
-}
+/// Load a multi collection from a path - this is the new top-level load function.
 
 pub fn load_collection(
     siglist: &String,
     selection: &Selection,
     report_type: ReportType,
     allow_failed: bool,
-    allow_empty: bool,
-) -> Result<Collection> {
+) -> Result<MultiCollection> {
     let sigpath = PathBuf::from(siglist);
 
     if !sigpath.exists() {
         bail!("No such file or directory: '{}'", &sigpath);
     }
 
-    // disallow rocksdb input here
-    if is_revindex_database(&sigpath) {
-        bail!("Cannot load {} signatures from a 'rocksdb' database. Please use sig, zip, or pathlist.", report_type);
-    }
-
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
     let mut last_error = None;
 
     let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
-        match collection_from_zipfile(&sigpath, &report_type) {
+        match MultiCollection::from_zipfile(&sigpath) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
@@ -690,36 +547,53 @@ pub fn load_collection(
         None
     };
 
-    let collection =
-        collection.or_else(|| match collection_from_manifest(&sigpath, &report_type) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
+
+    // we support RocksDB directory paths, but nothing else, unlike sourmash.
+    if collection.is_none() {
+        let path_metadata = metadata(sigpath.clone()).expect("getting path metadata failed");
+        if path_metadata.is_dir() {
+            bail!("arbitrary directories are not supported as input");
+        }
+    }
 
     let collection =
-        collection.or_else(|| match collection_from_signature(&sigpath, &report_type) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+        collection.or_else(
+            || match MultiCollection::from_standalone_manifest(&sigpath) {
+                Ok(coll) => Some((coll, 0)),
+                Err(e) => {
+                    last_error = Some(e);
+                    None
+                }
+            },
+        );
 
-    let collection =
-        collection.or_else(|| match collection_from_pathlist(&sigpath, &report_type) {
-            Ok((coll, n_failed)) => Some((coll, n_failed)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        });
+    let collection = collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
+        Ok(coll) => Some((coll, 0)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
+
+    let collection = collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
+        Ok((coll, n_failed)) => Some((coll, n_failed)),
+        Err(e) => {
+            last_error = Some(e);
+            None
+        }
+    });
 
     match collection {
         Some((coll, n_failed)) => {
             let n_total = coll.len();
+
             let selected = coll.select(selection)?;
             let n_skipped = n_total - selected.len();
             report_on_collection_loading(
@@ -752,7 +626,7 @@ pub fn load_collection(
 ///
 /// # Arguments
 ///
-/// * `sketchlist` - A slice of loaded `SmallSignature` sketches.
+/// * `collection` - A MultiCollection.
 /// * `skipped_paths` - # paths that contained no compatible sketches.
 /// * `failed_paths` - # paths that failed to load.
 /// * `report_type` - ReportType Enum (Query or Against). Used to specify
@@ -768,7 +642,7 @@ pub fn load_collection(
 /// Returns an error if:
 /// * No signatures were successfully loaded.
 pub fn report_on_collection_loading(
-    collection: &Collection,
+    collection: &MultiCollection,
     skipped_paths: usize,
     failed_paths: usize,
     report_type: ReportType,
@@ -799,36 +673,36 @@ pub fn report_on_collection_loading(
     Ok(())
 }
 
-//branchwater version that allows using PrefetchResult
+// branchwater version that allows using PrefetchResult
 #[allow(clippy::too_many_arguments)]
 pub fn branchwater_calculate_gather_stats(
     orig_query: &KmerMinHash,
-    query: KmerMinHash,
+    query: &KmerMinHash,
     // these are separate in PrefetchResult, so just pass them separately in here
-    match_mh: KmerMinHash,
+    match_mh: &KmerMinHash,
     match_name: String,
     match_md5: String,
-    match_size: usize,
+    match_size: u64,
     match_filename: String,
-    gather_result_rank: usize,
-    sum_weighted_found: usize,
-    total_weighted_hashes: usize,
+    gather_result_rank: u64,
+    sum_weighted_found: u64,
+    total_weighted_hashes: u64,
     calc_abund_stats: bool,
     calc_ani_ci: bool,
     confidence: Option<f64>,
 ) -> Result<InterimGatherResult> {
-    //bp remaining in subtracted query
-    let remaining_bp = (query.size() - match_size) * query.scaled() as usize;
+    // bp remaining in subtracted query
+    let remaining_bp = (query.size() as u64 - match_size) * query.scaled() as u64;
 
     // stats for this match vs original query
     let (intersect_orig, _) = match_mh.intersection_size(orig_query).unwrap();
-    let intersect_bp = (match_mh.scaled() * intersect_orig) as usize;
+    let intersect_bp = match_mh.scaled() as u64 * intersect_orig;
     let f_orig_query = intersect_orig as f64 / orig_query.size() as f64;
     let f_match_orig = intersect_orig as f64 / match_mh.size() as f64;
 
     // stats for this match vs current (subtracted) query
     let f_match = match_size as f64 / match_mh.size() as f64;
-    let unique_intersect_bp = match_mh.scaled() as usize * match_size;
+    let unique_intersect_bp = match_mh.scaled() as u64 * match_size;
     let f_unique_to_query = match_size as f64 / orig_query.size() as f64;
 
     // // get ANI values
@@ -878,19 +752,19 @@ pub fn branchwater_calculate_gather_stats(
     // If abundance, calculate abund-related metrics (vs current query)
     if calc_abund_stats {
         // take abunds from subtracted query
-        let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(&query) {
+        let (abunds, unique_weighted_found) = match match_mh.inflated_abundances(query) {
             Ok((abunds, unique_weighted_found)) => (abunds, unique_weighted_found),
             Err(e) => return Err(e.into()),
         };
 
-        n_unique_weighted_found = unique_weighted_found as usize;
+        n_unique_weighted_found = unique_weighted_found;
         sum_total_weighted_found = sum_weighted_found + n_unique_weighted_found;
         f_unique_weighted = n_unique_weighted_found as f64 / total_weighted_hashes as f64;
 
         average_abund = n_unique_weighted_found as f64 / abunds.len() as f64;
 
         // todo: try to avoid clone for these?
-        median_abund = median(abunds.iter().cloned()).unwrap();
+        median_abund = median(abunds.iter().cloned()).expect("cannot calculate median");
         std_abund = stddev(abunds.iter().cloned());
     }
 
@@ -929,70 +803,53 @@ pub fn branchwater_calculate_gather_stats(
 /// removing matches in 'matchlist' from 'query'.
 
 pub fn consume_query_by_gather(
-    query: SigStore,
-    scaled: u64,
+    query_name: String,
+    query_filename: String,
+    orig_query_mh: KmerMinHash,
+    scaled: u32,
     matchlist: BinaryHeap<PrefetchResult>,
     threshold_hashes: u64,
-    gather_output: Option<String>,
+    gather_output: Option<SyncSender<BranchwaterGatherResult>>,
 ) -> Result<()> {
-    // Define the writer to stdout by default
-    let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
-
-    if let Some(output_path) = &gather_output {
-        // Account for potential missing dir in output path
-        let directory_path = Path::new(output_path).parent();
-
-        // If a directory path exists in the filename, create it if it doesn't already exist
-        if let Some(dir) = directory_path {
-            create_dir_all(dir)?;
-        }
-
-        let file = File::create(output_path)?;
-        writer = Box::new(BufWriter::new(file));
-    }
-    // create csv writer
-    let mut csv_writer = Writer::from_writer(writer);
-
     let mut matching_sketches = matchlist;
     let mut rank = 0;
 
     let mut last_matches = matching_sketches.len();
 
-    let location = query.filename();
-
-    let orig_query_mh = query.minhash().unwrap();
-    let query_bp = orig_query_mh.n_unique_kmers() as usize;
-    let query_n_hashes = orig_query_mh.size();
+    let query_bp = orig_query_mh.n_unique_kmers();
+    let query_n_hashes = orig_query_mh.size() as u64;
     let mut query_moltype = orig_query_mh.hash_function().to_string();
     if query_moltype.to_lowercase() == "dna" {
         query_moltype = query_moltype.to_uppercase();
     }
     let query_md5sum: String = orig_query_mh.md5sum().clone();
-    let query_name = query.name().clone();
-    let query_scaled = orig_query_mh.scaled().clone() as usize; //query_mh.scaled() as usize
+    let query_scaled = orig_query_mh.scaled();
 
-    let mut query_mh = orig_query_mh.clone();
-    let mut orig_query_ds = orig_query_mh.clone().downsample_scaled(scaled)?;
-    // to do == use this to subtract hashes instead
-    // let mut query_mht = KmerMinHashBTree::from(orig_query_mh.clone());
-
-    let mut last_hashes = orig_query_mh.size();
-
-    // some items for full gather results
-
-    let mut sum_weighted_found = 0;
     let total_weighted_hashes = orig_query_mh.sum_abunds();
-    let ksize = orig_query_mh.ksize();
-    // set some bools
+    let ksize = orig_query_mh.ksize() as u16;
     let calc_abund_stats = orig_query_mh.track_abundance();
+    let orig_query_size = orig_query_mh.size();
+    let mut last_hashes = orig_query_size;
+
+    // this clone is necessary because we iteratively change things!
+    // to do == use this to subtract hashes instead
+    // let mut query_mh = KmerMinHashBTree::from(orig_query_mh.clone());
+    let mut query_mh = orig_query_mh.clone();
+
+    let mut orig_query_ds = orig_query_mh.downsample_scaled(scaled)?;
+
+    // track for full gather results
+    let mut sum_weighted_found = 0;
+
+    // set some bools
     let calc_ani_ci = false;
     let ani_confidence_interval_fraction = None;
 
     eprintln!(
         "{} iter {}: start: query hashes={} matches={}",
-        location,
+        query_filename,
         rank,
-        orig_query_mh.size(),
+        orig_query_size,
         matching_sketches.len()
     );
 
@@ -1000,21 +857,25 @@ pub fn consume_query_by_gather(
         let best_element = matching_sketches.peek().unwrap();
 
         query_mh = query_mh.downsample_scaled(best_element.minhash.scaled())?;
-        orig_query_ds = orig_query_ds.downsample_scaled(best_element.minhash.scaled())?;
+
+        // CTB: won't need this if we do not allow multiple scaleds;
+        // see sourmash-bio/sourmash#2951
+        orig_query_ds = orig_query_ds
+            .downsample_scaled(best_element.minhash.scaled())
+            .expect("cannot downsample");
 
         //calculate full gather stats
         let match_ = branchwater_calculate_gather_stats(
             &orig_query_ds,
-            query_mh.clone(),
-            // KmerMinHash::from(query.clone()),
-            best_element.minhash.clone(),
+            &query_mh,
+            &best_element.minhash,
             best_element.name.clone(),
             best_element.md5sum.clone(),
-            best_element.overlap as usize,
+            best_element.overlap,
             best_element.location.clone(),
             rank,
             sum_weighted_found,
-            total_weighted_hashes.try_into().unwrap(),
+            total_weighted_hashes,
             calc_abund_stats,
             calc_ani_ci,
             ani_confidence_interval_fraction,
@@ -1035,16 +896,16 @@ pub fn consume_query_by_gather(
             match_md5: match_.match_md5.clone(),
             f_match_orig: match_.f_match_orig,
             unique_intersect_bp: match_.unique_intersect_bp,
-            gather_result_rank: match_.gather_result_rank,
+            gather_result_rank: match_.gather_result_rank as u32,
             remaining_bp: match_.remaining_bp,
-            query_filename: query.filename(),
+            query_filename: query_filename.clone(),
             query_name: query_name.clone(),
             query_md5: query_md5sum.clone(),
-            query_bp: query_bp.clone(),
+            query_bp,
             ksize,
             moltype: query_moltype.clone(),
-            scaled: query_scaled.clone(),
-            query_n_hashes: query_n_hashes,
+            scaled: query_scaled,
+            query_n_hashes,
             query_abundance: query_mh.track_abundance(),
             query_containment_ani: match_.query_containment_ani,
             match_containment_ani: match_.match_containment_ani,
@@ -1060,8 +921,10 @@ pub fn consume_query_by_gather(
             match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
         };
         sum_weighted_found = gather_result.sum_weighted_found;
-        // serialize result to file.
-        csv_writer.serialize(gather_result)?;
+        // send result to channel => CSV file.
+        if let Some(ref s) = gather_output {
+            s.send(gather_result)?;
+        }
 
         // remove!
         query_mh.remove_from(&best_element.minhash)?;
@@ -1078,7 +941,7 @@ pub fn consume_query_by_gather(
 
         eprintln!(
             "{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})",
-            location,
+            query_filename,
             rank,
             query_mh.size(),
             sub_hashes,
@@ -1089,36 +952,36 @@ pub fn consume_query_by_gather(
         last_hashes = query_mh.size();
         last_matches = matching_sketches.len();
     }
+
     Ok(())
 }
 
-pub fn build_selection(
-    ksize: Option<u8>,
-    scaled: Option<usize>,
-    moltype: Option<&str>,
-) -> Selection {
-    let mut selection = Selection::default();
+pub fn build_selection(ksize: u8, scaled: Option<u32>, moltype: &str) -> Selection {
+    let hash_function = match moltype {
+        "DNA" => HashFunctions::Murmur64Dna,
+        "protein" => HashFunctions::Murmur64Protein,
+        "dayhoff" => HashFunctions::Murmur64Dayhoff,
+        "hp" => HashFunctions::Murmur64Hp,
+        "skipm1n3" => HashFunctions::Murmur64Skipm1n3,
+        "skipm2n3" => HashFunctions::Murmur64Skipm2n3,
+        _ => panic!("Unknown molecule type: {}", moltype),
+    };
+    // let hash_function = HashFunctions::try_from(moltype)
+    //     .map_err(|_| panic!("Unknown molecule type: {}", moltype))
+    //     .unwrap();
 
-    if let Some(ksize_value) = ksize {
-        selection.set_ksize(ksize_value as u32);
+    if let Some(scaled) = scaled {
+        Selection::builder()
+            .ksize(ksize.into())
+            .scaled(scaled)
+            .moltype(hash_function)
+            .build()
+    } else {
+        Selection::builder()
+            .ksize(ksize.into())
+            .moltype(hash_function)
+            .build()
     }
-
-    if let Some(scaled_value) = scaled {
-        selection.set_scaled(scaled_value as u32);
-    }
-
-    if let Some(moltype_value) = moltype {
-        let hash_function = match moltype_value {
-            "dna" => HashFunctions::Murmur64Dna,
-            "protein" => HashFunctions::Murmur64Protein,
-            "dayhoff" => HashFunctions::Murmur64Dayhoff,
-            "hp" => HashFunctions::Murmur64Hp,
-            _ => panic!("Unknown molecule type: {}", moltype_value),
-        };
-        selection.set_moltype(hash_function);
-    }
-
-    selection
 }
 
 pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
@@ -1133,12 +996,15 @@ pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
 }
 
 #[derive(Serialize)]
-pub struct SearchResult {
+pub struct ManySearchResult {
     pub query_name: String,
     pub query_md5: String,
     pub match_name: String,
     pub containment: f64,
-    pub intersect_hashes: usize,
+    pub intersect_hashes: u64,
+    pub ksize: u16,
+    pub scaled: u32,
+    pub moltype: String,
     pub match_md5: Option<String>,
     pub jaccard: Option<f64>,
     pub max_containment: Option<f64>,
@@ -1157,13 +1023,13 @@ pub struct SearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub n_weighted_found: Option<usize>,
+    pub n_weighted_found: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_weighted_hashes: Option<usize>,
+    pub total_weighted_hashes: Option<u64>,
 }
 
 pub struct InterimGatherResult {
-    intersect_bp: usize,
+    intersect_bp: u64,
     f_orig_query: f64,
     f_match: f64,
     f_unique_to_query: f64,
@@ -1175,12 +1041,12 @@ pub struct InterimGatherResult {
     match_name: String,
     match_md5: String,
     f_match_orig: f64,
-    unique_intersect_bp: usize,
-    gather_result_rank: usize,
-    remaining_bp: usize,
-    n_unique_weighted_found: usize,
-    total_weighted_hashes: usize,
-    sum_weighted_found: usize,
+    unique_intersect_bp: u64,
+    gather_result_rank: u64,
+    remaining_bp: u64,
+    n_unique_weighted_found: u64,
+    total_weighted_hashes: u64,
+    sum_weighted_found: u64,
     query_containment_ani: f64,
     query_containment_ani_ci_low: Option<f64>,
     query_containment_ani_ci_high: Option<f64>,
@@ -1193,7 +1059,7 @@ pub struct InterimGatherResult {
 
 #[derive(Serialize)]
 pub struct BranchwaterGatherResult {
-    pub intersect_bp: usize,
+    pub intersect_bp: u64,
     pub f_orig_query: f64,
     pub f_match: f64,
     pub f_unique_to_query: f64,
@@ -1205,25 +1071,25 @@ pub struct BranchwaterGatherResult {
     pub match_name: String,
     pub match_md5: String,
     pub f_match_orig: f64,
-    pub unique_intersect_bp: usize,
-    pub gather_result_rank: usize,
-    pub remaining_bp: usize,
+    pub unique_intersect_bp: u64,
+    pub gather_result_rank: u32,
+    pub remaining_bp: u64,
     pub query_filename: String,
     pub query_name: String,
     pub query_md5: String,
-    pub query_bp: usize,
-    pub ksize: usize,
+    pub query_bp: u64,
+    pub ksize: u16,
     pub moltype: String,
-    pub scaled: usize,
-    pub query_n_hashes: usize,
+    pub scaled: u32,
+    pub query_n_hashes: u64,
     pub query_abundance: bool,
     pub query_containment_ani: f64,
     pub match_containment_ani: f64,
     pub average_containment_ani: f64,
     pub max_containment_ani: f64,
-    pub n_unique_weighted_found: usize,
-    pub sum_weighted_found: usize,
-    pub total_weighted_hashes: usize,
+    pub n_unique_weighted_found: u64,
+    pub sum_weighted_found: u64,
+    pub total_weighted_hashes: u64,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani_ci_low: Option<f64>,
@@ -1245,6 +1111,9 @@ pub struct MultiSearchResult {
     pub max_containment: f64,
     pub jaccard: f64,
     pub intersect_hashes: f64,
+    pub ksize: u16,
+    pub scaled: u32,
+    pub moltype: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani: Option<f64>,
@@ -1254,6 +1123,20 @@ pub struct MultiSearchResult {
     pub average_containment_ani: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_containment_ani: Option<f64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prob_overlap: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prob_overlap_adjusted: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    // max_containment / prob_overlap -> Bigger means less likely to be random
+    pub containment_adjusted: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    // logged version is easier to plot/prioritize
+    pub containment_adjusted_log10: Option<f64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tf_idf_score: Option<f64>,
 }
 
 pub fn open_stdout_or_file(output: Option<String>) -> Box<dyn Write + Send + 'static> {
@@ -1279,13 +1162,13 @@ pub struct Params {
     pub ksize: u32,
     pub track_abundance: bool,
     pub num: u32,
-    pub scaled: u64,
+    pub scaled: ScaledType,
     pub seed: u32,
     pub is_protein: bool,
+    pub is_dayhoff: bool,
+    pub is_hp: bool,
     pub is_dna: bool,
 }
-use std::hash::Hash;
-use std::hash::Hasher;
 
 impl Hash for Params {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -1295,18 +1178,19 @@ impl Hash for Params {
         self.scaled.hash(state);
         self.seed.hash(state);
         self.is_protein.hash(state);
+        self.is_dayhoff.hash(state);
+        self.is_hp.hash(state);
         self.is_dna.hash(state);
     }
 }
 
-pub fn sigwriter(
-    recv: std::sync::mpsc::Receiver<Option<Vec<Signature>>>,
+pub fn zipwriter_handle(
+    recv: Receiver<Option<BuildCollection>>,
     output: String,
-) -> std::thread::JoinHandle<Result<()>> {
+) -> JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
-        // cast output as PathBuf
+        // Convert output to PathBuf
         let outpath: PathBuf = output.into();
-
         let file_writer = open_output_file(&outpath);
 
         let options = FileOptions::default()
@@ -1315,34 +1199,33 @@ pub fn sigwriter(
             .large_file(true);
 
         let mut zip = ZipWriter::new(file_writer);
-        let mut manifest_rows: Vec<Record> = Vec::new();
-        // keep track of MD5 sum occurrences to prevent overwriting duplicates
         let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
+        let mut zip_manifest = BuildManifest::new();
 
-        // Process all incoming signatures
+        // Process each incoming Option<BuildCollection>
         while let Ok(message) = recv.recv() {
             match message {
-                Some(sigs) => {
-                    for sig in sigs.iter() {
-                        let md5sum_str = sig.md5sum();
-                        let count = md5sum_occurrences.entry(md5sum_str.clone()).or_insert(0);
-                        *count += 1;
-                        let sig_filename = if *count > 1 {
-                            format!("signatures/{}_{}.sig.gz", md5sum_str, count)
-                        } else {
-                            format!("signatures/{}.sig.gz", md5sum_str)
-                        };
-                        write_signature(sig, &mut zip, options.clone(), &sig_filename);
-                        let records: Vec<Record> = Record::from_sig(sig, sig_filename.as_str());
-                        manifest_rows.extend(records);
+                Some(mut build_collection) => {
+                    // Use BuildCollection's method to write signatures to the zip file
+                    match build_collection.write_sigs_to_zip(
+                        &mut zip,
+                        &mut md5sum_occurrences,
+                        &options,
+                    ) {
+                        Ok(_) => {
+                            zip_manifest.extend_from_manifest(&build_collection.manifest);
+                        }
+                        Err(e) => {
+                            let error = e.context("Error processing signature in BuildCollection");
+                            eprintln!("Error: {}", error);
+                            return Err(error);
+                        }
                     }
                 }
                 None => {
-                    // Write the manifest and finish the ZIP file
+                    // Finalize and write the manifest when None is received
                     println!("Writing manifest");
-                    zip.start_file("SOURMASH-MANIFEST.csv", options)?;
-                    let manifest: Manifest = manifest_rows.clone().into();
-                    manifest.to_writer(&mut zip)?;
+                    zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
                     zip.finish()?;
                     break;
                 }
@@ -1369,31 +1252,4 @@ pub fn csvwriter_thread<T: Serialize + Send + 'static>(
         }
         writer.flush().expect("Failed to flush writer.");
     })
-}
-
-pub fn write_signature(
-    sig: &Signature,
-    zip: &mut zip::ZipWriter<BufWriter<File>>,
-    zip_options: zip::write::FileOptions<ExtendedFileOptions>,
-    sig_filename: &str,
-) {
-    let wrapped_sig = vec![sig];
-    let json_bytes = serde_json::to_vec(&wrapped_sig).unwrap();
-
-    let gzipped_buffer = {
-        let mut buffer = std::io::Cursor::new(Vec::new());
-        {
-            let mut gz_writer = niffler::get_writer(
-                Box::new(&mut buffer),
-                niffler::compression::Format::Gzip,
-                niffler::compression::Level::Nine,
-            )
-            .unwrap();
-            gz_writer.write_all(&json_bytes).unwrap();
-        }
-        buffer.into_inner()
-    };
-
-    zip.start_file(sig_filename, zip_options).unwrap();
-    zip.write_all(&gzipped_buffer).unwrap();
 }

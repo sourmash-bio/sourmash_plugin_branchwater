@@ -77,3 +77,10 @@ docs/_build/
 .python-version
 
 *~
+
+# pixi
+.pixi/
+
+*.csv
+*.zip
+*.rocksdb

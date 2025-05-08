@@ -1,4 +1,4 @@
-.PHONY: all install test wheel sdist upload_dist
+.PHONY: all install format test wheel sdist upload_dist
 
 PYTHON ?= python
 
@@ -7,6 +7,10 @@ all:
 
 install:
 	$(PYTHON) -m pip install -e .
+
+format:
+	cargo fmt
+	python -m black src
 
 test:
 	$(PYTHON) -m pytest

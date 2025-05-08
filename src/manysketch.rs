@@ -2,116 +2,13 @@
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
-use crate::utils::{load_fasta_fromfile, sigwriter, Params};
 use camino::Utf8Path as Path;
 use needletail::parse_fastx_file;
-use sourmash::cmd::ComputeParameters;
-use sourmash::signature::Signature;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-fn parse_params_str(params_strs: String) -> Result<Vec<Params>, String> {
-    let mut unique_params: std::collections::HashSet<Params> = std::collections::HashSet::new();
-
-    // split params_strs by _ and iterate over each param
-    for p_str in params_strs.split('_').collect::<Vec<&str>>().iter() {
-        let items: Vec<&str> = p_str.split(',').collect();
-
-        let mut ksizes = Vec::new();
-        let mut track_abundance = false;
-        let mut num = 0;
-        let mut scaled = 1000;
-        let mut seed = 42;
-        let mut is_protein = false;
-        let mut is_dna = true;
-
-        for item in items.iter() {
-            match *item {
-                _ if item.starts_with("k=") => {
-                    let k_value = item[2..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse k='{}' as a number", &item[2..]))?;
-                    ksizes.push(k_value);
-                }
-                "abund" => track_abundance = true,
-                "noabund" => track_abundance = false,
-                _ if item.starts_with("num=") => {
-                    num = item[4..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse num='{}' as a number", &item[4..]))?;
-                }
-                _ if item.starts_with("scaled=") => {
-                    scaled = item[7..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse scaled='{}' as a number", &item[7..]))?;
-                }
-                _ if item.starts_with("seed=") => {
-                    seed = item[5..]
-                        .parse()
-                        .map_err(|_| format!("cannot parse seed='{}' as a number", &item[5..]))?;
-                }
-                "protein" => {
-                    is_protein = true;
-                    is_dna = false;
-                }
-                "dna" => {
-                    is_protein = false;
-                    is_dna = true;
-                }
-                _ => return Err(format!("unknown component '{}' in params string", item)),
-            }
-        }
-
-        for &k in &ksizes {
-            let param = Params {
-                ksize: k,
-                track_abundance,
-                num,
-                scaled,
-                seed,
-                is_protein,
-                is_dna,
-            };
-            unique_params.insert(param);
-        }
-    }
-
-    Ok(unique_params.into_iter().collect())
-}
-
-fn build_siginfo(params: &[Params], moltype: &str) -> Vec<Signature> {
-    let mut sigs = Vec::new();
-
-    for param in params.iter().cloned() {
-        match moltype {
-            // if dna, only build dna sigs. if protein, only build protein sigs
-            "dna" | "DNA" if !param.is_dna => continue,
-            "protein" if !param.is_protein => continue,
-            _ => (),
-        }
-
-        // Adjust ksize value based on the is_protein flag
-        let adjusted_ksize = if param.is_protein {
-            param.ksize * 3
-        } else {
-            param.ksize
-        };
-
-        let cp = ComputeParameters::builder()
-            .ksizes(vec![adjusted_ksize])
-            .scaled(param.scaled)
-            .protein(param.is_protein)
-            .dna(param.is_dna)
-            .num_hashes(param.num)
-            .track_abundance(param.track_abundance)
-            .build();
-
-        let sig = Signature::from_params(&cp);
-        sigs.push(sig);
-    }
-
-    sigs
-}
+use crate::utils::buildutils::{BuildCollection, MultiSelect, MultiSelection};
+use crate::utils::{load_fasta_fromfile, zipwriter_handle};
 
 pub fn manysketch(
     filelist: String,
@@ -119,7 +16,7 @@ pub fn manysketch(
     output: String,
     singleton: bool,
     force: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let (fileinfo, n_fastas) = match load_fasta_fromfile(filelist, force) {
         Ok((file_info, n_fastas)) => (file_info, n_fastas),
         Err(e) => bail!("Could not load fromfile csv. Underlying error: {}", e),
@@ -138,24 +35,24 @@ pub fn manysketch(
         bail!("Output must be a zip file.");
     }
 
-    // set up a multi-producer, single-consumer channel that receives Signature
+    // set up a multi-producer, single-consumer channel that receives BuildCollection
     let (send, recv) =
-        std::sync::mpsc::sync_channel::<Option<Vec<Signature>>>(rayon::current_num_threads());
-    // need to use Arc so we can write the manifest after all sigs have written
-    // let send = std::sync::Arc::new(send);
+        std::sync::mpsc::sync_channel::<Option<BuildCollection>>(rayon::current_num_threads());
 
     // & spawn a thread that is dedicated to printing to a buffered output
-    let thrd = sigwriter(recv, output);
+    let thrd = zipwriter_handle(recv, output);
 
-    // parse param string into params_vec, print error if fail
-    let param_result = parse_params_str(param_str);
-    let params_vec = match param_result {
-        Ok(params) => params,
+    // params --> buildcollection
+    let sig_template_result = BuildCollection::from_param_str(param_str.as_str());
+    let sig_templates = match sig_template_result {
+        Ok(sig_templates) => sig_templates,
         Err(e) => {
-            eprintln!("Error parsing params string: {}", e);
-            bail!("Failed to parse params string");
+            bail!("Failed to parse params string: {}", e);
         }
     };
+
+    // print sig templates to build
+    let _params = sig_templates.summarize_params();
 
     // iterate over filelist_paths
     let processed_fastas = AtomicUsize::new(0);
@@ -170,21 +67,22 @@ pub fn manysketch(
         .filter_map(|fastadata| {
             let name = &fastadata.name;
             let filenames = &fastadata.paths;
-            let moltype = &fastadata.input_type;
-            // build sig templates for these sketches from params, check if there are sigs to build
-            let sig_templates = build_siginfo(&params_vec, moltype);
+            let input_moltype = &fastadata.input_type;
+            let mut sigs = sig_templates.clone();
+            // filter sig templates for this fasta by moltype
+            // atm, we only do DNA->DNA, prot->prot Future -- figure out if we need to modify to allow translate/skip
+            let multiselection = MultiSelection::from_input_moltype(input_moltype.as_str())
+                .expect("could not build selection from input moltype");
+
+            sigs.select(&multiselection)
+                .expect("could not select on sig_templates");
+
             // if no sigs to build, skip this iteration
-            if sig_templates.is_empty() {
+            if sigs.is_empty() {
                 skipped_paths.fetch_add(filenames.len(), atomic::Ordering::SeqCst);
                 processed_fastas.fetch_add(1, atomic::Ordering::SeqCst);
                 return None;
             }
-
-            let mut sigs = sig_templates.clone();
-            // have name / filename been set for each sig yet?
-            let mut set_name = false;
-            // if merging multiple files, sourmash sets filename as last filename
-            let last_filename = filenames.last().unwrap();
 
             for filename in filenames {
                 // increment processed_fastas counter; make 1-based for % reporting
@@ -199,60 +97,59 @@ pub fn manysketch(
                         percent_processed
                     );
                 }
-
-                // Open fasta file reader
-                let mut reader = match parse_fastx_file(filename) {
-                    Ok(r) => r,
-                    Err(err) => {
-                        eprintln!("Error opening file {}: {:?}", filename, err);
-                        failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                        return None;
-                    }
-                };
-
-                // parse fasta and add to signature
-                while let Some(record_result) = reader.next() {
-                    match record_result {
-                        Ok(record) => {
-                            // do we need to normalize to make sure all the bases are consistently capitalized?
-                            // let norm_seq = record.normalize(false);
-                            sigs.iter_mut().for_each(|sig| {
-                                if singleton {
-                                    let record_name = std::str::from_utf8(record.id())
-                                        .expect("could not get record id");
-                                    sig.set_name(record_name);
-                                    sig.set_filename(filename.as_str());
-                                } else if !set_name {
-                                    sig.set_name(name);
-                                    // sourmash sets filename to last filename if merging fastas
-                                    sig.set_filename(last_filename.as_str());
-                                };
-                                if moltype == "protein" {
-                                    sig.add_protein(&record.seq())
-                                        .expect("Failed to add protein");
-                                } else {
-                                    sig.add_sequence(&record.seq(), true)
-                                        .expect("Failed to add sequence");
-                                    // if not force, panics with 'N' in dna sequence
-                                }
-                            });
-                            if !set_name {
-                                set_name = true;
-                            }
-                        }
-                        Err(err) => eprintln!("Error while processing record: {:?}", err),
-                    }
-                    if singleton {
-                        // write sigs immediately to avoid memory issues
-                        if let Err(e) = send.send(Some(sigs.clone())) {
-                            eprintln!("Unable to send internal data: {:?}", e);
+                if singleton {
+                    // Open fasta file reader
+                    let mut reader = match parse_fastx_file(filename) {
+                        Ok(r) => r,
+                        Err(err) => {
+                            eprintln!("Error opening file {}: {:?}", filename, err);
+                            failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                             return None;
                         }
-                        sigs = sig_templates.clone();
+                    };
+
+                    while let Some(record_result) = reader.next() {
+                        match record_result {
+                            Ok(record) => {
+                                if let Err(err) = sigs.build_singleton_sigs(
+                                    record,
+                                    input_moltype,
+                                    filename.to_string(),
+                                ) {
+                                    eprintln!(
+                                        "Error building signatures from file: {}, {:?}",
+                                        filename, err
+                                    );
+                                    // do we want to keep track of singleton sigs that fail? if so, how?
+                                }
+                                // send singleton sigs for writing
+                                if let Err(e) = send.send(Some(sigs)) {
+                                    eprintln!("Unable to send internal data: {:?}", e);
+                                    return None;
+                                }
+                                sigs = sig_templates.clone();
+                            }
+                            Err(err) => eprintln!("Error while processing record: {:?}", err),
+                        }
+                    }
+                } else {
+                    match sigs.build_sigs_from_file_or_stdin(
+                        input_moltype,
+                        name.clone(),
+                        filename.to_string(),
+                    ) {
+                        Ok(_record_count) => {}
+                        Err(err) => {
+                            eprintln!(
+                                "Error building signatures from file: {}, {:?}",
+                                filename, err
+                            );
+                            failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                        }
                     }
                 }
             }
-            // if singleton sketches, they have already been written; only write aggregate sketches
+            // if singleton sketches, they have already been written; only send aggregated sketches to be written
             if singleton {
                 None
             } else {
@@ -261,7 +158,7 @@ pub fn manysketch(
         })
         .try_for_each_with(
             send.clone(),
-            |s: &mut std::sync::mpsc::SyncSender<Option<Vec<Signature>>>, sigs| {
+            |s: &mut std::sync::mpsc::SyncSender<Option<BuildCollection>>, sigs| {
                 if let Err(e) = s.send(Some(sigs)) {
                     Err(format!("Unable to send internal data: {:?}", e))
                 } else {

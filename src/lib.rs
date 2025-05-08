@@ -1,4 +1,8 @@
-/// Python interface Rust code for sourmash_plugin_branchwater.
+//! Rust-to-Python interface code for sourmash_plugin_branchwater, using pyo3.
+//!
+//! If you're using Rust, you're probably most interested in
+//! [utils](utils/index.html)
+
 use pyo3::prelude::*;
 
 #[macro_use]
@@ -11,42 +15,55 @@ mod check;
 mod cluster;
 mod fastgather;
 mod fastmultigather;
+mod fastmultigather_rocksdb;
 mod index;
 mod manysearch;
+mod manysearch_rocksdb;
 mod manysketch;
-mod mastiff_manygather;
-mod mastiff_manysearch;
 mod multisearch;
 mod pairwise;
+<<<<<<< HEAD
 mod sigcat;
+=======
+mod search_significance;
+mod singlesketch;
+>>>>>>> main
 
 use camino::Utf8PathBuf as PathBuf;
 
 #[pyfunction]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None))]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, output_path=None, ignore_abundance=false, output_all_comparisons=false))]
+#[allow(clippy::too_many_arguments)]
 fn do_manysearch(
     querylist_path: String,
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path: Option<String>,
+    ignore_abundance: Option<bool>,
+    output_all_comparisons: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
 
-    // if siglist_path is revindex, run mastiff_manysearch; otherwise run manysearch
+    let ignore_abundance = ignore_abundance.unwrap_or(false);
+    let output_all_comparisons = output_all_comparisons.unwrap_or(false);
+
+    // if siglist_path is revindex, run rocksdb manysearch; otherwise run manysearch
     if is_revindex_database(&againstfile_path) {
-        match mastiff_manysearch::mastiff_manysearch(
+        // note: manysearch_rocksdb ignores abundance automatically.
+        match manysearch_rocksdb::manysearch_rocksdb(
             querylist_path,
             againstfile_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
+            output_all_comparisons,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -58,10 +75,12 @@ fn do_manysearch(
         match manysearch::manysearch(
             querylist_path,
             siglist_path,
-            &selection,
+            selection,
             threshold,
             output_path,
             allow_failed_sigpaths,
+            ignore_abundance,
+            output_all_comparisons,
         ) {
             Ok(_) => Ok(0),
             Err(e) => {
@@ -78,9 +97,9 @@ fn do_manysearch(
 fn do_fastgather(
     query_filename: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
@@ -92,8 +111,7 @@ fn do_fastgather(
         query_filename,
         siglist_path,
         threshold_bp,
-        scaled,
-        &selection,
+        selection,
         output_path_prefetch,
         output_path_gather,
         allow_failed_sigpaths,
@@ -107,13 +125,14 @@ fn do_fastgather(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (query_filenames, siglist_path, threshold_bp, ksize, scaled, moltype, output_path=None, save_matches=false, create_empty_results=false))]
 fn do_fastmultigather(
     query_filenames: String,
     siglist_path: String,
-    threshold_bp: usize,
+    threshold_bp: u64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output_path: Option<String>,
     save_matches: bool,
@@ -123,13 +142,13 @@ fn do_fastmultigather(
     let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
     let allow_failed_sigpaths = true;
 
-    // if a siglist path is a revindex, run mastiff_manygather. If not, run multigather
+    // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
     if is_revindex_database(&againstfile_path) {
-        match mastiff_manygather::mastiff_manygather(
+        match fastmultigather_rocksdb::fastmultigather_rocksdb(
             query_filenames,
             againstfile_path,
-            &selection,
-            threshold_bp,
+            selection.clone(),
+            threshold_bp as u32,
             output_path,
             allow_failed_sigpaths,
         ) {
@@ -140,17 +159,15 @@ fn do_fastmultigather(
             }
         }
     } else {
-        if output_path.is_some() {
-            bail!("output path specified, but not running fastmultigather against a rocksdb. See issue #239");
-        }
         match fastmultigather::fastmultigather(
             query_filenames,
             siglist_path,
-            threshold_bp,
+            threshold_bp as u32,
             scaled,
-            &selection,
+            selection,
             allow_failed_sigpaths,
             save_matches,
+            output_path,
             create_empty_results,
         ) {
             Ok(_) => Ok(0),
@@ -180,22 +197,21 @@ fn set_global_thread_pool(num_threads: usize) -> PyResult<usize> {
 }
 
 #[pyfunction]
+#[pyo3(signature = (siglist, ksize, scaled, moltype, output, use_internal_storage))]
 fn do_index(
     siglist: String,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     output: String,
-    colors: bool,
     use_internal_storage: bool,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
     let allow_failed_sigpaths = false;
     match index::index(
         siglist,
-        &selection,
+        selection,
         output,
-        colors,
         allow_failed_sigpaths,
         use_internal_storage,
     ) {
@@ -208,9 +224,9 @@ fn do_index(
 }
 
 #[pyfunction]
-fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
+fn do_check(index: String, quick: bool, rw: bool) -> anyhow::Result<u8> {
     let idx: PathBuf = index.into();
-    match check::check(idx, quick) {
+    match check::check(idx, quick, rw) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -220,28 +236,34 @@ fn do_check(index: String, quick: bool) -> anyhow::Result<u8> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, output_path=None))]
+#[pyo3(signature = (querylist_path, siglist_path, threshold, ksize, scaled, moltype, estimate_ani, estimate_prob_overlap, output_all_comparisons, output_path=None))]
 #[allow(clippy::too_many_arguments)]
 fn do_multisearch(
     querylist_path: String,
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     estimate_ani: bool,
+    estimate_prob_overlap: bool,
+    output_all_comparisons: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
+    let _ = env_logger::try_init();
+
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
     match multisearch::multisearch(
         querylist_path,
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
+        estimate_prob_overlap,
+        output_all_comparisons,
         output_path,
     ) {
         Ok(_) => Ok(0),
@@ -254,15 +276,16 @@ fn do_multisearch(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (siglist_path, threshold, ksize, scaled, moltype, estimate_ani, write_all, output_path=None))]
+#[pyo3(signature = (siglist_path, threshold, ksize, scaled, moltype, estimate_ani, write_all, output_all_comparisons, output_path=None))]
 fn do_pairwise(
     siglist_path: String,
     threshold: f64,
     ksize: u8,
-    scaled: usize,
+    scaled: Option<u32>,
     moltype: String,
     estimate_ani: bool,
     write_all: bool,
+    output_all_comparisons: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
     let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
@@ -270,10 +293,11 @@ fn do_pairwise(
     match pairwise::pairwise(
         siglist_path,
         threshold,
-        &selection,
+        selection,
         allow_failed_sigpaths,
         estimate_ani,
         write_all,
+        output_all_comparisons,
         output_path,
     ) {
         Ok(_) => Ok(0),
@@ -293,6 +317,24 @@ fn do_manysketch(
     force: bool,
 ) -> anyhow::Result<u8> {
     match manysketch::manysketch(filelist, param_str, output, singleton, force) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
+        }
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (input_filenames, input_moltype, param_str, output, name))]
+fn do_singlesketch(
+    input_filenames: Vec<String>,
+    input_moltype: String,
+    param_str: String,
+    output: String,
+    name: String,
+) -> anyhow::Result<u8> {
+    match singlesketch::singlesketch(input_filenames, input_moltype, param_str, output, name) {
         Ok(_) => Ok(0),
         Err(e) => {
             eprintln!("Error: {e}");
@@ -366,6 +408,8 @@ fn sourmash_plugin_branchwater(_py: Python, m: &Bound<'_, PyModule>) -> PyResult
     m.add_function(wrap_pyfunction!(do_multisearch, m)?)?;
     m.add_function(wrap_pyfunction!(do_pairwise, m)?)?;
     m.add_function(wrap_pyfunction!(do_cluster, m)?)?;
+    m.add_function(wrap_pyfunction!(do_singlesketch, m)?)?;
     m.add_function(wrap_pyfunction!(do_sigcat, m)?)?;
+
     Ok(())
 }

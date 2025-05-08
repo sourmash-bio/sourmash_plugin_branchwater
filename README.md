@@ -5,6 +5,8 @@
 
 tl;dr Do faster and lower-memory sourmash functions via this plugin.
 
+<p align="center"><img src="https://raw.githubusercontent.com/sourmash-bio/sourmash_plugin_branchwater/main/doc/_static/logo.png" height="256" /></p>
+
 ## Details
 
 [sourmash](https://sourmash.readthedocs.io/en/latest/) is a
@@ -124,3 +126,4 @@ This software is under the AGPL license. Please see [LICENSE.txt](LICENSE.txt).
 * C. Titus Brown
 * Mohamed Abuelanin
 * N. Tessa Pierce-Ward
+* Olga Botvinnik

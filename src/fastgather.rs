@@ -1,20 +1,21 @@
 /// fastgather: Run gather with a query against a list of files.
 use anyhow::Result;
+
 use sourmash::prelude::Select;
 use sourmash::selection::Selection;
+use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
-    consume_query_by_gather, load_collection, load_sketches_above_threshold, write_prefetch,
-    ReportType,
+    consume_query_by_gather, csvwriter_thread, load_collection, load_sketches_above_threshold,
+    write_prefetch, BranchwaterGatherResult, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
 pub fn fastgather(
     query_filepath: String,
     against_filepath: String,
-    threshold_bp: usize,
-    scaled: usize,
-    selection: &Selection,
+    threshold_bp: u64,
+    selection: Selection,
     gather_output: Option<String>,
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
@@ -22,7 +23,7 @@ pub fn fastgather(
     let allow_empty_collection = false;
     let query_collection = load_collection(
         &query_filepath,
-        selection,
+        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
         allow_empty_collection,
@@ -35,33 +36,43 @@ pub fn fastgather(
         )
     }
     // get single query sig and minhash
-    let query_sig = query_collection.sig_for_dataset(0)?; // need this for original md5sum
-    let query_sig_ds = query_sig.clone().select(selection)?; // downsample
-    let query_mh = match query_sig_ds.minhash() {
-        Some(query_mh) => query_mh,
-        None => {
+    let query_sig = query_collection.get_first_sig().expect("no queries!?");
+
+    let query_filename = query_sig.filename();
+    let query_name = query_sig.name();
+    let query_md5 = query_sig.md5sum();
+
+    // clone here is necessary b/c we use full query_sig in consume_query_by_gather
+    let query_sig_ds = query_sig.select(&selection)?; // downsample as needed.
+    let query_mh: KmerMinHash = match query_sig_ds.try_into() {
+        Ok(query_mh) => query_mh,
+        Err(_) => {
             bail!("No query sketch matching selection parameters.");
         }
     };
+
+    let mut against_selection = selection;
+    let scaled = query_mh.scaled();
+    against_selection.set_scaled(scaled);
+
     // load collection to match against.
     let against_collection = load_collection(
         &against_filepath,
-        selection,
+        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
         allow_empty_collection,
     )?;
 
     // calculate the minimum number of hashes based on desired threshold
-    let threshold_hashes: u64 = {
-        let x = threshold_bp / scaled;
+    let threshold_hashes = {
+        let x = threshold_bp / scaled as u64;
         if x > 0 {
             x
         } else {
             1
         }
-    }
-    .try_into()?;
+    };
 
     eprintln!(
         "using threshold overlap: {} {}",
@@ -69,7 +80,7 @@ pub fn fastgather(
     );
 
     // load a set of sketches, filtering for those with overlaps > threshold
-    let result = load_sketches_above_threshold(against_collection, query_mh, threshold_hashes)?;
+    let result = load_sketches_above_threshold(against_collection, &query_mh, threshold_hashes)?;
     let matchlist = result.0;
     let skipped_paths = result.1;
     let failed_paths = result.2;
@@ -92,17 +103,35 @@ pub fn fastgather(
     }
 
     if prefetch_output.is_some() {
-        write_prefetch(&query_sig, prefetch_output, &matchlist).ok();
+        write_prefetch(
+            query_filename.clone(),
+            query_name.clone(),
+            query_md5,
+            prefetch_output,
+            &matchlist,
+        )
+        .ok();
     }
+
+    let (send, recv) =
+        std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
+    let gather_out_thrd = csvwriter_thread(recv, gather_output);
 
     // run the gather!
     consume_query_by_gather(
-        query_sig,
-        scaled as u64,
+        query_name,
+        query_filename,
+        query_mh,
+        scaled as u32,
         matchlist,
         threshold_hashes,
-        gather_output,
+        Some(send),
     )
     .ok();
+
+    gather_out_thrd
+        .join()
+        .expect("Unable to join internal thread");
+
     Ok(())
 }
