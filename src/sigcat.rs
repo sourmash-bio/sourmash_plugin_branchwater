@@ -6,22 +6,157 @@ use sourmash::{collection::Collection, selection::Selection};
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// use sourmash::manifest::{Manifest, Record};
-use crate::utils::buildutils::{BuildCollection, BuildRecord};
+use crate::utils::buildutils::{BuildCollection, BuildManifest, BuildRecord};
 use crate::utils::multicollection::MultiCollection;
 use rayon::iter::ParallelIterator;
 use sourmash::prelude::Select;
-use std::sync::mpsc::{sync_channel, SyncSender};
+use std::collections::{HashMap, HashSet};
+use std::io::Write;
+use std::sync::atomic::AtomicBool;
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use zip::write::FileOptions;
+use zip::ZipWriter;
 
-use crate::utils::zipwriter_handle;
+use std::sync::{Once, OnceLock};
+
+static TERMINATE_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+static CTRL_HANDLER_INIT: Once = Once::new();
+
+pub fn setup_ctrlc_handler() -> Arc<AtomicBool> {
+    let flag = TERMINATE_FLAG.get_or_init(|| Arc::new(AtomicBool::new(false)));
+
+    CTRL_HANDLER_INIT.call_once(|| {
+        let flag_clone = Arc::clone(flag);
+        let _ = ctrlc::set_handler(move || {
+            eprintln!("Received Ctrl-C, requesting shutdown...");
+            flag_clone.store(true, Ordering::SeqCst);
+        });
+    });
+
+    Arc::clone(flag)
+}
+
+pub fn precompressed_zipwriter_handle(
+    recv: Receiver<Option<Vec<CompressedSig>>>,
+    output: Utf8PathBuf,
+    cancel: Arc<AtomicBool>,
+) -> thread::JoinHandle<Result<()>> {
+    thread::spawn(move || -> Result<()> {
+        let outpath = output.clone();
+        let incomplete_path = outpath.with_extension("zip.incomplete");
+        let file_writer = std::fs::File::create(&incomplete_path)?;
+        let mut zip = ZipWriter::new(file_writer);
+
+        let options = FileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored)
+            .unix_permissions(0o644)
+            .large_file(true);
+
+        let mut zip_manifest = BuildManifest::new();
+        let mut wrote_any_sigs = false;
+
+        while let Ok(message) = recv.recv() {
+            if cancel.load(Ordering::SeqCst) {
+                eprintln!("Termination requested, exiting early...");
+                return Ok(()); // or early return / cleanup
+            }
+            match message {
+                Some(batch) => {
+                    for compressed in batch {
+                        zip.start_file(compressed.filename, options)?;
+                        zip.write_all(&compressed.data)?;
+                        zip_manifest.add_record(compressed.record);
+                        wrote_any_sigs = true;
+                    }
+                }
+                None => {
+                    if wrote_any_sigs {
+                        zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
+                        zip.finish()?;
+                        std::fs::rename(&incomplete_path, &outpath)?;
+                    } else {
+                        drop(zip);
+                        std::fs::remove_file(&incomplete_path).ok();
+                    }
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    })
+}
+
+pub struct CompressedSig {
+    pub filename: String,
+    pub data: Vec<u8>,
+    pub record: BuildRecord,
+}
+
+pub fn compress_batch(
+    mut build_collection: BuildCollection,
+    md5sum_occurrences: &Arc<Mutex<HashMap<String, usize>>>,
+    options: &FileOptions<'static, ()>,
+) -> Result<Vec<CompressedSig>> {
+    let mut output = Vec::new();
+    for (record, sig) in build_collection.iter_mut() {
+        if !record.sequence_added {
+            continue;
+        }
+
+        let md5sum_str = sig.md5sum();
+        let sig_filename = {
+            let mut md5sums = md5sum_occurrences.lock().unwrap();
+            let count = md5sums.entry(md5sum_str.clone()).or_insert(0);
+            *count += 1;
+
+            if *count > 1 {
+                format!("signatures/{}_{}.sig.gz", md5sum_str, count)
+            } else {
+                format!("signatures/{}.sig.gz", md5sum_str)
+            }
+        };
+
+        record.set_internal_location(Some(sig_filename.clone().into()));
+
+        let wrapped_sig = vec![sig.clone()];
+        let json_bytes = serde_json::to_vec(&wrapped_sig)?;
+
+        let gzipped_buffer = {
+            let mut buffer = std::io::Cursor::new(Vec::new());
+            {
+                let mut gz_writer = niffler::get_writer(
+                    Box::new(&mut buffer),
+                    niffler::compression::Format::Gzip,
+                    niffler::compression::Level::Nine,
+                )?;
+                gz_writer.write_all(&json_bytes)?;
+            }
+            buffer.into_inner()
+        };
+
+        output.push(CompressedSig {
+            filename: sig_filename,
+            data: gzipped_buffer,
+            record: record.clone(),
+        });
+    }
+
+    Ok(output)
+}
 
 // batched reading and sending to the writer thread
 pub fn zipreader_spawn(
     zip_path: &Utf8PathBuf,
-    tx: SyncSender<Option<BuildCollection>>,
+    tx: SyncSender<Option<Vec<CompressedSig>>>,
     selection: &Selection,
     batch_size: usize,
     verbose: bool,
+    md5sum_occurrences: Arc<Mutex<HashMap<String, usize>>>,
+    options: &FileOptions<'static, ()>,
+    cancel: Arc<AtomicBool>,
 ) -> Result<usize> {
     let collection = Collection::from_zipfile(zip_path.clone())?;
     let manifest = collection.manifest().clone();
@@ -35,54 +170,55 @@ pub fn zipreader_spawn(
         let sig = collection.sig_from_record(record)?;
         let mut build_rec = BuildRecord::from_record(record);
 
-        // do we need to select on the sig to downsample?? if so, need to update build rec?
-
         batch.sigs.push(sig.into());
         batch.manifest.add_record(build_rec);
 
         let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
-        let percent = (count * 100) / total;
-        if verbose || total <= 100 {
-            eprintln!(
-                "{}: processed {} of {} ({}%)",
-                zip_path, count, total, percent
-            );
-        } else if count % (total / 100).max(1) == 0 {
-            eprintln!(
-                "{}: processed {} of {} ({}%)",
-                zip_path, count, total, percent
+        if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
+            println!(
+                "{zip_path}: processed {} of {} ({}%)",
+                count,
+                total,
+                (count * 100) / total
             );
         }
 
         if batch.sigs.len() >= batch_size {
-            tx.send(Some(std::mem::take(&mut batch)))?;
+            if cancel.load(Ordering::SeqCst) {
+                eprintln!("Termination requested, exiting early...");
+                return Ok(count); // or early return / cleanup
+            }
+            let compressed =
+                compress_batch(std::mem::take(&mut batch), &md5sum_occurrences, options)?;
+            tx.send(Some(compressed))?;
         }
     }
 
     if !batch.sigs.is_empty() {
-        tx.send(Some(batch))?;
+        let compressed = compress_batch(batch, &md5sum_occurrences, options)?;
+        tx.send(Some(compressed))?;
     }
 
     eprintln!(
         "finished reading {}: found {} matching signatures",
         zip_path, total
     );
-
     Ok(total)
 }
 
 // Handle non-zip inputs using MultiCollection and rayon
 pub fn multicollection_reader(
     input_paths: &[Utf8PathBuf],
-    tx: SyncSender<Option<BuildCollection>>,
+    tx: SyncSender<Option<Vec<CompressedSig>>>,
     selection: &Selection,
     batch_size: usize,
     verbose: bool,
+    md5sum_occurrences: Arc<Mutex<HashMap<String, usize>>>,
+    options: &FileOptions<'static, ()>,
+    cancel: Arc<AtomicBool>,
 ) -> Result<usize> {
-    let pathset: std::collections::HashSet<String> =
-        input_paths.iter().map(|p| p.to_string()).collect();
-
-    let (mut multi, _nloaded) = MultiCollection::load_set_of_paths(&pathset);
+    let pathset: HashSet<String> = input_paths.iter().map(|p| p.to_string()).collect();
+    let (mut multi, _nfailed) = MultiCollection::load_set_of_paths(&pathset);
     multi = multi.select(selection)?;
 
     let total = multi.len();
@@ -94,37 +230,44 @@ pub fn multicollection_reader(
         .try_for_each(|(coll, _idx, record)| -> Result<()> {
             let sig = coll.sig_from_record(record)?;
             let mut build_rec = BuildRecord::from_record(record);
-            let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
 
+            let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
             {
                 let mut batch = batch.lock().unwrap();
                 batch.sigs.push(sig.into());
                 batch.manifest.add_record(build_rec);
 
                 if batch.sigs.len() >= batch_size {
-                    tx.send(Some(std::mem::take(&mut *batch)))
-                        .expect("send failed");
+                    if cancel.load(Ordering::SeqCst) {
+                        eprintln!("Termination requested, exiting early...");
+                        return Ok(()); // or early return / cleanup
+                    }
+                    let compressed =
+                        compress_batch(std::mem::take(&mut *batch), &md5sum_occurrences, options)?;
+                    tx.send(Some(compressed)).expect("send failed");
                 }
             }
 
-            let percent = (count * 100) / total;
-            if verbose {
-                eprintln!("non-zips: processed {} of {} ({})", count, total, percent);
-            } else if count % (total / 100).max(1) == 0 {
-                eprintln!("non-zips: processed {} of {} ({}%)", count, total, percent);
+            if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
+                println!(
+                    "non-zips: processed {} of {} ({}%)",
+                    count,
+                    total,
+                    (count * 100) / total
+                );
             }
 
-            Ok::<(), anyhow::Error>(())
+            Ok(())
         })?;
+
     let mut batch = batch.lock().unwrap();
     if !batch.sigs.is_empty() {
-        tx.send(Some(std::mem::take(&mut *batch)))
-            .expect("send failed");
+        let compressed = compress_batch(std::mem::take(&mut *batch), &md5sum_occurrences, options)?;
+        tx.send(Some(compressed)).expect("send failed");
     }
 
     Ok(total)
 }
-
 // Expand pathlists (.txt files) into a flat list of paths
 fn expand_input_paths(paths: Vec<String>) -> Result<Vec<Utf8PathBuf>> {
     let mut expanded = Vec::new();
@@ -166,14 +309,33 @@ pub fn sig_cat(
     }
 
     // init channels and writer thread
-    let (tx, rx) = sync_channel::<Option<BuildCollection>>(rayon::current_num_threads());
-    let writer_handle = zipwriter_handle(rx, output.clone());
+    let (tx, rx): (
+        SyncSender<Option<Vec<CompressedSig>>>,
+        Receiver<Option<Vec<CompressedSig>>>,
+    ) = sync_channel(rayon::current_num_threads());
+    // let writer_handle = zipwriter_handle(rx, output.clone());
+    let cancel_flag = setup_ctrlc_handler();
+    let writer_handle =
+        precompressed_zipwriter_handle(rx, output.clone().into(), cancel_flag.clone());
 
     let total_written = std::sync::Arc::new(AtomicUsize::new(0));
     // flatten input paths and split into zip / non-zip
     let (zip_inputs, other_inputs) = expand_and_partition_inputs(inputs)?;
 
+    eprintln!(
+        "Found {} zip files and {} other files to process.",
+        zip_inputs.len(),
+        other_inputs.len()
+    );
+
     py.check_signals()?;
+
+    // set up writer stuff
+    let md5sum_occurrences = Arc::new(Mutex::new(HashMap::new()));
+    let options = FileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored)
+        .unix_permissions(0o644)
+        .large_file(true);
 
     // spawn processing
     rayon::scope(|s| {
@@ -181,8 +343,13 @@ pub fn sig_cat(
             let tx = tx.clone();
             let selection = selection.clone();
             let total_written = total_written.clone();
+            let md5sums = Arc::clone(&md5sum_occurrences);
+            let options = options.clone();
+            let cancel = cancel_flag.clone();
             s.spawn(move |_| {
-                if let Ok(n) = zipreader_spawn(&zip_path, tx, &selection, batch_size, verbose) {
+                if let Ok(n) = zipreader_spawn(
+                    &zip_path, tx, &selection, batch_size, verbose, md5sums, &options, cancel,
+                ) {
                     total_written.fetch_add(n, Ordering::SeqCst);
                 }
             });
@@ -192,10 +359,20 @@ pub fn sig_cat(
             let tx = tx.clone();
             let selection = selection.clone();
             let total_written = total_written.clone();
+            let md5sums = Arc::clone(&md5sum_occurrences);
+            let options = options.clone();
+            let cancel = cancel_flag.clone();
             s.spawn(move |_| {
-                if let Ok(n) =
-                    multicollection_reader(&other_inputs, tx, &selection, batch_size, verbose)
-                {
+                if let Ok(n) = multicollection_reader(
+                    &other_inputs,
+                    tx,
+                    &selection,
+                    batch_size,
+                    verbose,
+                    md5sums,
+                    &options,
+                    cancel,
+                ) {
                     total_written.fetch_add(n, Ordering::SeqCst);
                 }
             });
