@@ -41,11 +41,17 @@ pub fn zipreader_spawn(
         batch.manifest.add_record(build_rec);
 
         let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
+        let percent = (count * 100) / total;
         if verbose || total <= 100 {
-            eprintln!("{}: processed {} of {}", zip_path, count, total);
+            eprintln!(
+                "{}: processed {} of {} ({}%)",
+                zip_path, count, total, percent
+            );
         } else if count % (total / 100).max(1) == 0 {
-            let percent = (count * 100) / total;
-            eprintln!("... {}% done", percent);
+            eprintln!(
+                "{}: processed {} of {} ({}%)",
+                zip_path, count, total, percent
+            );
         }
 
         if batch.sigs.len() >= batch_size {
@@ -101,11 +107,11 @@ pub fn multicollection_reader(
                 }
             }
 
-            if verbose || total <= 100 {
-                eprintln!("non-zips: processed {} of {}", count, total);
+            let percent = (count * 100) / total;
+            if verbose {
+                eprintln!("non-zips: processed {} of {} ({})", count, total, percent);
             } else if count % (total / 100).max(1) == 0 {
-                let percent = (count * 100) / total;
-                eprintln!("... {}% done", percent);
+                eprintln!("non-zips: processed {} of {} ({}%)", count, total, percent);
             }
 
             Ok::<(), anyhow::Error>(())
