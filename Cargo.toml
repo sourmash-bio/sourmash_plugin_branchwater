@@ -31,7 +31,7 @@ streaming-stats = "0.2.3"
 rust_decimal = { version = "1.37.1", features = ["maths"] }
 rust_decimal_macros = "1.37.1"
 getset = "0.1"
-ctrlc = "3.4.6"
+ctrlc = {version ="3.4.6", features = ["termination"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.17"
