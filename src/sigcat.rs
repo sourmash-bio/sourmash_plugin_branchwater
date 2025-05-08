@@ -203,6 +203,10 @@ pub fn sig_cat(
     // Now wait for the writer thread to finish
     writer_handle.join().expect("writer thread panicked")?;
 
+    if total_written.load(Ordering::SeqCst) == 0 {
+        bail!("No signatures could be written to the output file.");
+    }
+
     println!(
         "Concatenated {} signatures into '{}'.",
         total_written.load(Ordering::SeqCst),
