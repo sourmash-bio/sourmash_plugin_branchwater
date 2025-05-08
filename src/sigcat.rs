@@ -114,9 +114,36 @@ pub fn multicollection_reader(
     Ok(())
 }
 
+// Expand pathlists (.txt files) into a flat list of paths
+fn expand_input_paths(paths: Vec<String>) -> Result<Vec<Utf8PathBuf>> {
+    let mut expanded = Vec::new();
+    for path in paths {
+        let path = Utf8PathBuf::from(path);
+        if path.extension().map_or(false, |e| e == "txt") {
+            let content = std::fs::read_to_string(&path)?;
+            for line in content.lines().filter(|l| !l.is_empty()) {
+                expanded.push(Utf8PathBuf::from(line));
+            }
+        } else {
+            expanded.push(path);
+        }
+    }
+    Ok(expanded)
+}
+
+pub fn expand_and_partition_inputs(
+    inputs: Vec<String>,
+) -> Result<(Vec<Utf8PathBuf>, Vec<Utf8PathBuf>)> {
+    let paths = expand_input_paths(inputs)?;
+    let (zip_inputs, other_inputs): (Vec<_>, Vec<_>) = paths
+        .into_iter()
+        .partition(|p| p.extension().map_or(false, |e| e == "zip"));
+    Ok((zip_inputs, other_inputs))
+}
+
 pub fn sig_cat(
     py: Python,
-    input: String,
+    inputs: Vec<String>,
     output: String,
     selection: &Selection,
     batch_size: usize,
@@ -133,21 +160,8 @@ pub fn sig_cat(
 
     eprintln!("spawned writer thread...");
 
-    // inputs strings to paths
-    let input_paths: Vec<Utf8PathBuf> = input.split_whitespace().map(Utf8PathBuf::from).collect();
-
-    // print found input paths
-    if verbose {
-        eprintln!("Found {} input paths:", input_paths.len());
-        for path in &input_paths {
-            eprintln!("  {}", path);
-        }
-    }
-
-    // split input sigs into zip / non-zip
-    let (zip_inputs, other_inputs): (Vec<_>, Vec<_>) = input_paths
-        .into_iter()
-        .partition(|p| p.extension().map_or(false, |e| e == "zip"));
+    // flatten input paths and split into zip / non-zip
+    let (zip_inputs, other_inputs) = expand_and_partition_inputs(inputs)?;
 
     py.check_signals()?;
 
@@ -180,8 +194,8 @@ pub fn sig_cat(
     });
 
     // After all reading threads finish, send None to signal completion (and write the manifest)
-    // tx.send(None).expect("failed to send final None");
-    drop(tx);
+    tx.send(None).expect("failed to send final None");
+    // drop(tx);
     // Now wait for the writer thread to finish
     writer_handle.join().expect("writer thread panicked")?;
 

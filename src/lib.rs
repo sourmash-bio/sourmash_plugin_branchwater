@@ -367,7 +367,7 @@ fn do_cluster(
 #[allow(clippy::too_many_arguments)]
 fn do_sigcat(
     py: Python,
-    sigfiles: String,
+    sigfiles: Vec<String>,
     output_path: String,
     verbose: bool,
     pickstyle: bool,

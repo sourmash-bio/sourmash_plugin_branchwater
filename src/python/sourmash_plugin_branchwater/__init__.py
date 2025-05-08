@@ -867,37 +867,35 @@ class Branchwater_SigCat(CommandLinePlugin):
             "--picklist", type=str, help="picklist information (file:colname:ident)"
         )
         # add mutuall exclusive arguments for include and exclude
-        p.add_argument(
-            "--include",
-            action="store_true",
-            default=True,
-            help="include only these signatures in the final output",
-        )
-        p.add_argument(
-            "--exclude",
-            action="store_false",
-            dest="include",
-            help="exclude signatures from the final output",
-        )
+        # group = p.add_mutually_exclusive_group()
+        # group.add_argument(
+        #     "--include",
+        #     action="store_true",
+        #     default=True,
+        #     help="include only these signatures in the final output",
+        # )
+        # group.add_argument(
+        #     "--exclude",
+        #     action="store_false",
+        #     dest="include",
+        #     help="exclude signatures from the final output",
+        # )
         # p.add_argument('-f', '--force', action='store_true',
         #                help='force: allow input sig files to contain no signatures or only incompatible signatures')
 
     def main(self, args):
         print_version()
 
-        allsigs = " ".join(
-            args.signatures
-        )  # so can pass string into rust instead of pylist
-        notify(f"concatenating signatures in '{allsigs}'")
+        notify(f"concatenating signatures in '{args.signatures}'")
         if args.moltype:
             args.moltype = args.moltype.lower()
 
         super().main(args)
         status = sourmash_plugin_branchwater.do_sigcat(
-            allsigs,
+            args.signatures,
             args.output,
             args.verbose,
-            args.include,
+            True,  # args.include,
             args.ksize,
             args.scaled,
             args.moltype,
