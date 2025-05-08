@@ -38,10 +38,20 @@ def test_simple_sigcat(runtmp, capfd):
     make_file_list(query_list, [sig2])
     make_file_list(against_list, [sig47, sig63])
 
+    # print contents of query_list and against_list
+    with open(query_list, 'rt') as fp:
+        print("query_list contents:")
+        for line in fp:
+            print(line.strip())
+    with open(against_list, 'rt') as fp:
+        print("against_list contents:")
+        for line in fp:
+            print(line.strip())
+
     output = runtmp.output('out.zip')
 
     runtmp.sourmash('scripts', 'sigcat', query_list, against_list,
-                    '-o', output)
+                    '-o', output, "--verbose")
     assert os.path.exists(output)
     assert not runtmp.last_result.out # stdout should be empty
     
