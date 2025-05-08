@@ -1204,7 +1204,8 @@ pub fn zipwriter_handle(
     std::thread::spawn(move || -> Result<()> {
         // Convert output to PathBuf
         let outpath: PathBuf = output.into();
-        let file_writer = open_output_file(&outpath);
+        let incomplete_path = outpath.with_extension("zip.incomplete");
+        let file_writer = open_output_file(&incomplete_path);
 
         let options = FileOptions::default()
             .compression_method(CompressionMethod::Stored)
@@ -1246,12 +1247,14 @@ pub fn zipwriter_handle(
                         println!("Writing manifest");
                         zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
                         zip.finish()?;
+                        // Rename .incomplete to final output
+                        std::fs::rename(&incomplete_path, &outpath)?;
                     } else {
                         // If no signatures were written, remove the empty zip file
                         eprintln!("No signatures written — skipping zip output.");
                         // Optional: delete incomplete file if created
                         drop(zip);
-                        std::fs::remove_file(&outpath).ok(); // ignore error
+                        std::fs::remove_file(&incomplete_path).ok(); // ignore error
                     }
                     break;
                 }
