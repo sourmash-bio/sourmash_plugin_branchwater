@@ -22,12 +22,9 @@ mod manysearch_rocksdb;
 mod manysketch;
 mod multisearch;
 mod pairwise;
-<<<<<<< HEAD
-mod sigcat;
-=======
 mod search_significance;
+mod sigcat;
 mod singlesketch;
->>>>>>> main
 
 use camino::Utf8PathBuf as PathBuf;
 
@@ -46,7 +43,7 @@ fn do_manysearch(
     output_all_comparisons: Option<bool>,
 ) -> anyhow::Result<u8> {
     let againstfile_path: PathBuf = siglist_path.clone().into();
-    let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
+    let selection = build_selection(ksize, scaled, &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
 
@@ -104,7 +101,7 @@ fn do_fastgather(
     output_path_prefetch: Option<String>,
     output_path_gather: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
     match fastgather::fastgather(
@@ -139,7 +136,7 @@ fn do_fastmultigather(
     create_empty_results: bool,
 ) -> anyhow::Result<u8> {
     let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
-    let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
     // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
@@ -206,7 +203,7 @@ fn do_index(
     output: String,
     use_internal_storage: bool,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = false;
     match index::index(
         siglist,
@@ -288,7 +285,7 @@ fn do_pairwise(
     output_all_comparisons: bool,
     output_path: Option<String>,
 ) -> anyhow::Result<u8> {
-    let selection = build_selection(Some(ksize), Some(scaled), Some(&moltype));
+    let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
     match pairwise::pairwise(
         siglist_path,

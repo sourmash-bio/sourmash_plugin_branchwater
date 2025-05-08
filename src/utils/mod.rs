@@ -602,7 +602,6 @@ pub fn load_collection(
                 n_failed,
                 report_type,
                 allow_failed,
-                allow_empty,
             )?;
             Ok(selected)
         }
@@ -647,7 +646,6 @@ pub fn report_on_collection_loading(
     failed_paths: usize,
     report_type: ReportType,
     allow_failed: bool,
-    allow_empty: bool,
 ) -> Result<()> {
     if failed_paths > 0 {
         eprintln!(
@@ -666,7 +664,7 @@ pub fn report_on_collection_loading(
     }
 
     // Validate sketches
-    if !allow_empty && collection.is_empty() {
+    if collection.is_empty() {
         bail!("No {} signatures loaded, exiting.", report_type);
     }
     eprintln!("Loaded {} {} signature(s)", collection.len(), report_type);

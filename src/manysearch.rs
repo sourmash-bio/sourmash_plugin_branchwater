@@ -38,14 +38,12 @@ pub fn manysearch(
     ignore_abundance: bool,
     output_all_comparisons: bool,
 ) -> Result<()> {
-    let allow_empty_collection = false;
     // Load query collection
     let query_collection = load_collection(
         &query_filepath,
         &selection,
         ReportType::Query,
         allow_failed_sigpaths,
-        allow_empty_collection,
     )?;
 
     // Figure out what scaled to use - either from selection, or from query.
@@ -72,7 +70,6 @@ pub fn manysearch(
         &selection,
         ReportType::Against,
         allow_failed_sigpaths,
-        allow_empty_collection,
     )?;
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(

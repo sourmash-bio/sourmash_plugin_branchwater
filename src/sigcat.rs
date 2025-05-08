@@ -38,7 +38,6 @@ pub fn sig_cat(
             selection,
             ReportType::General,
             allow_failed_sigpaths,
-            allow_empty_collection,
         )?;
         if !collection.is_empty() {
             collection_list.push(collection);
@@ -73,8 +72,8 @@ pub fn sig_cat(
             let sig = collection
                 .sig_from_record(record)
                 .expect("failed to get sig from record");
-                // .select(selection)
-                // .unwrap();
+            // .select(selection)
+            // .unwrap();
 
             let md5sum_str = sig.md5sum(); // this is now the downsampled md5sum -- okay?
 
