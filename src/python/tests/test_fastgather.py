@@ -4,23 +4,7 @@ import pandas
 
 import sourmash
 from . import sourmash_tst_utils as utils
-
-
-def get_test_data(filename):
-    thisdir = os.path.dirname(__file__)
-    return os.path.join(thisdir, 'test-data', filename)
-
-
-def make_file_list(filename, paths):
-    with open(filename, 'wt') as fp:
-        fp.write("\n".join(paths))
-        fp.write("\n")
-
-
-def zip_siglist(runtmp, siglist, db):
-    runtmp.sourmash('sig', 'cat', siglist,
-                    '-o', db)
-    return db
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
 
 
 def test_installed(runtmp):
@@ -30,7 +14,6 @@ def test_installed(runtmp):
     assert 'usage:  fastgather' in runtmp.last_result.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_simple(runtmp, zip_against):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
@@ -58,7 +41,6 @@ def test_simple(runtmp, zip_against):
     assert {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'gather_result_rank', 'intersect_bp'}.issubset(keys)
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_simple_with_prefetch(runtmp, zip_against):
     # test basic execution!
     query = get_test_data('SRR606249.sig.gz')
@@ -93,7 +75,6 @@ def test_simple_with_prefetch(runtmp, zip_against):
     assert keys == {'query_filename', 'query_name', 'query_md5', 'match_name', 'match_md5', 'intersect_bp'}
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_missing_query(runtmp, capfd, zip_against):
     # test missing query
     query = runtmp.output('no-such-file')
@@ -122,7 +103,6 @@ def test_missing_query(runtmp, capfd, zip_against):
     assert 'Error: No such file or directory' in captured.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_bad_query(runtmp, capfd, zip_against):
     # test non-sig query
     query = runtmp.output('no-such-file')
@@ -154,7 +134,6 @@ def test_bad_query(runtmp, capfd, zip_against):
     assert 'Error: Fastgather requires a single query sketch. Check input:' in captured.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_missing_against(runtmp, capfd, zip_against):
     # test missing against
     query = get_test_data('SRR606249.sig.gz')
@@ -278,7 +257,6 @@ def test_bad_against_3(runtmp, capfd):
     assert 'InvalidArchive' in captured.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_against_multisigfile(runtmp, zip_against):
     # test against a sigfile that contains multiple sketches
     query = get_test_data('SRR606249.sig.gz')
@@ -311,7 +289,6 @@ def test_against_multisigfile(runtmp, zip_against):
     # @CTB this is a bug :(. It should load multiple sketches properly!
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_query_multisigfile(runtmp, capfd, zip_against):
     # test with a sigfile that contains multiple sketches
     against_list = runtmp.output('against.txt')
@@ -341,7 +318,6 @@ def test_query_multisigfile(runtmp, capfd, zip_against):
     assert "Error: Fastgather requires a single query sketch. Check input:" in captured.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_against_nomatch(runtmp, capfd, zip_against):
     # test with 'against' file containing a non-matching ksize
     query = get_test_data('SRR606249.sig.gz')
@@ -370,7 +346,6 @@ def test_against_nomatch(runtmp, capfd, zip_against):
     assert 'WARNING: skipped 1 search paths - no compatible signatures.' in captured.err
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_md5s(runtmp, zip_against):
     # check that the correct md5sums (of the original sketches) are in
     # the output files
@@ -424,7 +399,6 @@ def test_md5s(runtmp, zip_against):
             assert ss.md5sum() in md5s
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_against):
     # the column names should be strict subsets of sourmash prefetch cols
     query = get_test_data('SRR606249.sig.gz')
@@ -466,7 +440,6 @@ def test_csv_columns_vs_sourmash_prefetch(runtmp, zip_against):
     assert diff_keys == set(['unique_intersect_bp', 'median_abund', 'f_match_orig', 'std_abund', 'average_abund', 'f_unique_to_query', 'remaining_bp', 'f_unique_weighted', 'sum_weighted_found', 'total_weighted_hashes', 'n_unique_weighted_found', 'f_orig_query', 'f_match'])
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_fastgather_gatherout_as_picklist(runtmp, zip_against):
     # should be able to use fastgather gather output as picklist
     query = get_test_data('SRR606249.sig.gz')
@@ -508,7 +481,6 @@ def test_fastgather_gatherout_as_picklist(runtmp, zip_against):
     assert picklist_df.equals(full_df)
 
 
-@pytest.mark.parametrize('zip_against', [False, True])
 def test_fastgather_prefetchout_as_picklist(runtmp, zip_against):
     # should be able to use fastgather prefetch output as picklist
     query = get_test_data('SRR606249.sig.gz')

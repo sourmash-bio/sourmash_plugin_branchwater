@@ -5,17 +5,7 @@ import pandas
 import sourmash
 
 from . import sourmash_tst_utils as utils
-
-
-def get_test_data(filename):
-    thisdir = os.path.dirname(__file__)
-    return os.path.join(thisdir, 'test-data', filename)
-
-
-def make_file_list(filename, paths):
-    with open(filename, 'wt') as fp:
-        fp.write("\n".join(paths))
-        fp.write("\n")
+from .sourmash_tst_utils import (get_test_data, make_file_list, zip_siglist)
 
 
 def test_installed(runtmp):
@@ -24,13 +14,7 @@ def test_installed(runtmp):
 
     assert 'usage:  pairwise' in runtmp.last_result.err
 
-def zip_siglist(runtmp, siglist, db):
-    runtmp.sourmash('sig', 'cat', siglist,
-                    '-o', db)
-    return db
 
-
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_simple_no_ani(runtmp, zip_query):
     # test basic execution!
     query_list = runtmp.output('query.txt')
@@ -81,7 +65,6 @@ def test_simple_no_ani(runtmp, zip_query):
             assert intersect_hashes == 2529
 
 
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_simple_ani(runtmp, zip_query):
     # test basic execution!
     query_list = runtmp.output('query.txt')
@@ -140,7 +123,6 @@ def test_simple_ani(runtmp, zip_query):
             assert max_ani == 0.9772
 
 
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_simple_threshold(runtmp, zip_query):
     # test with a simple threshold => only 3 results
     query_list = runtmp.output('query.txt')
@@ -248,7 +230,6 @@ def test_bad_query_2(runtmp, capfd):
     assert 'InvalidArchive' in captured.err
 
 
-@pytest.mark.parametrize("zip_db", [False, True])
 def test_missing_query(runtmp, capfd, zip_db):
     # test with a missing query list
     query_list = runtmp.output('query.txt')
@@ -290,7 +271,6 @@ def test_empty_query(runtmp):
     # @CTB
 
 
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_nomatch_query(runtmp, capfd, zip_query):
     # test a non-matching (diff ksize) in query; do we get warning message?
     query_list = runtmp.output('query.txt')
@@ -317,7 +297,6 @@ def test_nomatch_query(runtmp, capfd, zip_query):
     assert 'WARNING: skipped 1 analysis paths - no compatible signatures' in captured.err
 
 
-@pytest.mark.parametrize("zip_db", [False, True])
 def test_load_only_one_bug(runtmp, capfd, zip_db):
     # check that we behave properly when presented with multiple query
     # sketches
@@ -347,7 +326,6 @@ def test_load_only_one_bug(runtmp, capfd, zip_db):
     assert not 'WARNING: no compatible sketches in path ' in captured.err
 
 
-@pytest.mark.parametrize("zip_query", [False, True])
 def test_md5(runtmp, zip_query):
     # test that md5s match what was in the original files, not downsampled etc.
     query_list = runtmp.output('query.txt')
