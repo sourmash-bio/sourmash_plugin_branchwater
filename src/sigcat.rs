@@ -436,7 +436,7 @@ pub fn sig_cat(
         bail!("No signatures could be written to the output file.");
     }
 
-    println!(
+    eprintln!(
         "Concatenated {} signatures into '{}'.",
         total_written.load(Ordering::SeqCst),
         output

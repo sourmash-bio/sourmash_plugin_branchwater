@@ -66,7 +66,7 @@ def test_simple_sigcat(runtmp, capfd):
     assert len(sigs) == 3
     captured = capfd.readouterr()
     print(captured.out)
-    assert f"Concatenated 3 signatures into '{output}'." in captured.out
+    assert f"Concatenated 3 signatures into '{output}'." in captured.err
 
 
 def test_simple_sigcat_with_zip(runtmp, capfd):
@@ -96,7 +96,7 @@ def test_simple_sigcat_with_zip(runtmp, capfd):
     assert len(sigs) == 3
     captured = capfd.readouterr()
     print(captured.out)
-    assert f"Concatenated 3 signatures into '{output}'." in captured.out
+    assert f"Concatenated 3 signatures into '{output}'." in captured.err
 
 
 def test_output_manifest(runtmp, capfd):
@@ -136,7 +136,7 @@ def test_output_manifest(runtmp, capfd):
         assert sig.minhash.scaled == 1000
     captured = capfd.readouterr()
     print(captured.out)
-    assert f"Concatenated 3 signatures into '{output}'." in captured.out
+    assert f"Concatenated 3 signatures into '{output}'." in captured.err
 
 
 def test_sigcat_missing_sigfile(runtmp, capfd):
@@ -204,7 +204,7 @@ def test_sigcat_compatible_and_incompatible_sigfiles(runtmp, capfd):
     # assert "WARNING: skipped 1 analysis paths - no compatible signatures." in captured.err
     # assert "Error: No analysis signatures loaded, exiting" not in captured.err
     print(captured.out)
-    assert f"Concatenated 2 signatures into '{output}'." in captured.out
+    assert f"Concatenated 2 signatures into '{output}'." in captured.err
 
 
 def test_sigcat_with_bad_input_type_fail(runtmp, capfd):
@@ -258,7 +258,7 @@ def test_sigcat_multk_multsc_multmol(runtmp, capfd):
     assert len(sigs) == 5
     captured = capfd.readouterr()
     print(captured.out)
-    assert f"Concatenated 5 signatures into '{output}'." in captured.out
+    assert f"Concatenated 5 signatures into '{output}'." in captured.err
 
 
 def test_sigcat_multk_multsc_multmol_selectk(runtmp, capfd):
@@ -284,7 +284,7 @@ def test_sigcat_multk_multsc_multmol_selectk(runtmp, capfd):
     assert len(sigs) == 1
     captured = capfd.readouterr()
     print(captured.out)
-    assert f"Concatenated 1 signatures into '{output}'." in captured.out
+    assert f"Concatenated 1 signatures into '{output}'." in captured.err
 
 
 def test_sigcat_multk_multsc_multmol_selectmoltype(runtmp, capfd):
@@ -310,7 +310,7 @@ def test_sigcat_multk_multsc_multmol_selectmoltype(runtmp, capfd):
     assert len(sigs) == 2
     captured = capfd.readouterr()
     print(captured.out)
-    assert f"Concatenated 2 signatures into '{output}'." in captured.out
+    assert f"Concatenated 2 signatures into '{output}'." in captured.err
 
 
 def test_sigcat_multk_multsc_multmol_selectscaled(runtmp, capfd):
@@ -347,7 +347,7 @@ def test_sigcat_multk_multsc_multmol_selectscaled(runtmp, capfd):
         assert sig.minhash.scaled == 100
     captured = capfd.readouterr()
     print(captured.out)
-    assert f"Concatenated 2 signatures into '{output}'." in captured.out
+    assert f"Concatenated 2 signatures into '{output}'." in captured.err
 
 
 ## TODO: implement sig downsampling and make this work
@@ -384,4 +384,4 @@ def test_sigcat_multk_multsc_multmol_selectscaled(runtmp, capfd):
 #         assert sig.minhash.scaled == 150
 #     captured = capfd.readouterr()
 #     print(captured.out)
-#     assert f"Concatenated 2 signatures into '{output}'." in captured.out
+#     assert f"Concatenated 2 signatures into '{output}'." in captured.err
