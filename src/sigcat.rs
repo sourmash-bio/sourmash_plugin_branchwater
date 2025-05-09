@@ -215,20 +215,23 @@ pub fn zipreader_spawn(
         batch.sigs.push(sig.into());
         batch.manifest.add_record(build_rec);
 
+        let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
+
+        if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
+            println!(
+                "{zip_path}: processed {} of {} ({}%)",
+                count,
+                total,
+                (count * 100) / total
+            );
+        }
+
         if batch.sigs.len() >= batch_size {
-            let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
             if cancel.load(Ordering::SeqCst) {
                 eprintln!("Termination requested, exiting early...");
                 return Ok(count); // or early return / cleanup
             }
-            if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
-                println!(
-                    "{zip_path}: processed {} of {} ({}%)",
-                    count,
-                    total,
-                    (count * 100) / total
-                );
-            }
+
             let to_compress = std::mem::take(&mut batch);
             let md5sums = Arc::clone(&md5sum_occurrences);
             let tx_clone = tx.clone();
@@ -298,18 +301,19 @@ pub fn multicollection_reader(
         let mut batch = batch_accumulator.lock().unwrap();
         batch.push(compressed);
 
+        let count = processed.fetch_add(batch_size, Ordering::SeqCst);
+        if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
+            println!(
+                "non-zips: processed {} of {} ({}%)",
+                count,
+                total,
+                (count * 100) / total
+            );
+        }
+
         if batch.len() >= batch_size {
             let to_send = std::mem::take(&mut *batch);
             let _ = tx.send(Some(to_send));
-            let count = processed.fetch_add(batch_size, Ordering::SeqCst);
-            if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
-                println!(
-                    "non-zips: processed {} of {} ({}%)",
-                    count,
-                    total,
-                    (count * 100) / total
-                );
-            }
         }
     });
 
