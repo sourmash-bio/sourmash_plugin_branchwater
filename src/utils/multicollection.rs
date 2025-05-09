@@ -90,7 +90,7 @@ impl MultiCollection {
 
     // Turn a set of paths into list of Collections - works recursively
     // if needed, and can handle paths of any supported type.
-    fn load_set_of_paths(paths: &HashSet<String>) -> (MultiCollection, usize) {
+    pub fn load_set_of_paths(paths: &HashSet<String>) -> (MultiCollection, usize) {
         let n_failed = AtomicUsize::new(0);
 
         // could just use a variant of load_collection here?
