@@ -188,9 +188,20 @@ pub fn zipreader_spawn(
                 eprintln!("Termination requested, exiting early...");
                 return Ok(count); // or early return / cleanup
             }
-            let compressed =
-                compress_batch(std::mem::take(&mut batch), &md5sum_occurrences, options)?;
-            tx.send(Some(compressed))?;
+            let to_compress = std::mem::take(&mut batch);
+
+            let md5sums = Arc::clone(&md5sum_occurrences);
+            let options = options.clone();
+            let tx = tx.clone();
+
+            rayon::spawn_fifo(
+                move || match compress_batch(to_compress, &md5sums, &options) {
+                    Ok(compressed) => {
+                        let _ = tx.send(Some(compressed));
+                    }
+                    Err(e) => eprintln!("Compression failed: {e}"),
+                },
+            );
         }
     }
 
@@ -233,18 +244,28 @@ pub fn multicollection_reader(
 
             let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
             {
-                let mut batch = batch.lock().unwrap();
-                batch.sigs.push(sig.into());
-                batch.manifest.add_record(build_rec);
+                let mut batch_guard = batch.lock().unwrap();
+                batch_guard.sigs.push(sig.into());
+                batch_guard.manifest.add_record(build_rec);
 
-                if batch.sigs.len() >= batch_size {
+                if batch_guard.sigs.len() >= batch_size {
                     if cancel.load(Ordering::SeqCst) {
                         eprintln!("Termination requested, exiting early...");
                         return Ok(()); // or early return / cleanup
                     }
-                    let compressed =
-                        compress_batch(std::mem::take(&mut *batch), &md5sum_occurrences, options)?;
-                    tx.send(Some(compressed)).expect("send failed");
+                    let to_compress = std::mem::take(&mut *batch_guard);
+                    let md5sums = Arc::clone(&md5sum_occurrences);
+                    let options = options.clone();
+                    let tx = tx.clone();
+
+                    rayon::spawn_fifo(move || {
+                        match compress_batch(to_compress, &md5sums, &options) {
+                            Ok(compressed) => {
+                                let _ = tx.send(Some(compressed));
+                            }
+                            Err(e) => eprintln!("Compression failed: {e}"),
+                        }
+                    });
                 }
             }
 
@@ -268,6 +289,7 @@ pub fn multicollection_reader(
 
     Ok(total)
 }
+
 // Expand pathlists (.txt files) into a flat list of paths
 fn expand_input_paths(paths: Vec<String>) -> Result<Vec<Utf8PathBuf>> {
     let mut expanded = Vec::new();
