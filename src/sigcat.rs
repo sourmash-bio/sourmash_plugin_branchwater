@@ -208,53 +208,69 @@ pub fn zipreader_spawn(
     let processed = AtomicUsize::new(0);
     let mut batch = BuildCollection::new();
 
-    for record in selected.iter() {
-        let sig = collection.sig_from_record(record)?;
-        let build_rec = BuildRecord::from_record(record);
+    let mut final_count = 0;
+    let mut scope_result: Result<()> = Ok(());
 
-        batch.sigs.push(sig.into());
-        batch.manifest.add_record(build_rec);
-
-        let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
-
-        if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
-            println!(
-                "{zip_path}: processed {} of {} ({}%)",
-                count,
-                total,
-                (count * 100) / total
-            );
-        }
-
-        if batch.sigs.len() >= batch_size {
+    rayon::scope(|s| {
+        for record in selected.iter() {
             if cancel.load(Ordering::SeqCst) {
                 eprintln!("Termination requested, exiting early...");
-                return Ok(count); // or early return / cleanup
+                scope_result = Ok(()); // or early return / cleanup
+                return;
             }
 
-            let to_compress = std::mem::take(&mut batch);
-            let md5sums = Arc::clone(&md5sum_occurrences);
-            let tx_clone = tx.clone();
-            // spawn a new thread to compress and send to writer thread
-            rayon::spawn_fifo(move || match compress_batch(to_compress, &md5sums) {
-                Ok(compressed) => {
-                    let _ = tx_clone.send(Some(compressed));
+            let sig = match collection.sig_from_record(record) {
+                Ok(s) => s,
+                Err(e) => {
+                    scope_result = Err(e.into());
+                    return;
                 }
-                Err(e) => eprintln!("Compression failed: {e}"),
-            });
+            };
+
+            let build_rec = BuildRecord::from_record(record);
+
+            batch.sigs.push(sig.into());
+            batch.manifest.add_record(build_rec);
+
+            let count = processed.fetch_add(1, Ordering::SeqCst) + 1;
+            final_count = count;
+
+            if verbose || total <= 100 || count % (total / 100).max(1) == 0 {
+                println!(
+                    "{zip_path}: processed {} of {} ({}%)",
+                    count,
+                    total,
+                    (count * 100) / total
+                );
+            }
+
+            if batch.sigs.len() >= batch_size {
+                let to_compress = std::mem::take(&mut batch);
+                let md5sums = Arc::clone(&md5sum_occurrences);
+                let tx_clone = tx.clone();
+                // spawn a new thread to compress and send to writer thread
+                rayon::spawn_fifo(move || match compress_batch(to_compress, &md5sums) {
+                    Ok(compressed) => {
+                        let _ = tx_clone.send(Some(compressed));
+                    }
+                    Err(e) => eprintln!("Compression failed: {e}"),
+                });
+            }
         }
-    }
 
-    if !batch.sigs.is_empty() {
-        let compressed = compress_batch(batch, &md5sum_occurrences)?;
-        tx.send(Some(compressed))?;
-    }
+        if !batch.sigs.is_empty() {
+            if let Ok(compressed) = compress_batch(batch, &md5sum_occurrences) {
+                let _ = tx.send(Some(compressed));
+            }
+        }
+    });
 
+    scope_result?;
     eprintln!(
         "finished reading {}: found {} matching signatures",
         zip_path, total
     );
-    Ok(total)
+    Ok(final_count)
 }
 
 // Handle non-zip inputs using MultiCollection and rayon
