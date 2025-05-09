@@ -381,7 +381,7 @@ fn do_sigcat(
         picklist = Some(parse_picklist(&picklist_info, pickstyle)?);
     }
     let selection = build_selection(ksize, scaled, moltype, picklist)?;
-    let batch_size = 10000;
+    let batch_size = 1000;
     match sigcat::sig_cat(py, sigfiles, output_path, &selection, batch_size, verbose) {
         Ok(_) => Ok(0),
         Err(e) => {
