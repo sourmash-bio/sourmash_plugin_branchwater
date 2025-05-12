@@ -1041,6 +1041,16 @@ impl BuildCollection {
     }
 }
 
+impl<'a> IntoIterator for &'a BuildCollection {
+    type Item = (&'a BuildRecord, &'a Signature);
+    type IntoIter =
+        std::iter::Zip<std::slice::Iter<'a, BuildRecord>, std::slice::Iter<'a, Signature>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.manifest.records.iter().zip(self.sigs.iter())
+    }
+}
+
 impl<'a> IntoIterator for &'a mut BuildCollection {
     type Item = (&'a mut BuildRecord, &'a mut Signature);
     type IntoIter =

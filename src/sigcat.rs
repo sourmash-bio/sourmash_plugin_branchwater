@@ -65,11 +65,13 @@ pub fn precompressed_zipwriter_handle(
             }
             match message {
                 Some(batch) => {
+                    if !wrote_any_sigs {
+                        wrote_any_sigs = true;
+                    }
                     for compressed in batch {
                         zip.start_file(compressed.filename, options)?;
                         zip.write_all(&compressed.data)?;
                         zip_manifest.add_record(compressed.record);
-                        wrote_any_sigs = true;
                     }
                 }
                 None => {
@@ -101,47 +103,13 @@ pub fn compress_batch(
     md5sum_occurrences: &Arc<Mutex<HashMap<String, usize>>>,
 ) -> Result<Vec<CompressedSig>> {
     let mut output = Vec::new();
-    for (record, sig) in build_collection.iter_mut() {
+    for (record, sig) in &build_collection {
         if !record.sequence_added {
             continue;
         }
 
-        let md5sum_str = sig.md5sum();
-        let sig_filename = {
-            let mut md5sums = md5sum_occurrences.lock().unwrap();
-            let count = md5sums.entry(md5sum_str.clone()).or_insert(0);
-            *count += 1;
-
-            if *count > 1 {
-                format!("signatures/{}_{}.sig.gz", md5sum_str, count)
-            } else {
-                format!("signatures/{}.sig.gz", md5sum_str)
-            }
-        };
-
-        record.set_internal_location(Some(sig_filename.clone().into()));
-
-        let wrapped_sig = vec![sig.clone()];
-        let json_bytes = serde_json::to_vec(&wrapped_sig)?;
-
-        let gzipped_buffer = {
-            let mut buffer = std::io::Cursor::new(Vec::new());
-            {
-                let mut gz_writer = niffler::get_writer(
-                    Box::new(&mut buffer),
-                    niffler::compression::Format::Gzip,
-                    niffler::compression::Level::Nine,
-                )?;
-                gz_writer.write_all(&json_bytes)?;
-            }
-            buffer.into_inner()
-        };
-
-        output.push(CompressedSig {
-            filename: sig_filename,
-            data: gzipped_buffer,
-            record: record.clone(),
-        });
+        let compressed = compress_sig(record.clone(), sig, md5sum_occurrences)?;
+        output.push(compressed);
     }
 
     Ok(output)
@@ -179,6 +147,7 @@ pub fn compress_sig(
                 niffler::compression::Level::Nine,
             )?;
             gz_writer.write_all(&json_bytes)?;
+            gz_writer.flush()?;
         }
         buffer.into_inner()
     };
