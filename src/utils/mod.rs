@@ -1024,6 +1024,11 @@ pub struct ManySearchResult {
     pub n_weighted_found: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_weighted_hashes: Option<u64>,
+    // to do: don't need this to be option if can also add it in rocksdb search version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub containment_target_in_query: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub f_weighted_target_in_query: Option<f64>,
 }
 
 pub struct InterimGatherResult {
