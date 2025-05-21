@@ -277,7 +277,7 @@ def test_manysketch_only_incompatible_fastas(runtmp, capfd):
             "protein,k=10,scaled=1",
         )
 
-    assert os.path.exists(output)  # output will still exist - is this desired?
+    assert not os.path.exists(output)  # output will NOT exist
     assert not runtmp.last_result.out  # stdout should be empty
 
     captured = capfd.readouterr()
