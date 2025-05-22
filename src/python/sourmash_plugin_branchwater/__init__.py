@@ -389,7 +389,6 @@ class Branchwater_Index(CommandLinePlugin):
             args.scaled,
             args.moltype,
             args.output,
-            False,  # colors - currently must be false?
             args.internal_storage,
         )
         if status == 0:
@@ -732,7 +731,7 @@ class Branchwater_Manysketch(CommandLinePlugin):
             "-f",
             "--force",
             action="store_true",
-            help="allow use of individual FASTA files in more than more sketch",
+            help="allow use of individual FASTA files in more than one sketch",
         )
 
     def main(self, args):

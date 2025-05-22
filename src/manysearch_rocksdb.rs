@@ -143,7 +143,7 @@ pub(crate) fn manysearch_rocksdb_obj(
 
                     if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
                         let query_size = query_mh.size();
-                        let counter = db.counter_for_query(&query_mh);
+                        let counter = db.counter_for_query(&query_mh, None);
                         let matches =
                             db.matches_from_counter(counter, minimum_containment as usize);
 
