@@ -1,6 +1,10 @@
 //! Utility functions for `sourmash_plugin_branchwater`.
 use rayon::prelude::*;
 
+use sourmash::index::revindex::CounterGather;
+use sourmash::index::revindex::mem_revindex::MemRevIndex;
+use sourmash::index::revindex::RevIndexOps;
+
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
 use sourmash::ScaledType;
@@ -26,7 +30,7 @@ use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::selection::Selection;
-use sourmash::signature::SigsTrait;
+use sourmash::signature::{ Signature, SigsTrait };
 use sourmash::sketch::minhash::KmerMinHash;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
@@ -501,6 +505,81 @@ pub fn load_sketches_above_threshold(
     Ok((matchlist, skipped_paths, failed_paths))
 }
 
+/// Load a collection of sketches from a file, filtering to keep only
+/// those with a minimum overlap. SIGNATURES VERSION @CTB.
+
+pub fn load_sketches_above_threshold_sigs(
+    against_collection: MultiCollection,
+    query: &KmerMinHash,
+    threshold_hashes: u64,
+) -> Result<(CounterGather, usize, usize)> {
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
+
+    let (_, _, r) = against_collection.item_iter().next().expect("foo");
+    let XXXselection = Selection::from_record(r).expect("fiz");
+
+    if against_collection.contains_revindex {
+        eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
+    }
+    let matchlist: Vec<Signature> = against_collection
+        .par_iter()
+        .filter_map(|(coll, _idx, against_record)| {
+            let mut results = Vec::new();
+            // Load against into memory
+            if let Ok(against_sig) = coll.sig_from_record(against_record) {
+                let against_filename = against_sig.filename();
+                let orig_sig = against_sig.clone();
+                let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
+                let against_md5 = against_record.md5().clone(); // keep original md5sum
+
+                let against_mh_ds = against_mh
+                    .downsample_scaled(query.scaled())
+                    .expect("cannot downsample sketch");
+
+                // good? ok, store as candidate from prefetch.
+                if let Ok(overlap) = against_mh_ds.count_common(query, false) {
+                    if overlap > 0 && overlap >= threshold_hashes {
+                        results.push(orig_sig.into());
+                    }
+                } else {
+                    eprintln!(
+                        "WARNING: no compatible sketches in path '{}'",
+                        against_filename
+                    );
+                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                }
+            } else {
+                // this shouldn't happen here anymore -- likely would happen at load_collection
+                eprintln!(
+                    "WARNING: could not load sketches for record '{}'",
+                    against_record.internal_location()
+                );
+                let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            }
+            if results.is_empty() {
+                None
+            } else {
+                Some(results)
+            }
+        })
+        .flatten()
+        .collect();
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+    let revindex = MemRevIndex::new_with_sigs(matchlist,
+                                              &XXXselection,
+                                              threshold_hashes as usize,
+                                              None)?;
+
+    let cg = revindex.prepare_gather_counters(query, None);
+    
+
+    Ok((cg, skipped_paths, failed_paths))
+}
+
 pub enum ReportType {
     Query,
     Against,
@@ -852,7 +931,7 @@ pub fn consume_query_by_gather(
     );
 
     while !matching_sketches.is_empty() {
-        let best_element = matching_sketches.peek().unwrap();
+        let best_element = matching_sketches.peek().expect("no sketch!?");
 
         query_mh = query_mh.downsample_scaled(best_element.minhash.scaled())?;
 
