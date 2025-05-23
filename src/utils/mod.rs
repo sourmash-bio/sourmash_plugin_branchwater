@@ -516,8 +516,7 @@ pub fn load_sketches_above_threshold_sigs(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let (_, _, r) = against_collection.item_iter().next().expect("foo");
-    let XXXselection = Selection::from_record(r).expect("fiz");
+    let selection = against_collection.selection();
 
     if against_collection.contains_revindex {
         eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
@@ -570,7 +569,7 @@ pub fn load_sketches_above_threshold_sigs(
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
     let revindex = MemRevIndex::new_with_sigs(matchlist,
-                                              &XXXselection,
+                                              &selection,
                                               threshold_hashes as usize,
                                               None)?;
 

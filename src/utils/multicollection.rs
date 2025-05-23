@@ -13,7 +13,7 @@ use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use sourmash::collection::Collection;
+use sourmash::collection::{ Collection, CollectionSet };
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
 use sourmash::manifest::{Manifest, Record};
@@ -278,6 +278,13 @@ impl MultiCollection {
 
     pub fn max_scaled(&self) -> Option<&ScaledType> {
         self.item_iter().map(|(_, _, record)| record.scaled()).max()
+    }
+
+    pub fn selection(&self) -> Selection {
+        // @CTB 
+        let coll = self.collections.iter().next().expect("empty?!");
+        let cs: CollectionSet = coll.clone().try_into().expect("err");
+        cs.selection()
     }
 
     // iterate over tuples
