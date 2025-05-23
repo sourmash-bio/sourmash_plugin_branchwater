@@ -6,7 +6,7 @@ use sourmash::selection::Selection;
 use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
-    consume_query_by_gather, csvwriter_thread, load_collection, load_sketches_above_threshold,
+    consume_query_by_gather, csvwriter_thread, load_collection, load_sketches_above_threshold, load_sketches_above_threshold_sigs,
     write_prefetch, BranchwaterGatherResult, ReportType,
 };
 
@@ -77,10 +77,13 @@ pub fn fastgather(
     );
 
     // load a set of sketches, filtering for those with overlaps > threshold
+    let against_collection2 = against_collection.clone();
     let result = load_sketches_above_threshold(against_collection, &query_mh, threshold_hashes)?;
-    let matchlist = result.0;
-    let skipped_paths = result.1;
-    let failed_paths = result.2;
+    let result2 = load_sketches_above_threshold_sigs(against_collection2, &query_mh, threshold_hashes)?;
+
+    let (matchlist, skipped_paths, failed_paths) = result;
+    let (matchlist2, skipped_paths2, failed_paths2) = result2;
+
     if skipped_paths > 0 {
         eprintln!(
             "WARNING: skipped {} search paths - no compatible signatures.",
@@ -98,6 +101,8 @@ pub fn fastgather(
         eprintln!("No search signatures loaded, exiting.");
         return Ok(());
     }
+
+    eprintln!("CTB!!! {} ?= {}", matchlist.len(), matchlist2.len());
 
     if prefetch_output.is_some() {
         write_prefetch(
