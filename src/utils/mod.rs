@@ -1182,9 +1182,6 @@ pub fn consume_query_by_gather_cg( // @CTB
         // to do -- switch to KmerMinHashTree, for faster removal.
         //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
 
-        // recalculate remaining overlaps between query and all sketches.
-        // note: this is parallelized.
-        // @CTB rm matching_sketches = prefetch(&query_mh, matching_sketches, threshold_hashes);
         rank += 1;
 
         let sub_hashes = last_hashes - query_mh.size();

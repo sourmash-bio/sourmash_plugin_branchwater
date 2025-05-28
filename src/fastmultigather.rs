@@ -194,6 +194,7 @@ pub(crate) fn fastmultigather_obj(
                     let prefetch_output = format!("{}.prefetch.csv", location);
 
                     // Save initial list of matches to prefetch output
+                    // @CTB
                     write_prefetch(
                         query_filename.clone(),
                         query_name.clone(),
@@ -204,6 +205,7 @@ pub(crate) fn fastmultigather_obj(
                     .ok();
 
                     // Now, do the gather!
+                    // @CTB
                     consume_query_by_gather(
                         query_name,
                         query_filename,
