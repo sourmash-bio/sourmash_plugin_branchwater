@@ -2,6 +2,7 @@
 use rayon::prelude::*;
 
 use sourmash::index::revindex::CounterGather;
+use sourmash::index::revindex::RevIndex;
 use sourmash::index::revindex::mem_revindex::MemRevIndex;
 use sourmash::index::revindex::RevIndexOps;
 
@@ -512,7 +513,7 @@ pub fn load_sketches_above_threshold_sigs(
     against_collection: MultiCollection,
     query: &KmerMinHash,
     threshold_hashes: u64,
-) -> Result<(CounterGather, usize, usize)> {
+) -> Result<(RevIndex, CounterGather, usize, usize)> {
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
@@ -576,7 +577,7 @@ pub fn load_sketches_above_threshold_sigs(
     let cg = revindex.prepare_gather_counters(query, None);
     
 
-    Ok((cg, skipped_paths, failed_paths))
+    Ok((revindex, cg, skipped_paths, failed_paths))
 }
 
 pub enum ReportType {
@@ -1010,6 +1011,180 @@ pub fn consume_query_by_gather(
         // recalculate remaining overlaps between query and all sketches.
         // note: this is parallelized.
         matching_sketches = prefetch(&query_mh, matching_sketches, threshold_hashes);
+        rank += 1;
+
+        let sub_hashes = last_hashes - query_mh.size();
+        let sub_matches = last_matches - matching_sketches.len();
+
+        eprintln!(
+            "{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})",
+            query_filename,
+            rank,
+            query_mh.size(),
+            sub_hashes,
+            matching_sketches.len(),
+            sub_matches
+        );
+
+        last_hashes = query_mh.size();
+        last_matches = matching_sketches.len();
+    }
+
+    Ok(())
+}
+
+/// Execute the gather algorithm, greedy min-set-cov, by iteratively
+/// removing matches in 'matchlist' from 'query'. CounterGather version.
+
+pub fn consume_query_by_gather_cg( // @CTB
+    query_name: String,
+    query_filename: String,
+    orig_query_mh: KmerMinHash,
+    scaled: u32,
+    revindex: RevIndex,
+    matchlist: CounterGather,
+    threshold_hashes: u64,
+    gather_output: Option<SyncSender<BranchwaterGatherResult>>,
+) -> Result<()> {
+    let mut matching_sketches = matchlist;
+    let mut rank = 0;
+
+    let mut last_matches = matching_sketches.len();
+
+    let query_bp = orig_query_mh.n_unique_kmers();
+    let query_n_hashes = orig_query_mh.size() as u64;
+    let mut query_moltype = orig_query_mh.hash_function().to_string();
+    if query_moltype.to_lowercase() == "dna" {
+        query_moltype = query_moltype.to_uppercase();
+    }
+    let query_md5sum: String = orig_query_mh.md5sum().clone();
+    let query_scaled = orig_query_mh.scaled();
+
+    let total_weighted_hashes = orig_query_mh.sum_abunds();
+    let ksize = orig_query_mh.ksize() as u16;
+    let calc_abund_stats = orig_query_mh.track_abundance();
+    let orig_query_size = orig_query_mh.size();
+    let mut last_hashes = orig_query_size;
+
+    // this clone is necessary because we iteratively change things!
+    // to do == use this to subtract hashes instead
+    // let mut query_mh = KmerMinHashBTree::from(orig_query_mh.clone());
+    let mut query_mh = orig_query_mh.clone();
+
+    let mut orig_query_ds = orig_query_mh.downsample_scaled(scaled)?;
+
+    // track for full gather results
+    let mut sum_weighted_found = 0;
+
+    // set some bools
+    let calc_ani_ci = false;
+    let ani_confidence_interval_fraction = None;
+
+    eprintln!(
+        "{} iter {}: start: query hashes={} matches={}",
+        query_filename,
+        rank,
+        orig_query_size,
+        matching_sketches.len()
+    );
+
+    while !matching_sketches.is_empty() {
+        let (idx, overlap) = matching_sketches.peek(threshold_hashes as usize).expect("no sketch!?");
+
+        let best_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
+
+        let match_name = best_sig.name().or(Some("bif".to_string())).expect("biz");
+        let match_md5sum = best_sig.md5sum().clone();
+        let match_location = "foo".to_string();
+
+        let match_mh: KmerMinHash = best_sig.try_into().expect("fail");
+
+        // now, consume?
+        query_mh = query_mh.downsample_scaled(match_mh.scaled())?;
+
+        let isect = match_mh.intersection(&query_mh).expect("intersection failed");
+        let mut intersect_mh = match_mh.clone();
+        intersect_mh.clear();
+        intersect_mh.add_many(&isect.0[..]).expect("add many failed");
+        
+        matching_sketches.consume(&intersect_mh);
+
+        // CTB: won't need this if we do not allow multiple scaleds;
+        // see sourmash-bio/sourmash#2951
+        orig_query_ds = orig_query_ds
+            .downsample_scaled(match_mh.scaled())
+            .expect("cannot downsample");
+
+        //calculate full gather stats
+        let match_ = branchwater_calculate_gather_stats(
+            &orig_query_ds,
+            &query_mh,
+            &match_mh,
+            match_name,
+            match_md5sum,
+            overlap as u64,
+            match_location,
+            rank,
+            sum_weighted_found,
+            total_weighted_hashes,
+            calc_abund_stats,
+            calc_ani_ci,
+            ani_confidence_interval_fraction,
+        )?;
+
+        // build full gather result, then write
+        let gather_result = BranchwaterGatherResult {
+            intersect_bp: match_.intersect_bp,
+            f_orig_query: match_.f_orig_query,
+            f_match: match_.f_match,
+            f_unique_to_query: match_.f_unique_to_query,
+            f_unique_weighted: match_.f_unique_weighted,
+            average_abund: match_.average_abund,
+            median_abund: match_.median_abund,
+            std_abund: match_.std_abund,
+            match_filename: match_.match_filename.clone(), // to do: get match filename
+            match_name: match_.match_name.clone(),
+            match_md5: match_.match_md5.clone(),
+            f_match_orig: match_.f_match_orig,
+            unique_intersect_bp: match_.unique_intersect_bp,
+            gather_result_rank: match_.gather_result_rank as u32,
+            remaining_bp: match_.remaining_bp,
+            query_filename: query_filename.clone(),
+            query_name: query_name.clone(),
+            query_md5: query_md5sum.clone(),
+            query_bp,
+            ksize,
+            moltype: query_moltype.clone(),
+            scaled: query_scaled,
+            query_n_hashes,
+            query_abundance: query_mh.track_abundance(),
+            query_containment_ani: match_.query_containment_ani,
+            match_containment_ani: match_.match_containment_ani,
+            average_containment_ani: match_.average_containment_ani,
+            max_containment_ani: match_.max_containment_ani,
+            n_unique_weighted_found: match_.n_unique_weighted_found,
+            sum_weighted_found: match_.sum_weighted_found,
+            total_weighted_hashes: match_.total_weighted_hashes,
+
+            query_containment_ani_ci_low: match_.query_containment_ani_ci_low,
+            query_containment_ani_ci_high: match_.query_containment_ani_ci_high,
+            match_containment_ani_ci_low: match_.match_containment_ani_ci_low,
+            match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
+        };
+        sum_weighted_found = gather_result.sum_weighted_found;
+        // send result to channel => CSV file.
+        if let Some(ref s) = gather_output {
+            s.send(gather_result)?;
+        }
+
+        // remove!
+        query_mh.remove_from(&match_mh)?;
+        // to do -- switch to KmerMinHashTree, for faster removal.
+        //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
+
+        // recalculate remaining overlaps between query and all sketches.
+        // note: this is parallelized.
+        // @CTB rm matching_sketches = prefetch(&query_mh, matching_sketches, threshold_hashes);
         rank += 1;
 
         let sub_hashes = last_hashes - query_mh.size();
