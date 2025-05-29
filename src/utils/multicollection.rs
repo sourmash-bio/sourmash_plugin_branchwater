@@ -29,9 +29,15 @@ use sourmash::ScaledType;
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, usize, usize)>;
+    fn len(&self) -> usize;
+    fn select(&self, selection: &Selection) -> Result<Self, SourmashError> where Self: Sized;
+    fn iter(&self) -> impl Iterator<Item = (Idx, &Record)>;
+    fn collection(&self) -> &Collection;
+    fn intersect_manifest(&mut self, manifest: &Manifest);
 }
 
 
+#[derive(Clone)]
 enum SearchContainer {
     InvertedIndex(RevIndex),
     LinearCollection(Collection),
@@ -53,6 +59,49 @@ impl Searchable for SearchContainer {
                 },
             }
         }
+    fn len(&self) -> usize {
+        match self {
+            SearchContainer::InvertedIndex(revindex) => revindex.len(),
+            SearchContainer::LinearCollection(coll) => coll.len(),
+        }
+    }
+    fn select(&self, selection: &Selection) -> Result<Self, SourmashError> {
+        match self {
+            SearchContainer::InvertedIndex(revindex) => panic!("foo"),
+            SearchContainer::LinearCollection(coll) => {
+                let c2 = coll.clone().select(selection)?;
+                Ok(SearchContainer::LinearCollection(c2))
+            }
+        }
+    }
+    fn iter(&self) -> impl Iterator<Item = (Idx, &Record)> {
+        match self {
+            SearchContainer::InvertedIndex(revindex) => panic!("foobar"),
+            SearchContainer::LinearCollection(coll) => {
+                coll.iter()
+            }
+        }
+    }
+    fn collection(&self) -> &Collection {
+        match self {
+            SearchContainer::InvertedIndex(revindex) => {
+                revindex.collection()
+            }
+            SearchContainer::LinearCollection(coll) => {
+                coll
+            }
+        }
+    }
+    fn intersect_manifest(&mut self, manifest: &Manifest) {
+        match self {
+            SearchContainer::InvertedIndex(revindex) => {
+                panic!("foo");
+            }
+            SearchContainer::LinearCollection(coll) => {
+                coll.intersect_manifest(manifest);
+            }
+        }
+    }
 }
 
 /// Load a collection of sketches from a file, filtering to keep only
@@ -130,15 +179,13 @@ pub fn load_sketches_above_threshold_sigs_XXX(
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]
 pub struct MultiCollection {
-    collections: Vec<Collection>,
-    pub contains_revindex: bool, // track whether one or more Collection is a RevIndex
+    collections: Vec<SearchContainer>,
 }
 
 impl MultiCollection {
-    fn new(collections: Vec<Collection>, contains_revindex: bool) -> Self {
+    fn new(collections: Vec<SearchContainer>) -> Self {
         Self {
             collections,
-            contains_revindex,
         }
     }
 
@@ -288,7 +335,7 @@ impl MultiCollection {
     pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
         debug!("multi from zipfile!");
         match Collection::from_zipfile(sigpath) {
-            Ok(collection) => Ok(MultiCollection::new(vec![collection], false)),
+            Ok(collection) => Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(collection)])),
             Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
         }
     }
@@ -312,7 +359,7 @@ impl MultiCollection {
             match Collection::from_rocksdb(sigpath) {
                 Ok(collection) => {
                     debug!("...rocksdb successful!");
-                    Ok(MultiCollection::new(vec![collection], true))
+                    Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(collection)]))
                 }
                 Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
             }
@@ -367,7 +414,7 @@ impl MultiCollection {
                 sigpath
             )
         })?;
-        Ok(MultiCollection::new(vec![coll], false))
+        Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(coll)]))
     }
 
     pub fn len(&self) -> usize {
@@ -387,7 +434,7 @@ impl MultiCollection {
     pub fn selection(&self) -> Selection {
         // @CTB 
         let coll = self.collections.iter().next().expect("empty?!");
-        let cs: CollectionSet = coll.clone().try_into().expect("err");
+        let cs: CollectionSet = coll.collection().clone().try_into().expect("err");
         cs.selection()
     }
 
@@ -396,7 +443,7 @@ impl MultiCollection {
         let s: Vec<_> = self
             .collections
             .iter()
-            .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
+            .flat_map(|c| c.iter().map(move |(_idx, record)| (c.collection(), _idx, record)))
             .collect();
         s.into_iter()
     }
@@ -406,7 +453,7 @@ impl MultiCollection {
         let s: Vec<_> = self
             .collections
             .iter() // CTB: are we loading things into memory here? No...
-            .flat_map(|c| c.iter().map(move |(_idx, record)| (c, _idx, record)))
+            .flat_map(|c| c.iter().map(move |(_idx, record)| (c.collection(), _idx, record)))
             .collect();
         // then return a parallel iterator over the Vec.
         s.into_par_iter()
@@ -425,9 +472,6 @@ impl MultiCollection {
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
     pub fn load_sketches(self) -> Result<Vec<SmallSignature>> {
-        if self.contains_revindex {
-            eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
-        }
         let sketchinfo: Vec<_> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
@@ -510,33 +554,31 @@ impl Select for MultiCollection {
         let collections = self
             .collections
             .into_iter()
-            .filter_map(|c| c.select(selection).ok())
+            .filter_map(|c| c.clone().select(selection).ok())
             .collect();
 
-        Ok(MultiCollection::new(collections, self.contains_revindex))
+        Ok(MultiCollection::new(collections))
     }
 }
 
 // Convert a single Collection into a MultiCollection
 impl From<Collection> for MultiCollection {
     fn from(coll: Collection) -> Self {
-        // CTB: how can we check if revindex?
-        MultiCollection::new(vec![coll], false)
+        // CTB: how can we check if revindex? @CTB
+        MultiCollection::new(vec![SearchContainer::LinearCollection(coll)])
     }
 }
 
 // Merge a bunch of MultiCollection structs into one
 impl From<Vec<MultiCollection>> for MultiCollection {
     fn from(multi: Vec<MultiCollection>) -> Self {
-        let mut x: Vec<Collection> = vec![];
-        let mut contains_revindex = false;
+        let mut x: Vec<SearchContainer> = vec![];
         for mc in multi.into_iter() {
             for coll in mc.collections.into_iter() {
                 x.push(coll);
             }
-            contains_revindex = contains_revindex || mc.contains_revindex;
         }
-        MultiCollection::new(x, contains_revindex)
+        MultiCollection::new(x)
     }
 }
 
@@ -547,7 +589,7 @@ impl TryFrom<MultiCollection> for Collection {
     fn try_from(multi: MultiCollection) -> Result<Self, Self::Error> {
         if multi.collections.len() == 1 {
             // this must succeed b/c len > 0
-            Ok(multi.collections.into_iter().next().unwrap())
+            Ok(multi.collections.into_iter().next().unwrap().collection().clone())
         } else {
             Err("More than one Collection in this MultiCollection; cannot convert")
         }

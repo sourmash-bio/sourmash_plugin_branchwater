@@ -447,9 +447,6 @@ pub fn load_sketches_above_threshold(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    if against_collection.contains_revindex {
-        eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
-    }
     let matchlist: BinaryHeap<PrefetchResult> = against_collection
         .par_iter()
         .filter_map(|(coll, _idx, against_record)| {
@@ -519,9 +516,6 @@ pub fn load_sketches_above_threshold_sigs(
 
     let selection = against_collection.selection();
 
-    if against_collection.contains_revindex {
-        eprintln!("WARNING: loading all sketches from a RocksDB into memory!");
-    }
     let matchlist: Vec<Signature> = against_collection
         .par_iter()
         .filter_map(|(coll, _idx, against_record)| {
