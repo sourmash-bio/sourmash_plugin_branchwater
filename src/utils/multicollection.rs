@@ -16,12 +16,116 @@ use std::sync::atomic::AtomicUsize;
 use sourmash::collection::{ Collection, CollectionSet };
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
+use sourmash::index::revindex::{ CounterGather, RevIndex, RevIndexOps };
+use sourmash::index::revindex::mem_revindex::MemRevIndex;
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use sourmash::ScaledType;
+
+
+trait Searchable {
+    fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
+        Result<(RevIndex, CounterGather, usize, usize)>;
+}
+
+
+enum SearchContainer {
+    InvertedIndex(RevIndex),
+    LinearCollection(Collection),
+}
+
+impl Searchable for SearchContainer {
+    fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
+        Result<(RevIndex, CounterGather, usize, usize)> {
+            let skipped_paths = AtomicUsize::new(0);
+            match self {
+                SearchContainer::InvertedIndex(revindex) => {
+                    unimplemented!("foo");
+                },
+                SearchContainer::LinearCollection(coll) => {
+                    load_sketches_above_threshold_sigs_XXX(coll,
+                                                           query,
+                                                           threshold_hashes)
+                                                           
+                },
+            }
+        }
+}
+
+/// Load a collection of sketches from a file, filtering to keep only
+/// those with a minimum overlap. SIGNATURES VERSION 2 @CTB.
+
+pub fn load_sketches_above_threshold_sigs_XXX(
+    collection: &Collection,
+    query: &KmerMinHash,
+    threshold_hashes: u64,
+) -> Result<(RevIndex, CounterGather, usize, usize)> {
+    let skipped_paths = AtomicUsize::new(0);
+    let failed_paths = AtomicUsize::new(0);
+
+    let collection: CollectionSet = collection.clone().try_into()?;
+    let selection = collection.selection();
+
+    let matchlist: Vec<Signature> = collection
+        .par_iter()
+        .filter_map(|(_idx, against_record)| {
+            let mut results = Vec::new();
+            // Load against into memory
+            if let Ok(against_sig) = collection.sig_from_record(against_record) {
+                let against_filename = against_sig.filename();
+                let orig_sig = against_sig.clone();
+                let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
+                let against_md5 = against_record.md5().clone(); // keep original md5sum
+
+                let against_mh_ds = against_mh
+                    .downsample_scaled(query.scaled())
+                    .expect("cannot downsample sketch");
+
+                // good? ok, store as candidate from prefetch.
+                if let Ok(overlap) = against_mh_ds.count_common(query, false) {
+                    if overlap > 0 && overlap >= threshold_hashes {
+                        results.push(orig_sig.into());
+                    }
+                } else {
+                    eprintln!(
+                        "WARNING: no compatible sketches in path '{}'",
+                        against_filename
+                    );
+                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                }
+            } else {
+                // this shouldn't happen here anymore -- likely would happen at load_collection
+                eprintln!(
+                    "WARNING: could not load sketches for record '{}'",
+                    against_record.internal_location()
+                );
+                let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+            }
+            if results.is_empty() {
+                None
+            } else {
+                Some(results)
+            }
+        })
+        .flatten()
+        .collect();
+
+    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
+    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
+
+    let revindex = MemRevIndex::new_with_sigs(matchlist,
+                                              &selection,
+                                              threshold_hashes as usize,
+                                              None)?;
+
+    let cg = revindex.prepare_gather_counters(query, None);
+    
+
+    Ok((revindex, cg, skipped_paths, failed_paths))
+}
 
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]
@@ -363,6 +467,23 @@ impl MultiCollection {
         for coll in self.collections.iter_mut() {
             coll.intersect_manifest(manifest);
         }
+    }
+
+    pub fn prefetch_consume(self,
+                            query: &KmerMinHash,
+                            threshold_hashes: u64,
+    ) -> Result<(Vec<(RevIndex, CounterGather)>, usize, usize)> {
+/*        let pairs: Vec<(RevIndex, CounterGather)> = self
+            .collections
+            .iter()
+            .map(|c| {
+                ;
+            }
+        for collection in collections.iter() {
+            
+            }
+                */
+        panic!("foo");
     }
 
     // Load all sketches into memory, producing an in-memory Collection.
