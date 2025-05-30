@@ -84,11 +84,12 @@ pub fn fastmultigather(
     )?;
 
     // @CTB loading into memory & then converting to revindex... good?
-    let against_sketches = against_collection.load_sketches_revindex()?;
+    // actually, is easy to make optional now, I think.
+    let against_collection = against_collection.load_sketches_revindex()?;
 
     let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
         &query_collection,
-        &against_sketches,
+        &against_collection,
         save_matches,
         output_path,
         threshold_hashes,
@@ -116,7 +117,7 @@ pub fn fastmultigather(
 
 pub(crate) fn fastmultigather_obj(
     query_collection: &MultiCollection,
-    against: &RevIndex,
+    against: &MultiCollection,
     save_matches: bool,
     output_path: Option<String>,
     threshold_hashes: u64,
@@ -164,48 +165,28 @@ pub(crate) fn fastmultigather_obj(
                 let query_seed = query_mh.seed();
                 let query_num = query_mh.num();
 
-//                let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
+                let (matchlists, _, _) = against.prefetch(&query_mh, threshold_hashes).expect("fail??");
 
-                let cg = against.prepare_gather_counters(&query_mh, None);
-
-                let matchlist = PrefetchContainer { matchlists: vec![(against.clone(),
-                                                                      cg)] };
-
-                if !matchlist.is_empty() || create_empty_results {
+                if !matchlists.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
 
                     
 
                     // Save initial list of matches to prefetch output
-                    // @CTB
                     write_prefetch_cg(
                         query_filename.clone(),
                         query_name.clone(),
                         query_md5,
                         Some(prefetch_output),
-                        &matchlist,
+                        &matchlists,
                     )
                     .ok();
 
-                    // Now, do the gather!
-                    // @CTB
-                    consume_query_by_gather_cg(
-                        query_name,
-                        query_filename,
-                        query_mh,
-                        common_scaled,
-                        matchlist,
-                        threshold_hashes,
-                        Some(send.clone()),
-                    )
-                    .ok();
-/*
-                    // Save matching hashes to .sig file if save_matches is true
+                    // Save matching hashes to .sig file if save_matches is tru
                     if save_matches {
-                        if let Some(hashes) = matching_hashes {
+                        if !matchlists.is_empty() {
                             let sig_filename = format!("{}.matches.sig", name);
                             if let Ok(mut file) = File::create(&sig_filename) {
-                                let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
                                 let mut new_mh = KmerMinHash::new(
                                     query_scaled,
                                     query_ksize,
@@ -214,9 +195,13 @@ pub(crate) fn fastmultigather_obj(
                                     false,
                                     query_num,
                                 );
-                                new_mh
-                                    .add_many(&unique_hashes.into_iter().collect::<Vec<_>>())
-                                    .ok();
+                                let mut template_mh = new_mh.clone();
+                                template_mh.clear();
+
+                                for (ri, cg) in matchlists.matchlists.iter() {
+                                    let found = cg.found_hashes(&template_mh);
+                                    new_mh.merge(&found).expect("merge failed?!");
+                                }
                                 let mut signature = Signature::default();
                                 signature.push(Sketch::MinHash(new_mh));
                                 signature.set_filename(&name);
@@ -227,8 +212,19 @@ pub(crate) fn fastmultigather_obj(
                                 eprintln!("Error creating signature file: {}", sig_filename);
                             }
                         }
-                }
-                    */
+                    }
+
+                    // Now, do the gather!
+                    consume_query_by_gather_cg(
+                        query_name,
+                        query_filename,
+                        query_mh,
+                        common_scaled,
+                        matchlists,
+                        threshold_hashes,
+                        Some(send.clone()),
+                    )
+                    .ok();
                 } else {
                     println!("No matches to '{}'", location);
                 }

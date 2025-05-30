@@ -572,9 +572,8 @@ impl MultiCollection {
         Ok(sketchinfo)
     }
 
-    // Load all sketches into a MemRevIndex, using SmallSignature to track original
-    // signature metadata.
-    pub fn load_sketches_revindex(self) -> Result<RevIndex> {
+    // Load all sketches into a MemRevIndex, return new MultiCollection.
+    pub fn load_sketches_revindex(self) -> Result<Self> {
         let sketchinfo: Vec<_> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
@@ -602,7 +601,8 @@ impl MultiCollection {
                                                   &selection,
                                                   0,
                                                   None)?;
-        Ok(revindex)
+
+        Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex) ]))
     }
 
     fn intersect_manifest(&mut self, manifest: &Manifest) {
