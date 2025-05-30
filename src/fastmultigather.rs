@@ -182,7 +182,8 @@ pub(crate) fn fastmultigather_obj(
                     )
                     .ok();
 
-                    // Save matching hashes to .sig file if save_matches is tru
+                    // Save matching hashes to .sig file if save_matches is true
+                    // @CTB move matchlist iteration/found_mh stuff into struct.
                     if save_matches {
                         if !matchlists.is_empty() {
                             let sig_filename = format!("{}.matches.sig", name);
