@@ -77,9 +77,9 @@ pub fn fastgather(
     );
 
     // load a set of sketches, filtering for those with overlaps > threshold
-    let against_collection2 = against_collection.clone();
+    // let against_collection2 = against_collection.clone();
     // let result = load_sketches_above_threshold(against_collection, &query_mh, threshold_hashes)?;
-    let result2 = load_sketches_above_threshold_sigs(against_collection2, &query_mh, threshold_hashes)?;
+    let result2 = against_collection.prefetch(&query_mh, threshold_hashes)?;
 
     // let (matchlist, skipped_paths, failed_paths) = result;
     let (revindex, matchlist2, skipped_paths, failed_paths) = result2;

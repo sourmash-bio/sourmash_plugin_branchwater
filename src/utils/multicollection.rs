@@ -513,6 +513,14 @@ impl MultiCollection {
         }
     }
 
+    pub fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) -> Result<(RevIndex, CounterGather, usize, usize)> {
+        if self.collections.len() > 1 {
+            panic!("help");
+        }
+        let first = self.collections.iter().next().expect("empty");
+        first.prefetch(query, threshold_hashes)
+    }
+        
     pub fn prefetch_consume(self,
                             query: &KmerMinHash,
                             threshold_hashes: u64,
