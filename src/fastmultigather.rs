@@ -17,13 +17,14 @@ use std::fs::File;
 
 use log::trace;
 
+use sourmash::index::revindex::{ CounterGather, RevIndex, RevIndexOps };
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType, SmallSignature,
+    consume_query_by_gather_cg, csvwriter_thread, load_collection, write_prefetch_cg,
+    BranchwaterGatherResult, MultiCollection, PrefetchContainer, ReportType, SmallSignature,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -82,7 +83,8 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
-    let against_sketches = against_collection.load_sketches()?;
+    // @CTB loading into memory & then converting to revindex... good?
+    let against_sketches = against_collection.load_sketches_revindex()?;
 
     let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
         &query_collection,
@@ -114,7 +116,7 @@ pub fn fastmultigather(
 
 pub(crate) fn fastmultigather_obj(
     query_collection: &MultiCollection,
-    against: &Vec<SmallSignature>,
+    against: &RevIndex,
     save_matches: bool,
     output_path: Option<String>,
     threshold_hashes: u64,
@@ -157,45 +159,26 @@ pub(crate) fn fastmultigather_obj(
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();
-                let query_ksize = query_mh.ksize().try_into().unwrap();
+                let query_ksize: u32 = query_mh.ksize().try_into().expect("foo");
                 let query_hash_function = query_mh.hash_function().clone();
                 let query_seed = query_mh.seed();
                 let query_num = query_mh.num();
 
-                let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
-                let matchlist: BinaryHeap<PrefetchResult> = against
-                    .iter()
-                    .filter_map(|against| {
-                        let mut mm: Option<PrefetchResult> = None;
-                        if let Ok(overlap) = against.minhash.count_common(&query_mh, false) {
-                            if overlap >= threshold_hashes {
-                                if save_matches {
-                                    if let Ok(intersection) =
-                                        against.minhash.intersection(&query_mh)
-                                    {
-                                        matching_hashes.as_mut().unwrap().extend(intersection.0);
-                                    }
-                                }
-                                let result = PrefetchResult {
-                                    name: against.name.clone(),
-                                    md5sum: against.md5sum.clone(),
-                                    minhash: against.minhash.clone(),
-                                    location: against.location.clone(),
-                                    overlap,
-                                };
-                                mm = Some(result);
-                            }
-                        }
-                        mm
-                    })
-                    .collect();
+//                let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
+
+                let cg = against.prepare_gather_counters(&query_mh, None);
+
+                let matchlist = PrefetchContainer { matchlists: vec![(against.clone(),
+                                                                      cg)] };
 
                 if !matchlist.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
 
+                    
+
                     // Save initial list of matches to prefetch output
                     // @CTB
-                    write_prefetch(
+                    write_prefetch_cg(
                         query_filename.clone(),
                         query_name.clone(),
                         query_md5,
@@ -206,7 +189,7 @@ pub(crate) fn fastmultigather_obj(
 
                     // Now, do the gather!
                     // @CTB
-                    consume_query_by_gather(
+                    consume_query_by_gather_cg(
                         query_name,
                         query_filename,
                         query_mh,
@@ -216,7 +199,7 @@ pub(crate) fn fastmultigather_obj(
                         Some(send.clone()),
                     )
                     .ok();
-
+/*
                     // Save matching hashes to .sig file if save_matches is true
                     if save_matches {
                         if let Some(hashes) = matching_hashes {
@@ -244,7 +227,8 @@ pub(crate) fn fastmultigather_obj(
                                 eprintln!("Error creating signature file: {}", sig_filename);
                             }
                         }
-                    }
+                }
+                    */
                 } else {
                     println!("No matches to '{}'", location);
                 }

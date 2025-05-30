@@ -572,6 +572,39 @@ impl MultiCollection {
         Ok(sketchinfo)
     }
 
+    // Load all sketches into a MemRevIndex, using SmallSignature to track original
+    // signature metadata.
+    pub fn load_sketches_revindex(self) -> Result<RevIndex> {
+        let sketchinfo: Vec<_> = self
+            .par_iter()
+            .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
+                Ok(sig) => {
+                    trace!(
+                        "MultiCollection load sketch: from:{} idx:{} loc:{}",
+                        coll.storage().spec(),
+                        _idx,
+                        record.internal_location()
+                    );
+                    Some(sig.into())
+                }
+                Err(_) => {
+                    eprintln!(
+                        "FAILED to load sketch from '{}'",
+                        record.internal_location()
+                    );
+                    None
+                }
+            })
+            .collect();
+
+        let selection = self.selection();
+        let revindex = MemRevIndex::new_with_sigs(sketchinfo,
+                                                  &selection,
+                                                  0,
+                                                  None)?;
+        Ok(revindex)
+    }
+
     fn intersect_manifest(&mut self, manifest: &Manifest) {
         for coll in self.collections.iter_mut() {
             coll.intersect_manifest(manifest);

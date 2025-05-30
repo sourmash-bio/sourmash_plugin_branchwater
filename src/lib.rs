@@ -139,7 +139,7 @@ fn do_fastmultigather(
     let allow_failed_sigpaths = true;
 
     // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
-    if is_revindex_database(&againstfile_path) {
+    if is_revindex_database(&againstfile_path) && false { // @CTB
         match fastmultigather_rocksdb::fastmultigather_rocksdb(
             query_filenames,
             againstfile_path,
