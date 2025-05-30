@@ -17,7 +17,7 @@ use csv::Writer;
 use glob::glob;
 use serde::{Deserialize, Serialize};
 // use rust_decimal::{MathematicalOps, Decimal};
-use std::cmp::{Ordering, PartialOrd};
+use std::cmp::{max, Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, metadata, File};
 use std::io::{BufWriter, Write};
@@ -1093,8 +1093,12 @@ pub fn consume_query_by_gather_cg( // @CTB
 
         let match_mh: KmerMinHash = best_sig.try_into().expect("fail");
 
+        // @CTB is this the right place to do this?
+        let max_scaled = max(query_mh.scaled(), match_mh.scaled());
+
         // now, consume?
-        query_mh = query_mh.downsample_scaled(match_mh.scaled())?;
+        let match_mh = match_mh.downsample_scaled(max_scaled)?;
+        query_mh = query_mh.downsample_scaled(max_scaled)?;
 
         let isect = match_mh.intersection(&query_mh).expect("intersection failed");
         let mut intersect_mh = match_mh.clone();

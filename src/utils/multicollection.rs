@@ -49,7 +49,8 @@ impl Searchable for SearchContainer {
             let skipped_paths = AtomicUsize::new(0);
             match self {
                 SearchContainer::InvertedIndex(revindex) => {
-                    unimplemented!("foo 1");
+                    let cg = revindex.prepare_gather_counters(query, None);
+                    Ok((revindex.clone(), cg, 0, 0))
                 },
                 SearchContainer::LinearCollection(coll) => {
                     load_sketches_above_threshold_sigs_XXX(coll,
