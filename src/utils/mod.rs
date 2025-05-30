@@ -124,16 +124,14 @@ pub fn write_prefetch(
     writeln!(
         &mut writer,
         "query_filename,query_name,query_md5,match_name,match_md5,intersect_bp"
-    )
-    .ok();
+    )?;
 
     for m in matchlist.iter() {
         writeln!(
             &mut writer,
             "{},\"{}\",{},\"{}\",{},{}",
             query_filename, query_name, query_md5, m.name, m.md5sum, m.overlap
-        )
-        .ok();
+        )?;
     }
 
     Ok(())
