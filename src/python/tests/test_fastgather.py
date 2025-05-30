@@ -70,14 +70,6 @@ def test_simple(
         "intersect_bp",
     }.issubset(keys)
 
-    # CTB note: we do not need to worry about this warning for query from a
-    # RocksDB, since there is only one.
-    if indexed_against:
-        print("indexed against:", indexed_against)
-        assert (
-            "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
-        )
-
 
 def test_simple_with_prefetch(runtmp, zip_against, indexed, toggle_internal_storage):
     # test basic execution!
@@ -958,7 +950,7 @@ def test_simple_hp(runtmp):
 
 
 def test_indexed_against(runtmp, capfd):
-    # accept rocksdb against, but with a warning
+    # accept rocksdb against
     query = get_test_data("SRR606249.sig.gz")
     against_list = runtmp.output("against.txt")
 
@@ -1003,8 +995,6 @@ def test_indexed_against(runtmp, capfd):
 
     captured = capfd.readouterr()
     print(captured.err)
-
-    assert "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
 
 
 def test_simple_with_manifest_loading(runtmp):
@@ -1383,11 +1373,3 @@ def test_simple_skipm2n3(
         "gather_result_rank",
         "intersect_bp",
     }.issubset(keys)
-
-    # CTB note: we do not need to worry about this warning for query from a
-    # RocksDB, since there is only one.
-    if indexed_against:
-        print("indexed against:", indexed_against)
-        assert (
-            "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
-        )

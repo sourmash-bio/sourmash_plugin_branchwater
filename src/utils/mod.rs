@@ -137,6 +137,56 @@ pub fn write_prefetch(
     Ok(())
 }
 
+/// Write list of prefetch matches.
+pub fn write_prefetch_cg(
+    query_filename: String,
+    query_name: String,
+    query_md5: String,
+    prefetch_output: Option<String>,
+    revindex: &RevIndex,
+    matchlist: &CounterGather,
+) -> Result<()> {
+    // Define the writer to stdout by default
+    let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
+
+    if let Some(output_path) = &prefetch_output {
+        // Account for potential missing dir in output path
+        let directory_path = Path::new(output_path).parent();
+
+        // If a directory path exists in the filename, create it if it doesn't already exist
+        if let Some(dir) = directory_path {
+            create_dir_all(dir)?;
+        }
+
+        let file = File::create(output_path)?;
+        writer = Box::new(BufWriter::new(file));
+    }
+
+    writeln!(
+        &mut writer,
+        "query_filename,query_name,query_md5,match_name,match_md5,intersect_bp"
+    )?;
+
+    for (dataset_id, size) in matchlist.counter().most_common().into_iter() {
+        let sig: Signature = revindex
+            .collection()
+            .sig_for_dataset(dataset_id)
+            .expect("dataset not found")
+            .into();
+        let match_name = sig.name().expect("foo");
+        let match_md5 = sig.md5sum();
+        let overlap = size;
+
+        writeln!(
+            &mut writer,
+            "{},\"{}\",{},\"{}\",{},{}",
+            query_filename, query_name, query_md5, match_name, match_md5, overlap
+        )?;
+    }
+
+    Ok(())
+}
+
 pub struct FastaData {
     pub name: String,
     pub paths: Vec<PathBuf>,

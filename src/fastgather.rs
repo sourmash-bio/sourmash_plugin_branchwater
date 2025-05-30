@@ -7,7 +7,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
     consume_query_by_gather, consume_query_by_gather_cg, csvwriter_thread, load_collection, load_sketches_above_threshold, load_sketches_above_threshold_sigs,
-    write_prefetch, BranchwaterGatherResult, ReportType,
+    write_prefetch_cg, BranchwaterGatherResult, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -81,7 +81,6 @@ pub fn fastgather(
     // let result = load_sketches_above_threshold(against_collection, &query_mh, threshold_hashes)?;
     let result2 = against_collection.prefetch(&query_mh, threshold_hashes)?;
 
-    // let (matchlist, skipped_paths, failed_paths) = result;
     let (revindex, matchlist2, skipped_paths, failed_paths) = result2;
 
     if skipped_paths > 0 {
@@ -102,19 +101,17 @@ pub fn fastgather(
         return Ok(());
     }
 
-    // eprintln!("CTB!!! {} ?= {}", matchlist.len(), matchlist2.len());
-/* @CTB
     if prefetch_output.is_some() {
-        write_prefetch(
+        write_prefetch_cg(
             query_filename.clone(),
             query_name.clone(),
             query_md5,
             prefetch_output,
-            &matchlist,
-        )
-        .ok();
+            &revindex,
+            &matchlist2,
+        )?;
     }
-*/
+
     let (send, recv) =
         std::sync::mpsc::sync_channel::<BranchwaterGatherResult>(rayon::current_num_threads());
     let gather_out_thrd = csvwriter_thread(recv, gather_output);

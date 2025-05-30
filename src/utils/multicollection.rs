@@ -26,6 +26,11 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use sourmash::ScaledType;
 
 
+pub struct PrefetchContainer {
+    pub matchlists: Vec<(RevIndex, CounterGather)>,
+}
+
+
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, usize, usize)>;
@@ -77,7 +82,9 @@ impl Searchable for SearchContainer {
     }
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)> {
         match self {
-            SearchContainer::InvertedIndex(revindex) => panic!("foobar"),
+            SearchContainer::InvertedIndex(revindex) => {
+                revindex.collection().iter()
+            }
             SearchContainer::LinearCollection(coll) => {
                 coll.iter()
             }
