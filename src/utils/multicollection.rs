@@ -49,7 +49,7 @@ impl Searchable for SearchContainer {
             let skipped_paths = AtomicUsize::new(0);
             match self {
                 SearchContainer::InvertedIndex(revindex) => {
-                    unimplemented!("foo");
+                    unimplemented!("foo 1");
                 },
                 SearchContainer::LinearCollection(coll) => {
                     load_sketches_above_threshold_sigs_XXX(coll,
@@ -67,7 +67,7 @@ impl Searchable for SearchContainer {
     }
     fn select(&self, selection: &Selection) -> Result<Self, SourmashError> {
         match self {
-            SearchContainer::InvertedIndex(revindex) => panic!("foo"),
+            SearchContainer::InvertedIndex(revindex) => Ok(SearchContainer::InvertedIndex(revindex.clone())), // @CTB
             SearchContainer::LinearCollection(coll) => {
                 let c2 = coll.clone().select(selection)?;
                 Ok(SearchContainer::LinearCollection(c2))
@@ -95,7 +95,7 @@ impl Searchable for SearchContainer {
     fn intersect_manifest(&mut self, manifest: &Manifest) {
         match self {
             SearchContainer::InvertedIndex(revindex) => {
-                panic!("foo");
+                panic!("foo 3");
             }
             SearchContainer::LinearCollection(coll) => {
                 coll.intersect_manifest(manifest);
@@ -356,13 +356,16 @@ impl MultiCollection {
         }
 
         if is_rocksdb {
-            match Collection::from_rocksdb(sigpath) {
-                Ok(collection) => {
-                    debug!("...rocksdb successful!");
-                    Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(collection)]))
+            let db = match RevIndex::open(sigpath, true, None) {
+                Ok(db) => db,
+                Err(e) => {
+                    return Err(anyhow::anyhow!(
+                        "cannot open RocksDB database. Error is: {}",
+                        e
+                    ))
                 }
-                Err(_) => bail!("failed to load rocksdb: '{}'", sigpath),
-            }
+            };
+            Ok(MultiCollection::new(vec![SearchContainer::InvertedIndex(db)]))
         } else {
             bail!("not a rocksdb: '{}'", sigpath)
         }
