@@ -1132,9 +1132,7 @@ pub fn consume_query_by_gather_cg( // @CTB
     );
 
     while !matchlists.is_empty() {
-        let (revindex, idx, overlap) = matchlists.peek(threshold_hashes as u64).expect("shouldn't be empty");
-
-        let match_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
+        let match_sig = matchlists.peek(threshold_hashes as u64).expect("shouldn't be empty");
 
         let match_name = match_sig.name().or(Some("bif".to_string())).expect("biz");
         let match_md5sum = match_sig.md5sum().clone();
@@ -1162,14 +1160,14 @@ pub fn consume_query_by_gather_cg( // @CTB
             .downsample_scaled(match_mh.scaled())
             .expect("cannot downsample");
 
-        //calculate full gather stats
+        // calculate full gather stats
         let match_ = branchwater_calculate_gather_stats(
             &orig_query_ds,
             &query_mh,
             &match_mh,
             match_name,
             match_md5sum,
-            overlap as u64,
+            intersect_mh.size() as u64,
             match_location,
             rank,
             sum_weighted_found,

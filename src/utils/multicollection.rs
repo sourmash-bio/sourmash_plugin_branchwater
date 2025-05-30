@@ -38,6 +38,7 @@ impl PrefetchContainer {
         }
         l
     }
+
     pub fn is_empty(&self) -> bool {
         for (_, cg) in self.matchlists.iter() {
             if cg.is_empty() { return true; };
@@ -45,7 +46,8 @@ impl PrefetchContainer {
         return false;
     }
 
-    pub fn peek(&self, threshold_hashes: u64) -> Option<(&RevIndex, Idx, usize)> {
+    // find best match across all CounterGather objects
+    pub fn peek(&self, threshold_hashes: u64) -> Option<Signature> {
         let mut best_idx = None;
         let mut best_overlap = 0;
         let mut best_revindex = None;
@@ -60,13 +62,18 @@ impl PrefetchContainer {
                 }
             }
         }
+
+        // did we find something?
         if let Some(revindex) = best_revindex {
-            Some((revindex, best_idx.unwrap(), best_overlap))
+            let idx = best_idx.unwrap();
+            let match_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
+            Some(match_sig)
         } else {
             None
         }
     }
 
+    // consume the best match across all CounterGathers.
     pub fn consume(self, intersect_mh: &KmerMinHash) -> Self {
         let mut updated: Vec<(RevIndex, CounterGather)> = vec![];
         
