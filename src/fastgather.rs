@@ -122,7 +122,7 @@ pub fn fastgather(
         matchlists,
         threshold_hashes,
         Some(send),
-)?;
+    )?;
 
     gather_out_thrd
         .join()
