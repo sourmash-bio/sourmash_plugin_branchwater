@@ -30,6 +30,54 @@ pub struct PrefetchContainer {
     pub matchlists: Vec<(RevIndex, CounterGather)>,
 }
 
+impl PrefetchContainer {
+    pub fn len(&self) -> usize {
+        let mut l = 0;
+        for (_, cg) in self.matchlists.iter() {
+            l += cg.len();
+        }
+        l
+    }
+    pub fn is_empty(&self) -> bool {
+        for (_, cg) in self.matchlists.iter() {
+            if cg.is_empty() { return true; };
+        }
+        return false;
+    }
+
+    pub fn peek(&self, threshold_hashes: u64) -> Option<(&RevIndex, Idx, usize)> {
+        let mut best_idx = None;
+        let mut best_overlap = 0;
+        let mut best_revindex = None;
+        
+        for (revindex, cg) in self.matchlists.iter() {
+            if !cg.is_empty() {
+                let (idx, overlap) = cg.peek(threshold_hashes as usize).expect("empty?!");
+                if overlap > best_overlap {
+                    best_idx = Some(idx);
+                    best_overlap = overlap;
+                    best_revindex = Some(revindex);
+                }
+            }
+        }
+        if let Some(revindex) = best_revindex {
+            Some((revindex, best_idx.unwrap(), best_overlap))
+        } else {
+            None
+        }
+    }
+
+    pub fn consume(self, intersect_mh: &KmerMinHash) -> Self {
+        let mut updated: Vec<(RevIndex, CounterGather)> = vec![];
+        
+        for (revindex, mut cg) in self.matchlists.into_iter() {
+            cg.consume(intersect_mh);
+            updated.push((revindex, cg));
+        }
+        PrefetchContainer { matchlists : updated }
+    }
+}
+
 
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
@@ -51,7 +99,6 @@ enum SearchContainer {
 impl Searchable for SearchContainer {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, usize, usize)> {
-            let skipped_paths = AtomicUsize::new(0);
             match self {
                 SearchContainer::InvertedIndex(revindex) => {
                     let cg = revindex.prepare_gather_counters(query, None);
@@ -524,12 +571,23 @@ impl MultiCollection {
         }
     }
 
-    pub fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) -> Result<(RevIndex, CounterGather, usize, usize)> {
+    pub fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) -> Result<(PrefetchContainer, usize, usize)> {
         if self.collections.len() > 1 {
             panic!("help");
         }
-        let first = self.collections.iter().next().expect("empty");
-        first.prefetch(query, threshold_hashes)
+        let mut skipped_paths = 0;
+        let mut failed_paths = 0;
+
+        let mut res = PrefetchContainer { matchlists: vec![] };
+
+        for searchable in self.collections.iter() {
+            let (revindex, cg, skip, fail) = searchable.prefetch(query, threshold_hashes)?;
+            skipped_paths += skip;
+            failed_paths += fail;
+
+            res.matchlists.push((revindex, cg));
+        }
+        Ok((res, skipped_paths, failed_paths))
     }
         
     pub fn prefetch_consume(self,

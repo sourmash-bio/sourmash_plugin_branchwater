@@ -81,7 +81,7 @@ pub fn fastgather(
     // let result = load_sketches_above_threshold(against_collection, &query_mh, threshold_hashes)?;
     let result2 = against_collection.prefetch(&query_mh, threshold_hashes)?;
 
-    let (revindex, matchlist2, skipped_paths, failed_paths) = result2;
+    let (matchlists, skipped_paths, failed_paths) = result2;
 
     if skipped_paths > 0 {
         eprintln!(
@@ -96,7 +96,7 @@ pub fn fastgather(
         );
     }
 
-    if matchlist2.is_empty() {
+    if matchlists.is_empty() {
         eprintln!("No search signatures loaded, exiting.");
         return Ok(());
     }
@@ -107,8 +107,7 @@ pub fn fastgather(
             query_name.clone(),
             query_md5,
             prefetch_output,
-            &revindex,
-            &matchlist2,
+            &matchlists,
         )?;
     }
 
@@ -122,11 +121,10 @@ pub fn fastgather(
         query_filename,
         query_mh,
         scaled as u32,
-        revindex,
-        matchlist2,
+        matchlists,
         threshold_hashes,
         Some(send),
-    )?;
+)?;
 
     gather_out_thrd
         .join()

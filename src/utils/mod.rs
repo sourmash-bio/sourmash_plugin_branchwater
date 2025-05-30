@@ -38,7 +38,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 pub mod multicollection;
-pub use multicollection::{MultiCollection, SmallSignature};
+pub use multicollection::{MultiCollection, PrefetchContainer, SmallSignature};
 
 pub mod buildutils;
 use buildutils::{BuildCollection, BuildManifest};
@@ -143,8 +143,7 @@ pub fn write_prefetch_cg(
     query_name: String,
     query_md5: String,
     prefetch_output: Option<String>,
-    revindex: &RevIndex,
-    matchlist: &CounterGather,
+    matchlists: &PrefetchContainer,
 ) -> Result<()> {
     // Define the writer to stdout by default
     let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
@@ -167,21 +166,23 @@ pub fn write_prefetch_cg(
         "query_filename,query_name,query_md5,match_name,match_md5,intersect_bp"
     )?;
 
-    for (dataset_id, size) in matchlist.counter().most_common().into_iter() {
-        let sig: Signature = revindex
-            .collection()
-            .sig_for_dataset(dataset_id)
-            .expect("dataset not found")
-            .into();
-        let match_name = sig.name().expect("foo");
-        let match_md5 = sig.md5sum();
-        let overlap = size;
+    for (revindex, cg) in matchlists.matchlists.iter() {
+        for (dataset_id, size) in cg.counter().most_common().into_iter() {
+            let sig: Signature = revindex
+                .collection()
+                .sig_for_dataset(dataset_id)
+                .expect("dataset not found")
+                .into();
+            let match_name = sig.name().expect("foo");
+            let match_md5 = sig.md5sum();
+            let overlap = size;
 
-        writeln!(
-            &mut writer,
-            "{},\"{}\",{},\"{}\",{},{}",
-            query_filename, query_name, query_md5, match_name, match_md5, overlap
-        )?;
+            writeln!(
+                &mut writer,
+                "{},\"{}\",{},\"{}\",{},{}",
+                query_filename, query_name, query_md5, match_name, match_md5, overlap
+            )?;
+        }
     }
 
     Ok(())
@@ -1083,15 +1084,15 @@ pub fn consume_query_by_gather_cg( // @CTB
     query_filename: String,
     orig_query_mh: KmerMinHash,
     scaled: u32,
-    revindex: RevIndex,
-    matchlist: CounterGather,
+    matchlists: PrefetchContainer,
     threshold_hashes: u64,
     gather_output: Option<SyncSender<BranchwaterGatherResult>>,
 ) -> Result<()> {
-    let mut matching_sketches = matchlist;
+    let mut matchlists = matchlists;
+
     let mut rank = 0;
 
-    let mut last_matches = matching_sketches.len();
+    let mut last_matches = matchlists.len();
 
     let query_bp = orig_query_mh.n_unique_kmers();
     let query_n_hashes = orig_query_mh.size() as u64;
@@ -1127,19 +1128,19 @@ pub fn consume_query_by_gather_cg( // @CTB
         query_filename,
         rank,
         orig_query_size,
-        matching_sketches.len()
+        matchlists.len()
     );
 
-    while !matching_sketches.is_empty() {
-        let (idx, overlap) = matching_sketches.peek(threshold_hashes as usize).expect("no sketch!?");
+    while !matchlists.is_empty() {
+        let (revindex, idx, overlap) = matchlists.peek(threshold_hashes as u64).expect("shouldn't be empty");
 
-        let best_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
+        let match_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
 
-        let match_name = best_sig.name().or(Some("bif".to_string())).expect("biz");
-        let match_md5sum = best_sig.md5sum().clone();
+        let match_name = match_sig.name().or(Some("bif".to_string())).expect("biz");
+        let match_md5sum = match_sig.md5sum().clone();
         let match_location = "foo".to_string();
 
-        let match_mh: KmerMinHash = best_sig.try_into().expect("fail");
+        let match_mh: KmerMinHash = match_sig.try_into().expect("fail");
 
         // @CTB is this the right place to do this?
         let max_scaled = max(query_mh.scaled(), match_mh.scaled());
@@ -1152,8 +1153,8 @@ pub fn consume_query_by_gather_cg( // @CTB
         let mut intersect_mh = match_mh.clone();
         intersect_mh.clear();
         intersect_mh.add_many(&isect.0[..]).expect("add many failed");
-        
-        matching_sketches.consume(&intersect_mh);
+
+        matchlists = matchlists.consume(&intersect_mh);
 
         // CTB: won't need this if we do not allow multiple scaleds;
         // see sourmash-bio/sourmash#2951
@@ -1231,7 +1232,7 @@ pub fn consume_query_by_gather_cg( // @CTB
         rank += 1;
 
         let sub_hashes = last_hashes - query_mh.size();
-        let sub_matches = last_matches - matching_sketches.len();
+        let sub_matches = last_matches - matchlists.len();
 
         eprintln!(
             "{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})",
@@ -1239,12 +1240,12 @@ pub fn consume_query_by_gather_cg( // @CTB
             rank,
             query_mh.size(),
             sub_hashes,
-            matching_sketches.len(),
+            matchlists.len(),
             sub_matches
         );
 
         last_hashes = query_mh.size();
-        last_matches = matching_sketches.len();
+        last_matches = matchlists.len();
     }
 
     Ok(())
