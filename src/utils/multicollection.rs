@@ -31,6 +31,7 @@ pub struct PrefetchContainer {
 }
 
 impl PrefetchContainer {
+    // sum the lengths of the contents
     pub fn len(&self) -> usize {
         let mut l = 0;
         for (_, cg) in self.matchlists.iter() {
@@ -39,6 +40,7 @@ impl PrefetchContainer {
         l
     }
 
+    // true if all contained matchlists are false
     pub fn is_empty(&self) -> bool {
         for (_, cg) in self.matchlists.iter() {
             if !cg.is_empty() { return false; };

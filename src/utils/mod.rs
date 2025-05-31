@@ -166,6 +166,7 @@ pub fn write_prefetch_cg(
         "query_filename,query_name,query_md5,match_name,match_md5,intersect_bp"
     )?;
 
+    // @CTB make into an iterator?
     for (revindex, cg) in matchlists.matchlists.iter() {
         for (dataset_id, size) in cg.counter().most_common().into_iter() {
             let sig: Signature = revindex
