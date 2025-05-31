@@ -85,11 +85,6 @@ def test_simple_no_ani(runtmp, capfd, zip_query, indexed):
     captured = capfd.readouterr()
     print(captured.err)
 
-    if indexed:
-        assert (
-            "WARNING: loading all sketches from a RocksDB into memory!" in captured.err
-        )
-
 
 def test_simple_no_ani_output_all(runtmp, capfd, zip_query, indexed):
     # test basic execution!

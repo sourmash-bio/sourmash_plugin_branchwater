@@ -41,9 +41,9 @@ impl PrefetchContainer {
 
     pub fn is_empty(&self) -> bool {
         for (_, cg) in self.matchlists.iter() {
-            if cg.is_empty() { return true; };
+            if !cg.is_empty() { return false; };
         }
-        return false;
+        return true;
     }
 
     // find best match across all CounterGather objects
@@ -536,6 +536,7 @@ impl MultiCollection {
 
     // Load all sketches into memory, using SmallSignature to track original
     // signature metadata.
+    // @CTB refactor / use Self
     pub fn load_sketches(self) -> Result<Vec<SmallSignature>> {
         let sketchinfo: Vec<_> = self
             .par_iter()
@@ -561,7 +562,7 @@ impl MultiCollection {
                 }
                 Err(_) => {
                     eprintln!(
-                        "FAILED to load sketch from '{}'",
+                        "FAILED to load sketch from '{}' (1)",
                         record.internal_location()
                     );
                     None
@@ -574,6 +575,7 @@ impl MultiCollection {
 
     // Load all sketches into a MemRevIndex, return new MultiCollection.
     pub fn load_sketches_revindex(self) -> Result<Self> {
+        let mut n_failed = AtomicUsize::new(0);
         let sketchinfo: Vec<_> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
@@ -588,13 +590,20 @@ impl MultiCollection {
                 }
                 Err(_) => {
                     eprintln!(
-                        "FAILED to load sketch from '{}'",
+                        "FAILED to load sketch from '{}' (2)",
                         record.internal_location()
                     );
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
                     None
                 }
             })
             .collect();
+
+        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
+        if n_failed > 0 {
+            return Err(anyhow::anyhow!("{n_failed} sketches failed to load. See error messages above."));
+        }
 
         let selection = self.selection();
         let revindex = MemRevIndex::new_with_sigs(sketchinfo,
@@ -612,9 +621,6 @@ impl MultiCollection {
     }
 
     pub fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) -> Result<(PrefetchContainer, usize, usize)> {
-        if self.collections.len() > 1 {
-            panic!("help");
-        }
         let mut skipped_paths = 0;
         let mut failed_paths = 0;
 
@@ -648,6 +654,7 @@ impl MultiCollection {
     }
 
     // Load all sketches into memory, producing an in-memory Collection.
+    // @CTB refactor?
     pub fn load_all_sigs(self) -> Result<Collection> {
         let all_sigs: Vec<Signature> = self
             .par_iter()
@@ -655,7 +662,7 @@ impl MultiCollection {
                 Ok(sig) => Some(Signature::from(sig)),
                 Err(_) => {
                     eprintln!(
-                        "FAILED to load sketch from '{}'",
+                        "FAILED to load sketch from '{}' (3)",
                         record.internal_location()
                     );
                     None

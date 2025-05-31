@@ -138,39 +138,21 @@ fn do_fastmultigather(
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
-    // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
-    if is_revindex_database(&againstfile_path) && false { // @CTB
-        match fastmultigather_rocksdb::fastmultigather_rocksdb(
-            query_filenames,
-            againstfile_path,
-            selection.clone(),
-            threshold_bp as u32,
-            output_path,
-            allow_failed_sigpaths,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
-    } else {
-        match fastmultigather::fastmultigather(
-            query_filenames,
-            siglist_path,
-            threshold_bp as u32,
-            scaled,
-            selection,
-            allow_failed_sigpaths,
-            save_matches,
-            output_path,
-            create_empty_results,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
+    match fastmultigather::fastmultigather(
+        query_filenames,
+        siglist_path,
+        threshold_bp as u32,
+        scaled,
+        selection,
+        allow_failed_sigpaths,
+        save_matches,
+        output_path,
+        create_empty_results,
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
         }
     }
 }

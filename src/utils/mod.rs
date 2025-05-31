@@ -1134,6 +1134,7 @@ pub fn consume_query_by_gather_cg( // @CTB
     while !matchlists.is_empty() {
         let match_sig = matchlists.peek(threshold_hashes as u64).expect("shouldn't be empty");
 
+        // @CTB
         let match_name = match_sig.name().or(Some("bif".to_string())).expect("biz");
         let match_md5sum = match_sig.md5sum().clone();
         let match_location = "foo".to_string();
