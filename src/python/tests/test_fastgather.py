@@ -534,7 +534,6 @@ def test_against_nomatch(runtmp, capfd, zip_against):
 
 
 def test_md5s(runtmp, zip_against):
-    return # @CTB
     # check that the correct md5sums (of the original sketches) are in
     # the output files
     query = get_test_data("SRR606249.sig.gz")

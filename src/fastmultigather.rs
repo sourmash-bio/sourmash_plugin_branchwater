@@ -199,7 +199,7 @@ pub(crate) fn fastmultigather_obj(
                                 let mut template_mh = new_mh.clone();
                                 template_mh.clear();
 
-                                for (ri, cg) in matchlists.matchlists.iter() {
+                                for (_, cg, _) in matchlists.matchlists.iter() {
                                     let found = cg.found_hashes(&template_mh);
                                     new_mh.merge(&found).expect("merge failed?!");
                                 }

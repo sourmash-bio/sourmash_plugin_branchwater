@@ -167,15 +167,17 @@ pub fn write_prefetch_cg(
     )?;
 
     // @CTB make into an iterator?
-    for (revindex, cg) in matchlists.matchlists.iter() {
+    for (revindex, cg, orig_mf) in matchlists.matchlists.iter() {
         for (dataset_id, size) in cg.counter().most_common().into_iter() {
             let sig: Signature = revindex
                 .collection()
                 .sig_for_dataset(dataset_id)
                 .expect("dataset not found")
                 .into();
-            let match_name = sig.name().expect("foo");
-            let match_md5 = sig.md5sum();
+
+            let record = orig_mf.get_record(dataset_id).expect("fail?");
+            let match_name = record.name();
+            let match_md5 = record.md5();
             let overlap = size;
 
             writeln!(
@@ -1133,12 +1135,12 @@ pub fn consume_query_by_gather_cg( // @CTB
     );
 
     while !matchlists.is_empty() {
-        let match_sig = matchlists.peek(threshold_hashes as u64).expect("shouldn't be empty");
+        let (match_sig, orig_record) = matchlists.peek(threshold_hashes as u64).expect("shouldn't be empty");
 
         // @CTB
-        let match_name = match_sig.name().or(Some("bif".to_string())).expect("biz");
-        let match_md5sum = match_sig.md5sum().clone();
-        let match_location = "foo".to_string();
+        let match_name = orig_record.name().to_string();
+        let match_md5sum = orig_record.md5().to_string();
+        let match_location = "foo".to_string(); // @CTB internal loc
 
         let match_mh: KmerMinHash = match_sig.try_into().expect("fail");
 

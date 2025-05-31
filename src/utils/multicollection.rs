@@ -27,14 +27,14 @@ use sourmash::ScaledType;
 
 
 pub struct PrefetchContainer {
-    pub matchlists: Vec<(RevIndex, CounterGather)>,
+    pub matchlists: Vec<(RevIndex, CounterGather, Manifest)>,
 }
 
 impl PrefetchContainer {
     // sum the lengths of the contents
     pub fn len(&self) -> usize {
         let mut l = 0;
-        for (_, cg) in self.matchlists.iter() {
+        for (_, cg, _) in self.matchlists.iter() {
             l += cg.len();
         }
         l
@@ -42,25 +42,27 @@ impl PrefetchContainer {
 
     // true if all contained matchlists are false
     pub fn is_empty(&self) -> bool {
-        for (_, cg) in self.matchlists.iter() {
+        for (_, cg, _) in self.matchlists.iter() {
             if !cg.is_empty() { return false; };
         }
         return true;
     }
 
     // find best match across all CounterGather objects
-    pub fn peek(&self, threshold_hashes: u64) -> Option<Signature> {
+    pub fn peek(&self, threshold_hashes: u64) -> Option<(Signature, &Record)> {
         let mut best_idx = None;
         let mut best_overlap = 0;
         let mut best_revindex = None;
+        let mut best_mf = None;
         
-        for (revindex, cg) in self.matchlists.iter() {
+        for (revindex, cg, mf) in self.matchlists.iter() {
             if !cg.is_empty() {
                 let (idx, overlap) = cg.peek(threshold_hashes as usize).expect("empty?!");
                 if overlap > best_overlap {
                     best_idx = Some(idx);
                     best_overlap = overlap;
                     best_revindex = Some(revindex);
+                    best_mf = Some(mf);
                 }
             }
         }
@@ -68,8 +70,10 @@ impl PrefetchContainer {
         // did we find something?
         if let Some(revindex) = best_revindex {
             let idx = best_idx.unwrap();
+            let mf = best_mf.unwrap();
             let match_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
-            Some(match_sig)
+            let orig_record: &Record = mf.get_record(idx).expect("foo"); // @CTB
+            Some((match_sig, orig_record))
         } else {
             None
         }
@@ -77,11 +81,11 @@ impl PrefetchContainer {
 
     // consume the best match across all CounterGathers.
     pub fn consume(self, intersect_mh: &KmerMinHash) -> Self {
-        let mut updated: Vec<(RevIndex, CounterGather)> = vec![];
+        let mut updated: Vec<(RevIndex, CounterGather, Manifest)> = vec![];
         
-        for (revindex, mut cg) in self.matchlists.into_iter() {
+        for (revindex, mut cg, mf) in self.matchlists.into_iter() {
             cg.consume(intersect_mh);
-            updated.push((revindex, cg));
+            updated.push((revindex, cg, mf));
         }
         PrefetchContainer { matchlists : updated }
     }
@@ -90,12 +94,13 @@ impl PrefetchContainer {
 
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
-        Result<(RevIndex, CounterGather, usize, usize)>;
+        Result<(RevIndex, CounterGather, Manifest, usize, usize)>;
     fn len(&self) -> usize;
     fn select(&self, selection: &Selection) -> Result<Self, SourmashError> where Self: Sized;
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)>;
     fn collection(&self) -> &Collection;
     fn intersect_manifest(&mut self, manifest: &Manifest);
+    fn get_orig_manifest(&self) -> &Manifest;
 }
 
 
@@ -107,16 +112,18 @@ enum SearchContainer {
 
 impl Searchable for SearchContainer {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
-        Result<(RevIndex, CounterGather, usize, usize)> {
+        Result<(RevIndex, CounterGather, Manifest, usize, usize)> {
             match self {
                 SearchContainer::InvertedIndex(revindex, mf) => {
                     let cg = revindex.prepare_gather_counters(query, None);
-                    Ok((revindex.clone(), cg, 0, 0))
+                    Ok((revindex.clone(), cg, mf.clone(), 0, 0))
                 },
                 SearchContainer::LinearCollection(coll, mf) => {
-                    load_sketches_above_threshold_sigs_XXX(coll,
-                                                           query,
-                                                           threshold_hashes)
+                    let (revindex, cg, skip, fail) = 
+                        load_sketches_above_threshold_sigs_XXX(coll,
+                                                               query,
+                                                               threshold_hashes)?;
+                    Ok((revindex, cg, mf.clone(), skip, fail))
                                                            
                 },
             }
@@ -153,6 +160,16 @@ impl Searchable for SearchContainer {
             }
             SearchContainer::LinearCollection(coll, mf) => {
                 coll
+            }
+        }
+    }
+    fn get_orig_manifest(&self) -> &Manifest {
+        match self {
+            SearchContainer::InvertedIndex(revindex, mf) => {
+                &mf
+            }
+            SearchContainer::LinearCollection(coll, mf) => {
+                &mf
             }
         }
     }
@@ -641,11 +658,11 @@ impl MultiCollection {
         let mut res = PrefetchContainer { matchlists: vec![] };
 
         for searchable in self.collections.iter() {
-            let (revindex, cg, skip, fail) = searchable.prefetch(query, threshold_hashes)?;
+            let (revindex, cg, mf, skip, fail) = searchable.prefetch(query, threshold_hashes)?;
             skipped_paths += skip;
             failed_paths += fail;
 
-            res.matchlists.push((revindex, cg));
+            res.matchlists.push((revindex, cg, mf));
         }
         Ok((res, skipped_paths, failed_paths))
     }
@@ -702,8 +719,6 @@ impl Select for MultiCollection {
 // Convert a single Collection into a MultiCollection
 impl From<Collection> for MultiCollection {
     fn from(coll: Collection) -> Self {
-        // CTB: how can we check if revindex? @CTB
-        // @CTB build new manifest? or something.
         let mf = coll.manifest().clone();
         MultiCollection::new(vec![SearchContainer::LinearCollection(coll, mf)])
     }
