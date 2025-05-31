@@ -99,19 +99,19 @@ trait Searchable {
 
 #[derive(Clone)]
 enum SearchContainer {
-    InvertedIndex(RevIndex),
-    LinearCollection(Collection),
+    InvertedIndex(RevIndex, Manifest),
+    LinearCollection(Collection, Manifest),
 }
 
 impl Searchable for SearchContainer {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, usize, usize)> {
             match self {
-                SearchContainer::InvertedIndex(revindex) => {
+                SearchContainer::InvertedIndex(revindex, mf) => {
                     let cg = revindex.prepare_gather_counters(query, None);
                     Ok((revindex.clone(), cg, 0, 0))
                 },
-                SearchContainer::LinearCollection(coll) => {
+                SearchContainer::LinearCollection(coll, mf) => {
                     load_sketches_above_threshold_sigs_XXX(coll,
                                                            query,
                                                            threshold_hashes)
@@ -121,45 +121,45 @@ impl Searchable for SearchContainer {
         }
     fn len(&self) -> usize {
         match self {
-            SearchContainer::InvertedIndex(revindex) => revindex.len(),
-            SearchContainer::LinearCollection(coll) => coll.len(),
+            SearchContainer::InvertedIndex(revindex, mf) => revindex.len(),
+            SearchContainer::LinearCollection(coll, mf) => coll.len(),
         }
     }
     fn select(&self, selection: &Selection) -> Result<Self, SourmashError> {
         match self {
-            SearchContainer::InvertedIndex(revindex) => Ok(SearchContainer::InvertedIndex(revindex.clone())), // @CTB
-            SearchContainer::LinearCollection(coll) => {
+            SearchContainer::InvertedIndex(revindex, mf) => Ok(SearchContainer::InvertedIndex(revindex.clone(), mf.clone())), // @CTB
+            SearchContainer::LinearCollection(coll, mf) => {
                 let c2 = coll.clone().select(selection)?;
-                Ok(SearchContainer::LinearCollection(c2))
+                Ok(SearchContainer::LinearCollection(c2, mf.clone()))
             }
         }
     }
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)> {
         match self {
-            SearchContainer::InvertedIndex(revindex) => {
+            SearchContainer::InvertedIndex(revindex, mf) => {
                 revindex.collection().iter()
             }
-            SearchContainer::LinearCollection(coll) => {
+            SearchContainer::LinearCollection(coll, mf) => {
                 coll.iter()
             }
         }
     }
     fn collection(&self) -> &Collection {
         match self {
-            SearchContainer::InvertedIndex(revindex) => {
+            SearchContainer::InvertedIndex(revindex, mf) => {
                 revindex.collection()
             }
-            SearchContainer::LinearCollection(coll) => {
+            SearchContainer::LinearCollection(coll, mf) => {
                 coll
             }
         }
     }
     fn intersect_manifest(&mut self, manifest: &Manifest) {
         match self {
-            SearchContainer::InvertedIndex(revindex) => {
+            SearchContainer::InvertedIndex(revindex, mf) => {
                 panic!("foo 3");
             }
-            SearchContainer::LinearCollection(coll) => {
+            SearchContainer::LinearCollection(coll, mf) => {
                 coll.intersect_manifest(manifest);
             }
         }
@@ -397,7 +397,10 @@ impl MultiCollection {
     pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
         debug!("multi from zipfile!");
         match Collection::from_zipfile(sigpath) {
-            Ok(collection) => Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(collection)])),
+            Ok(collection) => {
+                let mf = collection.manifest().clone();
+                Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(collection, mf)]))
+            },
             Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
         }
     }
@@ -427,7 +430,8 @@ impl MultiCollection {
                     ))
                 }
             };
-            Ok(MultiCollection::new(vec![SearchContainer::InvertedIndex(db)]))
+            let mf = db.collection().manifest().clone();
+            Ok(MultiCollection::new(vec![SearchContainer::InvertedIndex(db, mf)]))
         } else {
             bail!("not a rocksdb: '{}'", sigpath)
         }
@@ -479,7 +483,8 @@ impl MultiCollection {
                 sigpath
             )
         })?;
-        Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(coll)]))
+        let mf = coll.manifest().clone();
+        Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(coll, mf)]))
     }
 
     pub fn len(&self) -> usize {
@@ -497,7 +502,9 @@ impl MultiCollection {
     }
 
     pub fn selection(&self) -> Selection {
-        // @CTB 
+        // @CTB
+        // turn into a collection set, if possible, and then extract first
+        // selection. Better if it makes an error I think?
         let coll = self.collections.iter().next().expect("empty?!");
         let cs: CollectionSet = coll.collection().clone().try_into().expect("err");
         cs.selection()
@@ -611,7 +618,12 @@ impl MultiCollection {
                                                   0,
                                                   None)?;
 
-        Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex) ]))
+        // @CTB here we need to construct a new manifest from all the
+        // originals... for now,
+        // just grab the newly created one.
+        let mf = revindex.collection().manifest().clone();
+        
+        Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex, mf) ]))
     }
 
     fn intersect_manifest(&mut self, manifest: &Manifest) {
@@ -689,7 +701,9 @@ impl Select for MultiCollection {
 impl From<Collection> for MultiCollection {
     fn from(coll: Collection) -> Self {
         // CTB: how can we check if revindex? @CTB
-        MultiCollection::new(vec![SearchContainer::LinearCollection(coll)])
+        // @CTB build new manifest? or something.
+        let mf = coll.manifest().clone();
+        MultiCollection::new(vec![SearchContainer::LinearCollection(coll, mf)])
     }
 }
 
