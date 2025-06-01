@@ -167,14 +167,8 @@ pub fn write_prefetch_cg(
     )?;
 
     // @CTB make into an iterator?
-    for (revindex, cg, orig_mf) in matchlists.matchlists.iter() {
+    for (_, cg, orig_mf) in matchlists.matchlists.iter() {
         for (dataset_id, size) in cg.counter().most_common().into_iter() {
-            let sig: Signature = revindex
-                .collection()
-                .sig_for_dataset(dataset_id)
-                .expect("dataset not found")
-                .into();
-
             let record = orig_mf.get_record(dataset_id).expect("fail?");
             let match_name = record.name();
             let match_md5 = record.md5();
@@ -577,7 +571,6 @@ pub fn load_sketches_above_threshold_sigs(
                 let against_filename = against_sig.filename();
                 let orig_sig = against_sig.clone();
                 let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
-                let against_md5 = against_record.md5().clone(); // keep original md5sum
 
                 let against_mh_ds = against_mh
                     .downsample_scaled(query.scaled())

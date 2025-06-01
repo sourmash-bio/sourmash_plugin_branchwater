@@ -10,7 +10,6 @@ extern crate simple_error;
 
 mod utils;
 use crate::utils::build_selection;
-use crate::utils::is_revindex_database;
 mod check;
 mod cluster;
 mod fastgather;
@@ -39,7 +38,6 @@ fn do_manysearch(
     ignore_abundance: Option<bool>,
     output_all_comparisons: Option<bool>,
 ) -> anyhow::Result<u8> {
-    let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
@@ -113,7 +111,6 @@ fn do_fastmultigather(
     save_matches: bool,
     create_empty_results: bool,
 ) -> anyhow::Result<u8> {
-    let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 

@@ -95,12 +95,16 @@ impl PrefetchContainer {
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, Manifest, usize, usize)>;
+    fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) ->
+        impl Iterator<Item = Idx>;
     fn len(&self) -> usize;
     fn select(&self, selection: &Selection) -> Result<Self, SourmashError> where Self: Sized;
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)>;
     fn collection(&self) -> &Collection;
     fn intersect_manifest(&mut self, manifest: &Manifest);
     fn get_orig_manifest(&self) -> &Manifest;
+    fn get_signature(&self, idx: Idx) -> Result<Signature>;
+    fn get_record(&self, idx: Idx) -> Option<&Record>;
 }
 
 
@@ -135,10 +139,31 @@ impl Searchable for SearchContainer {
             }
         }
 
+    fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) -> impl Iterator<Item = Idx> {
+        match self {
+            SearchContainer::InvertedIndex(revindex, _mf) => {
+                let counter = revindex.counter_for_query(&query, None);
+                counter
+                    .most_common()
+                    .into_iter()
+                    .filter_map(move |(dataset_id, size)| {
+                        if size as u64 >= threshold_hashes {
+                            Some(dataset_id)
+                        } else {
+                            None
+                        }
+                    })
+            }
+            SearchContainer::LinearCollection(_coll, _mf) => {
+                panic!("foo");
+            }
+        }
+    }
+
     fn len(&self) -> usize {
         match self {
-            SearchContainer::InvertedIndex(revindex, mf) => revindex.len(),
-            SearchContainer::LinearCollection(coll, mf) => coll.len(),
+            SearchContainer::InvertedIndex(revindex, _mf) => revindex.len(),
+            SearchContainer::LinearCollection(coll, _mf) => coll.len(),
         }
     }
 
@@ -156,10 +181,10 @@ impl Searchable for SearchContainer {
     /// iterate over (Idx, &Record)
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)> {
         match self {
-            SearchContainer::InvertedIndex(revindex, mf) => {
+            SearchContainer::InvertedIndex(revindex, _mf) => {
                 revindex.collection().iter()
             }
-            SearchContainer::LinearCollection(coll, mf) => {
+            SearchContainer::LinearCollection(coll, _mf) => {
                 coll.iter()
             }
         }
@@ -167,10 +192,10 @@ impl Searchable for SearchContainer {
 
     fn collection(&self) -> &Collection {
         match self {
-            SearchContainer::InvertedIndex(revindex, mf) => {
+            SearchContainer::InvertedIndex(revindex, _mf) => {
                 revindex.collection()
             }
-            SearchContainer::LinearCollection(coll, mf) => {
+            SearchContainer::LinearCollection(coll, _mf) => {
                 coll
             }
         }
@@ -180,10 +205,10 @@ impl Searchable for SearchContainer {
     /// to any downsampling/indexing.
     fn get_orig_manifest(&self) -> &Manifest {
         match self {
-            SearchContainer::InvertedIndex(revindex, mf) => {
+            SearchContainer::InvertedIndex(_, mf) => {
                 &mf
             }
-            SearchContainer::LinearCollection(coll, mf) => {
+            SearchContainer::LinearCollection(_, mf) => {
                 &mf
             }
         }
@@ -192,13 +217,22 @@ impl Searchable for SearchContainer {
     // @CTB this will need to be updated in tricky ways.
     fn intersect_manifest(&mut self, manifest: &Manifest) {
         match self {
-            SearchContainer::InvertedIndex(revindex, mf) => {
+            SearchContainer::InvertedIndex(_revindex, _mf) => {
                 panic!("foo 3");
             }
-            SearchContainer::LinearCollection(coll, mf) => {
+            SearchContainer::LinearCollection(coll, _mf) => {
                 coll.intersect_manifest(manifest);
             }
         }
+    }
+
+    fn get_signature(&self, idx: Idx) -> Result<Signature> {
+        let sig = self.collection().sig_for_dataset(idx)?;
+        Ok(sig.into())
+    }
+
+    fn get_record(&self, idx: Idx) -> Option<&Record> {
+        self.collection().manifest().get_record(idx)
     }
 }
 
@@ -225,7 +259,6 @@ pub fn load_sketches_above_threshold_sigs_XXX(
                 let against_filename = against_sig.filename();
                 let orig_sig = against_sig.clone();
                 let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
-                let against_md5 = against_record.md5().clone(); // keep original md5sum
 
                 let against_mh_ds = against_mh
                     .downsample_scaled(query.scaled())
@@ -618,7 +651,7 @@ impl MultiCollection {
 
     // Load all sketches into a MemRevIndex, return new MultiCollection.
     pub fn load_sketches_revindex(self) -> Result<Self> {
-        let mut n_failed = AtomicUsize::new(0);
+        let n_failed = AtomicUsize::new(0);
         let sketchinfo: Vec<_> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
@@ -687,10 +720,19 @@ impl MultiCollection {
         }
         Ok((res, skipped_paths, failed_paths))
     }
+
+    pub fn prefetch_iter<'a>(&'a self, query: &'a KmerMinHash, threshold_hashes: u64) -> impl Iterator<Item = (&'a SearchContainer, Idx)> + '_ {
+        self.collections
+            .iter()
+            .flat_map(move |s| s
+                      .prefetch_iter(query, threshold_hashes)
+                      .map(move |idx| (s, idx))
+                      )
+    }
         
     pub fn prefetch_consume(self,
-                            query: &KmerMinHash,
-                            threshold_hashes: u64,
+                            _query: &KmerMinHash,
+                            _threshold_hashes: u64,
     ) -> Result<(Vec<(RevIndex, CounterGather)>, usize, usize)> {
 /*        let pairs: Vec<(RevIndex, CounterGather)> = self
             .collections

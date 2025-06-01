@@ -8,16 +8,12 @@ use sourmash::{selection::Selection, signature::SigsTrait};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use std::collections::BinaryHeap;
-
 use camino::Utf8Path as PathBuf;
 
-use std::collections::HashSet;
 use std::fs::File;
 
 use log::trace;
 
-use sourmash::index::revindex::{ CounterGather, RevIndex, RevIndexOps };
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;

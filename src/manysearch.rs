@@ -126,7 +126,7 @@ pub(crate) fn manysearch_obj(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let send = against_collection
+    let send = against_collection // @CTB refactor to use rocksdb.
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);
