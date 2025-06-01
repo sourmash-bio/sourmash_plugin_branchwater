@@ -648,7 +648,16 @@ impl MultiCollection {
             return Err(anyhow::anyhow!("{n_failed} sketches failed to load. See error messages above."));
         }
 
-        let selection = self.selection();
+        let combined_mf: Vec<Record> = self
+            .collections
+            .iter()
+            .flat_map(|c| c.get_orig_manifest()
+                      .iter()
+                      .map(|record| record.clone()))
+            .collect();
+        let combined_mf: Manifest = combined_mf.into();
+
+        let selection = self.selection(); // @CTB should we need this?
         let revindex = MemRevIndex::new_with_sigs(sketchinfo,
                                                   &selection,
                                                   0,
@@ -657,9 +666,9 @@ impl MultiCollection {
         // @CTB here we need to construct a new manifest from all the
         // originals... for now,
         // just grab the newly created one.
-        let mf = revindex.collection().manifest().clone();
+        // let mf = revindex.collection().manifest().clone();
         
-        Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex, mf) ]))
+        Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex, combined_mf) ]))
     }
 
     fn intersect_manifest(&mut self, manifest: &Manifest) {

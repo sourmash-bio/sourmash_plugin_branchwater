@@ -766,7 +766,6 @@ def test_nomatch_in_against(runtmp, capfd, zip_against):
 
 
 def test_md5(runtmp, zip_query):
-    return # @CTB
     # test correct md5s present in output
     query = get_test_data("SRR606249.sig.gz")
     sig2 = get_test_data("2.fa.sig.gz")
@@ -1586,7 +1585,6 @@ def test_indexed_full_output(runtmp):
 
 
 def test_nonindexed_full_vs_sourmash_gather(runtmp):
-    return # @CTB
     query = get_test_data("SRR606249.sig.gz")
 
     sig2 = get_test_data("2.fa.sig.gz")
