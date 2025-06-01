@@ -15,10 +15,8 @@ mod check;
 mod cluster;
 mod fastgather;
 mod fastmultigather;
-mod fastmultigather_rocksdb;
 mod index;
 mod manysearch;
-mod manysearch_rocksdb;
 mod manysketch;
 mod multisearch;
 mod pairwise;
@@ -50,39 +48,20 @@ fn do_manysearch(
     let output_all_comparisons = output_all_comparisons.unwrap_or(false);
 
     // if siglist_path is revindex, run rocksdb manysearch; otherwise run manysearch
-    if is_revindex_database(&againstfile_path) {
-        // note: manysearch_rocksdb ignores abundance automatically.
-        match manysearch_rocksdb::manysearch_rocksdb(
-            querylist_path,
-            againstfile_path,
-            selection,
-            threshold,
-            output_path,
-            allow_failed_sigpaths,
-            output_all_comparisons,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
-    } else {
-        match manysearch::manysearch(
-            querylist_path,
-            siglist_path,
-            selection,
-            threshold,
-            output_path,
-            allow_failed_sigpaths,
-            ignore_abundance,
-            output_all_comparisons,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
+    match manysearch::manysearch(
+        querylist_path,
+        siglist_path,
+        selection,
+        threshold,
+        output_path,
+        allow_failed_sigpaths,
+        ignore_abundance,
+        output_all_comparisons,
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
         }
     }
 }
