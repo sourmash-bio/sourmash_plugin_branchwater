@@ -72,7 +72,7 @@ impl PrefetchContainer {
             let idx = best_idx.unwrap();
             let mf = best_mf.unwrap();
             let match_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
-            let orig_record: &Record = mf.get_record(idx).expect("foo"); // @CTB
+            let orig_record: &Record = mf.get_record(idx).expect("cannot retrieve original record!?");
             Some((match_sig, orig_record))
         } else {
             None
@@ -663,11 +663,6 @@ impl MultiCollection {
                                                   0,
                                                   None)?;
 
-        // @CTB here we need to construct a new manifest from all the
-        // originals... for now,
-        // just grab the newly created one.
-        // let mf = revindex.collection().manifest().clone();
-        
         Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex, combined_mf) ]))
     }
 
