@@ -1140,7 +1140,7 @@ pub fn consume_query_by_gather_cg( // @CTB
         // @CTB
         let match_name = orig_record.name().to_string();
         let match_md5sum = orig_record.md5().to_string();
-        let match_location = "foo".to_string(); // @CTB internal loc
+        let match_location = orig_record.internal_location().to_string();
 
         let match_mh: KmerMinHash = match_sig.try_into().expect("fail");
 

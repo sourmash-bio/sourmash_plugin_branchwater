@@ -111,6 +111,12 @@ enum SearchContainer {
 }
 
 impl Searchable for SearchContainer {
+    /// find all overlapping sketches; return RevIndex and CounterGather
+    /// structs containing the results.
+    ///
+    /// For pre-existing RevIndexes, this will return a clone of the revindex;
+    /// for other collections, it will return a MemRevIndex.
+
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, Manifest, usize, usize)> {
             match self {
@@ -128,12 +134,15 @@ impl Searchable for SearchContainer {
                 },
             }
         }
+
     fn len(&self) -> usize {
         match self {
             SearchContainer::InvertedIndex(revindex, mf) => revindex.len(),
             SearchContainer::LinearCollection(coll, mf) => coll.len(),
         }
     }
+
+    // @CTB this will need to be updated for orig_manifest.
     fn select(&self, selection: &Selection) -> Result<Self, SourmashError> {
         match self {
             SearchContainer::InvertedIndex(revindex, mf) => Ok(SearchContainer::InvertedIndex(revindex.clone(), mf.clone())), // @CTB
@@ -143,6 +152,8 @@ impl Searchable for SearchContainer {
             }
         }
     }
+
+    /// iterate over (Idx, &Record)
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)> {
         match self {
             SearchContainer::InvertedIndex(revindex, mf) => {
@@ -153,6 +164,7 @@ impl Searchable for SearchContainer {
             }
         }
     }
+
     fn collection(&self) -> &Collection {
         match self {
             SearchContainer::InvertedIndex(revindex, mf) => {
@@ -163,6 +175,9 @@ impl Searchable for SearchContainer {
             }
         }
     }
+
+    /// retrieve the original manifest for this SearchContainer, prior
+    /// to any downsampling/indexing.
     fn get_orig_manifest(&self) -> &Manifest {
         match self {
             SearchContainer::InvertedIndex(revindex, mf) => {
@@ -173,6 +188,8 @@ impl Searchable for SearchContainer {
             }
         }
     }
+
+    // @CTB this will need to be updated in tricky ways.
     fn intersect_manifest(&mut self, manifest: &Manifest) {
         match self {
             SearchContainer::InvertedIndex(revindex, mf) => {
