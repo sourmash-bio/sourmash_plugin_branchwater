@@ -1128,9 +1128,12 @@ pub fn consume_query_by_gather_cg( // @CTB
     );
 
     while !matchlists.is_empty() {
-        let (match_sig, orig_record) = matchlists.peek(threshold_hashes as u64).expect("shouldn't be empty");
+        let result = matchlists.peek(threshold_hashes as u64);
+        if result.is_none() {
+            break;
+        }
+        let (match_sig, orig_record) = result;
 
-        // @CTB
         let match_name = orig_record.name().to_string();
         let match_md5sum = orig_record.md5().to_string();
         let match_location = orig_record.internal_location().to_string();
