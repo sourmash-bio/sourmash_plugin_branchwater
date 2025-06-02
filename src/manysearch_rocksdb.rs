@@ -178,6 +178,8 @@ pub(crate) fn manysearch_rocksdb_obj(
                                     max_containment_ani: None,
                                     n_weighted_found: None,
                                     total_weighted_hashes: None,
+                                    containment_target_in_query: None,
+                                    f_weighted_target_in_query: None,
                                 });
                             }
                         }
