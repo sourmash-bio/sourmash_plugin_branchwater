@@ -56,13 +56,14 @@ impl PrefetchContainer {
         let mut best_mf = None;
         
         for (revindex, cg, mf) in self.matchlists.iter() {
-            if !cg.is_empty() {
-                let (idx, overlap) = cg.peek(threshold_hashes as usize).expect("empty?!");
-                if overlap > best_overlap {
-                    best_idx = Some(idx);
-                    best_overlap = overlap;
-                    best_revindex = Some(revindex);
-                    best_mf = Some(mf);
+            if !cg.is_empty() { // @CTB test else
+                if let Some((idx, overlap)) = cg.peek(threshold_hashes as usize) {
+                    if overlap > best_overlap {
+                        best_idx = Some(idx);
+                        best_overlap = overlap;
+                        best_revindex = Some(revindex);
+                        best_mf = Some(mf);
+                    }
                 }
             }
         }
