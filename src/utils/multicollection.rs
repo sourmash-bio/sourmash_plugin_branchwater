@@ -16,6 +16,7 @@ use std::sync::atomic::AtomicUsize;
 use sourmash::collection::{ Collection, CollectionSet };
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
+use sourmash::index::linear::LinearIndex;
 use sourmash::index::revindex::{ CounterGather, RevIndex, RevIndexOps };
 use sourmash::index::revindex::mem_revindex::MemRevIndex;
 use sourmash::manifest::{Manifest, Record};
@@ -106,6 +107,7 @@ trait Searchable {
     fn get_orig_manifest(&self) -> &Manifest;
     fn get_signature(&self, idx: Idx) -> Result<Signature>;
     fn get_record(&self, idx: Idx) -> Option<&Record>;
+    fn index(self) -> Result<Self> where Self: Sized;
 }
 
 
@@ -234,6 +236,22 @@ impl Searchable for SearchContainer {
 
     fn get_record(&self, idx: Idx) -> Option<&Record> {
         self.collection().manifest().get_record(idx)
+    }
+
+    fn index(self) -> Result<Self> {
+        match self {
+            // already indexed? leave unchanged
+            SearchContainer::InvertedIndex(revindex, mf) =>
+                Ok(SearchContainer::InvertedIndex(revindex, mf)),
+            // index collections!
+            SearchContainer::LinearCollection(coll, mf) => {
+                let cs: CollectionSet = coll.try_into()?;
+                let linear = LinearIndex::from_collection(cs)?;
+                let idx = linear.index(0, None, None);
+                let revindex = RevIndex::Mem(idx);
+                Ok(SearchContainer::InvertedIndex(revindex, mf))
+            }
+        }
     }
 }
 
@@ -653,6 +671,18 @@ impl MultiCollection {
     // Load all sketches into a MemRevIndex, return new MultiCollection.
     pub fn load_sketches_revindex(self) -> Result<Self> {
         let n_failed = AtomicUsize::new(0);
+
+        let new_coll: Vec<_> = self
+            .collections
+            .into_iter()
+            .map(|s| s.index().expect("foo"))
+            .collect();
+
+        Ok(Self { collections: new_coll })
+/*                 
+        for searchable in self.collections.into_iter() {
+        }
+        
         let sketchinfo: Vec<_> = self
             .par_iter()
             .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
@@ -697,7 +727,8 @@ impl MultiCollection {
                                                   0,
                                                   None)?;
 
-        Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex, combined_mf) ]))
+            Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex, combined_mf) ]))
+*/
     }
 
     fn intersect_manifest(&mut self, manifest: &Manifest) {
