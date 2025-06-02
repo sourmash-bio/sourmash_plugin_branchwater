@@ -1132,7 +1132,7 @@ pub fn consume_query_by_gather_cg( // @CTB
         if result.is_none() {
             break;
         }
-        let (match_sig, orig_record) = result;
+        let (match_sig, orig_record) = result.unwrap();
 
         let match_name = orig_record.name().to_string();
         let match_md5sum = orig_record.md5().to_string();
