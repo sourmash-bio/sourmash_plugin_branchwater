@@ -1,5 +1,14 @@
 //! MultiCollection implementation to handle sketches coming from multiple files.
 
+
+// Challenges/design considerations:
+// * we need to keep original manifest (or collection?) around to
+//   support proper reporting. If Collection, this is _pre_ selection...
+// * we need ~CollectionSet around for searching and indexing.
+// * prefetch creates a RevIndex + CounterGather + orig manifest object; the
+//   RevIndex is needed for CounterGather to retrieve matches.
+// 
+
 use rayon::prelude::*;
 use sourmash::prelude::*;
 
@@ -27,9 +36,9 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use sourmash::ScaledType;
 
 pub struct PrefetchItem {
-    pub revindex: RevIndex,
-    pub cg: CounterGather,
-    pub mf: Manifest,
+    pub revindex: RevIndex,     // collection for search results
+    pub cg: CounterGather,      // search results
+    pub mf: Manifest,           // original manifest
 }
 
 
@@ -55,7 +64,8 @@ impl PrefetchContainer {
         return true;
     }
 
-    // find best match across all CounterGather objects
+    // find best match across all CounterGather objects. Return
+    // matching Signature + original Record.
     pub fn peek(&self, threshold_hashes: u64) -> Option<(Signature, &Record)> {
         let mut best_idx = None;
         let mut best_overlap = 0;
@@ -97,7 +107,6 @@ impl PrefetchContainer {
 }
 
 
-//#[enum_dispatch]
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, Manifest, usize, usize)>;
@@ -117,7 +126,6 @@ trait Searchable {
 
 // @CTB do we want to split disk/mem collection?
 #[derive(Clone)]
-//#[enum_dispatch(Searchable)]
 enum SearchContainer {
     InvertedIndex(RevIndex, Manifest),
     LinearCollection(Collection, Manifest),
@@ -261,6 +269,7 @@ impl Searchable for SearchContainer {
 
 /// Load a collection of sketches from a file, filtering to keep only
 /// those with a minimum overlap. SIGNATURES VERSION 2 @CTB.
+/// @CTB can we refactor to use linear?
 
 pub fn load_sketches_above_threshold_sigs_XXX(
     collection: &Collection,

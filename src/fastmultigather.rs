@@ -161,7 +161,7 @@ pub(crate) fn fastmultigather_obj(
                 let query_seed = query_mh.seed();
                 let query_num = query_mh.num();
 
-                let (matchlists, _, _) = against.prefetch(&query_mh, threshold_hashes).expect("fail??");
+                let (matchlists, _, _) = against.prefetch(&query_mh, threshold_hashes).expect("prefetch fail!?");
 
                 if !matchlists.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
