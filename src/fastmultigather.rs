@@ -179,12 +179,11 @@ pub(crate) fn fastmultigather_obj(
                     .ok();
 
                     // Save matching hashes to .sig file if save_matches is true
-                    // @CTB move matchlist iteration/found_mh stuff into struct.
                     if save_matches {
                         if !matchlists.is_empty() {
                             let sig_filename = format!("{}.matches.sig", name);
                             if let Ok(mut file) = File::create(&sig_filename) {
-                                let mut new_mh = KmerMinHash::new(
+                                let template_mh = KmerMinHash::new(
                                     query_scaled,
                                     query_ksize,
                                     query_hash_function,
@@ -192,15 +191,12 @@ pub(crate) fn fastmultigather_obj(
                                     false,
                                     query_num,
                                 );
-                                let mut template_mh = new_mh.clone();
-                                template_mh.clear();
 
-                                for item in matchlists.matchlists.iter() {
-                                    let found = item.cg.found_hashes(&template_mh);
-                                    new_mh.merge(&found).expect("merge failed?!");
-                                }
+                                let found_mh = matchlists.found_hashes(&template_mh)
+                                    .expect("failed to get found hashes!?");
+
                                 let mut signature = Signature::default();
-                                signature.push(Sketch::MinHash(new_mh));
+                                signature.push(Sketch::MinHash(found_mh));
                                 signature.set_filename(&name);
                                 if let Err(e) = signature.to_writer(&mut file) {
                                     eprintln!("Error writing signature file: {}", e);

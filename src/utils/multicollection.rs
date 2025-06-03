@@ -41,6 +41,12 @@ pub struct PrefetchItem {
     pub mf: Manifest,           // original manifest
 }
 
+impl PrefetchItem {
+    pub fn found_hashes(&self, template_mh: &KmerMinHash) -> KmerMinHash {
+        self.cg.found_hashes(template_mh)
+    }
+}
+
 
 pub struct PrefetchContainer {
     pub matchlists: Vec<PrefetchItem>,
@@ -103,6 +109,17 @@ impl PrefetchContainer {
             updated.push(item);
         }
         PrefetchContainer { matchlists : updated }
+    }
+
+    pub fn found_hashes(&self, template_mh: &KmerMinHash) -> Result<KmerMinHash> {
+        let mut new_mh = template_mh.clone();
+        new_mh.clear();
+
+        for item in self.matchlists.iter() {
+            let found = item.found_hashes(&template_mh);
+            new_mh.merge(&found)?;
+        }
+        Ok(new_mh)
     }
 }
 
