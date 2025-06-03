@@ -167,9 +167,9 @@ pub fn write_prefetch_cg(
     )?;
 
     // @CTB make into an iterator?
-    for (_, cg, orig_mf) in matchlists.matchlists.iter() {
-        for (dataset_id, size) in cg.counter().most_common().into_iter() {
-            let record = orig_mf.get_record(dataset_id).expect("fail?");
+    for item in matchlists.matchlists.iter() {
+        for (dataset_id, size) in item.cg.counter().most_common().into_iter() {
+            let record = item.mf.get_record(dataset_id).expect("fail?");
             let match_name = record.name();
             let match_md5 = record.md5();
             let overlap = size;

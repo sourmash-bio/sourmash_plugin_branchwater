@@ -26,25 +26,31 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use sourmash::ScaledType;
 
+pub struct PrefetchItem {
+    pub revindex: RevIndex,
+    pub cg: CounterGather,
+    pub mf: Manifest,
+}
+
 
 pub struct PrefetchContainer {
-    pub matchlists: Vec<(RevIndex, CounterGather, Manifest)>,
+    pub matchlists: Vec<PrefetchItem>,
 }
 
 impl PrefetchContainer {
     // sum the lengths of the contents
     pub fn len(&self) -> usize {
         let mut l = 0;
-        for (_, cg, _) in self.matchlists.iter() {
-            l += cg.len();
+        for item in self.matchlists.iter() {
+            l += item.cg.len();
         }
         l
     }
 
     // true if all contained matchlists are false
     pub fn is_empty(&self) -> bool {
-        for (_, cg, _) in self.matchlists.iter() {
-            if !cg.is_empty() { return false; };
+        for item in self.matchlists.iter() {
+            if !item.cg.is_empty() { return false; };
         }
         return true;
     }
@@ -53,28 +59,25 @@ impl PrefetchContainer {
     pub fn peek(&self, threshold_hashes: u64) -> Option<(Signature, &Record)> {
         let mut best_idx = None;
         let mut best_overlap = 0;
-        let mut best_revindex = None;
-        let mut best_mf = None;
+        let mut best_item = None;
         
-        for (revindex, cg, mf) in self.matchlists.iter() {
-            if !cg.is_empty() { // @CTB test else
-                if let Some((idx, overlap)) = cg.peek(threshold_hashes as usize) {
+        for item in self.matchlists.iter() {
+            if !item.cg.is_empty() { // @CTB test else
+                if let Some((idx, overlap)) = item.cg.peek(threshold_hashes as usize) {
                     if overlap > best_overlap {
                         best_idx = Some(idx);
+                        best_item = Some(item);
                         best_overlap = overlap;
-                        best_revindex = Some(revindex);
-                        best_mf = Some(mf);
                     }
                 }
             }
         }
 
         // did we find something?
-        if let Some(revindex) = best_revindex {
+        if let Some(item) = best_item {
             let idx = best_idx.unwrap();
-            let mf = best_mf.unwrap();
-            let match_sig: Signature = revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
-            let orig_record: &Record = mf.get_record(idx).expect("cannot retrieve original record!?");
+            let match_sig: Signature = item.revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
+            let orig_record: &Record = item.mf.get_record(idx).expect("cannot retrieve original record!?");
             Some((match_sig, orig_record))
         } else {
             None
@@ -83,11 +86,11 @@ impl PrefetchContainer {
 
     // consume the best match across all CounterGathers.
     pub fn consume(self, intersect_mh: &KmerMinHash) -> Self {
-        let mut updated: Vec<(RevIndex, CounterGather, Manifest)> = vec![];
+        let mut updated: Vec<PrefetchItem> = vec![];
         
-        for (revindex, mut cg, mf) in self.matchlists.into_iter() {
-            cg.consume(intersect_mh);
-            updated.push((revindex, cg, mf));
+        for mut item in self.matchlists.into_iter() {
+            item.cg.consume(intersect_mh);
+            updated.push(item);
         }
         PrefetchContainer { matchlists : updated }
     }
@@ -700,7 +703,7 @@ impl MultiCollection {
             skipped_paths += skip;
             failed_paths += fail;
 
-            res.matchlists.push((revindex, cg, mf));
+            res.matchlists.push(PrefetchItem { revindex, cg, mf });
         }
         Ok((res, skipped_paths, failed_paths))
     }

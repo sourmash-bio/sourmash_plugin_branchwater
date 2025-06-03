@@ -195,8 +195,8 @@ pub(crate) fn fastmultigather_obj(
                                 let mut template_mh = new_mh.clone();
                                 template_mh.clear();
 
-                                for (_, cg, _) in matchlists.matchlists.iter() {
-                                    let found = cg.found_hashes(&template_mh);
+                                for item in matchlists.matchlists.iter() {
+                                    let found = item.cg.found_hashes(&template_mh);
                                     new_mh.merge(&found).expect("merge failed?!");
                                 }
                                 let mut signature = Signature::default();
