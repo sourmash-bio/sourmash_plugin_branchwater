@@ -5,9 +5,17 @@
 // * we need to keep original manifest (or collection?) around to
 //   support proper reporting. If Collection, this is _pre_ selection...
 // * we need ~CollectionSet around for searching and indexing.
+// * So, we need a struct that keeps original stuff around, as well as
+//   CollectionSet/RevIndex. This latter stuff needs to be an enum so we
+//   can track. May also want to track in-mem vs on-disk for CollectionSet.
+// * Do we want to track this as an Option, as in, no select has been called?
+
+// Things that seem OK:
 // * prefetch creates a RevIndex + CounterGather + orig manifest object; the
 //   RevIndex is needed for CounterGather to retrieve matches.
-// 
+// * here, we suffer a DiskRevIndex.clone() if needed; CounterGather is
+//   new.
+// * Manifest could be/should be a reference, though.
 
 use rayon::prelude::*;
 use sourmash::prelude::*;
