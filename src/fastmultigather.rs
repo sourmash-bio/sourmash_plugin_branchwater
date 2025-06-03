@@ -79,9 +79,9 @@ pub fn fastmultigather(
         allow_failed_sigpaths,
     )?;
 
-    // @CTB loading into memory & then converting to revindex... good?
-    // actually, is easy to make optional now, I think.
-    let against_collection = against_collection.load_sketches_revindex()?;
+    // load against into memory.
+    // (@CTB we can make this optional if we want)
+    let against_collection = against_collection.load_sketches2()?;
 
     let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
         &query_collection,

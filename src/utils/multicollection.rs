@@ -94,6 +94,7 @@ impl PrefetchContainer {
 }
 
 
+//#[enum_dispatch]
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         Result<(RevIndex, CounterGather, Manifest, usize, usize)>;
@@ -107,11 +108,13 @@ trait Searchable {
     fn get_orig_manifest(&self) -> &Manifest;
     fn get_signature(&self, idx: Idx) -> Result<Signature>;
     fn get_record(&self, idx: Idx) -> Option<&Record>;
-    fn index(self) -> Result<Self> where Self: Sized;
+    fn load(self) -> Result<Self> where Self: Sized;
 }
 
 
+// @CTB do we want to split disk/mem collection?
 #[derive(Clone)]
+//#[enum_dispatch(Searchable)]
 enum SearchContainer {
     InvertedIndex(RevIndex, Manifest),
     LinearCollection(Collection, Manifest),
@@ -238,12 +241,13 @@ impl Searchable for SearchContainer {
         self.collection().manifest().get_record(idx)
     }
 
-    fn index(self) -> Result<Self> {
+    fn load(self) -> Result<Self> {
         match self {
-            // already indexed? leave unchanged
+            // in an index? leave alone.
             SearchContainer::InvertedIndex(revindex, mf) =>
                 Ok(SearchContainer::InvertedIndex(revindex, mf)),
-            // index collections!
+            // load collection into memory.
+            // @CTB what if it is already loaded??
             SearchContainer::LinearCollection(coll, mf) => {
                 let coll = coll.load_into_memory()?;
                 Ok(SearchContainer::LinearCollection(coll, mf))
@@ -665,67 +669,18 @@ impl MultiCollection {
         Ok(sketchinfo)
     }
 
-    // Load all sketches into a MemRevIndex, return new MultiCollection.
-    pub fn load_sketches_revindex(self) -> Result<Self> {
+    // Load all sketches into memory, return new MultiCollection.
+    // @CTB rename
+    pub fn load_sketches2(self) -> Result<Self> {
         let n_failed = AtomicUsize::new(0);
 
         let new_coll: Vec<_> = self
             .collections
             .into_iter()
-            .map(|s| s.index().expect("foo"))
+            .map(|s| s.load().expect("couldn't load collection"))
             .collect();
 
         Ok(Self { collections: new_coll })
-/*                 
-        for searchable in self.collections.into_iter() {
-        }
-        
-        let sketchinfo: Vec<_> = self
-            .par_iter()
-            .filter_map(|(coll, _idx, record)| match coll.sig_from_record(record) {
-                Ok(sig) => {
-                    trace!(
-                        "MultiCollection load sketch: from:{} idx:{} loc:{}",
-                        coll.storage().spec(),
-                        _idx,
-                        record.internal_location()
-                    );
-                    Some(sig.into())
-                }
-                Err(_) => {
-                    eprintln!(
-                        "FAILED to load sketch from '{}' (2)",
-                        record.internal_location()
-                    );
-                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
-                    None
-                }
-            })
-            .collect();
-
-        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
-
-        if n_failed > 0 {
-            return Err(anyhow::anyhow!("{n_failed} sketches failed to load. See error messages above."));
-        }
-
-        let combined_mf: Vec<Record> = self
-            .collections
-            .iter()
-            .flat_map(|c| c.get_orig_manifest()
-                      .iter()
-                      .map(|record| record.clone()))
-            .collect();
-        let combined_mf: Manifest = combined_mf.into();
-
-        let selection = self.selection(); // @CTB should we need this?
-        let revindex = MemRevIndex::new_with_sigs(sketchinfo,
-                                                  &selection,
-                                                  0,
-                                                  None)?;
-
-            Ok(MultiCollection::new(vec![ SearchContainer::InvertedIndex(revindex, combined_mf) ]))
-*/
     }
 
     fn intersect_manifest(&mut self, manifest: &Manifest) {
