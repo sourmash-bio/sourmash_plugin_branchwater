@@ -245,14 +245,8 @@ impl Searchable for SearchContainer {
                 Ok(SearchContainer::InvertedIndex(revindex, mf)),
             // index collections!
             SearchContainer::LinearCollection(coll, mf) => {
-                let cs: CollectionSet = coll.try_into()?;
-                let linear = LinearIndex::from_collection(cs)?;
-                // @CTB instead of indexing, here I think we want to
-                // load into memory w/MemStorage. At that poiint
-                // prefetch will support the right thing -> index/CounterGather?
-                let idx = linear.index(0, None, None);
-                let revindex = RevIndex::Mem(idx);
-                Ok(SearchContainer::InvertedIndex(revindex, mf))
+                let coll = coll.load_into_memory()?;
+                Ok(SearchContainer::LinearCollection(coll, mf))
             }
         }
     }
