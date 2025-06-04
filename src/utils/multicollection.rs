@@ -17,6 +17,14 @@
 //   new.
 // * Manifest could be/should be a reference, though.
 
+
+// OR...
+// * accept that MultiCollection and MultiCollectionSet are different things.
+// * have members of MultiCollectionSet take a reference to MultiCollection?
+
+// OR...
+// * look into defining my own storage?
+
 use rayon::prelude::*;
 use sourmash::prelude::*;
 
