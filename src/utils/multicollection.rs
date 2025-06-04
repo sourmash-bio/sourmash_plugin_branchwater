@@ -138,7 +138,7 @@ trait Searchable {
     fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         impl Iterator<Item = Idx>;
     fn len(&self) -> usize;
-    fn select(&self, selection: &Selection) -> Result<Self, SourmashError> where Self: Sized;
+    fn select(self, selection: &Selection) -> Result<Self, SourmashError> where Self: Sized;
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)>;
     fn collection(&self) -> &Collection;
     fn intersect_manifest(&mut self, manifest: &Manifest);
@@ -168,6 +168,7 @@ impl Searchable for SearchContainer {
             match self {
                 SearchContainer::InvertedIndex(revindex, mf) => {
                     let cg = revindex.prepare_gather_counters(query, None);
+                    // @CTB clone
                     Ok((revindex.clone(), cg, mf.clone(), 0, 0))
                 },
                 SearchContainer::LinearCollection(coll, mf) => {
@@ -175,6 +176,7 @@ impl Searchable for SearchContainer {
                         load_sketches_above_threshold_sigs_XXX(coll,
                                                                query,
                                                                threshold_hashes)?;
+                    // @CTB clone
                     Ok((revindex, cg, mf.clone(), skip, fail))
                                                            
                 },
@@ -210,12 +212,12 @@ impl Searchable for SearchContainer {
     }
 
     // @CTB this will need to be updated for orig_manifest.
-    fn select(&self, selection: &Selection) -> Result<Self, SourmashError> {
+    fn select(self, selection: &Selection) -> Result<Self, SourmashError> {
         match self {
-            SearchContainer::InvertedIndex(revindex, mf) => Ok(SearchContainer::InvertedIndex(revindex.clone(), mf.clone())), // @CTB
+            SearchContainer::InvertedIndex(revindex, mf) => Ok(SearchContainer::InvertedIndex(revindex, mf)), // @CTB
             SearchContainer::LinearCollection(coll, mf) => {
-                let c2 = coll.clone().select(selection)?;
-                Ok(SearchContainer::LinearCollection(c2, mf.clone()))
+                let coll = coll.select(selection)?;
+                Ok(SearchContainer::LinearCollection(coll, mf))
             }
         }
     }
@@ -556,6 +558,7 @@ impl MultiCollection {
                     ))
                 }
             };
+            // CTB: clone is necessary here.
             let mf = db.collection().manifest().clone();
             Ok(MultiCollection::new(vec![SearchContainer::InvertedIndex(db, mf)]))
         } else {
@@ -609,6 +612,7 @@ impl MultiCollection {
                 sigpath
             )
         })?;
+        // @CTB: clone is necessary here
         let mf = coll.manifest().clone();
         Ok(MultiCollection::new(vec![SearchContainer::LinearCollection(coll, mf)]))
     }
