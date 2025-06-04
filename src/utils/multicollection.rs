@@ -374,6 +374,282 @@ pub fn load_sketches_above_threshold_sigs_XXX(
     Ok((revindex, cg, skipped_paths, failed_paths))
 }
 
+// @CTB enum_dispatch
+enum LoadedDatabase {
+    InvertedIndex(RevIndex),
+    LinearCollection(Collection),
+}
+
+impl LoadedDatabase {
+    fn len(&self) -> usize {
+        match self {
+            LoadedDatabase::InvertedIndex(revindex) => revindex.len(),
+            LoadedDatabase::LinearCollection(coll) => coll.len(),
+        }
+    }
+}
+
+pub struct MultiCollectionSuper {
+    dbs: Vec<LoadedDatabase>
+}
+
+// A collection of databases, including indexes, on-disk collections, and
+// in-memory collections.
+impl MultiCollectionSuper {
+    fn new(dbs: Vec<LoadedDatabase>) -> Self {
+        Self { dbs }
+    }
+
+    // Try loading a set of paths as JSON files only. Fails on any Err.
+    //
+    // This is a legacy method that supports pathlists for
+    // 'index'. See sourmash-bio/sourmash#3321 for background.
+    //
+    // Use load_set_of_paths for full generality!
+    //
+    // CTB NOTE: this could potentially have very poor performance if
+    // there are a lot of _good_ files, with one _bad_ one. Look into
+    // exiting first loop early.
+    fn load_set_of_json_files(paths: &HashSet<String>) -> Result<MultiCollectionSuper> {
+        // load sketches from paths in parallel.
+        let n_failed = AtomicUsize::new(0);
+        let records: Vec<Record> = paths
+            .par_iter()
+            .filter_map(|path| match Signature::from_path(path) {
+                Ok(signatures) => {
+                    let recs: Vec<Record> = signatures
+                        .into_iter()
+                        .flat_map(|v| Record::from_sig(&v, path))
+                        .collect();
+                    Some(recs)
+                }
+                Err(_) => {
+                    let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+
+        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+
+        if records.is_empty() || n_failed > 0 {
+            return Err(anyhow!("cannot load everything as JSON files"));
+        }
+
+        let manifest: Manifest = records.into();
+        let collection = Collection::new(
+            manifest,
+            InnerStorage::new(
+                FSStorage::builder()
+                    .fullpath("".into())
+                    .subdir("".into())
+                    .build(),
+            ),
+        );
+        Ok(MultiCollectionSuper::from(collection))
+    }
+
+    // Turn a set of paths into list of Collections - works recursively
+    // if needed, and can handle paths of any supported type.
+    fn load_set_of_paths(paths: &HashSet<String>) -> (MultiCollectionSuper, usize) {
+        let n_failed = AtomicUsize::new(0);
+
+        // could just use a variant of load_collection here?
+        let colls: Vec<MultiCollectionSuper> = paths
+            .par_iter()
+            .filter_map(|iloc| match iloc {
+                // load from zipfile
+                x if x.ends_with(".zip") => {
+                    debug!("loading sigs from zipfile {}", x);
+                    let coll = Collection::from_zipfile(x).expect("nothing to load!?");
+                    Some(MultiCollectionSuper::from(coll))
+                }
+                // load from CSV
+                x if x.ends_with(".csv") => {
+                    debug!("vec from pathlist of standalone manifests!");
+
+                    let x: String = x.into();
+                    let utf_path: &Path = x.as_str().into();
+                    MultiCollectionSuper::from_standalone_manifest(utf_path).ok()
+                }
+                // load from (by default) a sigfile
+                _ => {
+                    debug!("loading sigs from sigfile {}", iloc);
+                    let signatures = match Signature::from_path(iloc) {
+                        Ok(signatures) => Some(signatures),
+                        Err(err) => {
+                            eprintln!("Sketch loading error: {}", err);
+                            None
+                        }
+                    };
+
+                    match signatures {
+                        Some(signatures) => {
+                            let records: Vec<_> = signatures
+                                .into_iter()
+                                .flat_map(|v| Record::from_sig(&v, iloc))
+                                .collect();
+
+                            let manifest: Manifest = records.into();
+                            let collection = Collection::new(
+                                manifest,
+                                InnerStorage::new(
+                                    FSStorage::builder()
+                                        .fullpath("".into())
+                                        .subdir("".into())
+                                        .build(),
+                                ),
+                            );
+                            Some(MultiCollectionSuper::from(collection))
+                        }
+                        None => {
+                            eprintln!("WARNING: could not load sketches from path '{}'", iloc);
+                            let _ = n_failed.fetch_add(1, atomic::Ordering::SeqCst);
+                            None
+                        }
+                    }
+                }
+            })
+            .collect();
+
+        let n_failed = n_failed.load(atomic::Ordering::SeqCst);
+        (MultiCollectionSuper::from(colls), n_failed)
+    }
+
+    /// Build from a standalone manifest.  Note: the tricky bit here
+    /// is that the manifest may select only a subset of the rows,
+    /// using (name, md5) tuples.
+    pub fn from_standalone_manifest(sigpath: &Path) -> Result<Self> {
+        debug!("multi from standalone manifest!");
+        let file =
+            File::open(sigpath).with_context(|| format!("Failed to open file: '{}'", sigpath))?;
+
+        let reader = BufReader::new(file);
+        let manifest = Manifest::from_reader(reader)
+            .with_context(|| format!("Failed to read manifest from: '{}'", sigpath))?;
+        debug!("got {} records from standalone manifest", manifest.len());
+
+        if manifest.is_empty() {
+            Err(anyhow!("could not read as manifest: '{}'", sigpath))
+        } else {
+            let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
+            let (mut colls, _n_failed) = MultiCollectionSuper::load_set_of_paths(&ilocs);
+
+            // @CTB colls.intersect_manifest(&manifest);
+
+            Ok(colls)
+        }
+    }
+
+    /// Load a collection from a .zip file.
+    pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
+        debug!("multi from zipfile!");
+        match Collection::from_zipfile(sigpath) {
+            Ok(collection) => {
+                Ok(MultiCollectionSuper::new(vec![LoadedDatabase::LinearCollection(collection)]))
+            },
+            Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
+        }
+    }
+
+    /// Load a collection from a RocksDB.
+    pub fn from_rocksdb(sigpath: &Path) -> Result<Self> {
+        debug!("multi from rocksdb!");
+        // duplicate logic from is_revindex_database
+        let path: Utf8PathBuf = sigpath.into();
+
+        let mut is_rocksdb = false;
+
+        if path.is_dir() {
+            let current_file = path.join("CURRENT");
+            if current_file.exists() && current_file.is_file() {
+                is_rocksdb = true;
+            }
+        }
+
+        if is_rocksdb {
+            let db = match RevIndex::open(sigpath, true, None) {
+                Ok(db) => db,
+                Err(e) => {
+                    return Err(anyhow::anyhow!(
+                        "cannot open RocksDB database. Error is: {}",
+                        e
+                    ))
+                }
+            };
+            Ok(MultiCollectionSuper::new(vec![LoadedDatabase::InvertedIndex(db)]))
+        } else {
+            bail!("not a rocksdb: '{}'", sigpath)
+        }
+    }
+
+    /// Load a collection from a list of paths.
+    pub fn from_pathlist(sigpath: &Path) -> Result<(Self, usize)> {
+        debug!("multi from pathlist!");
+        let file = File::open(sigpath)
+            .with_context(|| format!("Failed to open pathlist file: '{}'", sigpath))?;
+        let reader = BufReader::new(file);
+
+        // load set of paths
+        let lines: HashSet<_> = reader
+            .lines()
+            .filter_map(|line| match line {
+                Ok(path) => Some(path),
+                Err(_err) => None,
+            })
+            .collect();
+
+        let val = MultiCollectionSuper::load_set_of_json_files(&lines);
+
+        let (multi, n_failed) = match val {
+            Ok(collection) => {
+                eprintln!("SUCCEEDED in loading as JSON files, woot woot");
+                // CTB note: if any path fails to load,
+                // load_set_of_json_files returns Err.
+                (collection, 0)
+            }
+            Err(_) => {
+                eprintln!("FAILED to load as JSON files; falling back to general recursive");
+                MultiCollectionSuper::load_set_of_paths(&lines)
+            }
+        };
+
+        Ok((multi, n_failed))
+    }
+
+    // Load from a sig file
+    pub fn from_signature(sigpath: &Path) -> Result<Self> {
+        debug!("multi from signature!");
+        let signatures = Signature::from_path(sigpath)
+            .with_context(|| format!("Failed to load signatures from: '{}'", sigpath))?;
+
+        let coll = Collection::from_sigs(signatures).with_context(|| {
+            format!(
+                "Loaded signatures but failed to load as collection: '{}'",
+                sigpath
+            )
+        })?;
+        Ok(MultiCollectionSuper::new(vec![LoadedDatabase::LinearCollection(coll)]))
+    }
+
+    pub fn len(&self) -> usize {
+        let val: usize = self.dbs.iter().map(|c| c.len()).sum();
+        val
+    }
+
+/*
+    pub fn is_empty(&self) -> bool {
+        let val: usize = self.dbs.iter().map(|c| c.len()).sum();
+        val == 0
+    }
+
+    pub fn max_scaled(&self) -> Option<&ScaledType> {
+        self.item_iter().map(|(_, _, record)| record.scaled()).max()
+    }
+*/
+}
+    
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]
 pub struct MultiCollection {
@@ -820,6 +1096,13 @@ impl From<Collection> for MultiCollection {
     }
 }
 
+// Convert a single Collection into a MultiCollectionSuper
+impl From<Collection> for MultiCollectionSuper {
+    fn from(coll: Collection) -> Self {
+        MultiCollectionSuper::new(vec![LoadedDatabase::LinearCollection(coll)])
+    }
+}
+
 // Merge a bunch of MultiCollection structs into one
 impl From<Vec<MultiCollection>> for MultiCollection {
     fn from(multi: Vec<MultiCollection>) -> Self {
@@ -830,6 +1113,19 @@ impl From<Vec<MultiCollection>> for MultiCollection {
             }
         }
         MultiCollection::new(x)
+    }
+}
+
+// Merge a bunch of MultiCollection structs into one
+impl From<Vec<MultiCollectionSuper>> for MultiCollectionSuper {
+    fn from(multi: Vec<MultiCollectionSuper>) -> Self {
+        let mut x: Vec<LoadedDatabase> = vec![];
+        for mc in multi.into_iter() {
+            for coll in mc.dbs.into_iter() {
+                x.push(coll);
+            }
+        }
+        MultiCollectionSuper::new(x)
     }
 }
 
