@@ -10,7 +10,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, ManySearchResult, MultiCollection, ReportType,
+    csvwriter_thread, load_collection, ManySearchResult, MultiCollectionSet, ReportType,
     SmallSignature,
 };
 use sourmash::ani_utils::ani_from_containment;
@@ -102,7 +102,7 @@ pub fn manysearch(
 
 pub(crate) fn manysearch_obj(
     query_sketchlist: &Vec<SmallSignature>,
-    against_collection: &MultiCollection,
+    against_collection: &MultiCollectionSet,
     threshold: f64,
     common_scaled: u32,
     output: Option<String>,

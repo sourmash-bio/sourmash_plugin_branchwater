@@ -20,7 +20,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather_cg, csvwriter_thread, load_collection, write_prefetch_cg,
-    BranchwaterGatherResult, MultiCollection, PrefetchContainer, ReportType, SmallSignature,
+    BranchwaterGatherResult, MultiCollection, MultiCollectionSet, PrefetchContainer, ReportType, SmallSignature,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -112,8 +112,8 @@ pub fn fastmultigather(
 }
 
 pub(crate) fn fastmultigather_obj(
-    query_collection: &MultiCollection,
-    against: &MultiCollection,
+    query_collection: &MultiCollectionSet,
+    against: &MultiCollectionSet,
     save_matches: bool,
     output_path: Option<String>,
     threshold_hashes: u64,

@@ -38,7 +38,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 pub mod multicollection;
-pub use multicollection::{MultiCollection, PrefetchContainer, SmallSignature};
+pub use multicollection::{MultiCollection, MultiCollectionSet, PrefetchContainer, SmallSignature};
 
 pub mod buildutils;
 use buildutils::{BuildCollection, BuildManifest};
@@ -486,7 +486,7 @@ fn process_prefix_csv(
 /// those with a minimum overlap.
 
 pub fn load_sketches_above_threshold(
-    against_collection: MultiCollection,
+    against_collection: MultiCollectionSet,
     query: &KmerMinHash,
     threshold_hashes: u64,
 ) -> Result<(BinaryHeap<PrefetchResult>, usize, usize)> {
@@ -553,7 +553,7 @@ pub fn load_sketches_above_threshold(
 /// those with a minimum overlap. SIGNATURES VERSION @CTB.
 
 pub fn load_sketches_above_threshold_sigs(
-    against_collection: MultiCollection,
+    against_collection: MultiCollectionSet,
     query: &KmerMinHash,
     threshold_hashes: u64,
 ) -> Result<(RevIndex, CounterGather, usize, usize)> {
@@ -643,7 +643,7 @@ pub fn load_collection(
     selection: &Selection,
     report_type: ReportType,
     allow_failed: bool,
-) -> Result<MultiCollection> {
+) -> Result<MultiCollectionSet> {
     let sigpath = PathBuf::from(siglist);
 
     if !sigpath.exists() {
@@ -759,7 +759,7 @@ pub fn load_collection(
 /// Returns an error if:
 /// * No signatures were successfully loaded.
 pub fn report_on_collection_loading(
-    collection: &MultiCollection,
+    collection: &MultiCollectionSet,
     skipped_paths: usize,
     failed_paths: usize,
     report_type: ReportType,

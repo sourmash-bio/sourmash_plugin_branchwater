@@ -173,8 +173,8 @@ pub fn multisearch(
     let mut new_selection = selection;
     new_selection.set_scaled(expected_scaled);
 
-    // update selection with new scaled.
-    let query_collection = query_collection.select(&new_selection)?;
+    // update selection with new scaled. @CTB
+    // let query_collection = query_collection.select(&new_selection)?;
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 

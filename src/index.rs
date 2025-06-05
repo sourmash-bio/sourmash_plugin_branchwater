@@ -5,7 +5,7 @@ use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
 use std::path::Path;
 
-use crate::utils::MultiCollection;
+use crate::utils::MultiCollectionSet;
 use crate::utils::{load_collection, ReportType};
 use sourmash::collection::{Collection, CollectionSet};
 
@@ -33,17 +33,14 @@ pub fn index<P: AsRef<Path>>(
 }
 
 pub(crate) fn index_obj<P: AsRef<Path>>(
-    multi: MultiCollection,
+    multi: MultiCollectionSet,
     output: P,
     use_internal_storage: bool,
 ) -> Result<()> {
     // Try to convert it into a Collection and then CollectionSet.
-    let collection = match Collection::try_from(multi.clone()) {
+    let collection = match CollectionSet::try_from(multi.clone()) {
         // conversion worked!
-        Ok(coll) => {
-            let cs: CollectionSet = coll.try_into()?;
-            Ok(cs)
-        }
+        Ok(cs) => Ok(cs),
         // conversion failed; can we/should we load it into memory?
         Err(_) => {
             if use_internal_storage {
