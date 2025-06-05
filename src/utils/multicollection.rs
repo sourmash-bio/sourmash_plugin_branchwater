@@ -655,9 +655,11 @@ impl MultiCollection {
             .dbs
             .iter()
             .map(|c| {
-                let coll: CollectionSet = c.collection().clone().try_into().expect("must succeed");
-                let mf = coll.manifest().clone();
-                SearchContainer::LinearCollection(coll, mf)
+                let coll = c.collection().clone();
+                let coll = coll.select(selection).expect("failed select");
+                let cs: CollectionSet = coll.try_into().expect("incomplete selection!?");
+                let mf = cs.manifest().clone();
+                SearchContainer::LinearCollection(cs, mf)
             })
             .collect();
 
