@@ -33,7 +33,7 @@ use camino::Utf8Path as Path;
 use camino::Utf8PathBuf;
 use log::{debug, trace};
 use std::collections::HashSet;
-use std::fs::File;
+use std::fs::{metadata, File};
 use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -402,6 +402,74 @@ impl MultiCollection {
         Self { dbs }
     }
 
+    /// top level load function; tries to load anything and everything passed
+    /// in.
+    pub fn load(sigpath: &Path, selection: &Selection) -> Result<(Self, usize)> {
+        let mut last_error = None;
+
+        let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
+            match MultiCollection::from_zipfile(&sigpath) {
+                Ok(coll) => Some((coll, 0)),
+                Err(e) => {
+                    last_error = Some(e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let collection = collection.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+        // we support RocksDB directory paths, but nothing else, unlike sourmash.
+        if collection.is_none() {
+            let path_metadata = metadata(sigpath).expect("getting path metadata failed");
+            if path_metadata.is_dir() {
+                bail!("arbitrary directories are not supported as input");
+            }
+        }
+
+        let collection =
+            collection.or_else(
+                || match MultiCollection::from_standalone_manifest(&sigpath) {
+                    Ok(coll) => Some((coll, 0)),
+                    Err(e) => {
+                        last_error = Some(e);
+                        None
+                    }
+                },
+            );
+
+        let collection = collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
+            Ok(coll) => Some((coll, 0)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+        let collection = collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
+            Ok((coll, n_failed)) => Some((coll, n_failed)),
+            Err(e) => {
+                last_error = Some(e);
+                None
+            }
+        });
+
+        if let Some((collection, n_failed)) = collection {
+            Ok((collection, n_failed))
+        } else {
+            let err = last_error.expect("no collection loaded but no error set!?");
+            Err(err)
+        }
+    }
+
     // Try loading a set of paths as JSON files only. Fails on any Err.
     //
     // This is a legacy method that supports pathlists for
@@ -655,6 +723,7 @@ impl MultiCollection {
             .dbs
             .iter()
             .map(|c| {
+                // @CTB here, support inverted index.
                 let coll = c.collection().clone();
                 let coll = coll.select(selection).expect("failed select");
                 let cs: CollectionSet = coll.try_into().expect("incomplete selection!?");

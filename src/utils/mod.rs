@@ -651,66 +651,12 @@ pub fn load_collection(
     }
 
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
-    let mut last_error = None;
 
-    let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
-        match MultiCollection::from_zipfile(&sigpath) {
-            Ok(coll) => Some((coll, 0)),
-            Err(e) => {
-                last_error = Some(e);
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    let collection = collection.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
-        Ok(coll) => Some((coll, 0)),
-        Err(e) => {
-            last_error = Some(e);
-            None
-        }
-    });
-
-    // we support RocksDB directory paths, but nothing else, unlike sourmash.
-    if collection.is_none() {
-        let path_metadata = metadata(sigpath.clone()).expect("getting path metadata failed");
-        if path_metadata.is_dir() {
-            bail!("arbitrary directories are not supported as input");
-        }
-    }
-
-    let collection =
-        collection.or_else(
-            || match MultiCollection::from_standalone_manifest(&sigpath) {
-                Ok(coll) => Some((coll, 0)),
-                Err(e) => {
-                    last_error = Some(e);
-                    None
-                }
-            },
-        );
-
-    let collection = collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
-        Ok(coll) => Some((coll, 0)),
-        Err(e) => {
-            last_error = Some(e);
-            None
-        }
-    });
-
-    let collection = collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
-        Ok((coll, n_failed)) => Some((coll, n_failed)),
-        Err(e) => {
-            last_error = Some(e);
-            None
-        }
-    });
+    let collection = MultiCollection::load(&sigpath, selection);
 
     // Turn this MultiCollection into a MultiCollectionSet.
     match collection {
-        Some((coll, n_failed)) => {
+        Ok((coll, n_failed)) => {
             let n_total = coll.len();
 
             let selected = coll.select(selection)?;
@@ -724,16 +670,7 @@ pub fn load_collection(
             )?;
             Ok(selected)
         }
-        None => {
-            if let Some(e) = last_error {
-                Err(e)
-            } else {
-                // Should never get here
-                Err(anyhow!(
-                    "Unable to load the collection for an unknown reason."
-                ))
-            }
-        }
+        Err(e) => Err(e),
     }
 }
 
