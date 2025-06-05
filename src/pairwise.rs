@@ -26,7 +26,7 @@ pub fn pairwise(
     output: Option<String>,
 ) -> Result<()> {
     // Load all sigs into memory at once.
-    let collection = load_collection(
+    let (cXX, collection) = load_collection(
         &siglist,
         &selection,
         ReportType::General,

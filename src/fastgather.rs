@@ -20,7 +20,7 @@ pub fn fastgather(
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    let query_collection = load_collection(
+    let (qXX, query_collection) = load_collection(
         &query_filepath,
         &selection,
         ReportType::Query,
@@ -54,7 +54,7 @@ pub fn fastgather(
     against_selection.set_scaled(scaled);
 
     // load collection to match against.
-    let against_collection = load_collection(
+    let (aXX, against_collection) = load_collection(
         &against_filepath,
         &against_selection,
         ReportType::Against,

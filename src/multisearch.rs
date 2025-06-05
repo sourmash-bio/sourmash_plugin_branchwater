@@ -149,7 +149,7 @@ pub fn multisearch(
     output: Option<String>,
 ) -> Result<()> {
     // Load all queries into memory at once.
-    let query_collection = load_collection(
+    let (qXX, query_collection) = load_collection(
         &query_filepath,
         &selection,
         ReportType::Query,
@@ -179,7 +179,7 @@ pub fn multisearch(
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
     // Load all against sketches into memory at once.
-    let against_collection = load_collection(
+    let (aXX, against_collection) = load_collection(
         &against_filepath,
         &new_selection,
         ReportType::Against,

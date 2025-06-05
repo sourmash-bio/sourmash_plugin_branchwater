@@ -38,7 +38,7 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
-    let query_collection = load_collection(
+    let (qXX, query_collection) = load_collection(
         &query_filepath,
         &selection,
         ReportType::Query,
@@ -72,7 +72,7 @@ pub fn fastmultigather(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // load against collection
-    let against_collection = load_collection(
+    let (aXX, against_collection) = load_collection(
         &against_filepath,
         &against_selection,
         ReportType::Against,

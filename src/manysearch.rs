@@ -39,7 +39,7 @@ pub fn manysearch(
     output_all_comparisons: bool,
 ) -> Result<()> {
     // Load query collection
-    let query_collection = load_collection(
+    let (qXX, query_collection) = load_collection(
         &query_filepath,
         &selection,
         ReportType::Query,
@@ -65,7 +65,7 @@ pub fn manysearch(
     let query_sketchlist = query_collection.load_sketches()?;
 
     // Against: Load collection, potentially off disk & not into memory.
-    let against_collection = load_collection(
+    let (aXX, against_collection) = load_collection(
         &against_filepath,
         &selection,
         ReportType::Against,

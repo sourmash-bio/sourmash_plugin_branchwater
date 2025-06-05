@@ -643,7 +643,7 @@ pub fn load_collection(
     selection: &Selection,
     report_type: ReportType,
     allow_failed: bool,
-) -> Result<MultiCollectionSet> {
+) -> Result<(MultiCollection, MultiCollectionSet)> {
     let sigpath = PathBuf::from(siglist);
 
     if !sigpath.exists() {
@@ -669,7 +669,7 @@ pub fn load_collection(
                 report_type,
                 allow_failed,
             )?;
-            Ok(selected)
+            Ok((coll, selected))
         }
         Err(e) => Err(e),
     }

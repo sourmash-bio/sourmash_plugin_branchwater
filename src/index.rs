@@ -18,7 +18,7 @@ pub fn index<P: AsRef<Path>>(
 ) -> Result<()> {
     eprintln!("Loading sketches from {}", siglist);
 
-    let multi = match load_collection(
+    let (mXX, multi) = match load_collection(
         &siglist,
         &selection,
         ReportType::General,
