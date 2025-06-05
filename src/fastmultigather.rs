@@ -38,12 +38,13 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
-    let (qXX, query_collection) = load_collection(
+    let (query_db, n_failed) = load_collection(
         &query_filepath,
-        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
+
+    let query_collection = query_db.select(&selection)?;
 
     let common_scaled = match scaled {
         Some(s) => s,
@@ -72,12 +73,13 @@ pub fn fastmultigather(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // load against collection
-    let (aXX, against_collection) = load_collection(
+    let (against_db, against_failed) = load_collection(
         &against_filepath,
-        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    let against_collection = against_db.select(&against_selection)?;
 
     // load against into memory.
     // (@CTB we can make this optional if we want)

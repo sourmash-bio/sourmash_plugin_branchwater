@@ -26,12 +26,13 @@ pub fn pairwise(
     output: Option<String>,
 ) -> Result<()> {
     // Load all sigs into memory at once.
-    let (cXX, collection) = load_collection(
+    let (db, n_failed) = load_collection(
         &siglist,
-        &selection,
         ReportType::General,
         allow_failed_sigpaths,
     )?;
+
+    let collection = db.select(&selection)?;
 
     if collection.len() <= 1 {
         bail!(

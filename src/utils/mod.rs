@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 // use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{max, Ordering, PartialOrd};
 use std::collections::BinaryHeap;
-use std::fs::{create_dir_all, metadata, File};
+use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
@@ -640,10 +640,9 @@ impl std::fmt::Display for ReportType {
 
 pub fn load_collection(
     siglist: &String,
-    selection: &Selection,
     report_type: ReportType,
     allow_failed: bool,
-) -> Result<(MultiCollection, MultiCollectionSet)> {
+) -> Result<(MultiCollection, usize)> {
     let sigpath = PathBuf::from(siglist);
 
     if !sigpath.exists() {
@@ -658,18 +657,7 @@ pub fn load_collection(
     // Turn this MultiCollection into a MultiCollectionSet.
     match collection {
         Ok((coll, n_failed)) => {
-            let n_total = coll.len();
-
-            let selected = coll.select(selection)?;
-            let n_skipped = n_total - selected.len();
-            report_on_collection_loading(
-                &selected,
-                n_skipped,
-                n_failed,
-                report_type,
-                allow_failed,
-            )?;
-            Ok((coll, selected))
+            Ok((coll, n_failed))
         }
         Err(e) => Err(e),
     }
@@ -698,6 +686,7 @@ pub fn load_collection(
 /// Returns an error if:
 /// * No signatures were successfully loaded.
 pub fn report_on_collection_loading(
+    db: &MultiCollection,
     collection: &MultiCollectionSet,
     skipped_paths: usize,
     failed_paths: usize,

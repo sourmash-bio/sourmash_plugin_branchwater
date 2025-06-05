@@ -8,6 +8,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use crate::utils::{
     consume_query_by_gather, consume_query_by_gather_cg, csvwriter_thread, load_collection, load_sketches_above_threshold, load_sketches_above_threshold_sigs,
     write_prefetch_cg, BranchwaterGatherResult, ReportType,
+    report_on_collection_loading,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -20,12 +21,17 @@ pub fn fastgather(
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    let (qXX, query_collection) = load_collection(
+    let (query_db, n_failed) = load_collection(
         &query_filepath,
-        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
+
+    let query_collection = query_db.select(&selection)?;
+
+    report_on_collection_loading(&query_db, &query_collection,
+                                 0, 0, ReportType::Query,
+                                 allow_failed_sigpaths)?;
 
     if query_collection.len() != 1 {
         bail!(
@@ -54,12 +60,18 @@ pub fn fastgather(
     against_selection.set_scaled(scaled);
 
     // load collection to match against.
-    let (aXX, against_collection) = load_collection(
+    let (against_db, against_failed) = load_collection(
         &against_filepath,
-        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    let against_collection = against_db.select(&against_selection)?;
+
+    report_on_collection_loading(&against_db, &against_collection,
+                                 0, 0, ReportType::Against,
+                                 allow_failed_sigpaths)?;
+
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes = {

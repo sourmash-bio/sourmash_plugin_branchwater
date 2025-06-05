@@ -51,24 +51,24 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use sourmash::ScaledType;
 
-pub struct PrefetchItem {
+pub struct PrefetchItem<'a> {
     pub revindex: RevIndex,     // collection for search results
     pub cg: CounterGather,      // search results
-    pub mf: Manifest,           // original manifest
+    pub mf: &'a Manifest,           // original manifest
 }
 
-impl PrefetchItem {
+impl PrefetchItem<'_> {
     pub fn found_hashes(&self, template_mh: &KmerMinHash) -> KmerMinHash {
         self.cg.found_hashes(template_mh)
     }
 }
 
 
-pub struct PrefetchContainer {
-    pub matchlists: Vec<PrefetchItem>,
+pub struct PrefetchContainer<'a> {
+    pub matchlists: Vec<PrefetchItem<'a>>,
 }
 
-impl PrefetchContainer {
+impl PrefetchContainer<'_> {
     // sum the lengths of the contents
     pub fn len(&self) -> usize {
         let mut l = 0;
@@ -142,7 +142,7 @@ impl PrefetchContainer {
 
 trait Searchable {
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
-        Result<(RevIndex, CounterGather, Manifest, usize, usize)>;
+        Result<(RevIndex, CounterGather, &Manifest, usize, usize)>;
     fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) ->
         impl Iterator<Item = Idx>;
     fn len(&self) -> usize;
@@ -158,12 +158,12 @@ trait Searchable {
 
 // @CTB do we want to split disk/mem collection?
 #[derive(Clone)]
-enum SearchContainer {
-    InvertedIndex(RevIndex, Manifest),
-    LinearCollection(CollectionSet, Manifest),
+enum SearchContainer<'a> {
+    InvertedIndex(RevIndex, &'a Manifest),
+    LinearCollection(CollectionSet, &'a Manifest),
 }
 
-impl Searchable for SearchContainer {
+impl Searchable for SearchContainer<'_> {
     /// find all overlapping sketches; return RevIndex and CounterGather
     /// structs containing the results.
     ///
@@ -171,12 +171,12 @@ impl Searchable for SearchContainer {
     /// for other collections, it will return a MemRevIndex.
 
     fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
-        Result<(RevIndex, CounterGather, Manifest, usize, usize)> {
+        Result<(RevIndex, CounterGather, &Manifest, usize, usize)> {
             match self {
                 SearchContainer::InvertedIndex(revindex, mf) => {
                     let cg = revindex.prepare_gather_counters(query, None);
                     // @CTB clone
-                    Ok((revindex.clone(), cg, mf.clone(), 0, 0))
+                    Ok((revindex.clone(), cg, mf, 0, 0))
                 },
                 SearchContainer::LinearCollection(coll, mf) => {
                     let (revindex, cg, skip, fail) = 
@@ -184,7 +184,7 @@ impl Searchable for SearchContainer {
                                                                query,
                                                                threshold_hashes)?;
                     // @CTB clone
-                    Ok((revindex, cg, mf.clone(), skip, fail))
+                    Ok((revindex, cg, mf, skip, fail))
                                                            
                 },
             }
@@ -387,6 +387,9 @@ impl LoadedDatabase {
                 coll
             }
         }
+    }
+    fn manifest(&self) -> &Manifest {
+        self.collection().manifest()
     }
 }
 
@@ -718,7 +721,7 @@ impl MultiCollection {
         self.item_iter().map(|(_, _, record)| record.scaled()).max()
     }
 */
-    pub fn select(&self, selection: &Selection) -> Result<MultiCollectionSet, SourmashError> {
+    pub fn select<'a>(&'a self, selection: &Selection) -> Result<MultiCollectionSet<'a>, SourmashError> {
         let collections = self
             .dbs
             .iter()
@@ -727,7 +730,7 @@ impl MultiCollection {
                 let coll = c.collection().clone();
                 let coll = coll.select(selection).expect("failed select");
                 let cs: CollectionSet = coll.try_into().expect("incomplete selection!?");
-                let mf = cs.manifest().clone();
+                let mf = c.manifest();
                 SearchContainer::LinearCollection(cs, mf)
             })
             .collect();
@@ -738,12 +741,12 @@ impl MultiCollection {
     
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]
-pub struct MultiCollectionSet {
-    collections: Vec<SearchContainer>,
+pub struct MultiCollectionSet<'a> {
+    collections: Vec<SearchContainer<'a>>,
 }
 
-impl MultiCollectionSet {
-    fn new(collections: Vec<SearchContainer>) -> Self {
+impl<'a> MultiCollectionSet<'a> {
+    fn new(collections: Vec<SearchContainer<'a>>) -> Self {
         Self {
             collections,
         }
@@ -877,8 +880,8 @@ impl MultiCollectionSet {
         }
         Ok((res, skipped_paths, failed_paths))
     }
-
-    pub fn prefetch_iter<'a>(&'a self, query: &'a KmerMinHash, threshold_hashes: u64) -> impl Iterator<Item = (&'a SearchContainer, Idx)> + '_ {
+/*
+    pub fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) -> impl Iterator<Item = (&'a SearchContainer, Idx)> + '_ {
         self.collections
             .iter()
             .flat_map(move |s| s
@@ -886,7 +889,7 @@ impl MultiCollectionSet {
                       .map(move |idx| (s, idx))
                       )
     }
-        
+*/      
     pub fn prefetch_consume(self,
                             _query: &KmerMinHash,
                             _threshold_hashes: u64,
@@ -924,14 +927,6 @@ impl MultiCollectionSet {
     }
 }
 
-// Convert a single Collection into a MultiCollectionSet
-impl From<CollectionSet> for MultiCollectionSet {
-    fn from(coll: CollectionSet) -> Self {
-        let mf = coll.manifest().clone();
-        MultiCollectionSet::new(vec![SearchContainer::LinearCollection(coll.clone(), mf)])
-    }
-}
-
 // Convert a single Collection into a MultiCollection
 impl From<Collection> for MultiCollection {
     fn from(coll: Collection) -> Self {
@@ -952,7 +947,7 @@ impl From<Vec<MultiCollection>> for MultiCollection {
     }
 }
 
-impl TryFrom<MultiCollectionSet> for CollectionSet {
+impl TryFrom<MultiCollectionSet<'_>> for CollectionSet {
     type Error = &'static str;
 
     fn try_from(multi: MultiCollectionSet) -> Result<Self, Self::Error> {

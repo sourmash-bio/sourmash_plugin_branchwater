@@ -149,12 +149,13 @@ pub fn multisearch(
     output: Option<String>,
 ) -> Result<()> {
     // Load all queries into memory at once.
-    let (qXX, query_collection) = load_collection(
+    let (query_db, query_failed) = load_collection(
         &query_filepath,
-        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
+
+    let query_collection = query_db.select(&selection)?;
 
     let expected_scaled = match selection.scaled() {
         Some(s) => s,
@@ -179,12 +180,12 @@ pub fn multisearch(
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
     // Load all against sketches into memory at once.
-    let (aXX, against_collection) = load_collection(
+    let (against_db, against_failed) = load_collection(
         &against_filepath,
-        &new_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+    let against_collection = against_db.select(&new_selection)?;
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
 

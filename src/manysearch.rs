@@ -39,12 +39,13 @@ pub fn manysearch(
     output_all_comparisons: bool,
 ) -> Result<()> {
     // Load query collection
-    let (qXX, query_collection) = load_collection(
+    let (query_db, query_failed) = load_collection(
         &query_filepath,
-        &selection,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
+
+    let query_collection = query_db.select(&selection)?;
 
     // Figure out what scaled to use - either from selection, or from query.
     let common_scaled: u32 = if let Some(set_scaled) = selection.scaled() {
@@ -65,12 +66,13 @@ pub fn manysearch(
     let query_sketchlist = query_collection.load_sketches()?;
 
     // Against: Load collection, potentially off disk & not into memory.
-    let (aXX, against_collection) = load_collection(
+    let (against_db, against_failed) = load_collection(
         &against_filepath,
-        &selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    let against_collection = against_db.select(&selection)?;
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
         &query_sketchlist,

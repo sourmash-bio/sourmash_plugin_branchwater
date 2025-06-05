@@ -18,16 +18,17 @@ pub fn index<P: AsRef<Path>>(
 ) -> Result<()> {
     eprintln!("Loading sketches from {}", siglist);
 
-    let (mXX, multi) = match load_collection(
+    let (multi_db, multi_failed) = match load_collection(
         &siglist,
-        &selection,
         ReportType::General,
         allow_failed_sigpaths,
     ) {
         Ok(multi) => multi,
         Err(err) => return Err(err.into()),
     };
-    eprintln!("Found {} sketches total.", multi.len());
+    eprintln!("Found {} sketches total.", multi_db.len());
+
+    let multi = multi_db.select(&selection)?;
 
     index_obj(multi, output, use_internal_storage)
 }
