@@ -527,7 +527,7 @@ pub fn load_sketches_above_threshold(
                     let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
-                // this shouldn't happen here anymore -- likely would happen at load_collection
+                // this shouldn't happen here anymore -- likely would happen at load_collection @CTB
                 eprintln!(
                     "WARNING: could not load sketches for record '{}'",
                     against_record.internal_location()
@@ -589,7 +589,7 @@ pub fn load_sketches_above_threshold_sigs(
                     let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
                 }
             } else {
-                // this shouldn't happen here anymore -- likely would happen at load_collection
+                // this shouldn't happen here anymore -- likely would happen at load_collection @CTB
                 eprintln!(
                     "WARNING: could not load sketches for record '{}'",
                     against_record.internal_location()
@@ -652,7 +652,8 @@ pub fn load_collection(
 
     eprintln!("Reading {}(s) from: '{}'", report_type, &siglist);
 
-    let collection = MultiCollection::load(&sigpath, selection);
+    // @CTB: handle loading errors here, separate from selection errors.
+    let collection = MultiCollection::load(&sigpath);
 
     // Turn this MultiCollection into a MultiCollectionSet.
     match collection {

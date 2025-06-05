@@ -404,7 +404,7 @@ impl MultiCollection {
 
     /// top level load function; tries to load anything and everything passed
     /// in.
-    pub fn load(sigpath: &Path, selection: &Selection) -> Result<(Self, usize)> {
+    pub fn load(sigpath: &Path) -> Result<(Self, usize)> {
         let mut last_error = None;
 
         let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
