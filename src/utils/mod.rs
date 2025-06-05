@@ -708,6 +708,7 @@ pub fn load_collection(
         }
     });
 
+    // Turn this MultiCollection into a MultiCollectionSet.
     match collection {
         Some((coll, n_failed)) => {
             let n_total = coll.len();
