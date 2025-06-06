@@ -1,9 +1,6 @@
 //! Utility functions for `sourmash_plugin_branchwater`.
 use rayon::prelude::*;
 
-use sourmash::index::revindex::CounterGather;
-use sourmash::index::revindex::RevIndex;
-use sourmash::index::revindex::mem_revindex::MemRevIndex;
 use sourmash::index::revindex::RevIndexOps;
 
 use sourmash::encodings::HashFunctions;
@@ -17,13 +14,12 @@ use csv::Writer;
 use glob::glob;
 use serde::{Deserialize, Serialize};
 // use rust_decimal::{MathematicalOps, Decimal};
-use std::cmp::{max, Ordering, PartialOrd};
-use std::collections::BinaryHeap;
+use std::cmp::max;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
-use std::sync::atomic::AtomicUsize;
+// use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread::JoinHandle;
 use zip::write::{FileOptions, ZipWriter};
@@ -31,114 +27,20 @@ use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::selection::Selection;
-use sourmash::signature::{ Signature, SigsTrait };
+use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
 use stats::{median, stddev};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 pub mod multicollection;
-pub use multicollection::{MultiCollection, MultiCollectionSet, PrefetchContainer, SmallSignature};
+pub use multicollection::{MultiCollection, MultiCollectionSet, PrefetchContainer};
 
 pub mod buildutils;
 use buildutils::{BuildCollection, BuildManifest};
 
-/// Structure to hold overlap information from comparisons.
-pub struct PrefetchResult {
-    pub name: String,
-    pub md5sum: String,
-    pub location: String,
-    pub minhash: KmerMinHash,
-    pub overlap: u64,
-}
-
-impl Ord for PrefetchResult {
-    fn cmp(&self, other: &PrefetchResult) -> Ordering {
-        self.overlap.cmp(&other.overlap)
-    }
-}
-
-impl PartialOrd for PrefetchResult {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for PrefetchResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.overlap == other.overlap
-    }
-}
-
-impl Eq for PrefetchResult {}
-
-/// Find sketches in 'sketchlist' that overlap with 'query' above
-/// specified threshold.
-
-pub fn prefetch(
-    query_mh: &KmerMinHash,
-    sketchlist: BinaryHeap<PrefetchResult>,
-    threshold_hashes: u64,
-) -> BinaryHeap<PrefetchResult> {
-    sketchlist
-        .into_par_iter()
-        .filter_map(|result| {
-            let mut mm = None;
-            let searchsig = &result.minhash;
-            let overlap = searchsig.count_common(query_mh, false);
-            if let Ok(overlap) = overlap {
-                if overlap > 0 && overlap >= threshold_hashes {
-                    let result = PrefetchResult { overlap, ..result };
-                    mm = Some(result);
-                }
-            }
-            mm
-        })
-        .collect()
-}
-
 /// Write list of prefetch matches.
 pub fn write_prefetch(
-    query_filename: String,
-    query_name: String,
-    query_md5: String,
-    prefetch_output: Option<String>,
-    matchlist: &BinaryHeap<PrefetchResult>,
-) -> Result<()> {
-    // Define the writer to stdout by default
-    let mut writer: Box<dyn Write> = Box::new(std::io::stdout());
-
-    if let Some(output_path) = &prefetch_output {
-        // Account for potential missing dir in output path
-        let directory_path = Path::new(output_path).parent();
-
-        // If a directory path exists in the filename, create it if it doesn't already exist
-        if let Some(dir) = directory_path {
-            create_dir_all(dir)?;
-        }
-
-        let file = File::create(output_path)?;
-        writer = Box::new(BufWriter::new(file));
-    }
-
-    writeln!(
-        &mut writer,
-        "query_filename,query_name,query_md5,match_name,match_md5,intersect_bp"
-    )?;
-
-    for m in matchlist.iter() {
-        writeln!(
-            &mut writer,
-            "{},\"{}\",{},\"{}\",{},{}",
-            query_filename, query_name, query_md5, m.name, m.md5sum, m.overlap
-        )?;
-    }
-
-    Ok(())
-}
-
-/// Write list of prefetch matches.
-pub fn write_prefetch_cg(
     query_filename: String,
     query_name: String,
     query_md5: String,
@@ -482,143 +384,6 @@ fn process_prefix_csv(
 
 /////////
 
-/// Load a collection of sketches from a file, filtering to keep only
-/// those with a minimum overlap.
-
-pub fn load_sketches_above_threshold(
-    against_collection: MultiCollectionSet,
-    query: &KmerMinHash,
-    threshold_hashes: u64,
-) -> Result<(BinaryHeap<PrefetchResult>, usize, usize)> {
-    let skipped_paths = AtomicUsize::new(0);
-    let failed_paths = AtomicUsize::new(0);
-
-    let matchlist: BinaryHeap<PrefetchResult> = against_collection
-        .par_iter()
-        .filter_map(|(coll, _idx, against_record)| {
-            let mut results = Vec::new();
-            // Load against into memory
-            if let Ok(against_sig) = coll.sig_from_record(against_record) {
-                let against_filename = against_sig.filename();
-                let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
-                let against_md5 = against_record.md5().clone(); // keep original md5sum
-
-                let against_mh_ds = against_mh
-                    .downsample_scaled(query.scaled())
-                    .expect("cannot downsample sketch");
-
-                // good? ok, store as candidate from prefetch.
-                if let Ok(overlap) = against_mh_ds.count_common(query, false) {
-                    if overlap > 0 && overlap >= threshold_hashes {
-                        let result = PrefetchResult {
-                            name: against_record.name().to_string(),
-                            md5sum: against_md5,
-                            minhash: against_mh_ds,
-                            location: against_record.internal_location().to_string(),
-                            overlap,
-                        };
-                        results.push(result);
-                    }
-                } else {
-                    eprintln!(
-                        "WARNING: no compatible sketches in path '{}'",
-                        against_filename
-                    );
-                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                }
-            } else {
-                // this shouldn't happen here anymore -- likely would happen at load_collection @CTB
-                eprintln!(
-                    "WARNING: could not load sketches for record '{}'",
-                    against_record.internal_location()
-                );
-                let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-            }
-            if results.is_empty() {
-                None
-            } else {
-                Some(results)
-            }
-        })
-        .flatten()
-        .collect();
-
-    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
-    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
-
-    Ok((matchlist, skipped_paths, failed_paths))
-}
-
-/// Load a collection of sketches from a file, filtering to keep only
-/// those with a minimum overlap. SIGNATURES VERSION @CTB.
-
-pub fn load_sketches_above_threshold_sigs(
-    against_collection: MultiCollectionSet,
-    query: &KmerMinHash,
-    threshold_hashes: u64,
-) -> Result<(RevIndex, CounterGather, usize, usize)> {
-    let skipped_paths = AtomicUsize::new(0);
-    let failed_paths = AtomicUsize::new(0);
-
-    let selection = against_collection.selection();
-
-    let matchlist: Vec<Signature> = against_collection
-        .par_iter()
-        .filter_map(|(coll, _idx, against_record)| {
-            let mut results = Vec::new();
-            // Load against into memory
-            if let Ok(against_sig) = coll.sig_from_record(against_record) {
-                let against_filename = against_sig.filename();
-                let orig_sig = against_sig.clone();
-                let against_mh: KmerMinHash = against_sig.try_into().expect("cannot get sketch");
-
-                let against_mh_ds = against_mh
-                    .downsample_scaled(query.scaled())
-                    .expect("cannot downsample sketch");
-
-                // good? ok, store as candidate from prefetch.
-                if let Ok(overlap) = against_mh_ds.count_common(query, false) {
-                    if overlap > 0 && overlap >= threshold_hashes {
-                        results.push(orig_sig.into());
-                    }
-                } else {
-                    eprintln!(
-                        "WARNING: no compatible sketches in path '{}'",
-                        against_filename
-                    );
-                    let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-                }
-            } else {
-                // this shouldn't happen here anymore -- likely would happen at load_collection @CTB
-                eprintln!(
-                    "WARNING: could not load sketches for record '{}'",
-                    against_record.internal_location()
-                );
-                let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
-            }
-            if results.is_empty() {
-                None
-            } else {
-                Some(results)
-            }
-        })
-        .flatten()
-        .collect();
-
-    let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
-    let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
-
-    let revindex = MemRevIndex::new_with_sigs(matchlist,
-                                              &selection,
-                                              threshold_hashes as usize,
-                                              None)?;
-
-    let cg = revindex.prepare_gather_counters(query, None);
-    
-
-    Ok((revindex, cg, skipped_paths, failed_paths))
-}
-
 pub enum ReportType {
     Query,
     Against,
@@ -642,7 +407,7 @@ pub fn load_collection(
     siglist: &String,
     report_type: ReportType,
     allow_failed: bool,
-) -> Result<(MultiCollection, usize)> {
+) -> Result<MultiCollection> {
     let sigpath = PathBuf::from(siglist);
 
     if !sigpath.exists() {
@@ -657,7 +422,16 @@ pub fn load_collection(
     // Turn this MultiCollection into a MultiCollectionSet.
     match collection {
         Ok((coll, n_failed)) => {
-            Ok((coll, n_failed))
+            eprintln!(
+                "WARNING: {} {} paths failed to load. See error messages above.",
+                n_failed, report_type
+            );
+            if n_failed > 0 {
+                if !allow_failed {
+                    bail! {"Signatures failed to load. Exiting."}
+                }
+            }
+            Ok(coll)
         }
         Err(e) => Err(e),
     }
@@ -688,20 +462,8 @@ pub fn load_collection(
 pub fn report_on_collection_loading(
     db: &MultiCollection,
     collection: &MultiCollectionSet,
-    failed_paths: usize,
     report_type: ReportType,
-    allow_failed: bool,
 ) -> Result<()> {
-    if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} {} paths failed to load. See error messages above.",
-            failed_paths, report_type
-        );
-        if !allow_failed {
-            bail! {"Signatures failed to load. Exiting."}
-        }
-    }
-
     let skipped_paths = db.len() - collection.len();
     if skipped_paths > 0 {
         eprintln!(
@@ -845,166 +607,9 @@ pub fn branchwater_calculate_gather_stats(
 }
 
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
-/// removing matches in 'matchlist' from 'query'.
-
-pub fn consume_query_by_gather(
-    query_name: String,
-    query_filename: String,
-    orig_query_mh: KmerMinHash,
-    scaled: u32,
-    matchlist: BinaryHeap<PrefetchResult>,
-    threshold_hashes: u64,
-    gather_output: Option<SyncSender<BranchwaterGatherResult>>,
-) -> Result<()> {
-    let mut matching_sketches = matchlist;
-    let mut rank = 0;
-
-    let mut last_matches = matching_sketches.len();
-
-    let query_bp = orig_query_mh.n_unique_kmers();
-    let query_n_hashes = orig_query_mh.size() as u64;
-    let mut query_moltype = orig_query_mh.hash_function().to_string();
-    if query_moltype.to_lowercase() == "dna" {
-        query_moltype = query_moltype.to_uppercase();
-    }
-    let query_md5sum: String = orig_query_mh.md5sum().clone();
-    let query_scaled = orig_query_mh.scaled();
-
-    let total_weighted_hashes = orig_query_mh.sum_abunds();
-    let ksize = orig_query_mh.ksize() as u16;
-    let calc_abund_stats = orig_query_mh.track_abundance();
-    let orig_query_size = orig_query_mh.size();
-    let mut last_hashes = orig_query_size;
-
-    // this clone is necessary because we iteratively change things!
-    // to do == use this to subtract hashes instead
-    // let mut query_mh = KmerMinHashBTree::from(orig_query_mh.clone());
-    let mut query_mh = orig_query_mh.clone();
-
-    let mut orig_query_ds = orig_query_mh.downsample_scaled(scaled)?;
-
-    // track for full gather results
-    let mut sum_weighted_found = 0;
-
-    // set some bools
-    let calc_ani_ci = false;
-    let ani_confidence_interval_fraction = None;
-
-    eprintln!(
-        "{} iter {}: start: query hashes={} matches={}",
-        query_filename,
-        rank,
-        orig_query_size,
-        matching_sketches.len()
-    );
-
-    while !matching_sketches.is_empty() {
-        let best_element = matching_sketches.peek().expect("no sketch!?");
-
-        query_mh = query_mh.downsample_scaled(best_element.minhash.scaled())?;
-
-        // CTB: won't need this if we do not allow multiple scaleds;
-        // see sourmash-bio/sourmash#2951
-        orig_query_ds = orig_query_ds
-            .downsample_scaled(best_element.minhash.scaled())
-            .expect("cannot downsample");
-
-        //calculate full gather stats
-        let match_ = branchwater_calculate_gather_stats(
-            &orig_query_ds,
-            &query_mh,
-            &best_element.minhash,
-            best_element.name.clone(),
-            best_element.md5sum.clone(),
-            best_element.overlap,
-            best_element.location.clone(),
-            rank,
-            sum_weighted_found,
-            total_weighted_hashes,
-            calc_abund_stats,
-            calc_ani_ci,
-            ani_confidence_interval_fraction,
-        )?;
-
-        // build full gather result, then write
-        let gather_result = BranchwaterGatherResult {
-            intersect_bp: match_.intersect_bp,
-            f_orig_query: match_.f_orig_query,
-            f_match: match_.f_match,
-            f_unique_to_query: match_.f_unique_to_query,
-            f_unique_weighted: match_.f_unique_weighted,
-            average_abund: match_.average_abund,
-            median_abund: match_.median_abund,
-            std_abund: match_.std_abund,
-            match_filename: match_.match_filename.clone(), // to do: get match filename
-            match_name: match_.match_name.clone(),
-            match_md5: match_.match_md5.clone(),
-            f_match_orig: match_.f_match_orig,
-            unique_intersect_bp: match_.unique_intersect_bp,
-            gather_result_rank: match_.gather_result_rank as u32,
-            remaining_bp: match_.remaining_bp,
-            query_filename: query_filename.clone(),
-            query_name: query_name.clone(),
-            query_md5: query_md5sum.clone(),
-            query_bp,
-            ksize,
-            moltype: query_moltype.clone(),
-            scaled: query_scaled,
-            query_n_hashes,
-            query_abundance: query_mh.track_abundance(),
-            query_containment_ani: match_.query_containment_ani,
-            match_containment_ani: match_.match_containment_ani,
-            average_containment_ani: match_.average_containment_ani,
-            max_containment_ani: match_.max_containment_ani,
-            n_unique_weighted_found: match_.n_unique_weighted_found,
-            sum_weighted_found: match_.sum_weighted_found,
-            total_weighted_hashes: match_.total_weighted_hashes,
-
-            query_containment_ani_ci_low: match_.query_containment_ani_ci_low,
-            query_containment_ani_ci_high: match_.query_containment_ani_ci_high,
-            match_containment_ani_ci_low: match_.match_containment_ani_ci_low,
-            match_containment_ani_ci_high: match_.match_containment_ani_ci_high,
-        };
-        sum_weighted_found = gather_result.sum_weighted_found;
-        // send result to channel => CSV file.
-        if let Some(ref s) = gather_output {
-            s.send(gather_result)?;
-        }
-
-        // remove!
-        query_mh.remove_from(&best_element.minhash)?;
-        // to do -- switch to KmerMinHashTree, for faster removal.
-        //query.remove_many(best_element.iter_mins().copied())?; // from sourmash core
-
-        // recalculate remaining overlaps between query and all sketches.
-        // note: this is parallelized.
-        matching_sketches = prefetch(&query_mh, matching_sketches, threshold_hashes);
-        rank += 1;
-
-        let sub_hashes = last_hashes - query_mh.size();
-        let sub_matches = last_matches - matching_sketches.len();
-
-        eprintln!(
-            "{} iter {}: remaining: query hashes={}(-{}) matches={}(-{})",
-            query_filename,
-            rank,
-            query_mh.size(),
-            sub_hashes,
-            matching_sketches.len(),
-            sub_matches
-        );
-
-        last_hashes = query_mh.size();
-        last_matches = matching_sketches.len();
-    }
-
-    Ok(())
-}
-
-/// Execute the gather algorithm, greedy min-set-cov, by iteratively
 /// removing matches in 'matchlist' from 'query'. CounterGather version.
 
-pub fn consume_query_by_gather_cg( // @CTB
+pub fn consume_query_by_gather( // @CTB
     query_name: String,
     query_filename: String,
     orig_query_mh: KmerMinHash,

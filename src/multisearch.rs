@@ -150,7 +150,7 @@ pub fn multisearch(
     output: Option<String>,
 ) -> Result<()> {
     // Load all queries into memory at once.
-    let (query_db, query_failed) = load_collection(
+    let query_db = load_collection(
         &query_filepath,
         ReportType::Query,
         allow_failed_sigpaths,
@@ -177,13 +177,12 @@ pub fn multisearch(
     let query_collection = query_db.select(&new_selection)?;
 
     report_on_collection_loading(&query_db, &query_collection,
-                                 query_failed, ReportType::Query,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Query)?;
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
     // Load all against sketches into memory at once.
-    let (against_db, against_failed) = load_collection(
+    let against_db = load_collection(
         &against_filepath,
         ReportType::Against,
         allow_failed_sigpaths,
@@ -191,8 +190,7 @@ pub fn multisearch(
     let against_collection = against_db.select(&new_selection)?;
 
     report_on_collection_loading(&against_db, &against_collection,
-                                 against_failed, ReportType::Against,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Against)?;
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
 

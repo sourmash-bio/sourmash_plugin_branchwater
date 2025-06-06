@@ -19,9 +19,10 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather_cg, csvwriter_thread, load_collection, write_prefetch_cg,
-    BranchwaterGatherResult, MultiCollection, MultiCollectionSet, PrefetchContainer, ReportType, SmallSignature,
+    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
+    BranchwaterGatherResult, PrefetchContainer, ReportType,
     report_on_collection_loading,
+    MultiCollectionSet,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -39,7 +40,7 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
-    let (query_db, query_failed) = load_collection(
+    let query_db = load_collection(
         &query_filepath,
         ReportType::Query,
         allow_failed_sigpaths,
@@ -48,8 +49,7 @@ pub fn fastmultigather(
     let query_collection = query_db.select(&selection)?;
 
     report_on_collection_loading(&query_db, &query_collection,
-                                 query_failed, ReportType::Query,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Query)?;
 
     let common_scaled = match scaled {
         Some(s) => s,
@@ -78,7 +78,7 @@ pub fn fastmultigather(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // load against collection
-    let (against_db, against_failed) = load_collection(
+    let against_db = load_collection(
         &against_filepath,
         ReportType::Against,
         allow_failed_sigpaths,
@@ -87,12 +87,11 @@ pub fn fastmultigather(
     let against_collection = against_db.select(&against_selection)?;
 
     report_on_collection_loading(&against_db, &against_collection,
-                                 against_failed, ReportType::Against,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Against)?;
 
 
     // load against into memory.
-    // (@CTB we can make this optional if we want)
+    // (@CTB we can make this optional if we want, I think)
     let against_collection = against_collection.load_sketches2()?;
 
     let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
@@ -175,7 +174,7 @@ pub(crate) fn fastmultigather_obj(
                     
 
                     // Save initial list of matches to prefetch output
-                    write_prefetch_cg(
+                    write_prefetch(
                         query_filename.clone(),
                         query_name.clone(),
                         query_md5,
@@ -214,7 +213,7 @@ pub(crate) fn fastmultigather_obj(
                     }
 
                     // Now, do the gather!
-                    consume_query_by_gather_cg(
+                    consume_query_by_gather(
                         query_name,
                         query_filename,
                         query_mh,

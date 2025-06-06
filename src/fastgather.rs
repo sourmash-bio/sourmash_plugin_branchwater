@@ -6,8 +6,8 @@ use sourmash::selection::Selection;
 use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
-    consume_query_by_gather, consume_query_by_gather_cg, csvwriter_thread, load_collection, load_sketches_above_threshold, load_sketches_above_threshold_sigs,
-    write_prefetch_cg, BranchwaterGatherResult, ReportType,
+    consume_query_by_gather, csvwriter_thread, load_collection,
+    write_prefetch, BranchwaterGatherResult, ReportType,
     report_on_collection_loading,
 };
 
@@ -21,7 +21,7 @@ pub fn fastgather(
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    let (query_db, n_failed) = load_collection(
+    let query_db = load_collection(
         &query_filepath,
         ReportType::Query,
         allow_failed_sigpaths,
@@ -30,8 +30,7 @@ pub fn fastgather(
     let query_collection = query_db.select(&selection)?;
 
     report_on_collection_loading(&query_db, &query_collection,
-                                 n_failed, ReportType::Query,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Query)?;
 
     if query_collection.len() != 1 {
         bail!(
@@ -60,7 +59,7 @@ pub fn fastgather(
     against_selection.set_scaled(scaled);
 
     // load collection to match against.
-    let (against_db, against_failed) = load_collection(
+    let against_db = load_collection(
         &against_filepath,
         ReportType::Against,
         allow_failed_sigpaths,
@@ -69,8 +68,7 @@ pub fn fastgather(
     let against_collection = against_db.select(&against_selection)?;
 
     report_on_collection_loading(&against_db, &against_collection,
-                                 against_failed, ReportType::Against,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Against)?;
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes = {
@@ -111,7 +109,7 @@ pub fn fastgather(
     }
 
     if prefetch_output.is_some() {
-        write_prefetch_cg(
+        write_prefetch(
             query_filename.clone(),
             query_name.clone(),
             query_md5,
@@ -125,7 +123,7 @@ pub fn fastgather(
     let gather_out_thrd = csvwriter_thread(recv, gather_output);
 
     // run the gather!
-    consume_query_by_gather_cg(
+    consume_query_by_gather(
         query_name,
         query_filename,
         query_mh,

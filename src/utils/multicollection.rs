@@ -180,9 +180,9 @@ impl Searchable for SearchContainer<'_> {
                 },
                 SearchContainer::LinearCollection(coll, mf) => {
                     let (revindex, cg, skip, fail) = 
-                        load_sketches_above_threshold_sigs_XXX(coll,
-                                                               query,
-                                                               threshold_hashes)?;
+                        load_sketches_above_threshold_sigs(coll,
+                                                           query,
+                                                           threshold_hashes)?;
                     // @CTB clone
                     Ok((revindex, cg, mf, skip, fail))
                                                            
@@ -295,7 +295,7 @@ impl Searchable for SearchContainer<'_> {
 /// those with a minimum overlap. SIGNATURES VERSION 2 @CTB.
 /// @CTB can we refactor to use linear?
 
-pub fn load_sketches_above_threshold_sigs_XXX(
+pub fn load_sketches_above_threshold_sigs(
     collection: &Collection,
     query: &KmerMinHash,
     threshold_hashes: u64,

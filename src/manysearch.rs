@@ -11,8 +11,10 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
     csvwriter_thread, load_collection, ManySearchResult, MultiCollectionSet, ReportType,
-    SmallSignature, report_on_collection_loading,
+    report_on_collection_loading,
 };
+use crate::utils::multicollection::SmallSignature;
+
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
 use sourmash::selection::Selection;
@@ -39,7 +41,7 @@ pub fn manysearch(
     output_all_comparisons: bool,
 ) -> Result<()> {
     // Load query collection
-    let (query_db, query_failed) = load_collection(
+    let query_db = load_collection(
         &query_filepath,
         ReportType::Query,
         allow_failed_sigpaths,
@@ -48,8 +50,7 @@ pub fn manysearch(
     let query_collection = query_db.select(&selection)?;
 
     report_on_collection_loading(&query_db, &query_collection,
-                                 query_failed, ReportType::Query,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Query)?;
 
     // Figure out what scaled to use - either from selection, or from query.
     let common_scaled: u32 = if let Some(set_scaled) = selection.scaled() {
@@ -70,7 +71,7 @@ pub fn manysearch(
     let query_sketchlist = query_collection.load_sketches()?;
 
     // Against: Load collection, potentially off disk & not into memory.
-    let (against_db, against_failed) = load_collection(
+    let against_db = load_collection(
         &against_filepath,
         ReportType::Against,
         allow_failed_sigpaths,
@@ -79,8 +80,7 @@ pub fn manysearch(
     let against_collection = against_db.select(&selection)?;
 
     report_on_collection_loading(&against_db, &against_collection,
-                                 against_failed, ReportType::Against,
-                                 allow_failed_sigpaths)?;
+                                 ReportType::Against)?;
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
         &query_sketchlist,
