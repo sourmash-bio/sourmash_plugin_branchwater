@@ -790,6 +790,7 @@ impl<'a> MultiCollectionSet<'a> {
         // turn into a collection set, if possible, and then extract first
         // selection. Better if it makes an error I think?
         let coll = self.collections.iter().next().expect("empty?!");
+        // @CTB clone - why?
         let cs: CollectionSet = coll.collection().clone().try_into().expect("err");
         cs.selection()
     }
@@ -979,6 +980,7 @@ impl From<Vec<MultiCollection>> for MultiCollection {
     }
 }
 
+
 impl TryFrom<MultiCollectionSet<'_>> for CollectionSet {
     type Error = &'static str;
 
@@ -987,6 +989,7 @@ impl TryFrom<MultiCollectionSet<'_>> for CollectionSet {
             // this must succeed b/c len > 0
             let cont = multi.collections.into_iter().next().unwrap();
 
+            // @CTB why / where is this used?
             let cs = cont.collection().clone();
             Ok(cs)
         } else {
