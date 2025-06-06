@@ -422,11 +422,11 @@ pub fn load_collection(
     // Turn this MultiCollection into a MultiCollectionSet.
     match collection {
         Ok((coll, n_failed)) => {
-            eprintln!(
-                "WARNING: {} {} paths failed to load. See error messages above.",
-                n_failed, report_type
-            );
             if n_failed > 0 {
+                eprintln!(
+                    "WARNING: {} {} paths failed to load. See error messages above.",
+                    n_failed, report_type
+                );
                 if !allow_failed {
                     bail! {"Signatures failed to load. Exiting."}
                 }
@@ -609,7 +609,8 @@ pub fn branchwater_calculate_gather_stats(
 /// Execute the gather algorithm, greedy min-set-cov, by iteratively
 /// removing matches in 'matchlist' from 'query'. CounterGather version.
 
-pub fn consume_query_by_gather( // @CTB
+pub fn consume_query_by_gather(
+    // @CTB
     query_name: String,
     query_filename: String,
     orig_query_mh: KmerMinHash,
@@ -681,10 +682,14 @@ pub fn consume_query_by_gather( // @CTB
         let match_mh = match_mh.downsample_scaled(max_scaled)?;
         query_mh = query_mh.downsample_scaled(max_scaled)?;
 
-        let isect = match_mh.intersection(&query_mh).expect("intersection failed");
+        let isect = match_mh
+            .intersection(&query_mh)
+            .expect("intersection failed");
         let mut intersect_mh = match_mh.clone();
         intersect_mh.clear();
-        intersect_mh.add_many(&isect.0[..]).expect("add many failed");
+        intersect_mh
+            .add_many(&isect.0[..])
+            .expect("add many failed");
 
         matchlists = matchlists.consume(&intersect_mh);
 

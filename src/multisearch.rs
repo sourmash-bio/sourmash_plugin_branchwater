@@ -14,7 +14,8 @@ use crate::search_significance::{
     get_term_frequency_inverse_document_frequency, merge_all_minhashes, Normalization,
 };
 use crate::utils::multicollection::SmallSignature;
-use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType, report_on_collection_loading,
+use crate::utils::{
+    csvwriter_thread, load_collection, report_on_collection_loading, MultiSearchResult, ReportType,
 };
 use sourmash::ani_utils::ani_from_containment;
 
@@ -150,11 +151,7 @@ pub fn multisearch(
     output: Option<String>,
 ) -> Result<()> {
     // Load all queries into memory at once.
-    let query_db = load_collection(
-        &query_filepath,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
 
     // Figure out scaled, if we need to.
     let expected_scaled = match selection.scaled() {
@@ -176,10 +173,13 @@ pub fn multisearch(
 
     let query_collection = query_db.select(&new_selection)?;
 
-    report_on_collection_loading(&query_db, &query_collection,
-                                 ReportType::Query)?;
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
+
+    if queries.len() == 0 {
+        bail!("No query loaded. Exiting.")
+    }
 
     // Load all against sketches into memory at once.
     let against_db = load_collection(
@@ -189,10 +189,13 @@ pub fn multisearch(
     )?;
     let against_collection = against_db.select(&new_selection)?;
 
-    report_on_collection_loading(&against_db, &against_collection,
-                                 ReportType::Against)?;
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
+
+    if againsts.len() == 0 {
+        bail!("No search sketches loaded. Exiting.")
+    }
 
     let n_processed = multisearch_obj(
         &queries,

@@ -19,10 +19,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, PrefetchContainer, ReportType,
-    report_on_collection_loading,
-    MultiCollectionSet,
+    consume_query_by_gather, csvwriter_thread, load_collection, report_on_collection_loading,
+    write_prefetch, BranchwaterGatherResult, MultiCollectionSet, PrefetchContainer, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -40,16 +38,11 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
-    let query_db = load_collection(
-        &query_filepath,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
 
     let query_collection = query_db.select(&selection)?;
 
-    report_on_collection_loading(&query_db, &query_collection,
-                                 ReportType::Query)?;
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     let common_scaled = match scaled {
         Some(s) => s,
@@ -86,9 +79,7 @@ pub fn fastmultigather(
 
     let against_collection = against_db.select(&against_selection)?;
 
-    report_on_collection_loading(&against_db, &against_collection,
-                                 ReportType::Against)?;
-
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
 
     // load against into memory.
     // (@CTB we can make this optional if we want, I think)
@@ -166,12 +157,12 @@ pub(crate) fn fastmultigather_obj(
                 let query_seed = query_mh.seed();
                 let query_num = query_mh.num();
 
-                let (matchlists, _, _) = against.prefetch(&query_mh, threshold_hashes).expect("prefetch fail!?");
+                let (matchlists, _, _) = against
+                    .prefetch(&query_mh, threshold_hashes)
+                    .expect("prefetch fail!?");
 
                 if !matchlists.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
-
-                    
 
                     // Save initial list of matches to prefetch output
                     write_prefetch(
@@ -197,7 +188,8 @@ pub(crate) fn fastmultigather_obj(
                                     query_num,
                                 );
 
-                                let found_mh = matchlists.found_hashes(&template_mh)
+                                let found_mh = matchlists
+                                    .found_hashes(&template_mh)
                                     .expect("failed to get found hashes!?");
 
                                 let mut signature = Signature::default();

@@ -6,9 +6,8 @@ use sourmash::selection::Selection;
 use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
-    consume_query_by_gather, csvwriter_thread, load_collection,
+    consume_query_by_gather, csvwriter_thread, load_collection, report_on_collection_loading,
     write_prefetch, BranchwaterGatherResult, ReportType,
-    report_on_collection_loading,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -21,16 +20,11 @@ pub fn fastgather(
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    let query_db = load_collection(
-        &query_filepath,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
 
     let query_collection = query_db.select(&selection)?;
 
-    report_on_collection_loading(&query_db, &query_collection,
-                                 ReportType::Query)?;
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     if query_collection.len() != 1 {
         bail!(
@@ -67,8 +61,7 @@ pub fn fastgather(
 
     let against_collection = against_db.select(&against_selection)?;
 
-    report_on_collection_loading(&against_db, &against_collection,
-                                 ReportType::Against)?;
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes = {

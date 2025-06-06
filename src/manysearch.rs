@@ -9,11 +9,11 @@ use stats::{median, stddev};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{
-    csvwriter_thread, load_collection, ManySearchResult, MultiCollectionSet, ReportType,
-    report_on_collection_loading,
-};
 use crate::utils::multicollection::SmallSignature;
+use crate::utils::{
+    csvwriter_thread, load_collection, report_on_collection_loading, ManySearchResult,
+    MultiCollectionSet, ReportType,
+};
 
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
@@ -41,16 +41,11 @@ pub fn manysearch(
     output_all_comparisons: bool,
 ) -> Result<()> {
     // Load query collection
-    let query_db = load_collection(
-        &query_filepath,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
 
     let query_collection = query_db.select(&selection)?;
 
-    report_on_collection_loading(&query_db, &query_collection,
-                                 ReportType::Query)?;
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     // Figure out what scaled to use - either from selection, or from query.
     let common_scaled: u32 = if let Some(set_scaled) = selection.scaled() {
@@ -79,8 +74,7 @@ pub fn manysearch(
 
     let against_collection = against_db.select(&selection)?;
 
-    report_on_collection_loading(&against_db, &against_collection,
-                                 ReportType::Against)?;
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
         &query_sketchlist,

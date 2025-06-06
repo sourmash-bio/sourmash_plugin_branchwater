@@ -1,6 +1,5 @@
 //! MultiCollection implementation to handle sketches coming from multiple files.
 
-
 // Challenges/design considerations:
 // * we need to keep original manifest (or collection?) around to
 //   support proper reporting. If Collection, this is _pre_ selection...
@@ -16,7 +15,6 @@
 // * here, we suffer a DiskRevIndex.clone() if needed; CounterGather is
 //   new.
 // * Manifest could be/should be a reference, though.
-
 
 // OR...
 // * accept that MultiCollection and MultiCollectionSet are different things.
@@ -38,12 +36,12 @@ use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use sourmash::collection::{ Collection, CollectionSet };
+use sourmash::collection::{Collection, CollectionSet};
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
 use sourmash::index::linear::LinearIndex;
-use sourmash::index::revindex::{ CounterGather, RevIndex, RevIndexOps };
 use sourmash::index::revindex::mem_revindex::MemRevIndex;
+use sourmash::index::revindex::{CounterGather, RevIndex, RevIndexOps};
 use sourmash::manifest::{Manifest, Record};
 use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
@@ -52,9 +50,9 @@ use sourmash::storage::{FSStorage, InnerStorage, SigStore};
 use sourmash::ScaledType;
 
 pub struct PrefetchItem<'a> {
-    pub revindex: RevIndex,     // collection for search results
-    pub cg: CounterGather,      // search results
-    pub mf: &'a Manifest,           // original manifest
+    pub revindex: RevIndex, // collection for search results
+    pub cg: CounterGather,  // search results
+    pub mf: &'a Manifest,   // original manifest
 }
 
 impl PrefetchItem<'_> {
@@ -62,7 +60,6 @@ impl PrefetchItem<'_> {
         self.cg.found_hashes(template_mh)
     }
 }
-
 
 pub struct PrefetchContainer<'a> {
     pub matchlists: Vec<PrefetchItem<'a>>,
@@ -81,7 +78,9 @@ impl PrefetchContainer<'_> {
     // true if all contained matchlists are false
     pub fn is_empty(&self) -> bool {
         for item in self.matchlists.iter() {
-            if !item.cg.is_empty() { return false; };
+            if !item.cg.is_empty() {
+                return false;
+            };
         }
         return true;
     }
@@ -92,9 +91,10 @@ impl PrefetchContainer<'_> {
         let mut best_idx = None;
         let mut best_overlap = 0;
         let mut best_item = None;
-        
+
         for item in self.matchlists.iter() {
-            if !item.cg.is_empty() { // @CTB test else
+            if !item.cg.is_empty() {
+                // @CTB test else
                 if let Some((idx, overlap)) = item.cg.peek(threshold_hashes as usize) {
                     if overlap > best_overlap {
                         best_idx = Some(idx);
@@ -108,8 +108,16 @@ impl PrefetchContainer<'_> {
         // did we find something?
         if let Some(item) = best_item {
             let idx = best_idx.unwrap();
-            let match_sig: Signature = item.revindex.collection().sig_for_dataset(idx).expect("cannot load").into();
-            let orig_record: &Record = item.mf.get_record(idx).expect("cannot retrieve original record!?");
+            let match_sig: Signature = item
+                .revindex
+                .collection()
+                .sig_for_dataset(idx)
+                .expect("cannot load")
+                .into();
+            let orig_record: &Record = item
+                .mf
+                .get_record(idx)
+                .expect("cannot retrieve original record!?");
             Some((match_sig, orig_record))
         } else {
             None
@@ -119,12 +127,14 @@ impl PrefetchContainer<'_> {
     // consume the best match across all CounterGathers.
     pub fn consume(self, intersect_mh: &KmerMinHash) -> Self {
         let mut updated: Vec<PrefetchItem> = vec![];
-        
+
         for mut item in self.matchlists.into_iter() {
             item.cg.consume(intersect_mh);
             updated.push(item);
         }
-        PrefetchContainer { matchlists : updated }
+        PrefetchContainer {
+            matchlists: updated,
+        }
     }
 
     pub fn found_hashes(&self, template_mh: &KmerMinHash) -> Result<KmerMinHash> {
@@ -139,12 +149,17 @@ impl PrefetchContainer<'_> {
     }
 }
 
-
 trait Searchable {
-    fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
-        Result<(RevIndex, CounterGather, &Manifest, usize, usize)>;
-    fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) ->
-        impl Iterator<Item = Idx>;
+    fn prefetch(
+        &self,
+        query: &KmerMinHash,
+        threshold_hashes: u64,
+    ) -> Result<(RevIndex, CounterGather, &Manifest, usize, usize)>;
+    fn prefetch_iter(
+        &self,
+        query: &KmerMinHash,
+        threshold_hashes: u64,
+    ) -> impl Iterator<Item = Idx>;
     fn len(&self) -> usize;
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)>;
     fn collection(&self) -> &CollectionSet;
@@ -152,9 +167,10 @@ trait Searchable {
     fn get_orig_manifest(&self) -> &Manifest;
     fn get_signature(&self, idx: Idx) -> Result<Signature>;
     fn get_record(&self, idx: Idx) -> Option<&Record>;
-    fn load(self) -> Result<Self> where Self: Sized;
+    fn load(self) -> Result<Self>
+    where
+        Self: Sized;
 }
-
 
 // @CTB do we want to split disk/mem collection?
 #[derive(Clone)]
@@ -170,27 +186,31 @@ impl Searchable for SearchContainer<'_> {
     /// For pre-existing RevIndexes, this will return a clone of the revindex;
     /// for other collections, it will return a MemRevIndex.
 
-    fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) ->
-        Result<(RevIndex, CounterGather, &Manifest, usize, usize)> {
-            match self {
-                SearchContainer::InvertedIndex(revindex, mf) => {
-                    let cg = revindex.prepare_gather_counters(query, None);
-                    // @CTB clone
-                    Ok((revindex.clone(), cg, mf, 0, 0))
-                },
-                SearchContainer::LinearCollection(coll, mf) => {
-                    let (revindex, cg, skip, fail) = 
-                        load_sketches_above_threshold_sigs(coll,
-                                                           query,
-                                                           threshold_hashes)?;
-                    // @CTB clone
-                    Ok((revindex, cg, mf, skip, fail))
-                                                           
-                },
+    fn prefetch(
+        &self,
+        query: &KmerMinHash,
+        threshold_hashes: u64,
+    ) -> Result<(RevIndex, CounterGather, &Manifest, usize, usize)> {
+        match self {
+            SearchContainer::InvertedIndex(revindex, mf) => {
+                let cg = revindex.prepare_gather_counters(query, None);
+                // @CTB clone
+                Ok((revindex.clone(), cg, mf, 0, 0))
+            }
+            SearchContainer::LinearCollection(coll, mf) => {
+                let (revindex, cg, skip, fail) =
+                    load_sketches_above_threshold_sigs(coll, query, threshold_hashes)?;
+                // @CTB clone
+                Ok((revindex, cg, mf, skip, fail))
             }
         }
+    }
 
-    fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) -> impl Iterator<Item = Idx> {
+    fn prefetch_iter(
+        &self,
+        query: &KmerMinHash,
+        threshold_hashes: u64,
+    ) -> impl Iterator<Item = Idx> {
         match self {
             SearchContainer::InvertedIndex(revindex, _mf) => {
                 let counter = revindex.counter_for_query(&query, None);
@@ -221,23 +241,15 @@ impl Searchable for SearchContainer<'_> {
     /// iterate over (Idx, &Record)
     fn iter(&self) -> impl Iterator<Item = (Idx, &Record)> {
         match self {
-            SearchContainer::InvertedIndex(revindex, _mf) => {
-                revindex.collection().iter()
-            }
-            SearchContainer::LinearCollection(coll, _mf) => {
-                coll.iter()
-            }
+            SearchContainer::InvertedIndex(revindex, _mf) => revindex.collection().iter(),
+            SearchContainer::LinearCollection(coll, _mf) => coll.iter(),
         }
     }
 
     fn collection(&self) -> &CollectionSet {
         match self {
-            SearchContainer::InvertedIndex(revindex, _mf) => {
-                revindex.collection()
-            }
-            SearchContainer::LinearCollection(coll, _mf) => {
-                coll
-            }
+            SearchContainer::InvertedIndex(revindex, _mf) => revindex.collection(),
+            SearchContainer::LinearCollection(coll, _mf) => coll,
         }
     }
 
@@ -245,12 +257,8 @@ impl Searchable for SearchContainer<'_> {
     /// to any downsampling/indexing.
     fn get_orig_manifest(&self) -> &Manifest {
         match self {
-            SearchContainer::InvertedIndex(_, mf) => {
-                &mf
-            }
-            SearchContainer::LinearCollection(_, mf) => {
-                &mf
-            }
+            SearchContainer::InvertedIndex(_, mf) => &mf,
+            SearchContainer::LinearCollection(_, mf) => &mf,
         }
     }
 
@@ -278,8 +286,9 @@ impl Searchable for SearchContainer<'_> {
     fn load(self) -> Result<Self> {
         match self {
             // in an index? leave alone.
-            SearchContainer::InvertedIndex(revindex, mf) =>
-                Ok(SearchContainer::InvertedIndex(revindex, mf)),
+            SearchContainer::InvertedIndex(revindex, mf) => {
+                Ok(SearchContainer::InvertedIndex(revindex, mf))
+            }
             // load collection into memory.
             // @CTB what if it is already loaded??
             SearchContainer::LinearCollection(coll, mf) => {
@@ -352,13 +361,10 @@ pub fn load_sketches_above_threshold_sigs(
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
-    let revindex = MemRevIndex::new_with_sigs(matchlist,
-                                              &selection,
-                                              threshold_hashes as usize,
-                                              None)?;
+    let revindex =
+        MemRevIndex::new_with_sigs(matchlist, &selection, threshold_hashes as usize, None)?;
 
     let cg = revindex.prepare_gather_counters(query, None);
-    
 
     Ok((revindex, cg, skipped_paths, failed_paths))
 }
@@ -380,12 +386,8 @@ impl LoadedDatabase {
 
     fn collection(&self) -> &Collection {
         match self {
-            LoadedDatabase::InvertedIndex(revindex) => {
-                revindex.collection()
-            }
-            LoadedDatabase::LinearCollection(coll) => {
-                coll
-            }
+            LoadedDatabase::InvertedIndex(revindex) => revindex.collection(),
+            LoadedDatabase::LinearCollection(coll) => coll,
         }
     }
     fn manifest(&self) -> &Manifest {
@@ -395,7 +397,7 @@ impl LoadedDatabase {
 
 #[derive(Clone)]
 pub struct MultiCollection {
-    dbs: Vec<LoadedDatabase>
+    dbs: Vec<LoadedDatabase>,
 }
 
 // A collection of databases, including indexes, on-disk collections, and
@@ -619,9 +621,9 @@ impl MultiCollection {
     pub fn from_zipfile(sigpath: &Path) -> Result<Self> {
         debug!("multi from zipfile!");
         match Collection::from_zipfile(sigpath) {
-            Ok(collection) => {
-                Ok(MultiCollection::new(vec![LoadedDatabase::LinearCollection(collection)]))
-            },
+            Ok(collection) => Ok(MultiCollection::new(vec![
+                LoadedDatabase::LinearCollection(collection),
+            ])),
             Err(_) => bail!("failed to load zipfile: '{}'", sigpath),
         }
     }
@@ -651,7 +653,9 @@ impl MultiCollection {
                     ))
                 }
             };
-            Ok(MultiCollection::new(vec![LoadedDatabase::InvertedIndex(db)]))
+            Ok(MultiCollection::new(vec![LoadedDatabase::InvertedIndex(
+                db,
+            )]))
         } else {
             bail!("not a rocksdb: '{}'", sigpath)
         }
@@ -703,7 +707,9 @@ impl MultiCollection {
                 sigpath
             )
         })?;
-        Ok(MultiCollection::new(vec![LoadedDatabase::LinearCollection(coll)]))
+        Ok(MultiCollection::new(vec![
+            LoadedDatabase::LinearCollection(coll),
+        ]))
     }
 
     pub fn len(&self) -> usize {
@@ -711,41 +717,45 @@ impl MultiCollection {
         val
     }
 
-/*
-    pub fn is_empty(&self) -> bool {
-        let val: usize = self.dbs.iter().map(|c| c.len()).sum();
-        val == 0
-    }
-*/
+    /*
+        pub fn is_empty(&self) -> bool {
+            let val: usize = self.dbs.iter().map(|c| c.len()).sum();
+            val == 0
+        }
+    */
     pub fn max_scaled(&self) -> Option<&ScaledType> {
         //self.item_iter().map(|(_, _, record)| record.scaled()).max()
-        self.dbs.iter().filter_map(|db| {
-            if let Some((_, max_scaled)) = db.collection().min_max_scaled() {
-                Some(max_scaled)
-            } else {
-                None
-            }
-        }).max()
+        self.dbs
+            .iter()
+            .filter_map(|db| {
+                if let Some((_, max_scaled)) = db.collection().min_max_scaled() {
+                    Some(max_scaled)
+                } else {
+                    None
+                }
+            })
+            .max()
     }
 
-    pub fn select<'a>(&'a self, selection: &Selection) -> Result<MultiCollectionSet<'a>, SourmashError> {
+    pub fn select<'a>(
+        &'a self,
+        selection: &Selection,
+    ) -> Result<MultiCollectionSet<'a>, SourmashError> {
         let collections = self
             .dbs
             .iter()
-            .map(|c| {
-                match c {
-                    LoadedDatabase::LinearCollection(coll) => {
-                        let coll = coll.clone();
-                        let coll = coll.select(selection).expect("failed select");
-                        let cs: CollectionSet = coll.try_into().expect("incomplete selection!?");
-                        let mf = c.manifest();
-                        SearchContainer::LinearCollection(cs, mf)
-                    },
-                    LoadedDatabase::InvertedIndex(revindex) => {
-                        let new_ri = revindex.clone();
-                        let mf = revindex.collection().manifest();
-                        SearchContainer::InvertedIndex(new_ri, mf)
-                    }
+            .map(|c| match c {
+                LoadedDatabase::LinearCollection(coll) => {
+                    let coll = coll.clone();
+                    let coll = coll.select(selection).expect("failed select");
+                    let cs: CollectionSet = coll.try_into().expect("incomplete selection!?");
+                    let mf = c.manifest();
+                    SearchContainer::LinearCollection(cs, mf)
+                }
+                LoadedDatabase::InvertedIndex(revindex) => {
+                    let new_ri = revindex.clone();
+                    let mf = revindex.collection().manifest();
+                    SearchContainer::InvertedIndex(new_ri, mf)
                 }
             })
             .collect();
@@ -753,7 +763,7 @@ impl MultiCollection {
         Ok(MultiCollectionSet { collections })
     }
 }
-    
+
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]
 pub struct MultiCollectionSet<'a> {
@@ -761,7 +771,7 @@ pub struct MultiCollectionSet<'a> {
 }
 
 impl<'a> MultiCollectionSet<'a> {
-     pub fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         let val: usize = self.collections.iter().map(|c| c.len()).sum();
         val
     }
@@ -789,7 +799,10 @@ impl<'a> MultiCollectionSet<'a> {
         let s: Vec<_> = self
             .collections
             .iter()
-            .flat_map(|c| c.iter().map(move |(_idx, record)| (c.collection(), _idx, record)))
+            .flat_map(|c| {
+                c.iter()
+                    .map(move |(_idx, record)| (c.collection(), _idx, record))
+            })
             .collect();
         s.into_iter()
     }
@@ -799,7 +812,10 @@ impl<'a> MultiCollectionSet<'a> {
         let s: Vec<_> = self
             .collections
             .iter() // CTB: are we loading things into memory here? No...
-            .flat_map(|c| c.iter().map(move |(_idx, record)| (c.collection(), _idx, record)))
+            .flat_map(|c| {
+                c.iter()
+                    .map(move |(_idx, record)| (c.collection(), _idx, record))
+            })
             .collect();
         // then return a parallel iterator over the Vec.
         s.into_par_iter()
@@ -865,7 +881,9 @@ impl<'a> MultiCollectionSet<'a> {
             .map(|s| s.load().expect("couldn't load collection"))
             .collect();
 
-        Ok(Self { collections: new_coll })
+        Ok(Self {
+            collections: new_coll,
+        })
     }
 
     fn intersect_manifest(&mut self, manifest: &Manifest) {
@@ -874,7 +892,11 @@ impl<'a> MultiCollectionSet<'a> {
         }
     }
 
-    pub fn prefetch(&self, query: &KmerMinHash, threshold_hashes: u64) -> Result<(PrefetchContainer, usize, usize)> {
+    pub fn prefetch(
+        &self,
+        query: &KmerMinHash,
+        threshold_hashes: u64,
+    ) -> Result<(PrefetchContainer, usize, usize)> {
         let mut skipped_paths = 0;
         let mut failed_paths = 0;
 
@@ -889,28 +911,29 @@ impl<'a> MultiCollectionSet<'a> {
         }
         Ok((res, skipped_paths, failed_paths))
     }
-/*
-    pub fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) -> impl Iterator<Item = (&'a SearchContainer, Idx)> + '_ {
-        self.collections
-            .iter()
-            .flat_map(move |s| s
-                      .prefetch_iter(query, threshold_hashes)
-                      .map(move |idx| (s, idx))
-                      )
-    }
-*/      
-    pub fn prefetch_consume(self,
-                            _query: &KmerMinHash,
-                            _threshold_hashes: u64,
+    /*
+        pub fn prefetch_iter(&self, query: &KmerMinHash, threshold_hashes: u64) -> impl Iterator<Item = (&'a SearchContainer, Idx)> + '_ {
+            self.collections
+                .iter()
+                .flat_map(move |s| s
+                          .prefetch_iter(query, threshold_hashes)
+                          .map(move |idx| (s, idx))
+                          )
+        }
+    */
+    pub fn prefetch_consume(
+        self,
+        _query: &KmerMinHash,
+        _threshold_hashes: u64,
     ) -> Result<(Vec<(RevIndex, CounterGather)>, usize, usize)> {
-/*        let pairs: Vec<(RevIndex, CounterGather)> = self
+        /*        let pairs: Vec<(RevIndex, CounterGather)> = self
             .collections
             .iter()
             .map(|c| {
                 ;
             }
         for collection in collections.iter() {
-            
+
             }
                 */
         panic!("foo");

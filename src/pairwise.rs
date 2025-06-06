@@ -4,11 +4,10 @@ use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use crate::utils::{
-    csvwriter_thread, load_collection, MultiSearchResult, ReportType,
-    report_on_collection_loading,
-};
 use crate::utils::multicollection::SmallSignature;
+use crate::utils::{
+    csvwriter_thread, load_collection, report_on_collection_loading, MultiSearchResult, ReportType,
+};
 
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
@@ -29,16 +28,11 @@ pub fn pairwise(
     output: Option<String>,
 ) -> Result<()> {
     // Load all sigs into memory at once.
-    let db = load_collection(
-        &siglist,
-        ReportType::General,
-        allow_failed_sigpaths,
-    )?;
+    let db = load_collection(&siglist, ReportType::General, allow_failed_sigpaths)?;
 
     let collection = db.select(&selection)?;
 
-    report_on_collection_loading(&db, &collection,
-                                 ReportType::General)?;
+    report_on_collection_loading(&db, &collection, ReportType::General)?;
 
     if collection.len() <= 1 {
         bail!(
