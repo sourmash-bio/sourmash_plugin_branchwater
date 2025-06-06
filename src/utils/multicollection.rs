@@ -716,22 +716,37 @@ impl MultiCollection {
         let val: usize = self.dbs.iter().map(|c| c.len()).sum();
         val == 0
     }
-
-    pub fn max_scaled(&self) -> Option<&ScaledType> {
-        self.item_iter().map(|(_, _, record)| record.scaled()).max()
-    }
 */
+    pub fn max_scaled(&self) -> Option<&ScaledType> {
+        //self.item_iter().map(|(_, _, record)| record.scaled()).max()
+        self.dbs.iter().filter_map(|db| {
+            if let Some((_, max_scaled)) = db.collection().min_max_scaled() {
+                Some(max_scaled)
+            } else {
+                None
+            }
+        }).max()
+    }
+
     pub fn select<'a>(&'a self, selection: &Selection) -> Result<MultiCollectionSet<'a>, SourmashError> {
         let collections = self
             .dbs
             .iter()
             .map(|c| {
-                // @CTB here, support inverted index.
-                let coll = c.collection().clone();
-                let coll = coll.select(selection).expect("failed select");
-                let cs: CollectionSet = coll.try_into().expect("incomplete selection!?");
-                let mf = c.manifest();
-                SearchContainer::LinearCollection(cs, mf)
+                match c {
+                    LoadedDatabase::LinearCollection(coll) => {
+                        let coll = coll.clone();
+                        let coll = coll.select(selection).expect("failed select");
+                        let cs: CollectionSet = coll.try_into().expect("incomplete selection!?");
+                        let mf = c.manifest();
+                        SearchContainer::LinearCollection(cs, mf)
+                    },
+                    LoadedDatabase::InvertedIndex(revindex) => {
+                        let new_ri = revindex.clone();
+                        let mf = revindex.collection().manifest();
+                        SearchContainer::InvertedIndex(new_ri, mf)
+                    }
+                }
             })
             .collect();
 

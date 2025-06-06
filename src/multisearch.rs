@@ -156,16 +156,11 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
 
-    let query_collection = query_db.select(&selection)?;
-
-    report_on_collection_loading(&query_db, &query_collection,
-                                 query_failed, ReportType::Query,
-                                 allow_failed_sigpaths)?;
-
+    // Figure out scaled, if we need to.
     let expected_scaled = match selection.scaled() {
         Some(s) => s,
         None => {
-            let s = *query_collection.max_scaled().expect("no records!?") as u32;
+            let s = *query_db.max_scaled().expect("no records!?") as u32;
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
                 s
@@ -179,8 +174,11 @@ pub fn multisearch(
     let mut new_selection = selection;
     new_selection.set_scaled(expected_scaled);
 
-    // update selection with new scaled. @CTB
-    // let query_collection = query_collection.select(&new_selection)?;
+    let query_collection = query_db.select(&new_selection)?;
+
+    report_on_collection_loading(&query_db, &query_collection,
+                                 query_failed, ReportType::Query,
+                                 allow_failed_sigpaths)?;
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
