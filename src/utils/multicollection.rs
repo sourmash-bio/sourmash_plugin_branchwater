@@ -200,7 +200,6 @@ impl Searchable for SearchContainer<'_> {
             SearchContainer::LinearCollection(coll, mf) => {
                 let (revindex, cg, skip, fail) =
                     load_sketches_above_threshold_sigs(coll, query, threshold_hashes)?;
-                // @CTB clone
                 Ok((revindex, cg, mf, skip, fail))
             }
         }
@@ -753,6 +752,7 @@ impl MultiCollection {
                     SearchContainer::LinearCollection(cs, mf)
                 }
                 LoadedDatabase::InvertedIndex(revindex) => {
+                    // @CTB clone
                     let new_ri = revindex.clone();
                     let mf = revindex.collection().manifest();
                     SearchContainer::InvertedIndex(new_ri, mf)
