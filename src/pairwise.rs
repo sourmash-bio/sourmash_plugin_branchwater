@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
     csvwriter_thread, load_collection, MultiSearchResult, ReportType, SmallSignature,
+    report_on_collection_loading,
 };
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
@@ -33,6 +34,11 @@ pub fn pairwise(
     )?;
 
     let collection = db.select(&selection)?;
+
+    report_on_collection_loading(&db, &collection,
+                                 n_failed, ReportType::Against,
+                                 allow_failed_sigpaths)?;
+
 
     if collection.len() <= 1 {
         bail!(

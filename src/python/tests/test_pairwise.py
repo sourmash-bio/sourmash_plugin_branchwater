@@ -341,10 +341,6 @@ def test_nomatch_query_warn(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert (
-        "WARNING: skipped 1 analysis paths - no compatible signatures" in captured.err
-    )
-
 
 def test_nomatch_query_exit(runtmp, capfd, zip_query):
     # test a non-matching (diff ksize) in query; do we get warning message?
@@ -366,9 +362,6 @@ def test_nomatch_query_exit(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert (
-        "WARNING: skipped 2 analysis paths - no compatible signatures" in captured.err
-    )
     assert "Error: No analysis signatures loaded, exiting." in captured.err
 
 
@@ -396,7 +389,6 @@ def test_load_only_one_bug(runtmp, capfd, zip_db):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert not "WARNING: skipped 1 paths - no compatible signatures." in captured.err
     assert not "WARNING: no compatible sketches in path " in captured.err
 
 

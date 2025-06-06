@@ -30,7 +30,7 @@ pub fn fastgather(
     let query_collection = query_db.select(&selection)?;
 
     report_on_collection_loading(&query_db, &query_collection,
-                                 0, 0, ReportType::Query,
+                                 n_failed, ReportType::Query,
                                  allow_failed_sigpaths)?;
 
     if query_collection.len() != 1 {
@@ -69,9 +69,8 @@ pub fn fastgather(
     let against_collection = against_db.select(&against_selection)?;
 
     report_on_collection_loading(&against_db, &against_collection,
-                                 0, 0, ReportType::Against,
+                                 against_failed, ReportType::Against,
                                  allow_failed_sigpaths)?;
-
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes = {

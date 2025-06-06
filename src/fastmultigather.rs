@@ -21,6 +21,7 @@ use sourmash::sketch::Sketch;
 use crate::utils::{
     consume_query_by_gather_cg, csvwriter_thread, load_collection, write_prefetch_cg,
     BranchwaterGatherResult, MultiCollection, MultiCollectionSet, PrefetchContainer, ReportType, SmallSignature,
+    report_on_collection_loading,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -38,13 +39,17 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
-    let (query_db, n_failed) = load_collection(
+    let (query_db, query_failed) = load_collection(
         &query_filepath,
         ReportType::Query,
         allow_failed_sigpaths,
     )?;
 
     let query_collection = query_db.select(&selection)?;
+
+    report_on_collection_loading(&query_db, &query_collection,
+                                 query_failed, ReportType::Against,
+                                 allow_failed_sigpaths)?;
 
     let common_scaled = match scaled {
         Some(s) => s,
@@ -81,6 +86,11 @@ pub fn fastmultigather(
 
     let against_collection = against_db.select(&against_selection)?;
 
+    report_on_collection_loading(&against_db, &against_collection,
+                                 against_failed, ReportType::Against,
+                                 allow_failed_sigpaths)?;
+
+
     // load against into memory.
     // (@CTB we can make this optional if we want)
     let against_collection = against_collection.load_sketches2()?;
@@ -97,12 +107,6 @@ pub fn fastmultigather(
 
     println!("DONE. Processed {} queries total.", n_processed);
 
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
     if failed_paths > 0 {
         eprintln!(
             "WARNING: {} query paths failed to load. See error messages above.",

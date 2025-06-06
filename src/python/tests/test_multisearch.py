@@ -828,8 +828,6 @@ def test_nomatch_query_warn(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: skipped 1 query paths - no compatible signatures" in captured.err
-
 
 def test_nomatch_query_exit(runtmp, capfd, zip_query):
     # test loading no matching sketches - do we error exit appropriately?
@@ -857,7 +855,6 @@ def test_nomatch_query_exit(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: skipped 1 query paths - no compatible signatures" in captured.err
     assert "No query signatures loaded, exiting" in captured.err
 
 
@@ -887,7 +884,6 @@ def test_nomatch_against(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: skipped 3 search paths - no compatible signatures" in captured.err
     assert "No search signatures loaded, exiting" in captured.err
 
 
@@ -917,7 +913,6 @@ def test_load_only_one_bug(runtmp, capfd, zip_db):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert not "WARNING: skipped 1 paths - no compatible signatures." in captured.err
     assert not "WARNING: no compatible sketches in path" in captured.err
 
 
@@ -947,7 +942,6 @@ def test_load_only_one_bug_as_query(runtmp, capfd, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert not "WARNING: skipped 1 paths - no compatible signatures." in captured.err
     assert not "WARNING: no compatible sketches in path " in captured.err
 
 

@@ -14,7 +14,8 @@ use crate::search_significance::{
     get_term_frequency_inverse_document_frequency, merge_all_minhashes, Normalization,
 };
 use crate::utils::multicollection::SmallSignature;
-use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
+use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType, report_on_collection_loading,
+};
 use sourmash::ani_utils::ani_from_containment;
 
 type OverlapStatsReturn = (
@@ -157,6 +158,10 @@ pub fn multisearch(
 
     let query_collection = query_db.select(&selection)?;
 
+    report_on_collection_loading(&query_db, &query_collection,
+                                 query_failed, ReportType::Against,
+                                 allow_failed_sigpaths)?;
+
     let expected_scaled = match selection.scaled() {
         Some(s) => s,
         None => {
@@ -186,6 +191,10 @@ pub fn multisearch(
         allow_failed_sigpaths,
     )?;
     let against_collection = against_db.select(&new_selection)?;
+
+    report_on_collection_loading(&against_db, &against_collection,
+                                 against_failed, ReportType::Against,
+                                 allow_failed_sigpaths)?;
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
 

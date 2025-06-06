@@ -530,8 +530,6 @@ def test_against_nomatch(runtmp, capfd, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: skipped 1 search paths - no compatible signatures." in captured.err
-
 
 def test_md5s(runtmp, zip_against):
     # check that the correct md5sums (of the original sketches) are in

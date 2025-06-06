@@ -688,7 +688,6 @@ pub fn load_collection(
 pub fn report_on_collection_loading(
     db: &MultiCollection,
     collection: &MultiCollectionSet,
-    skipped_paths: usize,
     failed_paths: usize,
     report_type: ReportType,
     allow_failed: bool,
@@ -702,6 +701,8 @@ pub fn report_on_collection_loading(
             bail! {"Signatures failed to load. Exiting."}
         }
     }
+
+    let skipped_paths = db.len() - collection.len();
     if skipped_paths > 0 {
         eprintln!(
             "WARNING: skipped {} {} paths - no compatible signatures.",

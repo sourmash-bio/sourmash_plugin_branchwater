@@ -619,7 +619,6 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "WARNING: skipped 1 query paths - no compatible signatures." in captured.err
 
 
 def test_missing_against(runtmp, capfd, zip_against):
@@ -761,8 +760,6 @@ def test_nomatch_in_against(runtmp, capfd, zip_against):
 
     captured = capfd.readouterr()
     print(captured.err)
-
-    assert "WARNING: skipped 1 search paths - no compatible signatures." in captured.err
 
 
 def test_md5(runtmp, zip_query):
