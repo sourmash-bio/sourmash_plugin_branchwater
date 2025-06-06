@@ -36,7 +36,7 @@ pub fn pairwise(
     let collection = db.select(&selection)?;
 
     report_on_collection_loading(&db, &collection,
-                                 n_failed, ReportType::Against,
+                                 n_failed, ReportType::General,
                                  allow_failed_sigpaths)?;
 
 
