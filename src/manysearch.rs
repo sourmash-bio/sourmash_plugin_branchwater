@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
     csvwriter_thread, load_collection, ManySearchResult, MultiCollectionSet, ReportType,
-    SmallSignature,
+    SmallSignature, report_on_collection_loading,
 };
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
@@ -47,6 +47,10 @@ pub fn manysearch(
 
     let query_collection = query_db.select(&selection)?;
 
+    report_on_collection_loading(&query_db, &query_collection,
+                                 query_failed, ReportType::Query,
+                                 allow_failed_sigpaths)?;
+
     // Figure out what scaled to use - either from selection, or from query.
     let common_scaled: u32 = if let Some(set_scaled) = selection.scaled() {
         set_scaled
@@ -73,6 +77,10 @@ pub fn manysearch(
     )?;
 
     let against_collection = against_db.select(&selection)?;
+
+    report_on_collection_loading(&against_db, &against_collection,
+                                 against_failed, ReportType::Against,
+                                 allow_failed_sigpaths)?;
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
         &query_sketchlist,

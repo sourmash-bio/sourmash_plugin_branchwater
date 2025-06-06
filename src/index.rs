@@ -6,7 +6,7 @@ use sourmash::prelude::*;
 use std::path::Path;
 
 use crate::utils::MultiCollectionSet;
-use crate::utils::{load_collection, ReportType};
+use crate::utils::{load_collection, report_on_collection_loading, ReportType};
 use sourmash::collection::{Collection, CollectionSet};
 
 pub fn index<P: AsRef<Path>>(
@@ -26,9 +26,14 @@ pub fn index<P: AsRef<Path>>(
         Ok(multi) => multi,
         Err(err) => return Err(err.into()),
     };
+
     eprintln!("Found {} sketches total.", multi_db.len());
 
     let multi = multi_db.select(&selection)?;
+
+    report_on_collection_loading(&multi_db, &multi,
+                                 multi_failed, ReportType::General,
+                                 allow_failed_sigpaths)?;
 
     index_obj(multi, output, use_internal_storage)
 }

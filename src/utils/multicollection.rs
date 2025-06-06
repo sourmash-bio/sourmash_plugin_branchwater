@@ -746,12 +746,6 @@ pub struct MultiCollectionSet<'a> {
 }
 
 impl<'a> MultiCollectionSet<'a> {
-    fn new(collections: Vec<SearchContainer<'a>>) -> Self {
-        Self {
-            collections,
-        }
-    }
-
      pub fn len(&self) -> usize {
         let val: usize = self.collections.iter().map(|c| c.len()).sum();
         val

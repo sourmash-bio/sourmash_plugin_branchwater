@@ -48,7 +48,7 @@ pub fn fastmultigather(
     let query_collection = query_db.select(&selection)?;
 
     report_on_collection_loading(&query_db, &query_collection,
-                                 query_failed, ReportType::Against,
+                                 query_failed, ReportType::Query,
                                  allow_failed_sigpaths)?;
 
     let common_scaled = match scaled {
