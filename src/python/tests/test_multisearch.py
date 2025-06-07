@@ -801,7 +801,7 @@ def test_empty_query(runtmp, capfd):
     print(runtmp.last_result.err)
     captured = capfd.readouterr()
     print(captured.err)
-    assert "No query signatures loaded, exiting." in captured.err
+    assert "No query signatures loaded. Exiting." in captured.err
 
 
 def test_nomatch_query_warn(runtmp, capfd, zip_query):

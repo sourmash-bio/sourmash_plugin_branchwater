@@ -153,6 +153,10 @@ pub fn multisearch(
     // Load all queries into memory at once.
     let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
 
+    if query_db.len() == 0 {
+        bail!("No query signatures loaded. Exiting.")
+    }
+
     // Figure out scaled, if we need to.
     let expected_scaled = match selection.scaled() {
         Some(s) => s,
@@ -178,7 +182,7 @@ pub fn multisearch(
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
     if queries.len() == 0 {
-        bail!("No query loaded. Exiting.")
+        bail!("No query sketches loaded. Exiting.")
     }
 
     // Load all against sketches into memory at once.
