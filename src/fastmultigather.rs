@@ -98,10 +98,9 @@ pub fn fastmultigather(
     println!("DONE. Processed {} queries total.", n_processed);
 
     if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
+        return Err(anyhow::anyhow!(
+            "at least one match path failed to load. See error messages above."
+        ));
     }
 
     Ok(())
@@ -172,7 +171,7 @@ pub(crate) fn fastmultigather_obj(
                         Some(prefetch_output),
                         &matchlists,
                     )
-                    .ok();
+                    .expect("cannot write prefetch!?");
 
                     // Save matching hashes to .sig file if save_matches is true
                     if save_matches {
@@ -204,8 +203,8 @@ pub(crate) fn fastmultigather_obj(
                         }
                     }
 
-                    // Now, do the gather!
-                    consume_query_by_gather(
+                    // Now, do the gather! Track failed.
+                    let res = consume_query_by_gather(
                         query_name,
                         query_filename,
                         query_mh,
@@ -213,8 +212,10 @@ pub(crate) fn fastmultigather_obj(
                         matchlists,
                         threshold_hashes,
                         Some(send.clone()),
-                    )
-                    .ok();
+                    );
+                    if let Err(_e) = res {
+                        let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    }
                 } else {
                     println!("No matches to '{}'", location);
                 }

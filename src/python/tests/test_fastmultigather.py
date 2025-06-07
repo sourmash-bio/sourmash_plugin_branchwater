@@ -1837,7 +1837,7 @@ def test_rocksdb_no_internal_storage_gather_fails(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Error: 3 sketches failed to load. See error messages above." in captured.err
+    assert "Error: at least one match path failed to load. See error messages above." in captured.err
 
 
 def test_save_matches(runtmp):

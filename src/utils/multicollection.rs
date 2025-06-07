@@ -87,7 +87,7 @@ impl PrefetchContainer<'_> {
 
     // find best match across all CounterGather objects. Return
     // matching Signature + original Record.
-    pub fn peek(&self, threshold_hashes: u64) -> Option<(Signature, &Record)> {
+    pub fn peek(&self, threshold_hashes: u64) -> Result<Option<(Signature, &Record)>> {
         let mut best_idx = None;
         let mut best_overlap = 0;
         let mut best_item = None;
@@ -108,19 +108,27 @@ impl PrefetchContainer<'_> {
         // did we find something?
         if let Some(item) = best_item {
             let idx = best_idx.unwrap();
-            let match_sig: Signature = item
+            let match_sig = item
                 .revindex
                 .collection()
-                .sig_for_dataset(idx)
-                .expect("cannot load")
-                .into();
+                // this can fail on RevIndex with no external storage
+                .sig_for_dataset(idx);
+
+            // handle load errors
+            if let Err(e) = match_sig {
+                eprintln!("ERROR loading match sig.");
+                return Err(e.into());
+            }
+
+            let match_sig: Signature = match_sig?.into();
+
             let orig_record: &Record = item
                 .mf
                 .get_record(idx)
-                .expect("cannot retrieve original record!?");
-            Some((match_sig, orig_record))
+                .expect("cannot get original record!?");
+            Ok(Some((match_sig, orig_record)))
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -979,7 +987,6 @@ impl From<Vec<MultiCollection>> for MultiCollection {
         MultiCollection::new(x)
     }
 }
-
 
 impl TryFrom<MultiCollectionSet<'_>> for CollectionSet {
     type Error = &'static str;

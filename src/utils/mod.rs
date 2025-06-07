@@ -610,7 +610,6 @@ pub fn branchwater_calculate_gather_stats(
 /// removing matches in 'matchlist' from 'query'. CounterGather version.
 
 pub fn consume_query_by_gather(
-    // @CTB
     query_name: String,
     query_filename: String,
     orig_query_mh: KmerMinHash,
@@ -663,7 +662,7 @@ pub fn consume_query_by_gather(
     );
 
     while !matchlists.is_empty() {
-        let result = matchlists.peek(threshold_hashes as u64);
+        let result = matchlists.peek(threshold_hashes as u64)?;
         if result.is_none() {
             break;
         }
