@@ -768,7 +768,8 @@ impl MultiCollection {
                 }
                 LoadedDatabase::InvertedIndex(revindex) => {
                     // @CTB clone
-                    let new_ri = revindex.clone();
+                    let mut new_ri = revindex.clone();
+                    new_ri.select(selection).expect("failed select (2)");
                     let mf = revindex.collection().manifest();
                     SearchContainer::InvertedIndex(new_ri, mf)
                 }

@@ -1801,7 +1801,7 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 [[package]]
 name = "sourmash"
 version = "0.21.0"
-source = "git+https://github.com/sourmash-bio/sourmash.git?branch=upgrade_selection#b771c6e53e677b07c375d8ee03afc2aa3a5270e8"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=upgrade_selection#d59681c27aba7935623c65deec9be6cd60472256"
 dependencies = [
  "az",
  "byteorder",
