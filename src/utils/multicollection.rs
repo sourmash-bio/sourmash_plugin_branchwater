@@ -162,7 +162,7 @@ trait Searchable {
         &self,
         query: &KmerMinHash,
         threshold_hashes: u64,
-    ) -> Result<(RevIndex, CounterGather, &Manifest, usize, usize)>;
+    ) -> Result<Option<(RevIndex, CounterGather, &Manifest, usize, usize)>>;
     fn prefetch_iter(
         &self,
         query: &KmerMinHash,
@@ -198,17 +198,16 @@ impl Searchable for SearchContainer<'_> {
         &self,
         query: &KmerMinHash,
         threshold_hashes: u64,
-    ) -> Result<(RevIndex, CounterGather, &Manifest, usize, usize)> {
+    ) -> Result<Option<(RevIndex, CounterGather, &Manifest, usize, usize)>> {
         match self {
             SearchContainer::InvertedIndex(revindex, mf) => {
                 let cg = revindex.prepare_gather_counters(query, None);
                 // @CTB clone
-                Ok((revindex.clone(), cg, mf, 0, 0))
+                // @CTB test some
+                Ok(Some((revindex.clone(), cg, mf, 0, 0)))
             }
             SearchContainer::LinearCollection(coll, mf) => {
-                let (revindex, cg, skip, fail) =
-                    load_sketches_above_threshold_sigs(coll, query, threshold_hashes)?;
-                Ok((revindex, cg, mf, skip, fail))
+                load_sketches_above_threshold_sigs(coll, query, threshold_hashes, mf)
             }
         }
     }
@@ -311,11 +310,12 @@ impl Searchable for SearchContainer<'_> {
 /// those with a minimum overlap. SIGNATURES VERSION 2 @CTB.
 /// @CTB can we refactor to use linear?
 
-pub fn load_sketches_above_threshold_sigs(
+pub fn load_sketches_above_threshold_sigs<'a>(
     collection: &Collection,
     query: &KmerMinHash,
     threshold_hashes: u64,
-) -> Result<(RevIndex, CounterGather, usize, usize)> {
+    orig_manifest: &'a Manifest,
+) -> Result<Option<(RevIndex, CounterGather, &'a Manifest, usize, usize)>> {
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
@@ -341,20 +341,22 @@ pub fn load_sketches_above_threshold_sigs(
                     if overlap > 0 && overlap >= threshold_hashes {
                         results.push(orig_sig.into());
                     }
-                } else {
+                } else { // shouldn't happen any more @CTB
                     eprintln!(
                         "WARNING: no compatible sketches in path '{}'",
                         against_filename
                     );
                     let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                    panic!("foo1!");
                 }
             } else {
-                // this shouldn't happen here anymore -- likely would happen at load_collection
+                // this shouldn't happen here anymore -- likely would happen at load_collection @CTB
                 eprintln!(
                     "WARNING: could not load sketches for record '{}'",
                     against_record.internal_location()
                 );
                 let _i = skipped_paths.fetch_add(1, atomic::Ordering::SeqCst);
+                panic!("foo12");
             }
             if results.is_empty() {
                 None
@@ -365,15 +367,20 @@ pub fn load_sketches_above_threshold_sigs(
         .flatten()
         .collect();
 
+    // may not need any more... @CTB
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
-    let revindex =
-        MemRevIndex::new_with_sigs(matchlist, &selection, threshold_hashes as usize, None)?;
+    if matchlist.len() > 0 {
+        let revindex =
+            MemRevIndex::new_with_sigs(matchlist, &selection, threshold_hashes as usize, None)?;
 
-    let cg = revindex.prepare_gather_counters(query, None);
+        let cg = revindex.prepare_gather_counters(query, None);
 
-    Ok((revindex, cg, skipped_paths, failed_paths))
+        Ok(Some((revindex, cg, orig_manifest, skipped_paths, failed_paths)))
+    } else {
+        Ok(None)
+    }
 }
 
 // @CTB enum_dispatch
@@ -912,11 +919,12 @@ impl<'a> MultiCollectionSet<'a> {
         let mut res = PrefetchContainer { matchlists: vec![] };
 
         for searchable in self.collections.iter() {
-            let (revindex, cg, mf, skip, fail) = searchable.prefetch(query, threshold_hashes)?;
-            skipped_paths += skip;
-            failed_paths += fail;
+            if let Some((revindex, cg, mf, skip, fail)) = searchable.prefetch(query, threshold_hashes)? {
+                skipped_paths += skip;
+                failed_paths += fail;
 
-            res.matchlists.push(PrefetchItem { revindex, cg, mf });
+                res.matchlists.push(PrefetchItem { revindex, cg, mf });
+            }
         }
         Ok((res, skipped_paths, failed_paths))
     }
