@@ -1,10 +1,7 @@
 //! Utility functions for `sourmash_plugin_branchwater`.
-use rayon::prelude::*;
-
-use sourmash::index::revindex::RevIndexOps;
+// use rayon::prelude::*;
 
 use sourmash::encodings::HashFunctions;
-use sourmash::selection::Select;
 use sourmash::ScaledType;
 
 use anyhow::{anyhow, Result};
@@ -13,12 +10,12 @@ use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
 use glob::glob;
 use serde::{Deserialize, Serialize};
-// use rust_decimal::{MathematicalOps, Decimal};
+// use rust_decimal::{MathematicalOps, Decimal}; // @CTB
 use std::cmp::max;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::panic;
-use std::sync::atomic;
+// use std::sync::atomic;
 // use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread::JoinHandle;
@@ -662,7 +659,7 @@ pub fn consume_query_by_gather(
     );
 
     while !matchlists.is_empty() {
-        let result = matchlists.peek(threshold_hashes as u64)?;
+        let result = matchlists.peek(threshold_hashes)?;
         if result.is_none() {
             break;
         }

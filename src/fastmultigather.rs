@@ -20,7 +20,7 @@ use sourmash::sketch::Sketch;
 
 use crate::utils::{
     consume_query_by_gather, csvwriter_thread, load_collection, report_on_collection_loading,
-    write_prefetch, BranchwaterGatherResult, MultiCollectionSet, PrefetchContainer, ReportType,
+    write_prefetch, BranchwaterGatherResult, MultiCollectionSet, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -85,7 +85,7 @@ pub fn fastmultigather(
     // (@CTB we can make this optional if we want, I think)
     let against_collection = against_collection.load_sketches2()?;
 
-    let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
+    let (n_processed, _skipped_paths, failed_paths) = fastmultigather_obj(
         &query_collection,
         &against_collection,
         save_matches,
@@ -174,32 +174,30 @@ pub(crate) fn fastmultigather_obj(
                     .expect("cannot write prefetch!?");
 
                     // Save matching hashes to .sig file if save_matches is true
-                    if save_matches {
-                        if !matchlists.is_empty() {
-                            let sig_filename = format!("{}.matches.sig", name);
-                            if let Ok(mut file) = File::create(&sig_filename) {
-                                let template_mh = KmerMinHash::new(
-                                    query_scaled,
-                                    query_ksize,
-                                    query_hash_function,
-                                    query_seed,
-                                    false,
-                                    query_num,
-                                );
+                    if save_matches && !matchlists.is_empty() {
+                        let sig_filename = format!("{}.matches.sig", name);
+                        if let Ok(mut file) = File::create(&sig_filename) {
+                            let template_mh = KmerMinHash::new(
+                                query_scaled,
+                                query_ksize,
+                                query_hash_function,
+                                query_seed,
+                                false,
+                                query_num,
+                            );
 
-                                let found_mh = matchlists
-                                    .found_hashes(&template_mh)
-                                    .expect("failed to get found hashes!?");
+                            let found_mh = matchlists
+                                .found_hashes(&template_mh)
+                                .expect("failed to get found hashes!?");
 
-                                let mut signature = Signature::default();
-                                signature.push(Sketch::MinHash(found_mh));
-                                signature.set_filename(&name);
-                                if let Err(e) = signature.to_writer(&mut file) {
-                                    eprintln!("Error writing signature file: {}", e);
-                                }
-                            } else {
-                                eprintln!("Error creating signature file: {}", sig_filename);
+                            let mut signature = Signature::default();
+                            signature.push(Sketch::MinHash(found_mh));
+                            signature.set_filename(&name);
+                            if let Err(e) = signature.to_writer(&mut file) {
+                                eprintln!("Error writing signature file: {}", e);
                             }
+                        } else {
+                            eprintln!("Error creating signature file: {}", sig_filename);
                         }
                     }
 

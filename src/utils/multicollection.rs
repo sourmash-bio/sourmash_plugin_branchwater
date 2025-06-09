@@ -39,7 +39,7 @@ use std::sync::atomic::AtomicUsize;
 use sourmash::collection::{Collection, CollectionSet};
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
-use sourmash::index::linear::LinearIndex;
+// use sourmash::index::linear::LinearIndex;
 use sourmash::index::revindex::mem_revindex::MemRevIndex;
 use sourmash::index::revindex::{CounterGather, RevIndex, RevIndexOps};
 use sourmash::manifest::{Manifest, Record};
@@ -82,7 +82,7 @@ impl PrefetchContainer<'_> {
                 return false;
             };
         }
-        return true;
+        true
     }
 
     // find best match across all CounterGather objects. Return
@@ -150,7 +150,7 @@ impl PrefetchContainer<'_> {
         new_mh.clear();
 
         for item in self.matchlists.iter() {
-            let found = item.found_hashes(&template_mh);
+            let found = item.found_hashes(template_mh);
             new_mh.merge(&found)?;
         }
         Ok(new_mh)
@@ -219,7 +219,7 @@ impl Searchable for SearchContainer<'_> {
     ) -> impl Iterator<Item = Idx> {
         match self {
             SearchContainer::InvertedIndex(revindex, _mf) => {
-                let counter = revindex.counter_for_query(&query, None);
+                let counter = revindex.counter_for_query(query, None);
                 counter
                     .most_common()
                     .into_iter()
@@ -263,8 +263,8 @@ impl Searchable for SearchContainer<'_> {
     /// to any downsampling/indexing.
     fn get_orig_manifest(&self) -> &Manifest {
         match self {
-            SearchContainer::InvertedIndex(_, mf) => &mf,
-            SearchContainer::LinearCollection(_, mf) => &mf,
+            SearchContainer::InvertedIndex(_, mf) => mf,
+            SearchContainer::LinearCollection(_, mf) => mf,
         }
     }
 
@@ -372,7 +372,7 @@ pub fn load_sketches_above_threshold_sigs<'a>(
     let skipped_paths = skipped_paths.load(atomic::Ordering::SeqCst);
     let failed_paths = failed_paths.load(atomic::Ordering::SeqCst);
 
-    if matchlist.len() > 0 {
+    if !matchlist.is_empty() {
         let revindex =
             MemRevIndex::new_with_sigs(matchlist, &selection, threshold_hashes as usize, None)?;
 
@@ -441,7 +441,7 @@ impl MultiCollection {
         let mut last_error = None;
 
         let collection = if sigpath.extension().map_or(false, |ext| ext == "zip") {
-            match MultiCollection::from_zipfile(&sigpath) {
+            match MultiCollection::from_zipfile(sigpath) {
                 Ok(coll) => Some((coll, 0)),
                 Err(e) => {
                     last_error = Some(e);
@@ -452,7 +452,7 @@ impl MultiCollection {
             None
         };
 
-        let collection = collection.or_else(|| match MultiCollection::from_rocksdb(&sigpath) {
+        let collection = collection.or_else(|| match MultiCollection::from_rocksdb(sigpath) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
@@ -470,7 +470,7 @@ impl MultiCollection {
 
         let collection =
             collection.or_else(
-                || match MultiCollection::from_standalone_manifest(&sigpath) {
+                || match MultiCollection::from_standalone_manifest(sigpath) {
                     Ok(coll) => Some((coll, 0)),
                     Err(e) => {
                         last_error = Some(e);
@@ -479,7 +479,7 @@ impl MultiCollection {
                 },
             );
 
-        let collection = collection.or_else(|| match MultiCollection::from_signature(&sigpath) {
+        let collection = collection.or_else(|| match MultiCollection::from_signature(sigpath) {
             Ok(coll) => Some((coll, 0)),
             Err(e) => {
                 last_error = Some(e);
@@ -487,7 +487,7 @@ impl MultiCollection {
             }
         });
 
-        let collection = collection.or_else(|| match MultiCollection::from_pathlist(&sigpath) {
+        let collection = collection.or_else(|| match MultiCollection::from_pathlist(sigpath) {
             Ok((coll, n_failed)) => Some((coll, n_failed)),
             Err(e) => {
                 last_error = Some(e);
@@ -825,9 +825,9 @@ impl<'a> MultiCollectionSet<'a> {
         // @CTB
         // turn into a collection set, if possible, and then extract first
         // selection. Better if it makes an error I think?
-        let coll = self.collections.iter().next().expect("empty?!");
+        let coll = self.collections.first().expect("empty?!");
         // @CTB clone - why?
-        let cs: CollectionSet = coll.collection().clone().try_into().expect("err");
+        let cs: CollectionSet = coll.collection().clone();
         cs.selection()
     }
 
@@ -910,8 +910,6 @@ impl<'a> MultiCollectionSet<'a> {
     // Load all sketches into memory, return new MultiCollection.
     // @CTB rename
     pub fn load_sketches2(self) -> Result<Self> {
-        let n_failed = AtomicUsize::new(0);
-
         let new_coll: Vec<_> = self
             .collections
             .into_iter()

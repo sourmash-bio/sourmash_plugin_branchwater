@@ -105,7 +105,7 @@ pub fn manysearch(
 }
 
 pub(crate) fn manysearch_obj(
-    query_sketchlist: &Vec<SmallSignature>,
+    query_sketchlist: &[SmallSignature],
     against_collection: &MultiCollectionSet,
     threshold: f64,
     common_scaled: u32,

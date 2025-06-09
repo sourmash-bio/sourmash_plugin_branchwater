@@ -1181,10 +1181,13 @@ def test_simple_protein(runtmp):
 
     all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
+        print('XXX', qsig)
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
         assert os.path.exists(p_output)
 
+        print(all_df["match_name"], qsig)
         df = all_df[all_df["match_name"] == qsig]
+        print(df)
 
         assert len(df) == 1
         keys = set(df.keys())

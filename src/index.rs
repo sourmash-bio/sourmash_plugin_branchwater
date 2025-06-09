@@ -20,7 +20,7 @@ pub fn index<P: AsRef<Path>>(
 
     let multi_db = match load_collection(&siglist, ReportType::General, allow_failed_sigpaths) {
         Ok(multi) => multi,
-        Err(err) => return Err(err.into()),
+        Err(err) => return Err(err),
     };
 
     eprintln!("Found {} sketches total.", multi_db.len());
@@ -51,8 +51,7 @@ pub(crate) fn index_obj<P: AsRef<Path>>(
                 Ok(cs)
             } else {
                 Err(
-                    anyhow::anyhow!("cannot index this type of collection with external storage")
-                        .into(),
+                    anyhow::anyhow!("cannot index this type of collection with external storage"),
                 )
             }
         }

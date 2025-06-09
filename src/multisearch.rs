@@ -1,7 +1,7 @@
 /// multisearch: massively parallel in-memory sketch search.
 use anyhow::Result;
 use rayon::prelude::*;
-use sourmash::prelude::Select;
+// use sourmash::prelude::Select; @CTB
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
@@ -181,7 +181,7 @@ pub fn multisearch(
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
-    if queries.len() == 0 {
+    if queries.is_empty() {
         bail!("No query sketches loaded. Exiting.")
     }
 
@@ -197,7 +197,7 @@ pub fn multisearch(
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
 
-    if againsts.len() == 0 {
+    if againsts.is_empty() {
         bail!("No search sketches loaded. Exiting.")
     }
 
@@ -236,7 +236,7 @@ pub(crate) fn multisearch_obj(
         query_term_frequencies,
         inverse_document_frequency,
     ) = if estimate_prob_overlap {
-        compute_prob_overlap_stats(&queries, &againsts)
+        compute_prob_overlap_stats(queries, againsts)
     } else {
         (
             0.0,
