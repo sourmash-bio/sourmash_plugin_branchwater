@@ -341,7 +341,8 @@ pub fn load_sketches_above_threshold_sigs<'a>(
                     if overlap > 0 && overlap >= threshold_hashes {
                         results.push(orig_sig.into());
                     }
-                } else { // shouldn't happen any more @CTB
+                } else {
+                    // shouldn't happen any more @CTB
                     eprintln!(
                         "WARNING: no compatible sketches in path '{}'",
                         against_filename
@@ -377,7 +378,13 @@ pub fn load_sketches_above_threshold_sigs<'a>(
 
         let cg = revindex.prepare_gather_counters(query, None);
 
-        Ok(Some((revindex, cg, orig_manifest, skipped_paths, failed_paths)))
+        Ok(Some((
+            revindex,
+            cg,
+            orig_manifest,
+            skipped_paths,
+            failed_paths,
+        )))
     } else {
         Ok(None)
     }
@@ -410,10 +417,8 @@ impl LoadedDatabase {
 
     fn intersect_manifest(&mut self, manifest: &Manifest) {
         match self {
-            LoadedDatabase::InvertedIndex(revindex) =>
-                revindex.intersect_manifest(manifest),
-            LoadedDatabase::LinearCollection(coll) =>
-                coll.intersect_manifest(manifest)
+            LoadedDatabase::InvertedIndex(revindex) => revindex.intersect_manifest(manifest),
+            LoadedDatabase::LinearCollection(coll) => coll.intersect_manifest(manifest),
         }
     }
 }
@@ -929,7 +934,9 @@ impl<'a> MultiCollectionSet<'a> {
         let mut res = PrefetchContainer { matchlists: vec![] };
 
         for searchable in self.collections.iter() {
-            if let Some((revindex, cg, mf, skip, fail)) = searchable.prefetch(query, threshold_hashes)? {
+            if let Some((revindex, cg, mf, skip, fail)) =
+                searchable.prefetch(query, threshold_hashes)?
+            {
                 skipped_paths += skip;
                 failed_paths += fail;
 
