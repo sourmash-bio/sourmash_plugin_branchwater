@@ -50,9 +50,9 @@ pub(crate) fn index_obj<P: AsRef<Path>>(
                 let cs: CollectionSet = c.try_into()?;
                 Ok(cs)
             } else {
-                Err(
-                    anyhow::anyhow!("cannot index this type of collection with external storage"),
-                )
+                Err(anyhow::anyhow!(
+                    "cannot index this type of collection with external storage"
+                ))
             }
         }
     };
