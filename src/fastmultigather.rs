@@ -8,11 +8,8 @@ use sourmash::{selection::Selection, signature::SigsTrait};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use std::collections::BinaryHeap;
-
 use camino::Utf8Path as PathBuf;
 
-use std::collections::HashSet;
 use std::fs::File;
 
 use log::trace;
@@ -22,8 +19,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
 
 use crate::utils::{
-    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
-    BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType, SmallSignature,
+    consume_query_by_gather, csvwriter_thread, load_collection, report_on_collection_loading,
+    write_prefetch, BranchwaterGatherResult, MultiCollectionSet, ReportType,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -41,12 +38,11 @@ pub fn fastmultigather(
     let _ = env_logger::try_init();
 
     // load query collection
-    let query_collection = load_collection(
-        &query_filepath,
-        &selection,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
+
+    let query_collection = query_db.select(&selection)?;
+
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     let common_scaled = match scaled {
         Some(s) => s,
@@ -75,18 +71,23 @@ pub fn fastmultigather(
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);
 
     // load against collection
-    let against_collection = load_collection(
+    let against_db = load_collection(
         &against_filepath,
-        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
 
-    let against_sketches = against_collection.load_sketches()?;
+    let against_collection = against_db.select(&against_selection)?;
 
-    let (n_processed, skipped_paths, failed_paths) = fastmultigather_obj(
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
+
+    // load against into memory.
+    // (@CTB we can make this optional if we want, I think)
+    let against_collection = against_collection.load_sketches2()?;
+
+    let (n_processed, _skipped_paths, failed_paths) = fastmultigather_obj(
         &query_collection,
-        &against_sketches,
+        &against_collection,
         save_matches,
         output_path,
         threshold_hashes,
@@ -96,25 +97,18 @@ pub fn fastmultigather(
 
     println!("DONE. Processed {} queries total.", n_processed);
 
-    if skipped_paths > 0 {
-        eprintln!(
-            "WARNING: skipped {} query paths - no compatible signatures.",
-            skipped_paths
-        );
-    }
     if failed_paths > 0 {
-        eprintln!(
-            "WARNING: {} query paths failed to load. See error messages above.",
-            failed_paths
-        );
+        return Err(anyhow::anyhow!(
+            "at least one match path failed to load. See error messages above."
+        ));
     }
 
     Ok(())
 }
 
 pub(crate) fn fastmultigather_obj(
-    query_collection: &MultiCollection,
-    against: &Vec<SmallSignature>,
+    query_collection: &MultiCollectionSet,
+    against: &MultiCollectionSet,
     save_matches: bool,
     output_path: Option<String>,
     threshold_hashes: u64,
@@ -157,40 +151,16 @@ pub(crate) fn fastmultigather_obj(
 
                 // CTB refactor
                 let query_scaled = query_mh.scaled();
-                let query_ksize = query_mh.ksize().try_into().unwrap();
+                let query_ksize: u32 = query_mh.ksize().try_into().expect("foo");
                 let query_hash_function = query_mh.hash_function().clone();
                 let query_seed = query_mh.seed();
                 let query_num = query_mh.num();
 
-                let mut matching_hashes = if save_matches { Some(Vec::new()) } else { None };
-                let matchlist: BinaryHeap<PrefetchResult> = against
-                    .iter()
-                    .filter_map(|against| {
-                        let mut mm: Option<PrefetchResult> = None;
-                        if let Ok(overlap) = against.minhash.count_common(&query_mh, false) {
-                            if overlap >= threshold_hashes {
-                                if save_matches {
-                                    if let Ok(intersection) =
-                                        against.minhash.intersection(&query_mh)
-                                    {
-                                        matching_hashes.as_mut().unwrap().extend(intersection.0);
-                                    }
-                                }
-                                let result = PrefetchResult {
-                                    name: against.name.clone(),
-                                    md5sum: against.md5sum.clone(),
-                                    minhash: against.minhash.clone(),
-                                    location: against.location.clone(),
-                                    overlap,
-                                };
-                                mm = Some(result);
-                            }
-                        }
-                        mm
-                    })
-                    .collect();
+                let (matchlists, _, _) = against
+                    .prefetch(&query_mh, threshold_hashes)
+                    .expect("prefetch failed?!");
 
-                if !matchlist.is_empty() || create_empty_results {
+                if !matchlists.is_empty() || create_empty_results {
                     let prefetch_output = format!("{}.prefetch.csv", location);
 
                     // Save initial list of matches to prefetch output
@@ -199,49 +169,50 @@ pub(crate) fn fastmultigather_obj(
                         query_name.clone(),
                         query_md5,
                         Some(prefetch_output),
-                        &matchlist,
+                        &matchlists,
                     )
-                    .ok();
+                    .expect("cannot write prefetch!?");
 
-                    // Now, do the gather!
-                    consume_query_by_gather(
+                    // Save matching hashes to .sig file if save_matches is true
+                    if save_matches && !matchlists.is_empty() {
+                        let sig_filename = format!("{}.matches.sig", name);
+                        if let Ok(mut file) = File::create(&sig_filename) {
+                            let template_mh = KmerMinHash::new(
+                                query_scaled,
+                                query_ksize,
+                                query_hash_function,
+                                query_seed,
+                                false,
+                                query_num,
+                            );
+
+                            let found_mh = matchlists
+                                .found_hashes(&template_mh)
+                                .expect("failed to get found hashes!?");
+
+                            let mut signature = Signature::default();
+                            signature.push(Sketch::MinHash(found_mh));
+                            signature.set_filename(&name);
+                            if let Err(e) = signature.to_writer(&mut file) {
+                                eprintln!("Error writing signature file: {}", e);
+                            }
+                        } else {
+                            eprintln!("Error creating signature file: {}", sig_filename);
+                        }
+                    }
+
+                    // Now, do the gather! Track failed.
+                    let res = consume_query_by_gather(
                         query_name,
                         query_filename,
                         query_mh,
                         common_scaled,
-                        matchlist,
+                        matchlists,
                         threshold_hashes,
                         Some(send.clone()),
-                    )
-                    .ok();
-
-                    // Save matching hashes to .sig file if save_matches is true
-                    if save_matches {
-                        if let Some(hashes) = matching_hashes {
-                            let sig_filename = format!("{}.matches.sig", name);
-                            if let Ok(mut file) = File::create(&sig_filename) {
-                                let unique_hashes: HashSet<u64> = hashes.into_iter().collect();
-                                let mut new_mh = KmerMinHash::new(
-                                    query_scaled,
-                                    query_ksize,
-                                    query_hash_function,
-                                    query_seed,
-                                    false,
-                                    query_num,
-                                );
-                                new_mh
-                                    .add_many(&unique_hashes.into_iter().collect::<Vec<_>>())
-                                    .ok();
-                                let mut signature = Signature::default();
-                                signature.push(Sketch::MinHash(new_mh));
-                                signature.set_filename(&name);
-                                if let Err(e) = signature.to_writer(&mut file) {
-                                    eprintln!("Error writing signature file: {}", e);
-                                }
-                            } else {
-                                eprintln!("Error creating signature file: {}", sig_filename);
-                            }
-                        }
+                    );
+                    if let Err(_e) = res {
+                        let _ = failed_paths.fetch_add(1, atomic::Ordering::SeqCst);
                     }
                 } else {
                     println!("No matches to '{}'", location);

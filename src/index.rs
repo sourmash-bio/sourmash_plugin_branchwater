@@ -5,8 +5,8 @@ use sourmash::index::revindex::RevIndexOps;
 use sourmash::prelude::*;
 use std::path::Path;
 
-use crate::utils::MultiCollection;
-use crate::utils::{load_collection, ReportType};
+use crate::utils::MultiCollectionSet;
+use crate::utils::{load_collection, report_on_collection_loading, ReportType};
 use sourmash::collection::{Collection, CollectionSet};
 
 pub fn index<P: AsRef<Path>>(
@@ -18,32 +18,29 @@ pub fn index<P: AsRef<Path>>(
 ) -> Result<()> {
     eprintln!("Loading sketches from {}", siglist);
 
-    let multi = match load_collection(
-        &siglist,
-        &selection,
-        ReportType::General,
-        allow_failed_sigpaths,
-    ) {
+    let multi_db = match load_collection(&siglist, ReportType::General, allow_failed_sigpaths) {
         Ok(multi) => multi,
-        Err(err) => return Err(err.into()),
+        Err(err) => return Err(err),
     };
-    eprintln!("Found {} sketches total.", multi.len());
+
+    eprintln!("Found {} sketches total.", multi_db.len());
+
+    let multi = multi_db.select(&selection)?;
+
+    report_on_collection_loading(&multi_db, &multi, ReportType::General)?;
 
     index_obj(multi, output, use_internal_storage)
 }
 
 pub(crate) fn index_obj<P: AsRef<Path>>(
-    multi: MultiCollection,
+    multi: MultiCollectionSet,
     output: P,
     use_internal_storage: bool,
 ) -> Result<()> {
     // Try to convert it into a Collection and then CollectionSet.
-    let collection = match Collection::try_from(multi.clone()) {
+    let collection = match CollectionSet::try_from(multi.clone()) {
         // conversion worked!
-        Ok(coll) => {
-            let cs: CollectionSet = coll.try_into()?;
-            Ok(cs)
-        }
+        Ok(cs) => Ok(cs),
         // conversion failed; can we/should we load it into memory?
         Err(_) => {
             if use_internal_storage {
@@ -53,10 +50,9 @@ pub(crate) fn index_obj<P: AsRef<Path>>(
                 let cs: CollectionSet = c.try_into()?;
                 Ok(cs)
             } else {
-                Err(
-                    anyhow::anyhow!("cannot index this type of collection with external storage")
-                        .into(),
-                )
+                Err(anyhow::anyhow!(
+                    "cannot index this type of collection with external storage"
+                ))
             }
         }
     };

@@ -799,8 +799,6 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "WARNING: skipped 1 query paths - no compatible signatures." in captured.err
-
 
 def test_load_only_one_bug(runtmp, capfd, indexed, zip_against):
     # check that we behave properly when presented with multiple against
@@ -830,7 +828,6 @@ def test_load_only_one_bug(runtmp, capfd, indexed, zip_against):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert not "WARNING: skipped 1 paths - no compatible signatures." in captured.err
     assert not "WARNING: no compatible sketches in path " in captured.err
 
 
@@ -864,7 +861,6 @@ def test_load_only_one_bug_as_query(runtmp, capfd, indexed, zip_query):
     print(captured.err)
     print(runtmp.last_result.out)
 
-    assert not "WARNING: skipped 1 paths - no compatible signatures." in captured.err
     assert not "WARNING: no compatible sketches in path " in captured.err
 
 

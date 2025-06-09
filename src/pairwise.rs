@@ -4,9 +4,11 @@ use rayon::prelude::*;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use crate::utils::multicollection::SmallSignature;
 use crate::utils::{
-    csvwriter_thread, load_collection, MultiSearchResult, ReportType, SmallSignature,
+    csvwriter_thread, load_collection, report_on_collection_loading, MultiSearchResult, ReportType,
 };
+
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
@@ -26,12 +28,11 @@ pub fn pairwise(
     output: Option<String>,
 ) -> Result<()> {
     // Load all sigs into memory at once.
-    let collection = load_collection(
-        &siglist,
-        &selection,
-        ReportType::General,
-        allow_failed_sigpaths,
-    )?;
+    let db = load_collection(&siglist, ReportType::General, allow_failed_sigpaths)?;
+
+    let collection = db.select(&selection)?;
+
+    report_on_collection_loading(&db, &collection, ReportType::General)?;
 
     if collection.len() <= 1 {
         bail!(
@@ -72,7 +73,7 @@ pub fn pairwise(
 }
 
 pub(crate) fn pairwise_obj(
-    sketches: &Vec<SmallSignature>,
+    sketches: &Vec<SmallSignature>, // do we use this in multisearch? @CTB
     estimate_ani: bool,
     write_all: bool,
     output_all_comparisons: bool,

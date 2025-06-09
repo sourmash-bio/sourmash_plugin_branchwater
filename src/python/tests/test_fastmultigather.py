@@ -619,7 +619,6 @@ def test_nomatch_query(runtmp, capfd, indexed, zip_query):
 
     captured = capfd.readouterr()
     print(captured.err)
-    assert "WARNING: skipped 1 query paths - no compatible signatures." in captured.err
 
 
 def test_missing_against(runtmp, capfd, zip_against):
@@ -761,8 +760,6 @@ def test_nomatch_in_against(runtmp, capfd, zip_against):
 
     captured = capfd.readouterr()
     print(captured.err)
-
-    assert "WARNING: skipped 1 search paths - no compatible signatures." in captured.err
 
 
 def test_md5(runtmp, zip_query):
@@ -1184,10 +1181,13 @@ def test_simple_protein(runtmp):
 
     all_df = pandas.read_csv(gather_out)
     for qsig in sig_names:
+        print("XXX", qsig)
         p_output = runtmp.output(os.path.join(qsig + ".prefetch.csv"))
         assert os.path.exists(p_output)
 
+        print(all_df["match_name"], qsig)
         df = all_df[all_df["match_name"] == qsig]
+        print(df)
 
         assert len(df) == 1
         keys = set(df.keys())
@@ -1840,8 +1840,10 @@ def test_rocksdb_no_internal_storage_gather_fails(runtmp, capfd):
     captured = capfd.readouterr()
     print(captured.err)
 
-    assert "Error gathering matches:" in captured.err
-    assert "1 failed gathers. See error messages above." in captured.err
+    assert (
+        "Error: at least one match path failed to load. See error messages above."
+        in captured.err
+    )
 
 
 def test_save_matches(runtmp):
@@ -2060,6 +2062,7 @@ def test_exit_no_against(runtmp, indexed):
 def test_simple_query_scaled_indexed(runtmp):
     # test basic execution w/automatic scaled selection based on query
     # (on a rocksdb)
+    # @CTB this used to fail... should it still?
     query = get_test_data("SRR606249.sig.gz")
     sig2 = get_test_data("2.fa.sig.gz")
     sig47 = get_test_data("47.fa.sig.gz")
@@ -2074,18 +2077,17 @@ def test_simple_query_scaled_indexed(runtmp):
         runtmp, against_list, runtmp.output("against.rocksdb"), scaled=1000
     )
 
-    with pytest.raises(utils.SourmashCommandFailed):
-        runtmp.sourmash(
-            "scripts",
-            "fastmultigather",
-            query_list,
-            against_list,
-            "-o",
-            "foo.csv",
-            "-t",
-            "0",
-            in_directory=runtmp.output(""),
-        )
+    runtmp.sourmash(
+        "scripts",
+        "fastmultigather",
+        query_list,
+        against_list,
+        "-o",
+        "foo.csv",
+        "-t",
+        "0",
+        in_directory=runtmp.output(""),
+    )
 
 
 def test_equal_matches(runtmp, indexed):

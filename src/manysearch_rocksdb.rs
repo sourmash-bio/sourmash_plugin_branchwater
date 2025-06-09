@@ -13,7 +13,7 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, ManySearchResult, MultiCollection,
+    csvwriter_thread, is_revindex_database, load_collection, ManySearchResult, MultiCollectionSet,
     ReportType,
 };
 
@@ -103,7 +103,7 @@ pub fn manysearch_rocksdb(
 }
 
 pub(crate) fn manysearch_rocksdb_obj(
-    query_collection: &MultiCollection,
+    query_collection: &MultiCollectionSet,
     db: &RevIndex,
     minimum_containment: f64,
     output: Option<String>,

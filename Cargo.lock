@@ -1800,9 +1800,8 @@ checksum = "bceb57dc07c92cdae60f5b27b3fa92ecaaa42fe36c55e22dbfb0b44893e0b1f7"
 
 [[package]]
 name = "sourmash"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0950add7a55c1bbbb94e73497b7912bfa0f8f601f3840fc5839caf86f991b75d"
+version = "0.21.0"
+source = "git+https://github.com/sourmash-bio/sourmash.git?branch=upgrade_selection#3c572a1ccfac960291b439c0da47f44d92daaff4"
 dependencies = [
  "az",
  "byteorder",

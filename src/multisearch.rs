@@ -1,7 +1,7 @@
 /// multisearch: massively parallel in-memory sketch search.
 use anyhow::Result;
 use rayon::prelude::*;
-use sourmash::prelude::Select;
+// use sourmash::prelude::Select; @CTB
 use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
@@ -14,7 +14,9 @@ use crate::search_significance::{
     get_term_frequency_inverse_document_frequency, merge_all_minhashes, Normalization,
 };
 use crate::utils::multicollection::SmallSignature;
-use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
+use crate::utils::{
+    csvwriter_thread, load_collection, report_on_collection_loading, MultiSearchResult, ReportType,
+};
 use sourmash::ani_utils::ani_from_containment;
 
 type OverlapStatsReturn = (
@@ -149,17 +151,17 @@ pub fn multisearch(
     output: Option<String>,
 ) -> Result<()> {
     // Load all queries into memory at once.
-    let query_collection = load_collection(
-        &query_filepath,
-        &selection,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
 
+    if query_db.len() == 0 {
+        bail!("No query signatures loaded. Exiting.")
+    }
+
+    // Figure out scaled, if we need to.
     let expected_scaled = match selection.scaled() {
         Some(s) => s,
         None => {
-            let s = *query_collection.max_scaled().expect("no records!?") as u32;
+            let s = *query_db.max_scaled().expect("no records!?") as u32;
             eprintln!(
                 "Setting scaled={} based on max scaled in query collection",
                 s
@@ -173,20 +175,31 @@ pub fn multisearch(
     let mut new_selection = selection;
     new_selection.set_scaled(expected_scaled);
 
-    // update selection with new scaled.
-    let query_collection = query_collection.select(&new_selection)?;
+    let query_collection = query_db.select(&new_selection)?;
+
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     let queries: Vec<SmallSignature> = query_collection.load_sketches()?;
 
+    if queries.is_empty() {
+        bail!("No query sketches loaded. Exiting.")
+    }
+
     // Load all against sketches into memory at once.
-    let against_collection = load_collection(
+    let against_db = load_collection(
         &against_filepath,
-        &new_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+    let against_collection = against_db.select(&new_selection)?;
+
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
 
     let againsts: Vec<SmallSignature> = against_collection.load_sketches()?;
+
+    if againsts.is_empty() {
+        bail!("No search sketches loaded. Exiting.")
+    }
 
     let n_processed = multisearch_obj(
         &queries,
@@ -223,7 +236,7 @@ pub(crate) fn multisearch_obj(
         query_term_frequencies,
         inverse_document_frequency,
     ) = if estimate_prob_overlap {
-        compute_prob_overlap_stats(&queries, &againsts)
+        compute_prob_overlap_stats(queries, againsts)
     } else {
         (
             0.0,

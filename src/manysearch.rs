@@ -9,10 +9,12 @@ use stats::{median, stddev};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use crate::utils::multicollection::SmallSignature;
 use crate::utils::{
-    csvwriter_thread, load_collection, ManySearchResult, MultiCollection, ReportType,
-    SmallSignature,
+    csvwriter_thread, load_collection, report_on_collection_loading, ManySearchResult,
+    MultiCollectionSet, ReportType,
 };
+
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;
 use sourmash::selection::Selection;
@@ -39,12 +41,11 @@ pub fn manysearch(
     output_all_comparisons: bool,
 ) -> Result<()> {
     // Load query collection
-    let query_collection = load_collection(
-        &query_filepath,
-        &selection,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
+
+    let query_collection = query_db.select(&selection)?;
+
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     // Figure out what scaled to use - either from selection, or from query.
     let common_scaled: u32 = if let Some(set_scaled) = selection.scaled() {
@@ -65,12 +66,15 @@ pub fn manysearch(
     let query_sketchlist = query_collection.load_sketches()?;
 
     // Against: Load collection, potentially off disk & not into memory.
-    let against_collection = load_collection(
+    let against_db = load_collection(
         &against_filepath,
-        &selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    let against_collection = against_db.select(&selection)?;
+
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
 
     let (n_processed, skipped_paths, failed_paths) = manysearch_obj(
         &query_sketchlist,
@@ -101,8 +105,8 @@ pub fn manysearch(
 }
 
 pub(crate) fn manysearch_obj(
-    query_sketchlist: &Vec<SmallSignature>,
-    against_collection: &MultiCollection,
+    query_sketchlist: &[SmallSignature],
+    against_collection: &MultiCollectionSet,
     threshold: f64,
     common_scaled: u32,
     output: Option<String>,
@@ -126,7 +130,7 @@ pub(crate) fn manysearch_obj(
     let skipped_paths = AtomicUsize::new(0);
     let failed_paths = AtomicUsize::new(0);
 
-    let send = against_collection
+    let send = against_collection // @CTB refactor to use rocksdb.
         .par_iter()
         .filter_map(|(coll, _idx, record)| {
             let i = processed_sigs.fetch_add(1, atomic::Ordering::SeqCst);

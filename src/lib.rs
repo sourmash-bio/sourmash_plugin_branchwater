@@ -10,15 +10,12 @@ extern crate simple_error;
 
 mod utils;
 use crate::utils::build_selection;
-use crate::utils::is_revindex_database;
 mod check;
 mod cluster;
 mod fastgather;
 mod fastmultigather;
-mod fastmultigather_rocksdb;
 mod index;
 mod manysearch;
-mod manysearch_rocksdb;
 mod manysketch;
 mod multisearch;
 mod pairwise;
@@ -41,7 +38,6 @@ fn do_manysearch(
     ignore_abundance: Option<bool>,
     output_all_comparisons: Option<bool>,
 ) -> anyhow::Result<u8> {
-    let againstfile_path: PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
     eprintln!("selection scaled: {:?}", selection.scaled());
     let allow_failed_sigpaths = true;
@@ -50,39 +46,20 @@ fn do_manysearch(
     let output_all_comparisons = output_all_comparisons.unwrap_or(false);
 
     // if siglist_path is revindex, run rocksdb manysearch; otherwise run manysearch
-    if is_revindex_database(&againstfile_path) {
-        // note: manysearch_rocksdb ignores abundance automatically.
-        match manysearch_rocksdb::manysearch_rocksdb(
-            querylist_path,
-            againstfile_path,
-            selection,
-            threshold,
-            output_path,
-            allow_failed_sigpaths,
-            output_all_comparisons,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
-    } else {
-        match manysearch::manysearch(
-            querylist_path,
-            siglist_path,
-            selection,
-            threshold,
-            output_path,
-            allow_failed_sigpaths,
-            ignore_abundance,
-            output_all_comparisons,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
+    match manysearch::manysearch(
+        querylist_path,
+        siglist_path,
+        selection,
+        threshold,
+        output_path,
+        allow_failed_sigpaths,
+        ignore_abundance,
+        output_all_comparisons,
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
         }
     }
 }
@@ -134,43 +111,24 @@ fn do_fastmultigather(
     save_matches: bool,
     create_empty_results: bool,
 ) -> anyhow::Result<u8> {
-    let againstfile_path: camino::Utf8PathBuf = siglist_path.clone().into();
     let selection = build_selection(ksize, scaled, &moltype);
     let allow_failed_sigpaths = true;
 
-    // if a siglist path is a revindex, run rocksdb fastmultigather. If not, run multigather
-    if is_revindex_database(&againstfile_path) {
-        match fastmultigather_rocksdb::fastmultigather_rocksdb(
-            query_filenames,
-            againstfile_path,
-            selection.clone(),
-            threshold_bp as u32,
-            output_path,
-            allow_failed_sigpaths,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
-        }
-    } else {
-        match fastmultigather::fastmultigather(
-            query_filenames,
-            siglist_path,
-            threshold_bp as u32,
-            scaled,
-            selection,
-            allow_failed_sigpaths,
-            save_matches,
-            output_path,
-            create_empty_results,
-        ) {
-            Ok(_) => Ok(0),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                Ok(1)
-            }
+    match fastmultigather::fastmultigather(
+        query_filenames,
+        siglist_path,
+        threshold_bp as u32,
+        scaled,
+        selection,
+        allow_failed_sigpaths,
+        save_matches,
+        output_path,
+        create_empty_results,
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            Ok(1)
         }
     }
 }

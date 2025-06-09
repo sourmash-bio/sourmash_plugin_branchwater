@@ -6,7 +6,7 @@ use sourmash::selection::Selection;
 use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
-    consume_query_by_gather, csvwriter_thread, load_collection, load_sketches_above_threshold,
+    consume_query_by_gather, csvwriter_thread, load_collection, report_on_collection_loading,
     write_prefetch, BranchwaterGatherResult, ReportType,
 };
 
@@ -20,12 +20,11 @@ pub fn fastgather(
     prefetch_output: Option<String>,
     allow_failed_sigpaths: bool,
 ) -> Result<()> {
-    let query_collection = load_collection(
-        &query_filepath,
-        &selection,
-        ReportType::Query,
-        allow_failed_sigpaths,
-    )?;
+    let query_db = load_collection(&query_filepath, ReportType::Query, allow_failed_sigpaths)?;
+
+    let query_collection = query_db.select(&selection)?;
+
+    report_on_collection_loading(&query_db, &query_collection, ReportType::Query)?;
 
     if query_collection.len() != 1 {
         bail!(
@@ -54,12 +53,15 @@ pub fn fastgather(
     against_selection.set_scaled(scaled);
 
     // load collection to match against.
-    let against_collection = load_collection(
+    let against_db = load_collection(
         &against_filepath,
-        &against_selection,
         ReportType::Against,
         allow_failed_sigpaths,
     )?;
+
+    let against_collection = against_db.select(&against_selection)?;
+
+    report_on_collection_loading(&against_db, &against_collection, ReportType::Against)?;
 
     // calculate the minimum number of hashes based on desired threshold
     let threshold_hashes = {
@@ -77,10 +79,10 @@ pub fn fastgather(
     );
 
     // load a set of sketches, filtering for those with overlaps > threshold
-    let result = load_sketches_above_threshold(against_collection, &query_mh, threshold_hashes)?;
-    let matchlist = result.0;
-    let skipped_paths = result.1;
-    let failed_paths = result.2;
+    let result = against_collection.prefetch(&query_mh, threshold_hashes)?;
+
+    let (matchlists, skipped_paths, failed_paths) = result;
+
     if skipped_paths > 0 {
         eprintln!(
             "WARNING: skipped {} search paths - no compatible signatures.",
@@ -94,7 +96,7 @@ pub fn fastgather(
         );
     }
 
-    if matchlist.is_empty() {
+    if matchlists.is_empty() {
         eprintln!("No search signatures loaded, exiting.");
         return Ok(());
     }
@@ -105,9 +107,8 @@ pub fn fastgather(
             query_name.clone(),
             query_md5,
             prefetch_output,
-            &matchlist,
-        )
-        .ok();
+            &matchlists,
+        )?;
     }
 
     let (send, recv) =
@@ -120,11 +121,10 @@ pub fn fastgather(
         query_filename,
         query_mh,
         scaled as u32,
-        matchlist,
+        matchlists,
         threshold_hashes,
         Some(send),
-    )
-    .ok();
+    )?;
 
     gather_out_thrd
         .join()
