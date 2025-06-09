@@ -271,10 +271,10 @@ impl Searchable for SearchContainer<'_> {
     // @CTB this will need to be updated in tricky ways.
     fn intersect_manifest(&mut self, manifest: &Manifest) {
         match self {
-            SearchContainer::InvertedIndex(_revindex, _mf) => {
-                panic!("foo 3");
+            SearchContainer::InvertedIndex(revindex, _orig_mf) => {
+                revindex.intersect_manifest(manifest)
             }
-            SearchContainer::LinearCollection(coll, _mf) => {
+            SearchContainer::LinearCollection(coll, _orig_mf) => {
                 coll.intersect_manifest(manifest);
             }
         }
@@ -406,6 +406,15 @@ impl LoadedDatabase {
     }
     fn manifest(&self) -> &Manifest {
         self.collection().manifest()
+    }
+
+    fn intersect_manifest(&mut self, manifest: &Manifest) {
+        match self {
+            LoadedDatabase::InvertedIndex(revindex) =>
+                revindex.intersect_manifest(manifest),
+            LoadedDatabase::LinearCollection(coll) =>
+                coll.intersect_manifest(manifest)
+        }
     }
 }
 
@@ -625,7 +634,7 @@ impl MultiCollection {
             let ilocs: HashSet<_> = manifest.internal_locations().map(String::from).collect();
             let (mut colls, _n_failed) = MultiCollection::load_set_of_paths(&ilocs);
 
-            // @CTB colls.intersect_manifest(&manifest);
+            colls.intersect_manifest(&manifest);
 
             Ok(colls)
         }
@@ -778,6 +787,12 @@ impl MultiCollection {
 
         Ok(MultiCollectionSet { collections })
     }
+
+    fn intersect_manifest(&mut self, manifest: &Manifest) {
+        for db in self.dbs.iter_mut() {
+            db.intersect_manifest(manifest);
+        }
+    }
 }
 
 /// A collection of sketches, potentially stored in multiple files.
@@ -901,12 +916,6 @@ impl<'a> MultiCollectionSet<'a> {
         Ok(Self {
             collections: new_coll,
         })
-    }
-
-    fn intersect_manifest(&mut self, manifest: &Manifest) {
-        for coll in self.collections.iter_mut() {
-            coll.intersect_manifest(manifest);
-        }
     }
 
     pub fn prefetch(
