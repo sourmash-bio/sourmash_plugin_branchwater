@@ -1108,10 +1108,12 @@ pub struct MultiSearchResult {
     pub containment: f64,
     pub max_containment: f64,
     pub jaccard: f64,
+    pub average_containment: f64,
     pub intersect_hashes: f64,
     pub ksize: u16,
     pub scaled: u32,
     pub moltype: String,
+    pub cosine: Option<f64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_containment_ani: Option<f64>,
