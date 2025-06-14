@@ -33,7 +33,7 @@ polish and user experience.
 
 ## Input file formats
 
-sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not (yet) supported natively by sourmash (through v4.8.11).
+sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them.
 
 **We recommend using zip files or standalone manifest CSVs pointing to zip files whenever you need to provide multiple sketches.**
 
@@ -125,12 +125,12 @@ pathlists support neither.
 
 ### Using RocksDB inverted indexes
 
-The branchwater plugin also supports a database type that is not yet
-supported by sourmash: inverted indexes stored in a RocksDB
-database. These indexes provide fast and low-memory lookups when
-searching very large datasets, and are used for the branchwater
-petabase scale search hosted at
-[branchwater.sourmash.bio](https://branchwater.sourmash.bio).
+RocksDB indexes provide fast and low-memory lookups when searching
+very large datasets, and are used for the branchwater petabase scale
+search hosted at
+[branchwater.sourmash.bio](https://branchwater.sourmash.bio).  As of
+sourmash v4.9.0, RocksDB is fully supported by sourmash, as well.
+See [the RocksDB HOWTO](https://sourmash.readthedocs.io/en/latest/howto-rocksdb.html) for more details.
 
 Some commands - `fastmultigather` and `manysearch` - support using
 these RocksDB-based inverted indexes for efficient search, and they
@@ -437,7 +437,9 @@ the similarity columns, with the following choices: `containment`,
 The `index` subcommand creates a RocksDB inverted index that can be
 used as an efficient database for `manysearch` (containment queries
 into mixtures) and `fastmultigather` (mixture decomposition against a
-database of genomes).
+database of genomes). RocksDB databases created by `index` in this
+plugin are fully compatible with RocksDB databases created by
+`sourmash index`, and vice versa.
 
 RocksDB inverted indexes support fast, low-latency, and low-memory
 queries, in exchange for a time-intensive indexing step and extra disk
@@ -510,6 +512,10 @@ You should (for the moment) avoid specifying relative paths to the
 sketches when running `index`.  Follow
 [sourmash_branchwater_plugin#415](https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/415)
 if better support for relative paths is of interest!
+
+RocksDB databases created by `sourmash index` always use internal storage,
+but RocksDB databases created with external storage using this plugin
+can still be used by sourmash.
 
 #### Links and more materials
 
