@@ -8,7 +8,7 @@
 | `singlesketch` | Sketch a single sample | [link](#Running-singlesketch)
 | `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link](#Running-fastgather)
 | `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link](#Running-fastmultigather)
-| `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
+| `manysearch` | Multithreaded containment search for many query genomes in many large metagenomes | [link](#Running-manysearch)
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
@@ -314,7 +314,7 @@ sourmash scripts fastgather query.sig.gz database.zip -o results.csv --cores 4
 
 ### Running `fastmultigather`
 
-`fastmultigather` takes a collection of query metagenomes and a collection of sketches as a database, and outputs a CSV file containing all the matches.
+`fastmultigather` takes a collection of query metagenomes and a collection of genome sketches as a database, and outputs a CSV file containing all the matches.
 ```
 sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4 --save-matches -o results.csv
 ```
@@ -352,8 +352,8 @@ further analysis.
 
 ### Running `manysearch`
 
-The `manysearch` command compares one or more collections of query
-sketches, and one or more collections of subject sketches. It is the
+The `manysearch` command searches for query
+sketches (genomes) in one or more collections of subject sketches (metagenomes). It is the
 core command we use for searching petabase-scale databases of
 metagenomes for contained genomes.
 
