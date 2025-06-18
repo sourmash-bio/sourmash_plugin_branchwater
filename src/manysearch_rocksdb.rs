@@ -145,8 +145,7 @@ pub(crate) fn manysearch_rocksdb_obj(
                         let query_size = query_mh.size() as f64;
                         let counter = db.counter_for_query(&query_mh, None);
                         let min_num_hashes = (query_size * minimum_containment) as usize;
-                        let matches =
-                            db.matches_from_counter(counter, min_num_hashes);
+                        let matches = db.matches_from_counter(counter, min_num_hashes);
 
                         // filter the matches for containment
                         for (path, overlap) in matches {
