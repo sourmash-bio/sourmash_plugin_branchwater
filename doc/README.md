@@ -150,8 +150,8 @@ find /path/to/directory/ -name "*.sig.gz" -type f > directory.txt
 When using a pathlist for search, we load all signatures into memory
 at the start in order to generate a manifest. To avoid memory issues,
 the signatures are not kept in memory, but instead re-loaded as
-described below for each command (see: Notes on concurrency and
-efficiency). This makes using pathlists less efficient than `zip`
+described below for each command (see: Notes on performance, concurrency and
+efficiency at the bottom). This makes using pathlists less efficient than `zip`
 files.
 
 ## Running the commands
