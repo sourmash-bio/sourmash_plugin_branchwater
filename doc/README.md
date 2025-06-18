@@ -150,8 +150,8 @@ find /path/to/directory/ -name "*.sig.gz" -type f > directory.txt
 When using a pathlist for search, we load all signatures into memory
 at the start in order to generate a manifest. To avoid memory issues,
 the signatures are not kept in memory, but instead re-loaded as
-described below for each command (see: Notes on concurrency and
-efficiency). This makes using pathlists less efficient than `zip`
+described below for each command (see: Notes on performance, concurrency and
+efficiency at the bottom). This makes using pathlists less efficient than `zip`
 files.
 
 ## Running the commands
@@ -229,7 +229,7 @@ The `name` column will not be used. Instead, each sketch will be named from the 
 
 #### Protein sketching: hp and dayhoff moltypes
 
-`manysketch` supports all sourmash moltypes: `protein`, `hp`, and `dayhoff`. See also [`sourmash` protein encoding documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) and [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
+`manysketch` supports all sourmash moltypes: `dna`, `skipm1n3`, `skipm2n3`, `protein`, `hp`, and `dayhoff`. See the `sourmash` [DNA](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#dna-encodings) and [protein](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) encoding docs, as well as the [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
 
 `manysketch` does not translate DNA to protein, sorry. You'll need to do that ahead of time.
 
@@ -540,16 +540,26 @@ to change quickly.
 
 We will also endeavor to avoid changing column names in CSV output, although, we may change the _order_ of column names on occasion. Please use the column headers (column names) to select specific columns.
 
-## Notes on concurrency and efficiency
+## Notes on performance, concurrency and efficiency
 
-Each command does things somewhat differently, with implications for
-CPU and disk load; moreover, the performance will vary depending on
-the database format. You can measure threading efficiency with
-`/usr/bin/time -v` on Linux systems, and disk load by number of
-complaints received when running.  Your best bet is to
+The branchwater plugin is focused on power use cases and supporting
+tradeoffs between disk I/O, memory, and CPU. That means things get
+complicated :).
+
+Each branchwater command does things somewhat differently, with
+implications for CPU and disk load; moreover, the performance will
+vary depending on the database format. You can measure threading
+efficiency with `/usr/bin/time -v` on Linux systems, and disk load by
+number of complaints received when running.  Your best bet is to
 [just ask the team for suggestions](https://github.com/dib-lab/sourmash/issues),
-but you can lightly skim the docs below and play with some small data
+but you should lightly skim the docs below and play with some small data
 sets, too!
+
+However, perhaps the single biggest boost to efficiency can come from
+choosing different (higher) scaled parameters: you can set the scaled
+parameter higher if you're only looking for large overlaps. For example,
+if you're looking for overlaps > 50kb, you can set scaled to 10000
+(`-s 10000`) and most commands should get at least 10x faster.
 
 ---
 
