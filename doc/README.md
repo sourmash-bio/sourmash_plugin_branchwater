@@ -229,7 +229,7 @@ The `name` column will not be used. Instead, each sketch will be named from the 
 
 #### Protein sketching: hp and dayhoff moltypes
 
-`manysketch` supports all sourmash moltypes: `protein`, `hp`, and `dayhoff`. See also [`sourmash` protein encoding documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) and [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
+`manysketch` supports all sourmash moltypes: `dna`, `skipm1n3`, `skipm2n3`, `protein`, `hp`, and `dayhoff`. See the `sourmash` [DNA](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#dna-encodings) and [protein](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) encoding docs, as well as the [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
 
 `manysketch` does not translate DNA to protein, sorry. You'll need to do that ahead of time.
 
