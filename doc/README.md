@@ -540,16 +540,26 @@ to change quickly.
 
 We will also endeavor to avoid changing column names in CSV output, although, we may change the _order_ of column names on occasion. Please use the column headers (column names) to select specific columns.
 
-## Notes on concurrency and efficiency
+## Notes on performance, concurrency and efficiency
 
-Each command does things somewhat differently, with implications for
-CPU and disk load; moreover, the performance will vary depending on
-the database format. You can measure threading efficiency with
-`/usr/bin/time -v` on Linux systems, and disk load by number of
-complaints received when running.  Your best bet is to
+The branchwater plugin is focused on power use cases and supporting
+tradeoffs between disk I/O, memory, and CPU. That means things get
+complicated :).
+
+Each branchwater command does things somewhat differently, with
+implications for CPU and disk load; moreover, the performance will
+vary depending on the database format. You can measure threading
+efficiency with `/usr/bin/time -v` on Linux systems, and disk load by
+number of complaints received when running.  Your best bet is to
 [just ask the team for suggestions](https://github.com/dib-lab/sourmash/issues),
-but you can lightly skim the docs below and play with some small data
+but you should lightly skim the docs below and play with some small data
 sets, too!
+
+However, perhaps the single biggest boost to efficiency can come from
+choosing different (higher) scaled parameters: you can set the scaled
+parameter higher if you're only looking for large overlaps. For example,
+if you're looking for overlaps > 50kb, you can set scaled to 10000
+(`-s 10000`) and most commands should get at least 10x faster.
 
 ---
 
