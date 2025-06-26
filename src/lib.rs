@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 #[macro_use]
 extern crate simple_error;
 
-mod utils;
+pub mod utils;
 use crate::utils::build_selection;
 use crate::utils::is_revindex_database;
 mod check;
@@ -22,7 +22,7 @@ mod manysearch_rocksdb;
 mod manysketch;
 mod multisearch;
 mod pairwise;
-mod search_significance;
+pub mod search_significance;
 mod singlesketch;
 
 use camino::Utf8PathBuf as PathBuf;
