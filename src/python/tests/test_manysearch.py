@@ -283,6 +283,8 @@ def test_simple_abund(runtmp):
     std_abund = round(float(row["std_abund"]), 4)
     n_weighted_found = int(row["n_weighted_found"])
     total_weighted_hashes = int(row["total_weighted_hashes"])
+    containment_target_in_query = float(row["containment_target_in_query"])
+    f_weighted_target_in_query = float(row["f_weighted_target_in_query"])
 
     assert query_name == "NC_009661.1"
     assert average_abund == round(11.365853658536600, 4)
@@ -290,6 +292,8 @@ def test_simple_abund(runtmp):
     assert std_abund == round(4.976805212676670, 4)
     assert n_weighted_found == 466
     assert total_weighted_hashes == 73489
+    assert round(containment_target_in_query, 4) == round(0.0097619047619047, 4)
+    assert round(f_weighted_target_in_query, 4) == round(0.0063002626243383, 4)
 
     row = dd[2]
     query_name = row["query_name"].split()[0]
@@ -298,6 +302,8 @@ def test_simple_abund(runtmp):
     std_abund = round(float(row["std_abund"]), 4)
     n_weighted_found = int(row["n_weighted_found"])
     total_weighted_hashes = int(row["total_weighted_hashes"])
+    containment_target_in_query = float(row["containment_target_in_query"])
+    f_weighted_target_in_query = float(row["f_weighted_target_in_query"])
 
     assert query_name == "NC_011665.1"
     assert average_abund == round(10.386363636363600, 4)
@@ -305,6 +311,8 @@ def test_simple_abund(runtmp):
     assert std_abund == round(6.932190750047300, 4)
     assert n_weighted_found == 457
     assert total_weighted_hashes == 73489
+    assert round(containment_target_in_query, 4) == round(0.0104761904761904, 4)
+    assert round(f_weighted_target_in_query, 4) == round(0.0062186177523166, 4)
 
 
 def test_simple_indexed(runtmp, zip_query, indexed_query):
