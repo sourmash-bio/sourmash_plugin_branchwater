@@ -146,6 +146,7 @@ pub fn multisearch(
     estimate_ani: bool,
     estimate_prob_overlap: bool,
     output_all_comparisons: bool,
+    calc_abund_stats: bool,
     output: Option<String>,
 ) -> Result<()> {
     // Load all queries into memory at once.
@@ -198,6 +199,7 @@ pub fn multisearch(
         output,
         expected_scaled,
         ksize,
+        calc_abund_stats,
     )?;
 
     eprintln!("DONE. Processed {} comparisons", n_processed);
@@ -215,6 +217,7 @@ pub(crate) fn multisearch_obj(
     output: Option<String>,
     expected_scaled: u32,
     ksize: f64,
+    calc_abund_stats: bool,
 ) -> Result<usize> {
     let (
         n_comparisons,
@@ -284,6 +287,8 @@ pub(crate) fn multisearch_obj(
                     let containment_target_in_query = overlap / target_size;
                     let max_containment =
                         containment_query_in_target.max(containment_target_in_query);
+                    let average_containment =
+                        (containment_query_in_target + containment_target_in_query) / 2.;
                     let jaccard = overlap / (target_size + query_size - overlap);
                     let mut query_containment_ani = None;
                     let mut match_containment_ani = None;
@@ -324,6 +329,14 @@ pub(crate) fn multisearch_obj(
                         max_containment_ani = Some(f64::max(qani, mani));
                     }
 
+                    // calculate abundance stats
+                    let mut cosine = None;
+                    if calc_abund_stats {
+                        if query.minhash.track_abundance() && against.minhash.track_abundance() {
+                            cosine = query.minhash.angular_similarity(&against.minhash).ok();
+                        }
+                    }
+
                     results.push(MultiSearchResult {
                         query_name: query.name.clone(),
                         query_md5: query.md5sum.clone(),
@@ -335,7 +348,9 @@ pub(crate) fn multisearch_obj(
                         containment: containment_query_in_target,
                         max_containment,
                         jaccard,
+                        average_containment,
                         intersect_hashes: overlap,
+                        cosine,
                         query_containment_ani,
                         match_containment_ani,
                         average_containment_ani,
