@@ -37,7 +37,7 @@ singlesketch = "sourmash_plugin_branchwater:Branchwater_SingleSketch"
 
 [project.optional-dependencies]
 test = [
-  "pytest>=6.2.4,<8.4.0",
+  "pytest>=6.2.4,<8.5.0",
   "pytest-cov>=2.12,<7.0",
   "pytest-xdist",
   "pandas",

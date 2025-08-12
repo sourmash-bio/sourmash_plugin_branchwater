@@ -2,33 +2,33 @@
 name = "sourmash_plugin_branchwater"
 version = "0.9.14-dev"
 edition = "2021"
-rust-version = "1.74.0"
+rust-version = "1.75.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "sourmash_plugin_branchwater"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.25.0", features = ["extension-module", "anyhow"] }
+pyo3 = { version = "0.25.1", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
 serde = { version = "1.0.219", features = ["derive"] }
-sourmash = { version = "0.20.0", features = ["branchwater"] }
-serde_json = "1.0.140"
+sourmash = { version = "0.21.0", features = ["branchwater"] }
+serde_json = "1.0.142"
 niffler = "3.0.0"
 log = "0.4.27"
-env_logger = { version = "0.11.6" }
+env_logger = { version = "0.11.8" }
 simple-error = "0.3.1"
 anyhow = "1.0.98"
-zip = { version = "2.5", default-features = false }
+zip = { version = "4.2.0", default-features = false }
 tempfile = "3.20"
 needletail = "0.6.3"
 csv = "1.3.1"
-camino = "1.1.9"
-glob = "0.3.2"
+camino = "1.1.11"
+glob = "0.3.3"
 rustworkx-core = "0.16.0"
 streaming-stats = "0.2.3"
-rust_decimal = { version = "1.37.1", features = ["maths"] }
+rust_decimal = { version = "1.37.2", features = ["maths"] }
 rust_decimal_macros = "1.37.1"
 getset = "0.1"
 

@@ -8,7 +8,7 @@
 | `singlesketch` | Sketch a single sample | [link](#Running-singlesketch)
 | `fastgather` | Multithreaded `gather` of **one** metagenome against a database| [link](#Running-fastgather)
 | `fastmultigather` | Multithreaded `gather` of **multiple** metagenomes against a database | [link](#Running-fastmultigather)
-| `manysearch` | Multithreaded containment search for many queries in many large metagenomes | [link](#Running-manysearch)
+| `manysearch` | Multithreaded containment search for many query genomes in many large metagenomes | [link](#Running-manysearch)
 | `multisearch` | Multithreaded comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `pairwise` | Multithreaded pairwise comparison of multiple sketches, in memory | [link](#Running-multisearch-and-pairwise)
 | `cluster` | cluster sequences based on similarity data from `pairwise` or `multisearch` | [link](#Running-cluster)
@@ -33,7 +33,7 @@ polish and user experience.
 
 ## Input file formats
 
-sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them. Branchwater _also_ supports an additional database type, a RocksDB-based inverted index, that is not (yet) supported natively by sourmash (through v4.8.11).
+sourmash supports a variety of different storage formats for sketches (see [sourmash docs](https://sourmash.readthedocs.io/en/latest/command-line.html#choosing-signature-output-formats)), and the branchwater plugin works with some (but not all) of them.
 
 **We recommend using zip files or standalone manifest CSVs pointing to zip files whenever you need to provide multiple sketches.**
 
@@ -125,12 +125,12 @@ pathlists support neither.
 
 ### Using RocksDB inverted indexes
 
-The branchwater plugin also supports a database type that is not yet
-supported by sourmash: inverted indexes stored in a RocksDB
-database. These indexes provide fast and low-memory lookups when
-searching very large datasets, and are used for the branchwater
-petabase scale search hosted at
-[branchwater.sourmash.bio](https://branchwater.sourmash.bio).
+RocksDB indexes provide fast and low-memory lookups when searching
+very large datasets, and are used for the branchwater petabase scale
+search hosted at
+[branchwater.sourmash.bio](https://branchwater.sourmash.bio).  As of
+sourmash v4.9.0, RocksDB is fully supported by sourmash, as well.
+See [the RocksDB HOWTO](https://sourmash.readthedocs.io/en/latest/howto-rocksdb.html) for more details.
 
 Some commands - `fastmultigather` and `manysearch` - support using
 these RocksDB-based inverted indexes for efficient search, and they
@@ -150,8 +150,8 @@ find /path/to/directory/ -name "*.sig.gz" -type f > directory.txt
 When using a pathlist for search, we load all signatures into memory
 at the start in order to generate a manifest. To avoid memory issues,
 the signatures are not kept in memory, but instead re-loaded as
-described below for each command (see: Notes on concurrency and
-efficiency). This makes using pathlists less efficient than `zip`
+described below for each command (see: Notes on performance, concurrency and
+efficiency at the bottom). This makes using pathlists less efficient than `zip`
 files.
 
 ## Running the commands
@@ -229,7 +229,7 @@ The `name` column will not be used. Instead, each sketch will be named from the 
 
 #### Protein sketching: hp and dayhoff moltypes
 
-`manysketch` supports all sourmash moltypes: `protein`, `hp`, and `dayhoff`. See also [`sourmash` protein encoding documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) and [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
+`manysketch` supports all sourmash moltypes: `dna`, `skipm1n3`, `skipm2n3`, `protein`, `hp`, and `dayhoff`. See the `sourmash` [DNA](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#dna-encodings) and [protein](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#protein-encodings) encoding docs, as well as the [`sourmash` parameter documentation](https://sourmash.readthedocs.io/en/latest/sourmash-sketch.html#default-parameters) for more information about what these "moltypes" mean and their default parameters.
 
 `manysketch` does not translate DNA to protein, sorry. You'll need to do that ahead of time.
 
@@ -314,7 +314,7 @@ sourmash scripts fastgather query.sig.gz database.zip -o results.csv --cores 4
 
 ### Running `fastmultigather`
 
-`fastmultigather` takes a collection of query metagenomes and a collection of sketches as a database, and outputs a CSV file containing all the matches.
+`fastmultigather` takes a collection of query metagenomes and a collection of genome sketches as a database, and outputs a CSV file containing all the matches.
 ```
 sourmash scripts fastmultigather queries.manifest.csv database.zip --cores 4 --save-matches -o results.csv
 ```
@@ -352,8 +352,8 @@ further analysis.
 
 ### Running `manysearch`
 
-The `manysearch` command compares one or more collections of query
-sketches, and one or more collections of subject sketches. It is the
+The `manysearch` command searches for query
+sketches (genomes) in one or more collections of subject sketches (metagenomes). It is the
 core command we use for searching petabase-scale databases of
 metagenomes for contained genomes.
 
@@ -437,7 +437,9 @@ the similarity columns, with the following choices: `containment`,
 The `index` subcommand creates a RocksDB inverted index that can be
 used as an efficient database for `manysearch` (containment queries
 into mixtures) and `fastmultigather` (mixture decomposition against a
-database of genomes).
+database of genomes). RocksDB databases created by `index` in this
+plugin are fully compatible with RocksDB databases created by
+`sourmash index`, and vice versa.
 
 RocksDB inverted indexes support fast, low-latency, and low-memory
 queries, in exchange for a time-intensive indexing step and extra disk
@@ -511,6 +513,10 @@ sketches when running `index`.  Follow
 [sourmash_branchwater_plugin#415](https://github.com/sourmash-bio/sourmash_plugin_branchwater/issues/415)
 if better support for relative paths is of interest!
 
+RocksDB databases created by `sourmash index` always use internal storage,
+but RocksDB databases created with external storage using this plugin
+can still be used by sourmash.
+
 #### Links and more materials
 
 Note that RocksDB indexes are implemented in the core
@@ -534,16 +540,26 @@ to change quickly.
 
 We will also endeavor to avoid changing column names in CSV output, although, we may change the _order_ of column names on occasion. Please use the column headers (column names) to select specific columns.
 
-## Notes on concurrency and efficiency
+## Notes on performance, concurrency and efficiency
 
-Each command does things somewhat differently, with implications for
-CPU and disk load; moreover, the performance will vary depending on
-the database format. You can measure threading efficiency with
-`/usr/bin/time -v` on Linux systems, and disk load by number of
-complaints received when running.  Your best bet is to
+The branchwater plugin is focused on power use cases and supporting
+tradeoffs between disk I/O, memory, and CPU. That means things get
+complicated :).
+
+Each branchwater command does things somewhat differently, with
+implications for CPU and disk load; moreover, the performance will
+vary depending on the database format. You can measure threading
+efficiency with `/usr/bin/time -v` on Linux systems, and disk load by
+number of complaints received when running.  Your best bet is to
 [just ask the team for suggestions](https://github.com/dib-lab/sourmash/issues),
-but you can lightly skim the docs below and play with some small data
+but you should lightly skim the docs below and play with some small data
 sets, too!
+
+However, perhaps the single biggest boost to efficiency can come from
+choosing different (higher) scaled parameters: you can set the scaled
+parameter higher if you're only looking for large overlaps. For example,
+if you're looking for overlaps > 50kb, you can set scaled to 10000
+(`-s 10000`) and most commands should get at least 10x faster.
 
 ---
 
