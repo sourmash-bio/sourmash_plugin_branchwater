@@ -142,14 +142,14 @@ pub(crate) fn manysearch_rocksdb_obj(
                     let query_file = query_sig.filename().clone();
 
                     if let Ok(query_mh) = <SigStore as TryInto<KmerMinHash>>::try_into(query_sig) {
-                        let query_size = query_mh.size();
+                        let query_size = query_mh.size() as f64;
                         let counter = db.counter_for_query(&query_mh, None);
-                        let matches =
-                            db.matches_from_counter(counter, minimum_containment as usize);
+                        let min_num_hashes = (query_size * minimum_containment) as usize;
+                        let matches = db.matches_from_counter(counter, min_num_hashes);
 
                         // filter the matches for containment
                         for (path, overlap) in matches {
-                            let containment = overlap as f64 / query_size as f64;
+                            let containment = overlap as f64 / query_size;
                             if containment >= minimum_containment || output_all_comparisons {
                                 let query_containment_ani = Some(ani_from_containment(
                                     containment,
@@ -178,6 +178,8 @@ pub(crate) fn manysearch_rocksdb_obj(
                                     max_containment_ani: None,
                                     n_weighted_found: None,
                                     total_weighted_hashes: None,
+                                    containment_target_in_query: None,
+                                    f_weighted_target_in_query: None,
                                 });
                             }
                         }
