@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 #[macro_use]
 extern crate simple_error;
 
-mod utils;
+pub mod utils;
 use crate::utils::{build_selection, is_revindex_database, parse_picklist};
 mod check;
 mod cluster;
