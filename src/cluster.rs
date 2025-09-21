@@ -32,6 +32,8 @@ fn build_graph(
             "containment" => record.containment,
             "max_containment" => record.max_containment,
             "jaccard" => record.jaccard,
+            "cosine" => record.cosine.unwrap_or(0.0),
+            "average_containment" => record.average_containment,
             "average_containment_ani" => match record.average_containment_ani {
                 Some(value) => value,
                 None => {

@@ -61,6 +61,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert "query_containment_ani" not in row
             assert "match_containment_ani" not in row
             assert "average_containment_ani" not in row
@@ -73,6 +74,7 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
 
             intersect_hashes = int(row["intersect_hashes"])
 
@@ -82,12 +84,14 @@ def test_simple_no_ani(runtmp, zip_query, zip_db):
                 assert jaccard == 0.3207
                 assert cont == 0.4828
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
 
             if q == "NC_009661.1" and m == "NC_011665.1":
                 assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
 
 
@@ -130,6 +134,7 @@ def test_simple_no_ani_output_all(runtmp, zip_query, zip_db):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert "query_containment_ani" not in row
             assert "match_containment_ani" not in row
             assert "average_containment_ani" not in row
@@ -142,6 +147,7 @@ def test_simple_no_ani_output_all(runtmp, zip_query, zip_db):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
 
             intersect_hashes = int(row["intersect_hashes"])
 
@@ -151,17 +157,20 @@ def test_simple_no_ani_output_all(runtmp, zip_query, zip_db):
                 assert jaccard == 0.3207
                 assert cont == 0.4828
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
 
             elif q == "NC_009661.1" and m == "NC_011665.1":
                 assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
             else:
                 assert jaccard == 0
                 assert cont == 0
                 assert maxcont == 0
+                assert avgcont == 0
                 assert intersect_hashes == 0
 
 
@@ -209,6 +218,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db, indexed_query, indexed_a
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert "query_containment_ani" not in row
             assert "match_containment_ani" not in row
             assert "average_containment_ani" not in row
@@ -228,6 +238,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db, indexed_query, indexed_a
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
             prob_overlap = float_round(row["prob_overlap"], 7)
             prob_overlap_adjusted = float_round(row["prob_overlap_adjusted"], 7)
             containment_adjusted = float_round(row["containment_adjusted"], 4)
@@ -243,6 +254,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db, indexed_query, indexed_a
                 assert jaccard == 0.3207
                 assert cont == 0.4828
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
                 assert prob_overlap == 2.26e-05
                 assert prob_overlap_adjusted == 0.0002031
@@ -254,6 +266,7 @@ def test_simple_prob_overlap(runtmp, zip_query, zip_db, indexed_query, indexed_a
                 assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
                 assert prob_overlap == 2.26e-05
                 assert prob_overlap_adjusted == 0.0002031
@@ -307,6 +320,7 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert float(row["query_containment_ani"] == 1.0)
             assert float(row["match_containment_ani"] == 1.0)
             assert float(row["average_containment_ani"] == 1.0)
@@ -319,6 +333,7 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
             q1_ani = float_round(row["query_containment_ani"], 4)
             q2_ani = float_round(row["match_containment_ani"], 4)
@@ -341,6 +356,7 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
                 assert jaccard == 0.3207
                 assert cont == 0.4828
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
                 assert q1_ani == 0.9768
                 assert q2_ani == 0.9772
@@ -351,6 +367,7 @@ def test_simple_ani(runtmp, zip_query, zip_db, indexed_query, indexed_against):
                 assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
                 assert q1_ani == 0.9772
                 assert q2_ani == 0.9768
@@ -390,6 +407,7 @@ def test_simple_ani_list_of_zips(runtmp):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert float(row["query_containment_ani"] == 1.0)
             assert float(row["match_containment_ani"] == 1.0)
             assert float(row["average_containment_ani"] == 1.0)
@@ -402,6 +420,7 @@ def test_simple_ani_list_of_zips(runtmp):
             cont = float(row["containment"])
             jaccard = float(row["jaccard"])
             maxcont = float(row["max_containment"])
+            avgcont = float(row["average_containment"])
             intersect_hashes = int(row["intersect_hashes"])
             q1_ani = float(row["query_containment_ani"])
             q2_ani = float(row["match_containment_ani"])
@@ -411,6 +430,7 @@ def test_simple_ani_list_of_zips(runtmp):
             jaccard = round(jaccard, 4)
             cont = round(cont, 4)
             maxcont = round(maxcont, 4)
+            avgcont = round(avgcont, 4)
             q1_ani = round(q1_ani, 4)
             q2_ani = round(q2_ani, 4)
             avg_ani = round(avg_ani, 4)
@@ -431,6 +451,7 @@ def test_simple_ani_list_of_zips(runtmp):
                 assert jaccard == 0.3207
                 assert cont == 0.4828
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
                 assert q1_ani == 0.9768
                 assert q2_ani == 0.9772
@@ -441,6 +462,7 @@ def test_simple_ani_list_of_zips(runtmp):
                 assert jaccard == 0.3207
                 assert cont == 0.4885
                 assert maxcont == 0.4885
+                assert avgcont == 0.4857
                 assert intersect_hashes == 2529
                 assert q1_ani == 0.9772
                 assert q2_ani == 0.9768
@@ -526,6 +548,7 @@ def test_simple_ani_standalone_manifest(runtmp):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert float(row["query_containment_ani"] == 1.0)
             assert float(row["match_containment_ani"] == 1.0)
             assert float(row["average_containment_ani"] == 1.0)
@@ -1030,6 +1053,7 @@ def test_simple_prot(runtmp):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert float(row["query_containment_ani"] == 1.0)
             assert float(row["match_containment_ani"] == 1.0)
             assert float(row["average_containment_ani"] == 1.0)
@@ -1042,6 +1066,7 @@ def test_simple_prot(runtmp):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
             q1_ani = float_round(row["query_containment_ani"], 4)
             q2_ani = float_round(row["match_containment_ani"], 4)
@@ -1065,6 +1090,7 @@ def test_simple_prot(runtmp):
                 assert jaccard == 0.0434
                 assert cont == 0.1003
                 assert maxcont == 0.1003
+                assert avgcont == 0.0857
                 assert intersect_hashes == 342
                 assert q1_ani == 0.886
                 assert q2_ani == 0.8702
@@ -1075,6 +1101,7 @@ def test_simple_prot(runtmp):
                 assert jaccard == 0.0434
                 assert cont == 0.0712
                 assert maxcont == 0.1003
+                assert avgcont == 0.0857
                 assert intersect_hashes == 342
                 assert q1_ani == 0.8702
                 assert q2_ani == 0.886
@@ -1118,6 +1145,7 @@ def test_prob_overlap_prot_with_abundance(runtmp):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
 
         else:
             # confirm hand-checked numbers
@@ -1126,6 +1154,7 @@ def test_prob_overlap_prot_with_abundance(runtmp):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
             prob_overlap = float_round(row["prob_overlap"], 8)
             prob_overlap_adjusted = float_round(row["prob_overlap_adjusted"], 8)
@@ -1245,6 +1274,7 @@ def test_simple_dayhoff(runtmp):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert float(row["query_containment_ani"] == 1.0)
             assert float(row["match_containment_ani"] == 1.0)
             assert float(row["average_containment_ani"] == 1.0)
@@ -1257,6 +1287,7 @@ def test_simple_dayhoff(runtmp):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
             q1_ani = float_round(row["query_containment_ani"], 4)
             q2_ani = float_round(row["match_containment_ani"], 4)
@@ -1280,6 +1311,7 @@ def test_simple_dayhoff(runtmp):
                 assert jaccard == 0.1326
                 assert cont == 0.2815
                 assert maxcont == 0.2815
+                assert avgcont == 0.2409
                 assert intersect_hashes == 930
                 assert q1_ani == 0.9355
                 assert q2_ani == 0.9189
@@ -1290,6 +1322,7 @@ def test_simple_dayhoff(runtmp):
                 assert jaccard == 0.1326
                 assert cont == 0.2004
                 assert maxcont == 0.2815
+                assert avgcont == 0.2409
                 assert intersect_hashes == 930
                 assert q1_ani == 0.9189
                 assert q2_ani == 0.9355
@@ -1333,6 +1366,7 @@ def test_simple_hp(runtmp):
             assert float(row["containment"] == 1.0)
             assert float(row["jaccard"] == 1.0)
             assert float(row["max_containment"] == 1.0)
+            assert float(row["average_containment"] == 1.0)
             assert float(row["query_containment_ani"] == 1.0)
             assert float(row["match_containment_ani"] == 1.0)
             assert float(row["average_containment_ani"] == 1.0)
@@ -1345,6 +1379,7 @@ def test_simple_hp(runtmp):
             cont = float_round(row["containment"], 4)
             jaccard = float_round(row["jaccard"], 4)
             maxcont = float_round(row["max_containment"], 4)
+            avgcont = float_round(row["average_containment"], 4)
             intersect_hashes = int(row["intersect_hashes"])
             q1_ani = float_round(row["query_containment_ani"], 4)
             q2_ani = float_round(row["match_containment_ani"], 4)
@@ -1368,6 +1403,7 @@ def test_simple_hp(runtmp):
                 assert jaccard == 0.4983
                 assert cont == 0.747
                 assert maxcont == 0.747
+                assert avgcont == 0.6732
                 assert intersect_hashes == 1724
                 assert q1_ani == 0.9848
                 assert q2_ani == 0.9734
@@ -1378,6 +1414,7 @@ def test_simple_hp(runtmp):
                 assert jaccard == 0.4983
                 assert cont == 0.5994
                 assert maxcont == 0.747
+                assert avgcont == 0.6732
                 assert intersect_hashes == 1724
                 assert q1_ani == 0.9734
                 assert q2_ani == 0.9848
@@ -1423,6 +1460,7 @@ def test_simple_below_threshold(runtmp):
             assert float(row["containment"]) == 1.0
             assert float(row["jaccard"]) == 1.0
             assert float(row["max_containment"]) == 1.0
+            assert float(row["average_containment"]) == 1.0
             assert float(row["query_containment_ani"]) == 1.0
             assert float(row["match_containment_ani"]) == 1.0
             assert float(row["average_containment_ani"]) == 1.0
@@ -1549,3 +1587,25 @@ def test_simple_scaled_heterogeneous_a(runtmp, zip_query, zip_db):
     assert (
         len(df) == 3
     )  # CTB: this feels slightly odd - it's dropping the 10k sketch in against
+
+
+def test_multisearch_abund(runtmp):
+    # test with --calc-abund
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sigs = get_test_data("metag-sigs.sig.zip")
+
+    runtmp.sourmash(
+        "scripts", "multisearch", sigs, sigs, "--calc-abund", "-o", "out.csv"
+    )
+
+    output = runtmp.output("out.csv")
+    assert os.path.exists(output)
+    df = pandas.read_csv(output)
+    assert len(df) == 4
+
+    vals = [round(x, 4) for x in list(df["cosine"])]
+    vals.sort()
+    print(vals)
+    assert vals == [0.0466, 0.0466, 1.0, 1.0]
