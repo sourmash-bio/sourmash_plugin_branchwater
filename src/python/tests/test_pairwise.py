@@ -827,3 +827,22 @@ def test_simple_scaled_heterogenous(runtmp):
     df = pandas.read_csv(output)
     assert len(df) == 1
     assert set(list(df["scaled"])) == {15_000}
+
+
+def test_pairwise_abund(runtmp):
+    # test with --calc-abund
+    query_list = runtmp.output("query.txt")
+    against_list = runtmp.output("against.txt")
+
+    sigs = get_test_data("metag-sigs.sig.zip")
+
+    runtmp.sourmash("scripts", "pairwise", sigs, "--calc-abund",
+                    "-o", "out.csv")
+
+    output = runtmp.output("out.csv")
+    assert os.path.exists(output)
+    df = pandas.read_csv(output)
+    assert len(df) == 1
+
+    val = list(df["cosine"])[0]
+    assert round(val, 2) == round(0.04657041646857960, 2)
