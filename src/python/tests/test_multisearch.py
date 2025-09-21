@@ -1589,8 +1589,6 @@ def test_simple_scaled_heterogeneous_a(runtmp, zip_query, zip_db):
     )  # CTB: this feels slightly odd - it's dropping the 10k sketch in against
 
 
-
-
 def test_multisearch_abund(runtmp):
     # test with --calc-abund
     query_list = runtmp.output("query.txt")
@@ -1598,15 +1596,16 @@ def test_multisearch_abund(runtmp):
 
     sigs = get_test_data("metag-sigs.sig.zip")
 
-    runtmp.sourmash("scripts", "multisearch", sigs, sigs, "--calc-abund",
-                    "-o", "out.csv")
+    runtmp.sourmash(
+        "scripts", "multisearch", sigs, sigs, "--calc-abund", "-o", "out.csv"
+    )
 
     output = runtmp.output("out.csv")
     assert os.path.exists(output)
     df = pandas.read_csv(output)
     assert len(df) == 4
 
-    vals = [ round(x, 4) for x in list(df["cosine"]) ]
+    vals = [round(x, 4) for x in list(df["cosine"])]
     vals.sort()
     print(vals)
     assert vals == [0.0466, 0.0466, 1.0, 1.0]

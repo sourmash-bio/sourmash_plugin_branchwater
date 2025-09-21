@@ -836,8 +836,7 @@ def test_pairwise_abund(runtmp):
 
     sigs = get_test_data("metag-sigs.sig.zip")
 
-    runtmp.sourmash("scripts", "pairwise", sigs, "--calc-abund",
-                    "-o", "out.csv")
+    runtmp.sourmash("scripts", "pairwise", sigs, "--calc-abund", "-o", "out.csv")
 
     output = runtmp.output("out.csv")
     assert os.path.exists(output)
