@@ -844,3 +844,75 @@ class Branchwater_Cluster(CommandLinePlugin):
             notify(f"...clustering is done! results in '{args.output}'")
             notify(f"                       cluster counts in '{args.cluster_sizes}'")
         return status
+
+
+class Branchwater_SigCat(CommandLinePlugin):
+    command = "sigcat"
+    description = "concatenate signatures into a single sourmash zip file"
+
+    def __init__(self, p):
+        super().__init__(p)
+        p.add_argument("signatures", nargs="+", help="sourmash signature files")
+        p.add_argument(
+            "-o", "--output", required=True, help="output zip file for final signatures"
+        )
+        p.add_argument(
+            "-k",
+            "--ksize",
+            type=int,
+            help="k-mer size at which to select sketches; no default",
+        )
+        p.add_argument(
+            "-s",
+            "--scaled",
+            type=int,
+            help="scaled factor at which to do comparisons; no default",
+        )
+        p.add_argument(
+            "-m",
+            "--moltype",
+            choices=["DNA", "protein", "dayhoff", "hp"],
+            help="molecule type (DNA, protein, dayhoff, or hp; no default)",
+        )
+        p.add_argument("-v", "--verbose", action="store_true", help="verbose output")
+        p.add_argument(
+            "--picklist", type=str, help="picklist information (file:colname:ident)"
+        )
+        # add mutuall exclusive arguments for include and exclude
+        # group = p.add_mutually_exclusive_group()
+        # group.add_argument(
+        #     "--include",
+        #     action="store_true",
+        #     default=True,
+        #     help="include only these signatures in the final output",
+        # )
+        # group.add_argument(
+        #     "--exclude",
+        #     action="store_false",
+        #     dest="include",
+        #     help="exclude signatures from the final output",
+        # )
+        # p.add_argument('-f', '--force', action='store_true',
+        #                help='force: allow input sig files to contain no signatures or only incompatible signatures')
+
+    def main(self, args):
+        print_version()
+
+        notify(f"concatenating signatures in '{args.signatures}'")
+        if args.moltype:
+            args.moltype = args.moltype.lower()
+
+        super().main(args)
+        status = sourmash_plugin_branchwater.do_sigcat(
+            args.signatures,
+            args.output,
+            args.verbose,
+            True,  # args.include,
+            args.ksize,
+            args.scaled,
+            args.moltype,
+            args.picklist,
+        )
+        if status == 0:
+            notify(f"...cat is done! results in '{args.output}'")
+        return status
