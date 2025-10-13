@@ -29,7 +29,7 @@ glob = "0.3.3"
 rustworkx-core = "0.16.0"
 streaming-stats = "0.2.3"
 rust_decimal = { version = "1.38.0", features = ["maths"] }
-rust_decimal_macros = "1.38.0"
+rust_decimal_macros = "1.39.0"
 getset = "0.1"
 
 [dev-dependencies]
