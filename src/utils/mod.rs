@@ -2,7 +2,7 @@
 use rayon::prelude::*;
 
 use sourmash::encodings::HashFunctions;
-use sourmash::selection::Select;
+use sourmash::selection::{PickStyle, Picklist, Select, Selection};
 use sourmash::ScaledType;
 
 use anyhow::{anyhow, Result};
@@ -16,7 +16,6 @@ use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fs::{create_dir_all, metadata, File};
 use std::io::{BufWriter, Write};
-use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc::{Receiver, SyncSender};
@@ -25,7 +24,6 @@ use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
-use sourmash::selection::Selection;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
 use stats::{median, stddev};
@@ -954,32 +952,49 @@ pub fn consume_query_by_gather(
     Ok(())
 }
 
-pub fn build_selection(ksize: u8, scaled: Option<u32>, moltype: &str) -> Selection {
-    let hash_function = match moltype {
-        "DNA" => HashFunctions::Murmur64Dna,
-        "protein" => HashFunctions::Murmur64Protein,
-        "dayhoff" => HashFunctions::Murmur64Dayhoff,
-        "hp" => HashFunctions::Murmur64Hp,
-        "skipm1n3" => HashFunctions::Murmur64Skipm1n3,
-        "skipm2n3" => HashFunctions::Murmur64Skipm2n3,
-        _ => panic!("Unknown molecule type: {}", moltype),
-    };
-    // let hash_function = HashFunctions::try_from(moltype)
-    //     .map_err(|_| panic!("Unknown molecule type: {}", moltype))
-    //     .unwrap();
-
-    if let Some(scaled) = scaled {
-        Selection::builder()
-            .ksize(ksize.into())
-            .scaled(scaled)
-            .moltype(hash_function)
-            .build()
-    } else {
-        Selection::builder()
-            .ksize(ksize.into())
-            .moltype(hash_function)
-            .build()
+pub fn parse_picklist(picklist_str: &str, include: bool) -> Result<Picklist> {
+    let parts: Vec<&str> = picklist_str.split(':').collect();
+    if parts.len() != 3 {
+        anyhow::bail!("Picklist must be in format 'file.csv:colname:ident'");
     }
+
+    Ok(Picklist::builder()
+        .pickfile(parts[0].to_string())
+        .column_name(parts[1].to_string())
+        .coltype(parts[2].to_string())
+        .pickstyle(if include {
+            PickStyle::Include
+        } else {
+            PickStyle::Exclude
+        })
+        .build())
+}
+
+pub fn build_selection(
+    ksize: Option<u8>,
+    scaled: Option<u32>,
+    moltype: Option<String>,
+    picklist: Option<Picklist>,
+) -> Result<Selection> {
+    let mut selection = Selection::default();
+
+    if let Some(k) = ksize {
+        selection.set_ksize(k.into());
+    }
+
+    if let Some(s) = scaled {
+        selection.set_scaled(s);
+    }
+
+    if let Some(m) = moltype {
+        selection.set_moltype(HashFunctions::try_from(m.as_str())?);
+    }
+
+    if let Some(p) = picklist {
+        selection.set_picklist(p);
+    }
+
+    Ok(selection)
 }
 
 pub fn is_revindex_database(path: &camino::Utf8PathBuf) -> bool {
@@ -1196,7 +1211,8 @@ pub fn zipwriter_handle(
     std::thread::spawn(move || -> Result<()> {
         // Convert output to PathBuf
         let outpath: PathBuf = output.into();
-        let file_writer = open_output_file(&outpath);
+        let incomplete_path = outpath.with_extension("zip.incomplete");
+        let file_writer = open_output_file(&incomplete_path);
 
         let options = FileOptions::default()
             .compression_method(CompressionMethod::Stored)
@@ -1206,6 +1222,9 @@ pub fn zipwriter_handle(
         let mut zip = ZipWriter::new(file_writer);
         let mut md5sum_occurrences: HashMap<String, usize> = HashMap::new();
         let mut zip_manifest = BuildManifest::new();
+
+        // did we write any sigs?
+        let mut wrote_any_sigs = false;
 
         // Process each incoming Option<BuildCollection>
         while let Ok(message) = recv.recv() {
@@ -1219,6 +1238,7 @@ pub fn zipwriter_handle(
                     ) {
                         Ok(_) => {
                             zip_manifest.extend_from_manifest(&build_collection.manifest);
+                            wrote_any_sigs = true;
                         }
                         Err(e) => {
                             let error = e.context("Error processing signature in BuildCollection");
@@ -1229,9 +1249,20 @@ pub fn zipwriter_handle(
                 }
                 None => {
                     // Finalize and write the manifest when None is received
-                    println!("Writing manifest");
-                    zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
-                    zip.finish()?;
+                    if wrote_any_sigs {
+                        // If we have written any signatures, finalize the zip file
+                        println!("Writing manifest");
+                        zip_manifest.write_manifest_to_zip(&mut zip, &options)?;
+                        zip.finish()?;
+                        // Rename .incomplete to final output
+                        std::fs::rename(&incomplete_path, &outpath)?;
+                    } else {
+                        // If no signatures were written, remove the empty zip file
+                        eprintln!("No signatures written — skipping zip output.");
+                        // Optional: delete incomplete file if created
+                        drop(zip);
+                        std::fs::remove_file(&incomplete_path).ok(); // ignore error
+                    }
                     break;
                 }
             }
