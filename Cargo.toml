@@ -21,7 +21,7 @@ env_logger = { version = "0.11.8" }
 simple-error = "0.3.2"
 anyhow = "1.0.101"
 zip = { version = "4.2.0", default-features = false }
-tempfile = "3.24"
+tempfile = "3.25"
 needletail = "0.6.3"
 csv = "1.4.0"
 camino = "1.2.2"
@@ -36,7 +36,7 @@ getset = "0.1"
 assert_cmd = "2.1.2"
 assert_matches = "1.5.0"
 predicates = "3.1.4"
-tempfile = "3.24.0"
+tempfile = "3.25.0"
 
 [profile.release]
 #target-cpu=native
