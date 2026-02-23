@@ -19,7 +19,7 @@ niffler = "3.0.0"
 log = "0.4.29"
 env_logger = { version = "0.11.9" }
 simple-error = "0.3.2"
-anyhow = "1.0.101"
+anyhow = "1.0.102"
 zip = { version = "4.2.0", default-features = false }
 tempfile = "3.25"
 needletail = "0.6.3"
