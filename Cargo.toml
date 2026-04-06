@@ -22,7 +22,7 @@ simple-error = "0.3.2"
 anyhow = "1.0.102"
 zip = { version = "4.2.0", default-features = false }
 tempfile = "3.27"
-needletail = "0.6.3"
+needletail = "0.7.2"
 csv = "1.4.0"
 camino = "1.2.2"
 glob = "0.3.3"
