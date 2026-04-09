@@ -44,7 +44,7 @@ jobs:
 
     - name: install dependencies
       shell: bash -l {0}
-      run: mamba install rust==1.75.0
+      run: mamba install rust==1.85.0
 
     - name: install dependencies 2
       shell: bash -l {0}
