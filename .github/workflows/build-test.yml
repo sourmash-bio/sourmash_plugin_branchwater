@@ -1,6 +1,7 @@
 name: "maturin build"
 on:
   pull_request:
+  merge_group:
   push:
     branches: [latest]
 jobs:
