@@ -10,8 +10,8 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, ManySearchResult, MultiCollection, ReportType,
-    SmallSignature,
+    ManySearchResult, MultiCollection, ReportType, SmallSignature, csvwriter_thread,
+    load_collection,
 };
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::errors::SourmashError;

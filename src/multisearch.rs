@@ -10,11 +10,11 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::search_significance::{
-    compute_inverse_document_frequency, get_hash_frequencies, get_prob_overlap,
-    get_term_frequency_inverse_document_frequency, merge_all_minhashes, Normalization,
+    Normalization, compute_inverse_document_frequency, get_hash_frequencies, get_prob_overlap,
+    get_term_frequency_inverse_document_frequency, merge_all_minhashes,
 };
 use crate::utils::multicollection::SmallSignature;
-use crate::utils::{csvwriter_thread, load_collection, MultiSearchResult, ReportType};
+use crate::utils::{MultiSearchResult, ReportType, csvwriter_thread, load_collection};
 use sourmash::ani_utils::ani_from_containment;
 
 type OverlapStatsReturn = (

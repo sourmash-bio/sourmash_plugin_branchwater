@@ -18,12 +18,12 @@ use std::fs::File;
 use log::trace;
 
 use sourmash::signature::Signature;
-use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::sketch::Sketch;
+use sourmash::sketch::minhash::KmerMinHash;
 
 use crate::utils::{
-    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
     BranchwaterGatherResult, MultiCollection, PrefetchResult, ReportType, SmallSignature,
+    consume_query_by_gather, csvwriter_thread, load_collection, write_prefetch,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -65,11 +65,7 @@ pub fn fastmultigather(
 
     let threshold_hashes: u64 = {
         let x = threshold_bp as u64 / common_scaled as u64;
-        if x > 0 {
-            x as u64
-        } else {
-            1
-        }
+        if x > 0 { x as u64 } else { 1 }
     };
 
     println!("threshold overlap: {} {}", threshold_hashes, threshold_bp);

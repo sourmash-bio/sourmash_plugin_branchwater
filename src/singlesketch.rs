@@ -1,5 +1,5 @@
 use crate::utils::buildutils::BuildCollection;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 pub fn singlesketch(
     input_filenames: Vec<String>,

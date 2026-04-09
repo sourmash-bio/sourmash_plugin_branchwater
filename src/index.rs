@@ -1,12 +1,12 @@
 use anyhow::Result;
 
-use sourmash::index::revindex::disk_revindex;
 use sourmash::index::revindex::RevIndexOps;
+use sourmash::index::revindex::disk_revindex;
 use sourmash::prelude::*;
 use std::path::Path;
 
 use crate::utils::MultiCollection;
-use crate::utils::{load_collection, ReportType};
+use crate::utils::{ReportType, load_collection};
 use sourmash::collection::{Collection, CollectionSet};
 
 pub fn index<P: AsRef<Path>>(

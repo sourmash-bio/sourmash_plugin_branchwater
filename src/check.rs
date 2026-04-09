@@ -15,7 +15,7 @@ pub fn check(index: camino::Utf8PathBuf, quick: bool, rw: bool) -> Result<()> {
             return Err(anyhow::anyhow!(
                 "cannot open RocksDB database. Error is: {}",
                 e
-            ))
+            ));
         }
     };
 

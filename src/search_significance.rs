@@ -3,9 +3,9 @@
 use rayon::prelude::*;
 
 use crate::utils::multicollection::SmallSignature;
+use sourmash::Error;
 use sourmash::signature::SigsTrait;
 use sourmash::sketch::minhash::KmerMinHash;
-use sourmash::Error;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display, Formatter};
 

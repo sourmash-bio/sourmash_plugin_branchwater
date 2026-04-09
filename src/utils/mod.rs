@@ -1,11 +1,11 @@
 //! Utility functions for `sourmash_plugin_branchwater`.
 use rayon::prelude::*;
 
+use sourmash::ScaledType;
 use sourmash::encodings::HashFunctions;
 use sourmash::selection::Select;
-use sourmash::ScaledType;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf as PathBuf;
 use csv::Writer;
@@ -14,15 +14,15 @@ use serde::{Deserialize, Serialize};
 // use rust_decimal::{MathematicalOps, Decimal};
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
-use std::fs::{create_dir_all, metadata, File};
+use std::fs::{File, create_dir_all, metadata};
 use std::io::{BufWriter, Write};
 use std::panic;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread::JoinHandle;
-use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
+use zip::write::{FileOptions, ZipWriter};
 
 use sourmash::ani_utils::{ani_ci_from_containment, ani_from_containment};
 use sourmash::selection::Selection;

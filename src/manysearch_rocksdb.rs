@@ -13,8 +13,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, ManySearchResult, MultiCollection,
-    ReportType,
+    ManySearchResult, MultiCollection, ReportType, csvwriter_thread, is_revindex_database,
+    load_collection,
 };
 
 pub fn manysearch_rocksdb(
@@ -37,7 +37,7 @@ pub fn manysearch_rocksdb(
             return Err(anyhow::anyhow!(
                 "cannot open RocksDB database. Error is: {}",
                 e
-            ))
+            ));
         }
     };
 

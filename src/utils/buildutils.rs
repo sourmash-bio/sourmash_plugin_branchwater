@@ -1,6 +1,6 @@
 //! sketching utilities
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use camino::Utf8PathBuf;
 use getset::{Getters, Setters};
 use needletail::parser::SequenceRecord;
@@ -22,8 +22,8 @@ use std::io::{Cursor, Seek, Write};
 use std::num::ParseIntError;
 use std::ops::Index;
 use std::str::FromStr;
-use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
+use zip::write::{FileOptions, ZipWriter};
 
 #[derive(Default, Debug, Clone)]
 pub struct MultiSelection {
