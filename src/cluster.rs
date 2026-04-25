@@ -39,7 +39,7 @@ fn build_graph(
                 None => {
                     return Err(anyhow::anyhow!(
                         "average_containment_ani is None. Did you estimate ANI?"
-                    ))
+                    ));
                 }
             },
             "max_containment_ani" => match record.max_containment_ani {
@@ -47,14 +47,14 @@ fn build_graph(
                 None => {
                     return Err(anyhow::anyhow!(
                         "max_containment_ani is None. Did you estimate ANI?"
-                    ))
+                    ));
                 }
             },
             _ => {
                 return Err(anyhow::anyhow!(
                     "Invalid similarity measure: {}",
                     similarity_measure
-                ))
+                ));
             } // should not happen
         };
 

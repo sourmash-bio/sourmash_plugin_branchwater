@@ -3,7 +3,7 @@
 use rayon::prelude::*;
 use sourmash::prelude::*;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use camino::Utf8Path as Path;
 use camino::Utf8PathBuf;
 use log::{debug, trace};
@@ -13,6 +13,7 @@ use std::io::{BufRead, BufReader};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use sourmash::ScaledType;
 use sourmash::collection::Collection;
 use sourmash::encodings::Idx;
 use sourmash::errors::SourmashError;
@@ -21,7 +22,6 @@ use sourmash::selection::{Select, Selection};
 use sourmash::signature::Signature;
 use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::{FSStorage, InnerStorage, SigStore};
-use sourmash::ScaledType;
 
 /// A collection of sketches, potentially stored in multiple files.
 #[derive(Clone)]

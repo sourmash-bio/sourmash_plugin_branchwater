@@ -12,8 +12,8 @@ use sourmash::sketch::minhash::KmerMinHash;
 use sourmash::storage::SigStore;
 
 use crate::utils::{
-    csvwriter_thread, is_revindex_database, load_collection, BranchwaterGatherResult,
-    MultiCollection, ReportType,
+    BranchwaterGatherResult, MultiCollection, ReportType, csvwriter_thread, is_revindex_database,
+    load_collection,
 };
 
 pub fn fastmultigather_rocksdb(
@@ -34,7 +34,7 @@ pub fn fastmultigather_rocksdb(
             return Err(anyhow::anyhow!(
                 "cannot open RocksDB database. Error is: {}",
                 e
-            ))
+            ));
         }
     };
     println!("Loaded DB");

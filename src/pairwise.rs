@@ -5,7 +5,7 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 use crate::utils::{
-    csvwriter_thread, load_collection, MultiSearchResult, ReportType, SmallSignature,
+    MultiSearchResult, ReportType, SmallSignature, csvwriter_thread, load_collection,
 };
 use sourmash::ani_utils::ani_from_containment;
 use sourmash::selection::Selection;

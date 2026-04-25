@@ -1,5 +1,5 @@
 /// manysketch: massively parallel sketching of sequence files.
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use rayon::prelude::*;
 
 use camino::Utf8Path as Path;
@@ -150,11 +150,7 @@ pub fn manysketch(
                 }
             }
             // if singleton sketches, they have already been written; only send aggregated sketches to be written
-            if singleton {
-                None
-            } else {
-                Some(sigs)
-            }
+            if singleton { None } else { Some(sigs) }
         })
         .try_for_each_with(
             send.clone(),
